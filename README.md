@@ -18,7 +18,9 @@ Requires **Node 22+** (see `.nvmrc`).
 ```sh
 npm install
 npm run dev           # start local dev server
-npm run check         # lint + typecheck
+npm run check         # lint + typecheck + unit/component tests
+npm run test          # Vitest single run
+npm run test:watch    # Vitest watch mode
 npm run format        # write formatting
 npm run build         # type-check + production build
 npm run preview       # preview the production build

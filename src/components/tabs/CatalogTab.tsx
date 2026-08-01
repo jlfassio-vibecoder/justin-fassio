@@ -3,6 +3,8 @@ import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { CATALOG_DATA } from '@/data/catalog';
+import { filterCatalogItems, type CatalogFlagFilter } from '@/lib/catalogFilters';
+import { landedCad, marginPct } from '@/lib/landedCost';
 
 const CATEGORY_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Categories' },
@@ -15,8 +17,6 @@ const CATEGORY_OPTIONS: { value: string; label: string }[] = [
   { value: 'Displays & POP', label: 'Displays & POP' },
   { value: 'Magnets & Stickers', label: 'Magnets & Stickers' },
 ];
-
-type FlagFilter = 'ALL' | 'NEW' | 'NAMEDROP';
 
 interface CatalogTabProps {
   fx: number;
@@ -35,30 +35,20 @@ export function CatalogTab({
 }: CatalogTabProps) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('ALL');
-  const [flag, setFlag] = useState<FlagFilter>('ALL');
+  const [flag, setFlag] = useState<CatalogFlagFilter>('ALL');
 
   const filteredCatalog = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return CATALOG_DATA.filter((item) => {
-      if (category !== 'ALL' && item.cat !== category) return false;
-      if (flag === 'NEW' && !item.isNew) return false;
-      if (flag === 'NAMEDROP' && !item.isNameDrop) return false;
-      if (q) {
-        const hay = `${item.sku} ${item.name} ${item.tagline} ${item.color}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    }).map((item) => {
-      const landed = item.priceUsd * fx * freight;
-      const sellable = item.msrpCad > 0;
-      const margin = sellable ? ((item.msrpCad - landed) / item.msrpCad) * 100 : null;
+    return filterCatalogItems(CATALOG_DATA, { search, category, flag }).map((item) => {
+      const landed = landedCad(item.priceUsd, fx, freight);
+      const margin = marginPct(item.priceUsd, item.msrpCad, fx, freight);
+      const sellable = margin != null;
       return {
         ...item,
         landed,
         priceDisplay: `$${item.priceUsd.toFixed(2)}`,
         landedDisplay: `$${landed.toFixed(2)}`,
         msrpDisplay: sellable ? `$${item.msrpCad.toFixed(2)}` : 'Not for resale',
-        marginDisplay: sellable ? `${margin!.toFixed(1)}%` : '—',
+        marginDisplay: sellable ? `${margin.toFixed(1)}%` : '—',
       };
     });
   }, [search, category, flag, fx, freight]);
@@ -71,7 +61,7 @@ export function CatalogTab({
     [],
   );
   const sampleTeeLanded = sampleTee
-    ? `$${(sampleTee.priceUsd * fx * freight).toFixed(2)} CAD`
+    ? `$${landedCad(sampleTee.priceUsd, fx, freight).toFixed(2)} CAD`
     : '—';
 
   const freightPctDisplay = `${((freight - 1) * 100).toFixed(0)}%`;
@@ -158,7 +148,7 @@ export function CatalogTab({
         <Select
           className="w-auto"
           value={flag}
-          onChange={(e) => setFlag(e.target.value as FlagFilter)}
+          onChange={(e) => setFlag(e.target.value as CatalogFlagFilter)}
         >
           <option value="ALL">All Flags</option>
           <option value="NEW">NEW 2026</option>
