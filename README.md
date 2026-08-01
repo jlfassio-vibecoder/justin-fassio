@@ -23,7 +23,7 @@ Dependabot already ignores `typescript` major updates (Phase 0).
 
 ## Getting started
 
-Requires **Node ≥ 22.12** (see `.nvmrc`).
+Requires **Node ≥ 22.22.3** (see `.nvmrc`).
 
 ```sh
 npm install

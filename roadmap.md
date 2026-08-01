@@ -17,7 +17,7 @@ Related packages already on majors that matter for planning:
 - `@astrojs/react` `^6.0.2` (supports React 17–19)
 - `@astrojs/tailwind` **removed** (Phase 4) — Tailwind via `@tailwindcss/vite`
 - `@astrojs/check` `^0.9.10` (peer TypeScript `^5 \|\| ^6` — **not** 7 yet)
-- Node `>=22.12.0` (`.nvmrc` `22.12.0`)
+- Node `>=22.22.3` (`.nvmrc` `22.22.3`)
 
 ## Why the five PRs failed
 
@@ -118,7 +118,7 @@ Note (verified 2026-08-01): `@astrojs/check@0.9.10` allows `typescript@^5 \|\| ^
 
 **Goal:** Land on **Astro 6** with official upgrade tooling — not Astro 7 in one leap.
 
-Astro 6 brings Vite 7, Node 22.12+, and integration majors. (`@astrojs/upgrade` currently offers Astro 7; this phase pinned `astro@^6.4.8` manually.)
+Astro 6 brings Vite 7, Node 22.22.3+, and integration majors. (`@astrojs/upgrade` currently offers Astro 7; this phase pinned `astro@^6.4.8` manually.)
 
 **Coupling:** Bundled Phase 4 in the same PR (Tailwind 4 + `@tailwindcss/vite`) so we never ship unsupported `@astrojs/tailwind` on Astro 6.
 
