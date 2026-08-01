@@ -2,13 +2,13 @@
 
 A rep-tools web app for Justin Fassio, an independent multi-line sales rep in British Columbia: a wholesale line sheet with a live landed-cost calculator, a PMF-scoring call/pipeline CRM, a BC retailer prospect directory, and buyer-objection reference material.
 
-Built with **Astro + React + TypeScript + Tailwind CSS**, recreating the `design/` handoff package's **Organic** design system (colors, type, spacing, radii) via Tailwind config tokens.
+Built with **Astro + React + TypeScript + Tailwind CSS**, recreating the `design/` handoff package's **Organic** design system (colors, type, spacing, radii) via Tailwind `@theme` tokens in `src/styles/global.css`.
 
 ## Stack
 
-- [Astro](https://astro.build/) — static site framework, React island for the interactive app shell
+- [Astro 6](https://astro.build/) — static site framework, React island for the interactive app shell
 - [React 19](https://react.dev/) + TypeScript — the `RepCommandCenter` app and its tabs
-- [Tailwind CSS](https://tailwindcss.com/) — utility classes mapped to Organic design tokens in `tailwind.config.ts`
+- [Tailwind CSS 4](https://tailwindcss.com/) — utility classes mapped to Organic design tokens via `@tailwindcss/vite` + CSS `@theme`
 - [lucide-react](https://lucide.dev/) — icons, stroke-width 2.75 to match the design reference
 
 ### TypeScript policy
@@ -23,7 +23,7 @@ Dependabot already ignores `typescript` major updates (Phase 0).
 
 ## Getting started
 
-Requires **Node 22+** (see `.nvmrc`).
+Requires **Node ≥ 22.12** (see `.nvmrc`).
 
 ```sh
 npm install
@@ -94,7 +94,7 @@ src/
     useLandedCostCalculator.ts   shared FX/freight derived state
   layouts/Layout.astro
   pages/index.astro
-  styles/global.css   Google Fonts import + Tailwind layers
+  styles/global.css   Google Fonts import + Tailwind 4 `@theme` Organic tokens
 ```
 
 ## Notes

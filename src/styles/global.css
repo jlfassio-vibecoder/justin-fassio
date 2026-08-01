@@ -1,8 +1,62 @@
 @import url('https://fonts.googleapis.com/css2?family=Caprasimo:wght@400&family=Figtree:wght@400;600;700&display=swap');
+@import 'tailwindcss';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@theme {
+  --color-bg: #f5ead8;
+  --color-surface: #ebddc5;
+  --color-ink: #201e1d;
+
+  --color-accent: #c67139;
+  --color-accent-100: #fff2eb;
+  --color-accent-200: #ffe1d0;
+  --color-accent-300: #ffc6a5;
+  --color-accent-400: #f6a06b;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #b2622d;
+  --color-accent-700: #8c491a;
+  --color-accent-800: #643312;
+  --color-accent-900: #402310;
+
+  --color-sage: #7a8a5e;
+  --color-sage-100: #f0fae1;
+  --color-sage-200: #e1eecc;
+  --color-sage-300: #ccdbb2;
+  --color-sage-400: #aebf92;
+  --color-sage-500: #8fa073;
+  --color-sage-600: #728157;
+  --color-sage-700: #56633f;
+  --color-sage-800: #3d472b;
+  --color-sage-900: #272e1b;
+
+  --color-neutral-100: #f9f4ed;
+  --color-neutral-200: #eee7db;
+  --color-neutral-300: #dcd3c4;
+  --color-neutral-400: #c0b6a5;
+  --color-neutral-500: #a19786;
+  --color-neutral-600: #82796a;
+  --color-neutral-700: #645c50;
+  --color-neutral-800: #474238;
+  --color-neutral-900: #2e2b25;
+
+  --font-heading: Caprasimo, system-ui, sans-serif;
+  --font-body: Figtree, system-ui, sans-serif;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 28px;
+  --radius-xl: calc(28px * 1.15);
+
+  --spacing-1\.1: 4.4px;
+  --spacing-2\.1: 8.8px;
+  --spacing-3\.1: 13.2px;
+  --spacing-4\.1: 17.6px;
+  --spacing-6\.1: 26.4px;
+  --spacing-8\.1: 35.2px;
+
+  --shadow-sm: 0 1px 2px rgb(46 43 37 / 0.14);
+  --shadow-md: 0 3px 10px rgb(46 43 37 / 0.16);
+  --shadow-lg: 0 12px 32px rgb(46 43 37 / 0.22);
+}
 
 @layer base {
   body {
