@@ -28,6 +28,44 @@ npm run preview       # preview the production build
 
 Day-to-day: `npm run check` before you push; `npm run format` when you want Prettier to rewrite.
 
+## Deployment & Environments
+
+Hosted on **Vercel** as a static Astro site (`output: 'static'`). Production: [justin-fassio.vercel.app](https://justin-fassio.vercel.app).
+
+### Local production preview
+
+```sh
+npm run build
+npm run preview
+```
+
+### Environment variables
+
+1. Copy [`.env.example`](.env.example) to `.env` for local overrides (optional today — nothing is required to build).
+2. Astro conventions:
+   - `PUBLIC_*` — available in the browser; never put secrets here.
+   - Other keys — server/build-time only; do not import them in client React islands.
+3. Set real values in **Vercel → Project → Settings → Environment Variables** for Production, Preview, and Development as needed.
+
+`.env` / `.env.*` are gitignored; `.env.example` is tracked.
+
+### Connect GitHub → Vercel (previews + production)
+
+If the project is not already linked:
+
+1. Open the [Vercel Dashboard](https://vercel.com/dashboard) → **Add New… → Project** (or confirm the existing project for `jlfassio-vibecoder/justin-fassio`).
+2. Framework Preset: **Astro**; Root Directory: `/`; Production Branch: **`main`**.
+3. Leave Preview Deployments enabled for pull requests (default).
+4. Add any env vars from `.env.example` under Project Settings → Environment Variables.
+
+### Deployment lifecycle
+
+1. Open a pull request → Vercel posts an isolated **Preview** URL for visual testing.
+2. Keep GitHub Actions / local `npm run check` green before merge.
+3. Merge to **`main`** → Vercel runs an automated **Production** deploy.
+
+GitHub Actions (when configured) remains the quality gate; Vercel runs its own build for each deploy.
+
 ## Project structure
 
 ```
