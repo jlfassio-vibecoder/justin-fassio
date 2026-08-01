@@ -7,7 +7,7 @@ Built with **Astro + React + TypeScript + Tailwind CSS**, recreating the `design
 ## Stack
 
 - [Astro](https://astro.build/) — static site framework, React island for the interactive app shell
-- [React 18](https://react.dev/) + TypeScript — the `RepCommandCenter` app and its tabs
+- [React 19](https://react.dev/) + TypeScript — the `RepCommandCenter` app and its tabs
 - [Tailwind CSS](https://tailwindcss.com/) — utility classes mapped to Organic design tokens in `tailwind.config.ts`
 - [lucide-react](https://lucide.dev/) — icons, stroke-width 2.75 to match the design reference
 
@@ -28,23 +28,43 @@ npm run preview       # preview the production build
 
 Day-to-day: `npm run check` before you push; `npm run format` when you want Prettier to rewrite.
 
-## CI & branch protection
+## Deployment & Environments
 
-GitHub Actions runs **CI** on every pull request and on pushes to `main` (`npm ci` → `npm run check` → `npm run build`). Dependabot opens weekly PRs for npm and GitHub Actions updates.
+Hosted on **Vercel** as a static Astro site (`output: 'static'`). Production: [justin-fassio.vercel.app](https://justin-fassio.vercel.app).
 
-To keep `main` merge-safe, configure branch protection in the GitHub UI:
+### Local production preview
 
-1. Open the repo → **Settings** → **Branches**.
-2. Under **Branch protection rules**, click **Add rule** (or edit the existing rule for `main`).
-3. Set **Branch name pattern** to `main`.
-4. Enable **Require a pull request before merging**.
-5. Enable **Require status checks to pass before merging**, then select the **`CI`** check.
-6. Enable **Require branches to be up to date before merging** (available after `CI` has run at least once on a PR).
-7. Enable **Do not allow bypassing the above settings** if your plan supports it (recommended).
-8. Under rules that control force push / deletion, ensure **force pushes** and **branch deletions** are not allowed on `main`.
-9. Save the rule.
+```sh
+npm run build
+npm run preview
+```
 
-Note: the **`CI`** status check only appears in the required-checks picker after the workflow has completed at least once on a pull request.
+### Environment variables
+
+1. Copy [`.env.example`](.env.example) to `.env` for local overrides (optional today — nothing is required to build).
+2. Astro conventions:
+   - `PUBLIC_*` — available in the browser; never put secrets here.
+   - Other keys — server/build-time only; do not import them in client React islands.
+3. Set real values in **Vercel → Project → Settings → Environment Variables** for Production, Preview, and Development as needed.
+
+`.env` / `.env.*` are gitignored; `.env.example` is tracked.
+
+### Connect GitHub → Vercel (previews + production)
+
+If the project is not already linked:
+
+1. Open the [Vercel Dashboard](https://vercel.com/dashboard) → **Add New… → Project** (or confirm the existing project for `jlfassio-vibecoder/justin-fassio`).
+2. Framework Preset: **Astro**; Root Directory: `/`; Production Branch: **`main`**.
+3. Leave Preview Deployments enabled for pull requests (default).
+4. Add any env vars from `.env.example` under Project Settings → Environment Variables.
+
+### Deployment lifecycle
+
+1. Open a pull request → Vercel posts an isolated **Preview** URL for visual testing.
+2. Keep GitHub Actions / local `npm run check` green before merge.
+3. Merge to **`main`** → Vercel runs an automated **Production** deploy.
+
+GitHub Actions (when configured) remains the quality gate; Vercel runs its own build for each deploy.
 
 ## Project structure
 
