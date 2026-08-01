@@ -9,7 +9,7 @@ Phased plan for the major upgrades Dependabot opened (and CI/Vercel rejected). D
 | `astro` | `^5.1.5` (lock ~5.18.x) | `7.1.6` | #17 |
 | `react` / `@types/react` | `^19.2.x` (Phase 1) | React 19 | #16 |
 | `react-dom` / `@types/react-dom` | `^19.2.x` (Phase 1) | React 19 | #8 |
-| `typescript` | `^5.9.3` | `7.0.2` | #13 |
+| `typescript` | `^5.9.3` (Phase 2: stay on 5.x) | `7.0.2` | #13 |
 | `tailwindcss` | `^3.4.x` | `4.3.3` | #11 |
 
 Related packages already on majors that matter for planning:
@@ -34,7 +34,7 @@ They are **major** jumps with peer conflicts, not routine patches:
 
 ## Phase 0 — Dependabot hygiene (do first)
 
-**Status:** Implemented on `chore/dependabot-hygiene` (pending merge).
+**Status:** Merged via #19.
 
 Stop the flood of unmergeable majors before more product work.
 
@@ -86,22 +86,27 @@ Stop the flood of unmergeable majors before more product work.
 
 ## Phase 2 — TypeScript (replaces #13; stay conservative)
 
+**Status:** Implemented on `chore/typescript-policy` (pending merge). Policy exit met; 2b/2c remain future options.
+
 **Goal:** Keep a supported TypeScript line; do **not** jump to 7 until the Astro tooling peers catch up.
 
 ### 2a — Stay on TypeScript 5.x (default / now)
 
-- [ ] Keep `typescript` on the latest **5.x** that `@astrojs/check` and `typescript-eslint` accept.
-- [ ] Dependabot: ignore `typescript` major updates (already in Phase 0).
+- [x] Keep `typescript` on the latest **5.x** that `@astrojs/check` and `typescript-eslint` accept (`5.9.3` is current latest 5.x; `npm ci` + `npm run check` green).
+- [x] Dependabot: ignore `typescript` major updates (already in Phase 0).
+- [x] Document the policy in [`README.md`](README.md) (TypeScript policy).
 
 ### 2b — TypeScript 6 (optional, after peers allow)
 
 - [ ] When `@astrojs/check` (and ESLint TS stack) clearly support TS 6 in CI with `npm ci` (no `--legacy-peer-deps`), bump in one PR.
 - [ ] Re-run `astro check` across `src/` and fix new strictness only if actionable.
 
+Note (verified 2026-08-01): `@astrojs/check@0.9.10` allows `typescript@^5 \|\| ^6`, and `typescript-eslint@8` allows `<6.1.0`. A TS 6 bump is technically peer-plausible but **not** part of this phase — schedule a dedicated PR if/when desired.
+
 ### 2c — TypeScript 7 (deferred)
 
-- [ ] Block until `@astrojs/check` peer range includes `^7` (or Astro documents a supported path).
-- [ ] Treat Dependabot’s `5.9 → 7.0` PR as permanently superseded until then.
+- [x] Block until `@astrojs/check` peer range includes `^7` (or Astro documents a supported path). (`@astrojs/check` still `^5 \|\| ^6` only.)
+- [x] Treat Dependabot’s `5.9 → 7.0` PR as permanently superseded until then.
 
 **Exit for “done enough”:** Documented policy (5.x now; 6 when peers allow; 7 deferred). No broken `npm ci` from a solo TS major.
 

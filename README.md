@@ -11,6 +11,16 @@ Built with **Astro + React + TypeScript + Tailwind CSS**, recreating the `design
 - [Tailwind CSS](https://tailwindcss.com/) — utility classes mapped to Organic design tokens in `tailwind.config.ts`
 - [lucide-react](https://lucide.dev/) — icons, stroke-width 2.75 to match the design reference
 
+### TypeScript policy
+
+Stay on **TypeScript 5.x** (currently `^5.9.3`, the latest 5.x). Do not take Dependabot majors to 6 or 7 until a coordinated upgrade in [`roadmap.md`](roadmap.md) Phase 2:
+
+- **5.x** — current supported line (`@astrojs/check` + `typescript-eslint` green with `npm ci`)
+- **6.x** — optional later, only when peers allow a clean `npm ci` (no `--legacy-peer-deps`)
+- **7.x** — blocked until `@astrojs/check` declares support
+
+Dependabot already ignores `typescript` major updates (Phase 0).
+
 ## Getting started
 
 Requires **Node 22+** (see `.nvmrc`).
