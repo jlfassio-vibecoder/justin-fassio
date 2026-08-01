@@ -1,4 +1,9 @@
-import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
+import type {
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from 'react';
 import { cn } from '@/lib/cn';
 
 const inputBase =
@@ -20,10 +25,10 @@ export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
   return <textarea className={cn(inputBase, 'min-h-[90px] resize-y', className)} {...props} />;
 }
 
-export function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="block text-xs mb-1 text-ink/70">{children}</label>;
+export function FieldLabel({ children }: { children: ReactNode }) {
+  return <label className="mb-1 block text-xs text-ink/70">{children}</label>;
 }
 
-export function Field({ children, className }: { children: React.ReactNode; className?: string }) {
+export function Field({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn('flex flex-col', className)}>{children}</div>;
 }

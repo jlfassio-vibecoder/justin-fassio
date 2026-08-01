@@ -6,7 +6,7 @@
 
 @layer base {
   body {
-    @apply bg-bg text-ink font-body;
+    @apply bg-bg font-body text-ink;
     font-size: 15px;
     line-height: 1.55;
   }

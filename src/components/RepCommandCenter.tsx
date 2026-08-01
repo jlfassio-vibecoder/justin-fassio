@@ -45,11 +45,19 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
 
       <main className="mx-auto flex max-w-[1400px] flex-col gap-5 px-7 pb-16 pt-6">
         {activeTab === 'catalog' && (
-          <CatalogTab fx={fx} setFx={setFx} freight={freight} setFreight={setFreight} marginRangeDisplay={marginRangeDisplay} />
+          <CatalogTab
+            fx={fx}
+            setFx={setFx}
+            freight={freight}
+            setFreight={setFreight}
+            marginRangeDisplay={marginRangeDisplay}
+          />
         )}
         {activeTab === 'dashboard' && <DashboardTab onLogCall={() => openModal()} />}
         {activeTab === 'calls' && <CallsTab onLogCall={() => openModal()} />}
-        {activeTab === 'prospects' && <ProspectsTab onLogCall={(prospect) => openModal(prospect)} />}
+        {activeTab === 'prospects' && (
+          <ProspectsTab onLogCall={(prospect) => openModal(prospect)} />
+        )}
         {activeTab === 'insights' && <InsightsTab marginRangeDisplay={marginRangeDisplay} />}
       </main>
 

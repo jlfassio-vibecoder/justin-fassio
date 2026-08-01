@@ -33,7 +33,11 @@ export function Card({ elevation = 'sm', row = false, className, children, ...pr
 }
 
 export function CardKicker({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn('text-[10px] tracking-[0.1em] uppercase text-accent', className)}>{children}</p>;
+  return (
+    <p className={cn('text-[10px] uppercase tracking-[0.1em] text-accent', className)}>
+      {children}
+    </p>
+  );
 }
 
 export function CardTitle({ children, className }: { children: ReactNode; className?: string }) {
@@ -41,9 +45,11 @@ export function CardTitle({ children, className }: { children: ReactNode; classN
 }
 
 export function CardBody({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn('m-0 text-[13px] opacity-80 flex-1', className)}>{children}</p>;
+  return <p className={cn('m-0 flex-1 text-[13px] opacity-80', className)}>{children}</p>;
 }
 
 export function CardMeta({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn('flex items-center gap-1.5 text-[11px] text-ink/50', className)}>{children}</p>;
+  return (
+    <p className={cn('flex items-center gap-1.5 text-[11px] text-ink/50', className)}>{children}</p>
+  );
 }
