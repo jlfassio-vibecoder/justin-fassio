@@ -14,7 +14,7 @@ Phased plan for the major upgrades Dependabot opened (and CI/Vercel rejected). D
 
 Related packages already on majors that matter for planning:
 
-- `@astrojs/react` `^6.0.2` (supports React 17–19)
+- `@astrojs/react` `^5.0.7` (Astro 6 / Vite 7; React 17–19)
 - `@astrojs/tailwind` **removed** (Phase 4) — Tailwind via `@tailwindcss/vite`
 - `@astrojs/check` `^0.9.10` (peer TypeScript `^5 \|\| ^6` — **not** 7 yet)
 - Node `>=22.22.3` (`.nvmrc` `22.22.3`)
