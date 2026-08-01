@@ -34,22 +34,26 @@ They are **major** jumps with peer conflicts, not routine patches:
 
 ## Phase 0 — Dependabot hygiene (do first)
 
+**Status:** Implemented on `chore/dependabot-hygiene` (pending merge).
+
 Stop the flood of unmergeable majors before more product work.
 
-- [ ] Close #8, #11, #13, #16, #17 (if still open).
-- [ ] Tighten [`.github/dependabot.yml`](.github/dependabot.yml):
+- [x] Close #8, #11, #13, #16, #17 (if still open).
+- [x] Tighten [`.github/dependabot.yml`](.github/dependabot.yml):
   - Lower `open-pull-requests-limit` (e.g. npm `5`, actions `2`).
   - Prefer `groups` for patch/minor npm bumps.
   - Add `ignore` rules for major updates on `astro`, `react`, `react-dom`, `typescript`, `tailwindcss` (and optionally `@types/react*`) until the matching phase below is scheduled.
-- [ ] Keep merging green **patch/minor** Dependabot PRs as usual.
+- [x] Keep merging green **patch/minor** Dependabot PRs as usual.
 
 **Exit:** Weekly Dependabot noise is mostly safe minors; majors only appear when you remove an ignore intentionally.
+
+**Note:** When starting a later roadmap phase (Astro 6, Tailwind 4, etc.), remove that package’s `ignore` entry (or open a one-off upgrade PR) so Dependabot does not fight the coordinated bump.
 
 ---
 
 ## Phase 1 — React 19 (closes the intent of #8 + #16)
 
-**Status:** Implemented on `chore/upgrade-react-19` (pending merge).
+**Status:** Merged via #18.
 
 **Goal:** Move `react`, `react-dom`, `@types/react`, and `@types/react-dom` to 19 **in one PR**.
 
