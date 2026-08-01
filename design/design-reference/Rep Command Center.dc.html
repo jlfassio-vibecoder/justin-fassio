@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/organic-e3c6a074-3258-42b4-9799-98fc35c31c37/styles.css">
+  <script src="_ds/organic-e3c6a074-3258-42b4-9799-98fc35c31c37/_ds_bundle.js"></script>
+  <style>
+    a { color: var(--color-accent-700); }
+    a:hover { color: var(--color-accent-800); }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: var(--color-neutral-400); border-radius: 999px; }
+  </style>
+</helmet>
+
+<div style="min-height:100vh; background:var(--color-bg); color:var(--color-text); font-family:var(--font-body);">
+
+  <!-- HEADER -->
+  <header style="position:sticky; top:0; z-index:30; background:color-mix(in srgb, var(--color-bg) 92%, transparent); backdrop-filter:blur(6px); border-bottom:1px solid var(--color-divider);">
+    <div style="max-width:1400px; margin:0 auto; padding:14px 28px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <div style="width:46px; height:46px; border-radius:50%; background:var(--color-accent); color:var(--color-bg); display:flex; align-items:center; justify-content:center; font-family:var(--font-heading); font-size:18px; flex:none;">JF</div>
+        <div>
+          <h1 style="font-size:20px; margin:0;">Justin Fassio</h1>
+          <p style="margin:2px 0 0; font-size:12px; color:var(--color-accent-700); font-weight:600;">Independent Sales Representative — British Columbia</p>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:8px; padding:4px; background:var(--color-surface); border-radius:999px;">
+          <button style="{{ ogrLineStyle }}">Old Guys Rule</button>
+          <button onClick="{{ toggleLineNotice }}" style="{{ bkgLineStyle }}">
+            <span>Busted Knuckles Garage</span>
+            <span class="tag tag-outline" style="margin-left:8px;">Soon</span>
+          </button>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button class="btn btn-primary" onClick="{{ openModalDefault }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"/></svg>
+          <span>Log Call</span>
+        </button>
+        <button class="btn btn-secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          <span>Export CSV</span>
+        </button>
+      </div>
+    </div>
+
+    <sc-if value="{{ showLineNotice }}" hint-placeholder-val="{{ false }}">
+      <div style="max-width:1400px; margin:0 auto; padding:0 28px 14px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--color-accent-2-100); color:var(--color-accent-2-800); border-radius:var(--radius-md); padding:10px 16px; font-size:13px;">
+          <span>Busted Knuckles Garage is a new line Justin is adding soon — catalog and prospecting tools will unlock here once the line sheet is loaded.</span>
+          <button onClick="{{ closeLineNotice }}" class="btn-icon btn" style="background:transparent;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- TAB NAV -->
+    <nav style="max-width:1400px; margin:0 auto; padding:0 28px 14px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button onClick="{{ setTabCatalog }}" style="{{ catalogTabStyle }}" data-screen-label="tab-catalog">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>
+        <span>Line Sheet</span>
+        <span class="tag tag-accent">{{ totalSkuCount }}</span>
+      </button>
+      <button onClick="{{ setTabDashboard }}" style="{{ dashboardTabStyle }}" data-screen-label="tab-dashboard">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
+        <span>PMF Dashboard</span>
+      </button>
+      <button onClick="{{ setTabCalls }}" style="{{ callsTabStyle }}" data-screen-label="tab-calls">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg>
+        <span>Call Pipeline</span>
+      </button>
+      <button onClick="{{ setTabProspects }}" style="{{ prospectsTabStyle }}" data-screen-label="tab-prospects">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V9l7-6 7 6v12"/><path d="M9 21v-6h6v6"/></svg>
+        <span>BC Prospect Directory</span>
+        <span class="tag tag-accent-2">{{ prospectTotalCount }}</span>
+      </button>
+      <button onClick="{{ setTabInsights }}" style="{{ insightsTabStyle }}" data-screen-label="tab-insights">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5A5.5 5.5 0 1 0 5.5 12c.8.8 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        <span>Buyer Insights</span>
+      </button>
+    </nav>
+  </header>
+
+  <main style="max-width:1400px; margin:0 auto; padding:24px 28px 64px; display:flex; flex-direction:column; gap:20px;">
+
+    <!-- TAB: CATALOG -->
+    <sc-if value="{{ isCatalogTab }}" hint-placeholder-val="{{ true }}">
+      <section style="display:flex; flex-direction:column; gap:20px;" data-screen-label="catalog">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+          <div class="card elev-sm">
+            <p class="card-kicker">Total Styles / SKUs</p>
+            <p class="card-title" style="font-size:28px;">{{ totalSkuCount }} items</p>
+            <p class="card-meta">{{ newCount }} NEW 2026 &middot; {{ nameDropCount }} Name-Drop eligible</p>
+          </div>
+          <div class="card elev-sm">
+            <p class="card-kicker">Tee Wholesale (USD)</p>
+            <p class="card-title" style="font-size:28px;">$13.00</p>
+            <p class="card-meta">M–XL standard rate ($14 2X / $15 3X)</p>
+          </div>
+          <div class="card elev-sm">
+            <p class="card-kicker">Est. Landed CAD Cost</p>
+            <p class="card-title" style="font-size:28px; color:var(--color-accent-2-800);">{{ sampleTeeLanded }}</p>
+            <p class="card-meta">FX {{ fx }} &middot; freight +{{ freightPctDisplay }}</p>
+          </div>
+          <div class="card elev-sm">
+            <p class="card-kicker">Retailer Keystone Margin</p>
+            <p class="card-title" style="font-size:28px;">{{ marginRangeDisplay }}</p>
+            <p class="card-meta">At suggested CAD MSRP across the line</p>
+          </div>
+        </div>
+
+        <div class="card elev-sm" style="flex-direction:row; flex-wrap:wrap; gap:20px; align-items:center; justify-content:space-between;">
+          <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:center;">
+            <span style="font-size:12px; font-weight:600; opacity:.7;">CAD Landed Multiplier</span>
+            <div class="field" style="display:flex; align-items:center; gap:6px; margin:0;">
+              <label style="margin:0; white-space:nowrap;">FX rate</label>
+              <input class="input" type="number" step="0.01" min="1" value="{{ fx }}" onChange="{{ onFx }}" style="width:80px;">
+            </div>
+            <div class="field" style="display:flex; align-items:center; gap:6px; margin:0;">
+              <label style="margin:0; white-space:nowrap;">Freight</label>
+              <input class="input" type="number" step="0.01" min="1" value="{{ freight }}" onChange="{{ onFreight }}" style="width:80px;">
+            </div>
+          </div>
+          <div style="display:flex; gap:18px; font-size:13px; flex-wrap:wrap;">
+            <span>Minimum: <strong>24 pcs</strong> (6/style)</span>
+            <span>Ships from: <strong>Vista, CA (UPS)</strong></span>
+          </div>
+        </div>
+
+        <div class="card elev-sm" style="flex-direction:row; flex-wrap:wrap; gap:12px; align-items:center;">
+          <input class="input" style="flex:1; min-width:220px;" placeholder="Search by SKU, style name, tagline, or color…" value="{{ catalogSearch }}" onChange="{{ onCatalogSearch }}">
+          <select class="input" style="width:auto;" value="{{ catalogCategory }}" onChange="{{ onCatalogCategory }}">
+            <option value="ALL">All Categories</option>
+            <option value="Short Sleeve Tees">Short Sleeve Tees</option>
+            <option value="Long Sleeve UPF50 Sun Tees">UPF50 Sun Protection Shirts</option>
+            <option value="Special Additions">Long Sleeve Tees, Tanks &amp; Hoodies</option>
+            <option value="Headwear">Headwear</option>
+            <option value="Giftware">Giftware &amp; Drinkware</option>
+            <option value="Vintage Metal Signs">Vintage Metal Signs</option>
+            <option value="Displays &amp; POP">Displays &amp; POP</option>
+            <option value="Magnets &amp; Stickers">Magnets &amp; Stickers</option>
+          </select>
+          <select class="input" style="width:auto;" value="{{ catalogFlag }}" onChange="{{ onCatalogFlag }}">
+            <option value="ALL">All Flags</option>
+            <option value="NEW">NEW 2026</option>
+            <option value="NAMEDROP">Name Drop Eligible</option>
+          </select>
+          <span style="font-size:12px; opacity:.65; white-space:nowrap;">Showing {{ catalogVisibleCount }} of {{ catalogTotalCount }}</span>
+        </div>
+
+        <div class="card elev-md" style="padding:0; overflow:hidden;">
+          <div style="max-height:640px; overflow:auto;">
+            <table class="table">
+              <thead>
+                <tr style="position:sticky; top:0; background:var(--color-surface);">
+                  <th>Pg</th><th>SKU</th><th>Product</th><th>Category</th><th>Color</th><th>Tagline</th><th>Wholesale</th><th>Landed CAD</th><th>MSRP CAD</th><th style="text-align:right;">Margin</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ filteredCatalog }}" as="item" hint-placeholder-count="10">
+                  <tr>
+                    <td>{{ item.page }}</td>
+                    <td style="font-family:var(--font-heading); font-size:13px;">{{ item.sku }}</td>
+                    <td style="min-width:180px;">
+                      <div style="font-weight:600;">{{ item.name }}</div>
+                      <div style="display:flex; gap:4px; margin-top:3px;">
+                        <sc-if value="{{ item.isNew }}" hint-placeholder-val="{{ false }}"><span class="tag tag-accent">New</span></sc-if>
+                        <sc-if value="{{ item.isNameDrop }}" hint-placeholder-val="{{ false }}"><span class="tag tag-accent-2">Name Drop</span></sc-if>
+                      </div>
+                    </td>
+                    <td>{{ item.cat }}</td>
+                    <td>{{ item.color }}</td>
+                    <td style="opacity:.75; min-width:220px;">{{ item.tagline }}</td>
+                    <td>{{ item.priceDisplay }}</td>
+                    <td>{{ item.landedDisplay }}</td>
+                    <td>{{ item.msrpDisplay }}</td>
+                    <td style="text-align:right; font-weight:600;">{{ item.marginDisplay }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card elev-sm">
+          <p class="card-title" style="font-size:17px;">Wholesale Terms &amp; Ordering Guidelines</p>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:14px; margin-top:8px;">
+            <div style="background:var(--color-bg); border-radius:var(--radius-md); padding:14px; font-size:13px;">
+              <p style="font-weight:600; color:var(--color-accent-700); margin:0 0 6px;">Minimum Order</p>
+              <p style="margin:0 0 4px;"><strong>24 pieces</strong> total, <strong>6 pieces</strong> per style.</p>
+              <p style="margin:0; opacity:.7; font-size:12px;">Free floor display with a qualifying $2,800 USD opening order.</p>
+            </div>
+            <div style="background:var(--color-bg); border-radius:var(--radius-md); padding:14px; font-size:13px;">
+              <p style="font-weight:600; color:var(--color-accent-2-800); margin:0 0 6px;">Shipping</p>
+              <p style="margin:0 0 4px;">UPS Ground from <strong>Vista, California</strong>.</p>
+              <p style="margin:0; opacity:.7; font-size:12px;">72-hour standard turnaround; 4–6 days in peak season.</p>
+            </div>
+            <div style="background:var(--color-bg); border-radius:var(--radius-md); padding:14px; font-size:13px;">
+              <p style="font-weight:600; color:var(--color-accent-700); margin:0 0 6px;">Terms</p>
+              <p style="margin:0 0 4px;">Card / COD for new accounts. <strong>Net 30</strong> on approved credit.</p>
+              <p style="margin:0; opacity:.7; font-size:12px;">"Name Drop" styles support custom store branding.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- TAB: DASHBOARD -->
+    <sc-if value="{{ isDashboardTab }}" hint-placeholder-val="{{ false }}">
+      <section style="display:flex; flex-direction:column; gap:20px;" data-screen-label="dashboard">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+          <div class="card elev-sm">
+            <p class="card-kicker">Total Calls Logged</p>
+            <p class="card-title" style="font-size:28px;">0</p>
+            <p class="card-meta">Decision-maker reach rate — awaiting data</p>
+          </div>
+          <div class="card elev-sm">
+            <p class="card-kicker">Avg PMF Score</p>
+            <p class="card-title" style="font-size:28px;">— / 10</p>
+            <p class="card-meta">Log calls to calculate</p>
+          </div>
+          <div class="card elev-sm">
+            <p class="card-kicker">Closed Purchase Orders</p>
+            <p class="card-title" style="font-size:28px;">0</p>
+            <p class="card-meta">Conversion rate — awaiting data</p>
+          </div>
+          <div class="card elev-sm">
+            <p class="card-kicker">Pipeline Value</p>
+            <p class="card-title" style="font-size:28px;">$0 CAD</p>
+            <p class="card-meta">Initial wholesale orders</p>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 2fr; gap:16px;">
+          <div class="card elev-sm">
+            <p class="card-title" style="font-size:16px;">PMF Fit Breakdown</p>
+            <div style="display:flex; flex-direction:column; gap:10px; font-size:12px; margin-top:6px;">
+              <div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>High Fit (8–10)</span><span>0%</span></div>
+                <div style="height:6px; background:var(--color-bg); border-radius:999px; overflow:hidden;"><div style="width:0%; height:100%; background:var(--color-accent-2-500);"></div></div>
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Moderate Fit (6–7)</span><span>0%</span></div>
+                <div style="height:6px; background:var(--color-bg); border-radius:999px; overflow:hidden;"><div style="width:0%; height:100%; background:var(--color-accent-500);"></div></div>
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Low Fit (1–5)</span><span>0%</span></div>
+                <div style="height:6px; background:var(--color-bg); border-radius:999px; overflow:hidden;"><div style="width:0%; height:100%; background:var(--color-neutral-500);"></div></div>
+              </div>
+            </div>
+            <div style="background:var(--color-bg); border-radius:var(--radius-md); padding:12px; font-size:12px; margin-top:6px;">
+              <p style="font-weight:600; margin:0 0 4px; color:var(--color-accent-700);">Strategic Insight</p>
+              <p style="margin:0; opacity:.8;">Log prospect calls to calculate real-time product-market-fit intelligence.</p>
+            </div>
+          </div>
+
+          <div class="card elev-sm">
+            <p class="card-title" style="font-size:16px;">PMF by Channel &amp; Call Outcomes</p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:6px;">
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <p style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; opacity:.6; margin:0;">By Channel</p>
+                <p style="font-size:13px; opacity:.6; margin:0;">No channel data yet — appears once calls are logged.</p>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <p style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; opacity:.6; margin:0;">Outcomes</p>
+                <p style="font-size:13px; opacity:.6; margin:0;">No outcomes yet — appears once calls are logged.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card elev-md" style="align-items:center; text-align:center; padding:40px 20px; gap:10px;">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="color:var(--color-accent-500);"><path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"/></svg>
+          <p class="card-title" style="font-size:18px;">No recent call activity</p>
+          <p style="opacity:.7; font-size:13px; max-width:44ch;">Your latest prospect calls will show here — store, channel, outcome, PMF score and order value at a glance.</p>
+          <button class="btn btn-primary" onClick="{{ openModalDefault }}" style="margin-top:6px;">Log Your First Call</button>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- TAB: CALLS -->
+    <sc-if value="{{ isCallsTab }}" hint-placeholder-val="{{ false }}">
+      <section style="display:flex; flex-direction:column; gap:20px;" data-screen-label="calls">
+        <div class="card elev-sm" style="flex-direction:row; flex-wrap:wrap; gap:12px; align-items:center;">
+          <input class="input" style="flex:1; min-width:220px;" placeholder="Search calls by store, contact, notes…">
+          <select class="input" style="width:auto;"><option>All Retail Channels</option><option>Golf Pro Shops</option><option>Marinas</option><option>Hardware / Farm Co-op</option><option>Resort Gift</option></select>
+          <select class="input" style="width:auto;"><option>All Call Outcomes</option><option>Closed PO</option><option>Sample Requested</option><option>Follow-up Scheduled</option><option>Gatekeeper</option><option>Not Interested</option></select>
+          <button class="btn btn-primary" onClick="{{ openModalDefault }}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            <span>Log New Call</span>
+          </button>
+        </div>
+
+        <div class="card elev-md" style="align-items:center; text-align:center; padding:56px 20px; gap:12px;">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="color:var(--color-accent-2-500);"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg>
+          <p class="card-title" style="font-size:19px;">Your pipeline is empty</p>
+          <p style="opacity:.7; font-size:13px; max-width:46ch;">Every call you log — outcome, PMF score, buyer feedback, order value — will build your pipeline here, searchable and filterable by channel and outcome.</p>
+          <button class="btn btn-primary" onClick="{{ openModalDefault }}" style="margin-top:4px;">Log New Call</button>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- TAB: PROSPECTS -->
+    <sc-if value="{{ isProspectsTab }}" hint-placeholder-val="{{ false }}">
+      <section style="display:flex; flex-direction:column; gap:20px;" data-screen-label="prospects">
+        <div class="card elev-sm" style="flex-direction:row; flex-wrap:wrap; gap:12px; align-items:center;">
+          <input class="input" style="flex:1; min-width:220px;" placeholder="Search 250 BC prospects by name, city, address, or fit reason…" value="{{ prospectSearch }}" onChange="{{ onProspectSearch }}">
+          <select class="input" style="width:auto;" value="{{ prospectRegion }}" onChange="{{ onProspectRegion }}">
+            <option value="ALL">All Regions (6 corridors)</option>
+            <option value="Okanagan">Okanagan Valley</option>
+            <option value="Shuswap">Shuswap &amp; Thompson-Nicola</option>
+            <option value="Vancouver Island">Vancouver Island &amp; Gulf Islands</option>
+            <option value="Sea-to-Sky">Sea-to-Sky &amp; Sunshine Coast</option>
+            <option value="Kootenays">Kootenays &amp; Columbia-Shuswap</option>
+            <option value="Fraser Valley">Lower Mainland / Fraser Valley</option>
+          </select>
+          <select class="input" style="width:auto;" value="{{ prospectChannel }}" onChange="{{ onProspectChannel }}">
+            <option value="ALL">All Retail Channels</option>
+            <option value="Golf">Golf Pro Shops</option>
+            <option value="Marina">Marinas &amp; Boat Stores</option>
+            <option value="Hardware">Hardware Dealers &amp; Co-ops</option>
+            <option value="Resort Gift">Resort Gift Boutiques</option>
+          </select>
+          <span style="font-size:12px; opacity:.65; white-space:nowrap;">Showing {{ prospectVisibleCount }} of {{ prospectTotalCount }}</span>
+        </div>
+
+        <div class="card elev-md" style="padding:0; overflow:hidden;">
+          <div style="max-height:640px; overflow:auto;">
+            <table class="table">
+              <thead>
+                <tr style="position:sticky; top:0; background:var(--color-surface);">
+                  <th>#</th><th>Store</th><th>Channel</th><th>City (Region)</th><th>Address</th><th>Phone</th><th>Fit Reason</th><th style="text-align:right;">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ filteredProspects }}" as="item" hint-placeholder-count="10">
+                  <tr>
+                    <td>{{ item.id }}</td>
+                    <td style="font-weight:600; min-width:160px;">{{ item.name }}</td>
+                    <td><span class="{{ item.tagClass }}">{{ item.category }}</span></td>
+                    <td>{{ item.city }} ({{ item.region }})</td>
+                    <td style="opacity:.75;">{{ item.address }}</td>
+                    <td>{{ item.phone }}</td>
+                    <td style="opacity:.75; min-width:240px;">{{ item.fit }}</td>
+                    <td style="text-align:right;">
+                      <button class="btn btn-secondary" style="font-size:12px; padding:4px 12px;" onClick="{{ item.logCall }}">Log Call</button>
+                    </td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- TAB: INSIGHTS -->
+    <sc-if value="{{ isInsightsTab }}" hint-placeholder-val="{{ false }}">
+      <section style="display:flex; flex-direction:column; gap:20px;" data-screen-label="insights">
+        <div class="card elev-sm">
+          <p class="card-title" style="font-size:16px;">Buyer Reaction Cloud</p>
+          <p style="opacity:.7; font-size:13px; margin-top:4px;">Feedback tags will collect here as calls are logged — spot recurring objections and wins at a glance.</p>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:16px;">
+          <div class="card elev-sm">
+            <p class="card-title" style="font-size:15px; color:var(--color-accent-700);">Objection: "Our budget is already pre-booked"</p>
+            <p class="card-body">Ship in 72 hours from Vista, CA with flexible 24-piece minimums. Offer a low-risk test order or a Father's Day impulse display tray so the buyer isn't waiting on next season's plan.</p>
+          </div>
+          <div class="card elev-sm">
+            <p class="card-title" style="font-size:15px; color:var(--color-accent-700);">Objection: "We need bigger margin to cover FX"</p>
+            <p class="card-body">Suggested CAD MSRP pricing already delivers a keystone margin in the {{ marginRangeDisplay }} range on standard USD wholesale — walk the buyer through the landed-cost math live on the call.</p>
+          </div>
+          <div class="card elev-sm">
+            <p class="card-title" style="font-size:15px; color:var(--color-accent-700);">Objection: "Never heard of this brand"</p>
+            <p class="card-body">Lead with the category fit reason from the prospect record — most matches were sourced from a real store visit or regional research, not a cold list.</p>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+  </main>
+
+  <!-- LOG CALL MODAL -->
+  <sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop" style="z-index:50;">
+      <form class="dialog" style="max-width:560px;" onSubmit="{{ onModalSubmit }}">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <p class="dialog-title">Log Prospect Call</p>
+          <button type="button" onClick="{{ closeModal }}" class="btn-icon btn" style="background:transparent;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+
+        <div class="field">
+          <label>Store prospect</label>
+          <select class="input" value="{{ modalStoreId }}" onChange="{{ onModalStoreChange }}">
+            <sc-for list="{{ prospectOptions }}" as="p" hint-placeholder-count="4">
+              <option value="{{ p.id }}">{{ p.name }} — {{ p.city }}</option>
+            </sc-for>
+          </select>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="field">
+            <label>Retail channel</label>
+            <input class="input" readonly value="{{ modalChannel }}" style="opacity:.7;">
+          </div>
+          <div class="field">
+            <label>City / Region</label>
+            <input class="input" readonly value="{{ modalCity }}" style="opacity:.7;">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="field">
+            <label>Contact name &amp; title</label>
+            <input class="input" placeholder="e.g. Dave Miller (Owner)" required>
+          </div>
+          <div class="field">
+            <label>Call outcome</label>
+            <select class="input">
+              <option>Closed PO / Written Order</option>
+              <option>Sample Package Requested</option>
+              <option>Follow-up Scheduled</option>
+              <option>Left Message / Gatekeeper</option>
+              <option>Not Interested / Bad Fit</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="field">
+            <label>PMF fit score</label>
+            <select class="input">
+              <option value="10">10 — Perfect fit</option>
+              <option value="8">8 — Strong fit</option>
+              <option value="6">6 — Moderate fit</option>
+              <option value="3">3 — Low fit</option>
+              <option value="1">1 — Poor fit</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Order value (CAD)</label>
+            <input class="input" type="number" min="0" placeholder="0 if no PO yet">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Primary buyer feedback</label>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+            <label class="tag tag-neutral" style="cursor:pointer; gap:5px;"><input type="checkbox" style="margin:0;"> Loves display rack</label>
+            <label class="tag tag-neutral" style="cursor:pointer; gap:5px;"><input type="checkbox" style="margin:0;"> Seasonal rush fit</label>
+            <label class="tag tag-neutral" style="cursor:pointer; gap:5px;"><input type="checkbox" style="margin:0;"> Pre-booked budget</label>
+            <label class="tag tag-neutral" style="cursor:pointer; gap:5px;"><input type="checkbox" style="margin:0;"> Wants higher margin</label>
+          </div>
+          <textarea class="input" rows="3" placeholder="Call summary, buyer reaction…"></textarea>
+        </div>
+
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-secondary" onClick="{{ closeModal }}">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Call Record</button>
+        </div>
+      </form>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1400,&quot;height&quot;:900},&quot;defaultTab&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;catalog&quot;,&quot;options&quot;:[&quot;catalog&quot;,&quot;dashboard&quot;,&quot;calls&quot;,&quot;prospects&quot;,&quot;insights&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+class Component extends DCLogic {
+  state = {
+    activeTab: this.props.defaultTab || 'catalog',
+    showLineNotice: false,
+    catalogSearch: '', catalogCategory: 'ALL', catalogFlag: 'ALL',
+    fx: 1.45, freight: 1.10,
+    prospectSearch: '', prospectRegion: 'ALL', prospectChannel: 'ALL',
+    modalOpen: false, modalStoreId: null, modalChannel: '', modalCity: '',
+    catalogData: [], prospectsData: [],
+  };
+
+  componentDidMount() {
+    Promise.all([import('./data/catalog.js'), import('./data/prospects.js')]).then(([c, p]) => {
+      this.setState({ catalogData: c.CATALOG_DATA, prospectsData: p.PROSPECTS_DATA });
+    });
+  }
+
+  channelTagClass(cat) {
+    return { Golf: 'tag tag-accent-2', Marina: 'tag tag-accent', Hardware: 'tag tag-neutral', 'Resort Gift': 'tag tag-outline' }[cat] || 'tag tag-neutral';
+  }
+
+  renderVals() {
+    const s = this.state;
+    const fxNum = parseFloat(s.fx) || 1.45;
+    const freightNum = parseFloat(s.freight) || 1.10;
+
+    const filteredCatalog = s.catalogData
+      .filter(it => {
+        if (s.catalogCategory !== 'ALL' && it.cat !== s.catalogCategory) return false;
+        if (s.catalogFlag === 'NEW' && !it.isNew) return false;
+        if (s.catalogFlag === 'NAMEDROP' && !it.isNameDrop) return false;
+        if (s.catalogSearch) {
+          const q = s.catalogSearch.toLowerCase();
+          const hay = (it.sku + ' ' + it.name + ' ' + it.tagline + ' ' + it.color).toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      })
+      .map(it => {
+        const landed = it.priceUsd * fxNum * freightNum;
+        const sellable = it.msrpCad > 0;
+        const margin = sellable ? ((it.msrpCad - landed) / it.msrpCad) * 100 : null;
+        return {
+          ...it,
+          priceDisplay: '$' + it.priceUsd.toFixed(2),
+          landedDisplay: '$' + landed.toFixed(2),
+          msrpDisplay: sellable ? ('$' + it.msrpCad.toFixed(2)) : 'Not for resale',
+          marginDisplay: sellable ? (margin.toFixed(1) + '%') : '—',
+        };
+      });
+
+    const openModal = (id) => {
+      const p = id != null ? s.prospectsData.find(x => x.id === id) : s.prospectsData[0];
+      this.setState({ modalOpen: true, modalStoreId: p ? p.id : null, modalChannel: p ? p.category : '', modalCity: p ? (p.city + ' (' + p.region + ')') : '' });
+    };
+
+    const filteredProspects = s.prospectsData
+      .filter(p => {
+        if (s.prospectRegion !== 'ALL' && p.region !== s.prospectRegion) return false;
+        if (s.prospectChannel !== 'ALL' && p.category !== s.prospectChannel) return false;
+        if (s.prospectSearch) {
+          const q = s.prospectSearch.toLowerCase();
+          const hay = (p.name + ' ' + p.city + ' ' + p.address + ' ' + p.fit).toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      })
+      .map(p => ({ ...p, tagClass: this.channelTagClass(p.category), logCall: () => openModal(p.id) }));
+
+    const newCount = s.catalogData.filter(it => it.isNew).length;
+    const nameDropCount = s.catalogData.filter(it => it.isNameDrop).length;
+    const sampleTee = s.catalogData.find(it => it.cat === 'Short Sleeve Tees') || s.catalogData[0];
+    const sampleLanded = sampleTee ? sampleTee.priceUsd * fxNum * freightNum : 0;
+
+    let marginRangeDisplay = '—';
+    const sellableCatalog = s.catalogData.filter(it => it.msrpCad > 0);
+    if (sellableCatalog.length) {
+      const margins = sellableCatalog.map(it => ((it.msrpCad - it.priceUsd * fxNum * freightNum) / it.msrpCad) * 100);
+      marginRangeDisplay = Math.min(...margins).toFixed(1) + '% – ' + Math.max(...margins).toFixed(1) + '%';
+    }
+
+    const tabStyle = (key) => ({
+      display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '8px 16px', borderRadius: '999px',
+      fontFamily: 'var(--font-heading)', fontSize: '13px', border: 'none', cursor: 'pointer',
+      background: s.activeTab === key ? 'var(--color-accent)' : 'transparent',
+      color: s.activeTab === key ? 'var(--color-bg)' : 'var(--color-text)',
+    });
+    const lineBtnBase = { border: 'none', borderRadius: '999px', padding: '7px 14px', fontFamily: 'var(--font-heading)', fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' };
+
+    return {
+      isCatalogTab: s.activeTab === 'catalog', isDashboardTab: s.activeTab === 'dashboard',
+      isCallsTab: s.activeTab === 'calls', isProspectsTab: s.activeTab === 'prospects', isInsightsTab: s.activeTab === 'insights',
+      setTabCatalog: () => this.setState({ activeTab: 'catalog' }),
+      setTabDashboard: () => this.setState({ activeTab: 'dashboard' }),
+      setTabCalls: () => this.setState({ activeTab: 'calls' }),
+      setTabProspects: () => this.setState({ activeTab: 'prospects' }),
+      setTabInsights: () => this.setState({ activeTab: 'insights' }),
+      catalogTabStyle: tabStyle('catalog'), dashboardTabStyle: tabStyle('dashboard'),
+      callsTabStyle: tabStyle('calls'), prospectsTabStyle: tabStyle('prospects'), insightsTabStyle: tabStyle('insights'),
+
+      ogrLineStyle: { ...lineBtnBase, background: 'var(--color-accent)', color: 'var(--color-bg)' },
+      bkgLineStyle: { ...lineBtnBase, background: 'transparent', color: 'var(--color-text)', opacity: 0.7 },
+      showLineNotice: s.showLineNotice,
+      toggleLineNotice: () => this.setState(st => ({ showLineNotice: !st.showLineNotice })),
+      closeLineNotice: () => this.setState({ showLineNotice: false }),
+
+      catalogSearch: s.catalogSearch, onCatalogSearch: (e) => this.setState({ catalogSearch: e.target.value }),
+      catalogCategory: s.catalogCategory, onCatalogCategory: (e) => this.setState({ catalogCategory: e.target.value }),
+      catalogFlag: s.catalogFlag, onCatalogFlag: (e) => this.setState({ catalogFlag: e.target.value }),
+      fx: s.fx, onFx: (e) => this.setState({ fx: e.target.value }),
+      freight: s.freight, onFreight: (e) => this.setState({ freight: e.target.value }),
+      freightPctDisplay: ((freightNum - 1) * 100).toFixed(0) + '%',
+      filteredCatalog, catalogVisibleCount: filteredCatalog.length, catalogTotalCount: s.catalogData.length,
+      totalSkuCount: s.catalogData.length, newCount, nameDropCount,
+      sampleTeeLanded: sampleTee ? ('$' + sampleLanded.toFixed(2) + ' CAD') : '—',
+      marginRangeDisplay,
+
+      prospectSearch: s.prospectSearch, onProspectSearch: (e) => this.setState({ prospectSearch: e.target.value }),
+      prospectRegion: s.prospectRegion, onProspectRegion: (e) => this.setState({ prospectRegion: e.target.value }),
+      prospectChannel: s.prospectChannel, onProspectChannel: (e) => this.setState({ prospectChannel: e.target.value }),
+      filteredProspects, prospectVisibleCount: filteredProspects.length, prospectTotalCount: s.prospectsData.length,
+      prospectOptions: s.prospectsData,
+
+      modalOpen: s.modalOpen,
+      openModalDefault: () => openModal(null),
+      closeModal: () => this.setState({ modalOpen: false }),
+      modalStoreId: s.modalStoreId, modalChannel: s.modalChannel, modalCity: s.modalCity,
+      onModalStoreChange: (e) => {
+        const id = parseInt(e.target.value, 10);
+        const p = s.prospectsData.find(x => x.id === id);
+        this.setState({ modalStoreId: id, modalChannel: p ? p.category : '', modalCity: p ? (p.city + ' (' + p.region + ')') : '' });
+      },
+      onModalSubmit: (e) => { e.preventDefault(); this.setState({ modalOpen: false }); },
+    };
+  }
+}
+</script>
+</body>
+</html>
