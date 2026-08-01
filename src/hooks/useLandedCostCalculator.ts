@@ -8,7 +8,9 @@ export function useLandedCostCalculator() {
   const marginRangeDisplay = useMemo(() => {
     const sellable = CATALOG_DATA.filter((it) => it.msrpCad > 0);
     if (!sellable.length) return '—';
-    const margins = sellable.map((it) => ((it.msrpCad - it.priceUsd * fx * freight) / it.msrpCad) * 100);
+    const margins = sellable.map(
+      (it) => ((it.msrpCad - it.priceUsd * fx * freight) / it.msrpCad) * 100,
+    );
     return `${Math.min(...margins).toFixed(1)}% – ${Math.max(...margins).toFixed(1)}%`;
   }, [fx, freight]);
 

@@ -13,12 +13,18 @@ Built with **Astro + React + TypeScript + Tailwind CSS**, recreating the `design
 
 ## Getting started
 
+Requires **Node 22+** (see `.nvmrc`).
+
 ```sh
 npm install
-npm run dev       # start local dev server
-npm run build     # type-check + production build
-npm run preview   # preview the production build
+npm run dev           # start local dev server
+npm run check         # lint + typecheck
+npm run format        # write formatting
+npm run build         # type-check + production build
+npm run preview       # preview the production build
 ```
+
+Day-to-day: `npm run check` before you push; `npm run format` when you want Prettier to rewrite.
 
 ## Project structure
 
@@ -32,8 +38,8 @@ src/
     LogCallModal.tsx
     RepCommandCenter.tsx   top-level state + layout
   data/
-    catalog.ts      191-item wholesale catalog (typed)
-    prospects.ts     250-record BC retailer directory (typed)
+    catalog.ts      190-item wholesale catalog (typed)
+    prospects.ts     249-record BC retailer directory (typed)
   hooks/
     useLandedCostCalculator.ts   shared FX/freight derived state
   layouts/Layout.astro

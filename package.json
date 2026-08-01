@@ -3,14 +3,21 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro check && astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "lint": "eslint . --ext .ts,.tsx,.astro",
-    "format": "prettier --write ."
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "astro check",
+    "check": "npm run lint && npm run typecheck"
   },
   "dependencies": {
     "@astrojs/react": "^4.2.0",
@@ -23,12 +30,20 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@eslint/js": "^10.0.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "autoprefixer": "^10.4.20",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-astro": "^1.7.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.8.0",
     "prettier": "^3.4.2",
     "prettier-plugin-astro": "^0.14.1",
     "prettier-plugin-tailwindcss": "^0.6.9",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0"
   }
 }
