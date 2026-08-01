@@ -28,6 +28,24 @@ npm run preview       # preview the production build
 
 Day-to-day: `npm run check` before you push; `npm run format` when you want Prettier to rewrite.
 
+## CI & branch protection
+
+GitHub Actions runs **CI** on every pull request and on pushes to `main` (`npm ci` → `npm run check` → `npm run build`). Dependabot opens weekly PRs for npm and GitHub Actions updates.
+
+To keep `main` merge-safe, configure branch protection in the GitHub UI:
+
+1. Open the repo → **Settings** → **Branches**.
+2. Under **Branch protection rules**, click **Add rule** (or edit the existing rule for `main`).
+3. Set **Branch name pattern** to `main`.
+4. Enable **Require a pull request before merging**.
+5. Enable **Require status checks to pass before merging**, then select the **`CI`** check.
+6. Enable **Require branches to be up to date before merging** (available after `CI` has run at least once on a PR).
+7. Enable **Do not allow bypassing the above settings** if your plan supports it (recommended).
+8. Under rules that control force push / deletion, ensure **force pushes** and **branch deletions** are not allowed on `main`.
+9. Save the rule.
+
+Note: the **`CI`** status check only appears in the required-checks picker after the workflow has completed at least once on a pull request.
+
 ## Project structure
 
 ```
