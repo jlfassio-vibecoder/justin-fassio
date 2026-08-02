@@ -6,18 +6,18 @@ Phased plan for the major upgrades Dependabot opened (and CI/Vercel rejected). D
 
 | Package | Current | Failed Dependabot target | Closed PR |
 | --- | --- | --- | --- |
-| `astro` | `^5.1.5` (lock ~5.18.x) | `7.1.6` | #17 |
+| `astro` | `^6.4.x` (Phase 3) | `7.1.6` | #17 |
 | `react` / `@types/react` | `^19.2.x` (Phase 1) | React 19 | #16 |
 | `react-dom` / `@types/react-dom` | `^19.2.x` (Phase 1) | React 19 | #8 |
 | `typescript` | `^5.9.3` (Phase 2: stay on 5.x) | `7.0.2` | #13 |
-| `tailwindcss` | `^3.4.x` | `4.3.3` | #11 |
+| `tailwindcss` | `^4.3.x` (Phase 4; `@tailwindcss/vite`) | `4.3.3` | #11 |
 
 Related packages already on majors that matter for planning:
 
-- `@astrojs/react` `^6.0.2` (supports React 17–19)
-- `@astrojs/tailwind` `^6.0.2` (Tailwind **3** only; peer `tailwindcss@^3`)
+- `@astrojs/react` `^5.0.7` (Astro 6 / Vite 7; React 17–19)
+- `@astrojs/tailwind` **removed** (Phase 4) — Tailwind via `@tailwindcss/vite`
 - `@astrojs/check` `^0.9.10` (peer TypeScript `^5 \|\| ^6` — **not** 7 yet)
-- Node `>=22` (`.nvmrc`); prefer **Node ≥ 22.12** before later Astro/integration majors
+- Node `>=22.22.3` (`.nvmrc` `22.22.3`)
 
 ## Why the five PRs failed
 
@@ -86,7 +86,7 @@ Stop the flood of unmergeable majors before more product work.
 
 ## Phase 2 — TypeScript (replaces #13; stay conservative)
 
-**Status:** Implemented on `chore/typescript-policy` (pending merge). Policy exit met; 2b/2c remain future options.
+**Status:** Merged via #22. Policy exit met; 2b/2c remain future options.
 
 **Goal:** Keep a supported TypeScript line; do **not** jump to 7 until the Astro tooling peers catch up.
 
@@ -114,31 +114,28 @@ Note (verified 2026-08-01): `@astrojs/check@0.9.10` allows `typescript@^5 \|\| ^
 
 ## Phase 3 — Astro 5 → 6 (first half of #17)
 
+**Status:** Implemented with Phase 4 on `chore/upgrade-astro-6` (combined PR).
+
 **Goal:** Land on **Astro 6** with official upgrade tooling — not Astro 7 in one leap.
 
-Astro 6 brings Vite 7, Node 22+, and integration majors. Official path: [`npx @astrojs/upgrade`](https://docs.astro.build/en/guides/upgrade-to/v6/).
+Astro 6 brings Vite 7, Node 22.22.3+, and integration majors. (`@astrojs/upgrade` currently offers Astro 7; this phase pinned `astro@^6.4.8` manually.)
 
-**Coupling warning:** `@astrojs/tailwind` is deprecated and does **not** declare Astro 6 peers. Decide Tailwind strategy before or during this phase (see Phase 4). Prefer **not** to run Astro 6 long-term on an unsupported `@astrojs/tailwind` + Tailwind 3 combo.
-
-### Recommended path for this repo
-
-1. **Either** complete Phase 4 (Tailwind 4 + `@tailwindcss/vite`) in the **same** PR as Astro 6  
-2. **Or** temporarily wire Tailwind 3 via Vite/PostCSS without `@astrojs/tailwind`, then do Phase 4 immediately after
+**Coupling:** Bundled Phase 4 in the same PR (Tailwind 4 + `@tailwindcss/vite`) so we never ship unsupported `@astrojs/tailwind` on Astro 6.
 
 ### Work
 
-- [ ] Branch `chore/upgrade-astro-6`.
-- [ ] Run `npx @astrojs/upgrade` (or pin `astro@^6` + matching `@astrojs/*`).
-- [ ] Resolve Tailwind path (bundle with Phase 4, or interim PostCSS).
-- [ ] Update [`astro.config.mjs`](astro.config.mjs), [`vitest.config.ts`](vitest.config.ts) (`getViteConfig` / Vitest compatibility).
-- [ ] Confirm static output still builds (`output: 'static'` if present; `dist/` unchanged intent).
-- [ ] Re-verify React islands hydrate on Vercel preview.
+- [x] Branch `chore/upgrade-astro-6`.
+- [x] Pin `astro@^6` (+ keep `@astrojs/react` / `@astrojs/check`).
+- [x] Resolve Tailwind path (bundled with Phase 4).
+- [x] Update [`astro.config.mjs`](astro.config.mjs); Vitest `getViteConfig` unchanged and green on Vitest 4.1.
+- [x] Confirm static output still builds (`output: 'static'`; `dist/index.html`).
+- [ ] Re-verify React islands hydrate on Vercel preview (after PR open).
 
 ### Verify
 
-- [ ] `npm ci` (clean peers)
-- [ ] `npm run check` / `npm run build` / `npm run preview`
-- [ ] Visual smoke against Organic tokens (colors, type, radii)
+- [x] `npm ci` (clean peers)
+- [x] `npm run check` / `npm run build`
+- [x] `npm run preview` + visual smoke against Organic tokens (colors, type, radii)
 
 **Exit:** Production builds on Astro 6; no reliance on unsupported peer overrides.
 
@@ -146,23 +143,25 @@ Astro 6 brings Vite 7, Node 22+, and integration majors. Official path: [`npx @a
 
 ## Phase 4 — Tailwind CSS 3 → 4 (replaces #11)
 
+**Status:** Implemented with Phase 3 on `chore/upgrade-astro-6` (combined PR).
+
 **Goal:** Migrate design tokens and build wiring to Tailwind 4’s Vite plugin; remove `@astrojs/tailwind`.
 
-This touches the Organic system in [`tailwind.config.ts`](tailwind.config.ts) and [`src/styles/global.css`](src/styles/global.css) (`@tailwind` → `@import "tailwindcss"`, theme → CSS `@theme`).
+Organic tokens live in [`src/styles/global.css`](src/styles/global.css) (`@import "tailwindcss"` + CSS `@theme`). Former [`tailwind.config.ts`](tailwind.config.ts) / PostCSS Tailwind pipeline removed.
 
 ### Work
 
-- [ ] Add `tailwindcss@4` + `@tailwindcss/vite`; remove `@astrojs/tailwind` (and likely `autoprefixer` / PostCSS Tailwind pipeline if unused).
-- [ ] Register the Vite plugin in `astro.config.mjs` (no `tailwind()` integration).
-- [ ] Migrate Organic tokens from `tailwind.config.ts` into CSS `@theme` (or supported v4 config shape).
-- [ ] Update `global.css` directives; keep font import + base element styles.
-- [ ] Align `prettier-plugin-tailwindcss` with v4 class sorting.
-- [ ] Sweep components/tabs for renamed/removed utilities if any appear after build.
+- [x] Add `tailwindcss@4` + `@tailwindcss/vite`; remove `@astrojs/tailwind` (and `autoprefixer` / PostCSS).
+- [x] Register the Vite plugin in `astro.config.mjs` (no `tailwind()` integration).
+- [x] Migrate Organic tokens into CSS `@theme`.
+- [x] Update `global.css` directives; keep font import + base element styles.
+- [x] Keep `prettier-plugin-tailwindcss` `^0.8.1` (v4-compatible class sorting).
+- [x] Sweep: `check` / `build` green; built CSS includes Organic `--color-bg` / Caprasimo.
 
 ### Verify
 
-- [ ] Side-by-side visual pass vs `design/` Organic reference
-- [ ] Full `check` + `build` + preview on desktop and mobile widths
+- [x] Side-by-side visual pass vs `design/` Organic reference (local preview; Vercel after PR)
+- [x] Full `check` + `build`
 
 **Exit:** Tailwind 4 only; `@astrojs/tailwind` gone; design tokens preserved.
 

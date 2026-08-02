@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.22.3"
   },
   "scripts": {
     "dev": "astro dev",
@@ -22,13 +22,13 @@
     "check": "npm run lint && npm run typecheck && npm run test"
   },
   "dependencies": {
-    "@astrojs/react": "^6.0.2",
-    "@astrojs/tailwind": "^6.0.2",
-    "astro": "^5.1.5",
+    "@astrojs/react": "^5.0.7",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^6.4.8",
     "lucide-react": "^1.27.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
@@ -39,7 +39,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "autoprefixer": "^10.4.20",
+    "ajv": "^8.20.0",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-astro": "^3.0.1",
@@ -53,5 +53,13 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.65.0",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "vite": "^7.3.6"
+  },
+  "optionalDependencies": {
+    "@emnapi/core": "^1.11.3",
+    "@emnapi/runtime": "^1.11.3",
+    "@emnapi/wasi-threads": "^1.2.3"
   }
 }
