@@ -89,17 +89,17 @@ Do not implement CRM persistence or AI agents. Exit when npm run check and build
 
 ## Phase B — Persist Log Call
 
-**Status:** Not started  
+**Status:** Done on `feature/ai-agent-integration`  
 **Goal:** First domain write path — `LogCallModal` inserts into `calls` under the user JWT + existing RLS.  
 **Depends on:** Phase A  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] Map modal fields → `calls` / `CallInsert` ([`src/types/database.ts`](src/types/database.ts)).
-- [ ] Insert via `supabase.from('calls')` from an approved-staff session; surface errors in the modal.
-- [ ] On success: close modal + refresh whatever list the Calls tab will use (even if temporary local invalidate).
-- [ ] Vitest: mock Supabase insert success/failure for the submit path.
+- [x] Map modal fields → `calls` / `CallInsert` ([`src/types/database.ts`](src/types/database.ts)).
+- [x] Insert via `supabase.from('calls')` from an approved-staff session; surface errors in the modal.
+- [x] On success: close modal + refresh whatever list the Calls tab will use (even if temporary local invalidate).
+- [x] Vitest: mock Supabase insert success/failure for the submit path.
 
 ### Out of scope
 
@@ -107,9 +107,9 @@ Do not implement CRM persistence or AI agents. Exit when npm run check and build
 
 ### Exit criteria
 
-- [ ] Approved rep can save a call and see a row in Supabase `calls`.
-- [ ] Pending/rejected users cannot insert (RLS).
-- [ ] `npm run check` green.
+- [x] Approved rep can save a call and see a row in Supabase `calls`.
+- [x] Pending/rejected users cannot insert (RLS).
+- [x] `npm run check` green.
 
 ### Plan prompt
 

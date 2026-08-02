@@ -1,13 +1,68 @@
+import { useEffect, useState } from 'react';
 import { ListChecks, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
+import { PROSPECTS_DATA } from '@/data/prospects';
+import { supabase } from '@/lib/supabase';
+
+type CallListRow = {
+  id: string;
+  prospect_id: number;
+  contact_name: string | null;
+  outcome: string;
+  pmf_score: number | null;
+  order_value_cad: number | null;
+  call_date: string;
+  notes: string | null;
+  objection_tags: string[];
+};
 
 interface CallsTabProps {
   onLogCall: () => void;
+  reloadToken?: number;
 }
 
-export function CallsTab({ onLogCall }: CallsTabProps) {
+function storeName(prospectId: number): string {
+  return PROSPECTS_DATA.find((p) => p.id === prospectId)?.name ?? `Prospect #${prospectId}`;
+}
+
+export function CallsTab({ onLogCall, reloadToken = 0 }: CallsTabProps) {
+  const [calls, setCalls] = useState<CallListRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function load() {
+      setLoading(true);
+      setFetchError(null);
+      const { data, error } = await supabase
+        .from('calls')
+        .select(
+          'id, prospect_id, contact_name, outcome, pmf_score, order_value_cad, call_date, notes, objection_tags',
+        )
+        .order('call_date', { ascending: false })
+        .limit(50);
+
+      if (!active) return;
+      if (error) {
+        setCalls([]);
+        setFetchError(error.message);
+        setLoading(false);
+        return;
+      }
+      setCalls(data ?? []);
+      setLoading(false);
+    }
+
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [reloadToken]);
+
   return (
     <section className="flex flex-col gap-5" data-screen-label="calls">
       <Card row className="flex-wrap items-center gap-3">
@@ -36,17 +91,61 @@ export function CallsTab({ onLogCall }: CallsTabProps) {
         </Button>
       </Card>
 
-      <Card elevation="md" className="items-center gap-3 px-5 py-14 text-center">
-        <ListChecks size={36} strokeWidth={2.75} className="text-sage-500" />
-        <CardTitle className="text-[19px]">Your pipeline is empty</CardTitle>
-        <p className="max-w-[46ch] text-[13px] opacity-70">
-          Every call you log — outcome, PMF score, buyer feedback, order value — will build your
-          pipeline here, searchable and filterable by channel and outcome.
-        </p>
-        <Button variant="primary" onClick={onLogCall} className="mt-1">
-          Log New Call
-        </Button>
-      </Card>
+      {loading && (
+        <p className="m-0 text-sm text-ink/60">Loading calls…</p>
+      )}
+
+      {fetchError && (
+        <p className="m-0 text-sm text-accent-800">Could not load calls: {fetchError}</p>
+      )}
+
+      {!loading && !fetchError && calls.length === 0 && (
+        <Card elevation="md" className="items-center gap-3 px-5 py-14 text-center">
+          <ListChecks size={36} strokeWidth={2.75} className="text-sage-500" />
+          <CardTitle className="text-[19px]">Your pipeline is empty</CardTitle>
+          <p className="max-w-[46ch] text-[13px] opacity-70">
+            Every call you log — outcome, PMF score, buyer feedback, order value — will build your
+            pipeline here, searchable and filterable by channel and outcome.
+          </p>
+          <Button variant="primary" onClick={onLogCall} className="mt-1">
+            Log New Call
+          </Button>
+        </Card>
+      )}
+
+      {!loading && !fetchError && calls.length > 0 && (
+        <Card elevation="md" className="gap-0 overflow-hidden p-0">
+          <ul className="m-0 list-none divide-y divide-ink/10 p-0">
+            {calls.map((call) => (
+              <li
+                key={call.id}
+                className="flex flex-wrap items-baseline justify-between gap-2 px-4.1 py-3.1"
+              >
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="font-heading text-[15px] text-ink">
+                    {storeName(call.prospect_id)}
+                  </span>
+                  <span className="text-[13px] text-ink/70">
+                    {call.outcome}
+                    {call.contact_name ? ` · ${call.contact_name}` : ''}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-[12px] text-ink/65">
+                  <span>PMF {call.pmf_score ?? '—'}</span>
+                  <span>
+                    $
+                    {Number(call.order_value_cad ?? 0).toLocaleString('en-CA', {
+                      maximumFractionDigits: 0,
+                    })}{' '}
+                    CAD
+                  </span>
+                  <span>{call.call_date}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </section>
   );
 }

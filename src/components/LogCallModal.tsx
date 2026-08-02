@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
 import { PROSPECTS_DATA } from '@/data/prospects';
+import { supabase } from '@/lib/supabase';
+import type { CallInsert } from '@/types/database';
 
 const FEEDBACK_OPTIONS = [
   'Loves display rack',
@@ -12,15 +14,55 @@ const FEEDBACK_OPTIONS = [
   'Wants higher margin',
 ];
 
+const OUTCOME_OPTIONS = [
+  'Closed PO / Written Order',
+  'Sample Package Requested',
+  'Follow-up Scheduled',
+  'Left Message / Gatekeeper',
+  'Not Interested / Bad Fit',
+] as const;
+
 interface LogCallModalProps {
   open: boolean;
   storeId: number | null;
   onClose: () => void;
   onStoreChange: (id: number) => void;
+  onSaved?: () => void;
 }
 
-export function LogCallModal({ open, storeId, onClose, onStoreChange }: LogCallModalProps) {
+function resetFormState(setters: {
+  setFeedback: (v: string[]) => void;
+  setContactName: (v: string) => void;
+  setOutcome: (v: string) => void;
+  setPmfScore: (v: string) => void;
+  setOrderValue: (v: string) => void;
+  setNotes: (v: string) => void;
+  setError: (v: string | null) => void;
+}) {
+  setters.setFeedback([]);
+  setters.setContactName('');
+  setters.setOutcome(OUTCOME_OPTIONS[0]);
+  setters.setPmfScore('10');
+  setters.setOrderValue('');
+  setters.setNotes('');
+  setters.setError(null);
+}
+
+export function LogCallModal({
+  open,
+  storeId,
+  onClose,
+  onStoreChange,
+  onSaved,
+}: LogCallModalProps) {
   const [feedback, setFeedback] = useState<string[]>([]);
+  const [contactName, setContactName] = useState('');
+  const [outcome, setOutcome] = useState<string>(OUTCOME_OPTIONS[0]);
+  const [pmfScore, setPmfScore] = useState('10');
+  const [orderValue, setOrderValue] = useState('');
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!open) return null;
 
@@ -35,13 +77,62 @@ export function LogCallModal({ open, storeId, onClose, onStoreChange }: LogCallM
   }
 
   function handleClose() {
-    setFeedback([]);
+    resetFormState({
+      setFeedback,
+      setContactName,
+      setOutcome,
+      setPmfScore,
+      setOrderValue,
+      setNotes,
+      setError,
+    });
     onClose();
   }
 
-  function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
+  async function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
-    setFeedback([]);
+    setError(null);
+
+    if (storeId == null) {
+      setError('Select a store prospect.');
+      return;
+    }
+
+    const trimmedContact = contactName.trim();
+    if (!trimmedContact) {
+      setError('Contact name is required.');
+      return;
+    }
+
+    const row: CallInsert = {
+      prospect_id: storeId,
+      contact_name: trimmedContact,
+      outcome,
+      pmf_score: Number(pmfScore),
+      order_value_cad: orderValue === '' ? 0 : Number(orderValue),
+      objection_tags: feedback,
+      notes: notes.trim() || null,
+    };
+
+    setBusy(true);
+    const { error: insertError } = await supabase.from('calls').insert(row);
+    setBusy(false);
+
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
+
+    resetFormState({
+      setFeedback,
+      setContactName,
+      setOutcome,
+      setPmfScore,
+      setOrderValue,
+      setNotes,
+      setError,
+    });
+    onSaved?.();
     onClose();
   }
 
@@ -49,7 +140,7 @@ export function LogCallModal({ open, storeId, onClose, onStoreChange }: LogCallM
     <DialogBackdrop open={open} onClose={handleClose}>
       <form
         className="flex max-w-[560px] flex-col gap-3.1 rounded-xl bg-surface p-4.1 shadow-lg"
-        onSubmit={handleSubmit}
+        onSubmit={(e) => void handleSubmit(e)}
       >
         <div className="flex items-center justify-between">
           <DialogTitle>Log Prospect Call</DialogTitle>
@@ -68,6 +159,7 @@ export function LogCallModal({ open, storeId, onClose, onStoreChange }: LogCallM
           <Select
             value={storeId ?? ''}
             onChange={(e) => onStoreChange(parseInt(e.target.value, 10))}
+            required
           >
             {PROSPECTS_DATA.map((p) => (
               <option key={p.id} value={p.id}>
@@ -91,16 +183,21 @@ export function LogCallModal({ open, storeId, onClose, onStoreChange }: LogCallM
         <div className="grid grid-cols-2 gap-3">
           <Field>
             <FieldLabel>Contact name &amp; title</FieldLabel>
-            <Input placeholder="e.g. Dave Miller (Owner)" required />
+            <Input
+              placeholder="e.g. Dave Miller (Owner)"
+              required
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+            />
           </Field>
           <Field>
             <FieldLabel>Call outcome</FieldLabel>
-            <Select defaultValue="Closed PO / Written Order">
-              <option>Closed PO / Written Order</option>
-              <option>Sample Package Requested</option>
-              <option>Follow-up Scheduled</option>
-              <option>Left Message / Gatekeeper</option>
-              <option>Not Interested / Bad Fit</option>
+            <Select value={outcome} onChange={(e) => setOutcome(e.target.value)}>
+              {OUTCOME_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
             </Select>
           </Field>
         </div>
@@ -108,7 +205,7 @@ export function LogCallModal({ open, storeId, onClose, onStoreChange }: LogCallM
         <div className="grid grid-cols-2 gap-3">
           <Field>
             <FieldLabel>PMF fit score</FieldLabel>
-            <Select defaultValue="10">
+            <Select value={pmfScore} onChange={(e) => setPmfScore(e.target.value)}>
               <option value="10">10 — Perfect fit</option>
               <option value="8">8 — Strong fit</option>
               <option value="6">6 — Moderate fit</option>
@@ -118,7 +215,13 @@ export function LogCallModal({ open, storeId, onClose, onStoreChange }: LogCallM
           </Field>
           <Field>
             <FieldLabel>Order value (CAD)</FieldLabel>
-            <Input type="number" min="0" placeholder="0 if no PO yet" />
+            <Input
+              type="number"
+              min="0"
+              placeholder="0 if no PO yet"
+              value={orderValue}
+              onChange={(e) => setOrderValue(e.target.value)}
+            />
           </Field>
         </div>
 
@@ -140,15 +243,22 @@ export function LogCallModal({ open, storeId, onClose, onStoreChange }: LogCallM
               </label>
             ))}
           </div>
-          <Textarea rows={3} placeholder="Call summary, buyer reaction…" />
+          <Textarea
+            rows={3}
+            placeholder="Call summary, buyer reaction…"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
         </Field>
 
+        {error && <p className="m-0 text-sm text-accent-800">{error}</p>}
+
         <div className="mt-1.5 flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={handleClose}>
+          <Button type="button" variant="secondary" onClick={handleClose} disabled={busy}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary">
-            Save Call Record
+          <Button type="submit" variant="primary" disabled={busy}>
+            {busy ? 'Saving…' : 'Save Call Record'}
           </Button>
         </div>
       </form>

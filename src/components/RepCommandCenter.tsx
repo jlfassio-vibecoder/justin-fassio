@@ -20,6 +20,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   const [activeTab, setActiveTab] = useState<TabKey>(defaultTab);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalStoreId, setModalStoreId] = useState<number | null>(null);
+  const [callsReloadToken, setCallsReloadToken] = useState(0);
 
   const { fx, setFx, freight, setFreight, marginRangeDisplay } = useLandedCostCalculator();
 
@@ -54,7 +55,9 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
           />
         )}
         {activeTab === 'dashboard' && <DashboardTab onLogCall={() => openModal()} />}
-        {activeTab === 'calls' && <CallsTab onLogCall={() => openModal()} />}
+        {activeTab === 'calls' && (
+          <CallsTab onLogCall={() => openModal()} reloadToken={callsReloadToken} />
+        )}
         {activeTab === 'prospects' && (
           <ProspectsTab onLogCall={(prospect) => openModal(prospect)} />
         )}
@@ -66,6 +69,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
         storeId={modalStoreId}
         onClose={() => setModalOpen(false)}
         onStoreChange={(id) => setModalStoreId(id)}
+        onSaved={() => setCallsReloadToken((n) => n + 1)}
       />
     </div>
   );
