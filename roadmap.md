@@ -52,17 +52,17 @@ Also landed (product, not in the old dependency table): public landing, `/rep-lo
 
 ## Phase A — Foundation trust (P0)
 
-**Status:** Not started  
+**Status:** Done on `feature/ai-agent-integration` (PR #30)  
 **Goal:** Local/CI/docs match the assessment so later phases start from a clean base.  
 **Depends on:** nothing  
 **Estimate:** small (½–1 day)
 
 ### In scope
 
-- [ ] Land Vite/`jsxDEV` mitigations if missing on the working branch: `astro dev --force`, `posttypecheck` cache wipe, `optimizeDeps` includes `react/jsx-dev-runtime` ([`astro.config.mjs`](astro.config.mjs), [`package.json`](package.json)).
-- [ ] Fix [`.github/workflows/ci.yml`](.github/workflows/ci.yml) to use **`npm ci`** (stop deleting `package-lock.json`); keep `@astrojs/compiler` rebuild only if still required on Ubuntu.
-- [ ] Update [`README.md`](README.md): auth/approval done; persistence outstanding; project structure lists auth + `supabase/`.
-- [ ] Verify migrations + owner bootstrap on Supabase project `mqsyqxnzpncwdrnugytf` (document result in PR).
+- [x] Land Vite/`jsxDEV` mitigations if missing on the working branch: `astro dev --force`, `posttypecheck` cache wipe, `optimizeDeps` includes `react/jsx-dev-runtime` ([`astro.config.mjs`](astro.config.mjs), [`package.json`](package.json)).
+- [x] Fix [`.github/workflows/ci.yml`](.github/workflows/ci.yml) to use **`npm ci`** (stop deleting `package-lock.json`); keep `@astrojs/compiler` rebuild only if still required on Ubuntu.
+- [x] Update [`README.md`](README.md): auth/approval done; persistence outstanding; project structure lists auth + `supabase/`.
+- [x] Verify migrations + owner bootstrap on Supabase project `mqsyqxnzpncwdrnugytf` (document result in PR).
 
 ### Out of scope
 
@@ -70,9 +70,9 @@ Also landed (product, not in the old dependency table): public landing, `/rep-lo
 
 ### Exit criteria
 
-- [ ] `npm ci && npm run check && npm run build` green in CI without lockfile deletion.
-- [ ] Local `/rep-login` works after `npm run check` (no `_jsxDEV` crash).
-- [ ] README no longer claims auth is “outstanding.”
+- [x] `npm ci && npm run check && npm run build` green in CI without lockfile deletion.
+- [x] Local `/rep-login` works after `npm run check` (no `_jsxDEV` crash).
+- [x] README no longer claims auth is “outstanding.”
 
 ### Plan prompt
 

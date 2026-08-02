@@ -57,11 +57,11 @@ In Supabase Auth → URL configuration, set the Site URL and add redirect allow-
 
 ## Getting started
 
-Requires **Node ≥ 22.22.3** (see `.nvmrc`).
+Requires **Node ≥ 22.22.3** (see `.nvmrc`). Prefer **`npm ci`** for a lockfile-reproducible install (CI uses the same).
 
 ```sh
-npm install
-npm run dev           # start local dev server
+npm ci
+npm run dev           # astro dev --force (avoids stale Vite jsxDEV / optimize-deps cache)
 npm run check         # lint + typecheck + unit/component tests
 npm run test          # Vitest single run
 npm run test:watch    # Vitest watch mode
@@ -107,39 +107,47 @@ If the project is not already linked:
 ### Deployment lifecycle
 
 1. Open a pull request → Vercel posts an isolated **Preview** URL for visual testing.
-2. Keep GitHub Actions / local `npm run check` green before merge.
+2. Keep [GitHub Actions CI](.github/workflows/ci.yml) / local `npm run check` green before merge.
 3. Merge to **`main`** → Vercel runs an automated **Production** deploy.
 
-GitHub Actions (when configured) remains the quality gate; Vercel runs its own build for each deploy.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) is the quality gate (`npm ci`, check, build); Vercel runs its own build for each deploy.
 
 ## Project structure
 
 ```
 src/
   components/
+    auth/          AuthGate, LoginForm, AuthProvider, approval / wrong-portal screens
     ui/            shared primitives (Button, Card, Tag, Input, Dialog)
-    tabs/           the 5 screens (Catalog, Dashboard, Calls, Prospects, Insights)
-    Header.tsx      brand mark, line switcher, Log Call / Export CSV actions
-    TabNav.tsx      pill tab bar
+    tabs/          Catalog, Dashboard, Calls, Prospects, Insights
+    Header.tsx     brand mark, line switcher, Log Call / Export CSV actions
+    TabNav.tsx     pill tab bar
     LogCallModal.tsx
-    RepCommandCenter.tsx   top-level state + layout
-  data/
-    catalog.ts      190-item wholesale catalog (typed)
-    prospects.ts     249-record BC retailer directory (typed)
-  hooks/
-    useLandedCostCalculator.ts   shared FX/freight derived state
+    RepCommandCenter.tsx
+  data/            catalog.ts, prospects.ts, landing.ts
+  hooks/           useAuth.ts, useLandedCostCalculator.ts
+  lib/             supabase.ts, auth.ts, catalogFilters.ts, landedCost.ts
   layouts/Layout.astro
-  pages/index.astro
-  styles/global.css   Google Fonts import + Tailwind 4 `@theme` Organic tokens
+  pages/           index.astro, login.astro, rep-login.astro, app/index.astro
+  styles/global.css
+supabase/
+  migrations/      schema history (profiles + approved-staff RLS)
+  schema.sql       end-state snapshot
+docs/
+  architecture-assessment.md
 ```
 
-## Dependency upgrades
+## Roadmap
 
-Stack majors from Dependabot (#8, #11, #13, #16, #17) were handled via coordinated phases in [`roadmap.md`](roadmap.md). **Phases 0–5 are done** (React 19, TypeScript 5.x policy, Astro 7, Tailwind 4). Optional follow-up: TypeScript 6 when desired.
+- **Dependency Phases 0–5** (React 19, TypeScript 5.x, Astro 7, Tailwind 4) are done — see the archive section in [`roadmap.md`](roadmap.md).
+- **Product Phases A–H** (foundation trust → CRM persistence → confidentiality → server boundary → AI agent) are the active plan in [`roadmap.md`](roadmap.md). Assessment: [`docs/architecture-assessment.md`](docs/architecture-assessment.md).
+
+Optional deferred: TypeScript 6 when `@astrojs/check` peers allow a clean `npm ci`.
 
 ## Notes
 
-- The PMF Dashboard, Call Pipeline, and Buyer Insights reaction cloud are intentionally zero/empty states — no seed data. They populate once real call-logging and persistence are wired up.
-- The Log Call modal's Save action currently just closes the modal; there is no persistence layer yet.
+- Auth and approval are shipped (`/rep-login`, `/app` AuthGate, profiles + `is_approved_staff()` RLS). Outstanding product depth is **persistence** and CRM reads (roadmap Phases B–C), then catalog/prospect confidentiality (Phase D).
+- The PMF Dashboard, Call Pipeline, and Buyer Insights reaction cloud are intentionally zero/empty states until call-logging is wired to Supabase.
+- The Log Call modal's Save action currently just closes the modal; there is no `calls` insert yet.
 - The line switcher only has data for "Old Guys Rule" today; "Busted Knuckles Garage" shows a dismissible "coming soon" notice per the design spec.
-- Foundational shipping path is in place (CI, Dependabot hygiene, Vercel static deploys on `main`). Product depth — persistence, auth, multi-line catalog data, and anything beyond client-side React state — is still outstanding and was out of scope for the dependency roadmap.
+- Catalog/prospect UI data still ships in the static client bundle (known residual risk until Phase D).

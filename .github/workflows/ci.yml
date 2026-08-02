@@ -26,8 +26,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          rm -rf node_modules package-lock.json
-          npm install
+          npm ci
           npm rebuild @astrojs/compiler
 
       - name: Lint, typecheck, and test
