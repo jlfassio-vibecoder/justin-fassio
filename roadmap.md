@@ -2,6 +2,8 @@
 
 Phased plan for the major upgrades Dependabot opened (and CI/Vercel rejected). Do **not** merge those Dependabot PRs as-is — each bumps one package without the rest of the stack.
 
+**Status:** Phases **0–5 are complete** on `main` (through [#24](https://github.com/jlfassio-vibecoder/justin-fassio/pull/24)). Remaining open boxes below are **optional / deferred** (TypeScript 6), not blockers for this roadmap.
+
 ## Current baseline (keep until a phase lands)
 
 | Package | Current | Failed Dependabot target | Closed PR |
@@ -47,7 +49,7 @@ Stop the flood of unmergeable majors before more product work.
 
 **Exit:** Weekly Dependabot noise is mostly safe minors; majors only appear when you remove an ignore intentionally.
 
-**Note:** When starting a later roadmap phase (Astro 6, Tailwind 4, etc.), remove that package’s `ignore` entry (or open a one-off upgrade PR) so Dependabot does not fight the coordinated bump.
+**Note:** Coordinated majors for Phases 1–5 are done. Keep Dependabot major `ignore`s in place unless you intentionally schedule the next major (e.g. optional TypeScript 6).
 
 ---
 
@@ -72,7 +74,7 @@ Stop the flood of unmergeable majors before more product work.
 ### Verify
 
 - [x] `npm run check` and `npm run build`
-- [ ] Manual smoke: tab switching, `LogCallModal`, landed-cost inputs (on Vercel preview / local after merge)
+- [x] Manual smoke: tab switching, `LogCallModal`, landed-cost inputs (on Vercel preview / local after merge)
 
 ### Notes
 
@@ -86,22 +88,22 @@ Stop the flood of unmergeable majors before more product work.
 
 ## Phase 2 — TypeScript (replaces #13; stay conservative)
 
-**Status:** Merged via #22. Policy exit met; 2b/2c remain future options.
+**Status:** Merged via #22. Policy exit met; 2b remains an optional future; 2c stays deferred.
 
 **Goal:** Keep a supported TypeScript line; do **not** jump to 7 until the Astro tooling peers catch up.
 
-### 2a — Stay on TypeScript 5.x (default / now)
+### 2a — Stay on TypeScript 5.x (default / now) — done
 
 - [x] Keep `typescript` on the latest **5.x** that `@astrojs/check` and `typescript-eslint` accept (`5.9.3` is current latest 5.x; `npm ci` + `npm run check` green).
 - [x] Dependabot: ignore `typescript` major updates (already in Phase 0).
 - [x] Document the policy in [`README.md`](README.md) (TypeScript policy).
 
-### 2b — TypeScript 6 (optional, after peers allow)
+### 2b — TypeScript 6 (optional, not required for this roadmap)
 
 - [ ] When `@astrojs/check` (and ESLint TS stack) clearly support TS 6 in CI with `npm ci` (no `--legacy-peer-deps`), bump in one PR.
 - [ ] Re-run `astro check` across `src/` and fix new strictness only if actionable.
 
-Note (verified 2026-08-01): `@astrojs/check@0.9.10` allows `typescript@^5 \|\| ^6`, and `typescript-eslint@8` allows `<6.1.0`. A TS 6 bump is technically peer-plausible but **not** part of this phase — schedule a dedicated PR if/when desired.
+Note (verified 2026-08-01): `@astrojs/check@0.9.10` allows `typescript@^5 \|\| ^6`, and `typescript-eslint@8` allows `<6.1.0`. A TS 6 bump is technically peer-plausible but **not** part of this roadmap’s completion criteria — schedule a dedicated PR if/when desired.
 
 ### 2c — TypeScript 7 (deferred)
 
@@ -114,7 +116,7 @@ Note (verified 2026-08-01): `@astrojs/check@0.9.10` allows `typescript@^5 \|\| ^
 
 ## Phase 3 — Astro 5 → 6 (first half of #17)
 
-**Status:** Implemented with Phase 4 on `chore/upgrade-astro-6` (combined PR).
+**Status:** Merged via #23 (combined with Phase 4).
 
 **Goal:** Land on **Astro 6** with official upgrade tooling — not Astro 7 in one leap.
 
@@ -129,7 +131,7 @@ Astro 6 brings Vite 7, Node 22.22.3+, and integration majors. (`@astrojs/upgrade
 - [x] Resolve Tailwind path (bundled with Phase 4).
 - [x] Update [`astro.config.mjs`](astro.config.mjs); Vitest `getViteConfig` unchanged and green on Vitest 4.1.
 - [x] Confirm static output still builds (`output: 'static'`; `dist/index.html`).
-- [ ] Re-verify React islands hydrate on Vercel preview (after PR open).
+- [x] Re-verify React islands hydrate on Vercel preview (after PR open).
 
 ### Verify
 
@@ -143,7 +145,7 @@ Astro 6 brings Vite 7, Node 22.22.3+, and integration majors. (`@astrojs/upgrade
 
 ## Phase 4 — Tailwind CSS 3 → 4 (replaces #11)
 
-**Status:** Implemented with Phase 3 on `chore/upgrade-astro-6` (combined PR).
+**Status:** Merged via #23 (combined with Phase 3).
 
 **Goal:** Migrate design tokens and build wiring to Tailwind 4’s Vite plugin; remove `@astrojs/tailwind`.
 
@@ -169,7 +171,7 @@ Organic tokens live in [`src/styles/global.css`](src/styles/global.css) (`@impor
 
 ## Phase 5 — Astro 6 → 7 (second half of #17)
 
-**Status:** Implemented on `chore/upgrade-astro-7`.
+**Status:** Merged via #24.
 
 **Goal:** Move from Astro 6 + Vite 7 override to Astro 7’s native Vite 8 / Rolldown stack.
 
@@ -185,17 +187,17 @@ Organic tokens live in [`src/styles/global.css`](src/styles/global.css) (`@impor
 ## Suggested sequence (summary)
 
 ```text
-Phase 0  Dependabot ignores / close failed majors
+Phase 0  Dependabot ignores / close failed majors     ✓
     ↓
-Phase 1  React 19 (react + react-dom + types together)
+Phase 1  React 19 (react + react-dom + types together) ✓
     ↓
-Phase 2  TypeScript policy (stay on 5.x; 6 later; 7 blocked)
+Phase 2  TypeScript policy (5.x now; 6 optional; 7 blocked) ✓
     ↓
 Phase 3  Astro 5 → 6  ──┐
-    ↓                   ├── often one PR if Tailwind is migrated together
+    ↓                   ├── #23                         ✓
 Phase 4  Tailwind 3 → 4 ┘
     ↓
-Phase 5  Astro 6 → 7 (done)
+Phase 5  Astro 6 → 7 (#24)                             ✓
 ```
 
 ## Out of scope for these phases
@@ -207,3 +209,5 @@ Phase 5  Astro 6 → 7 (done)
 ## Tracking
 
 Use one PR per phase (or Phases 3+4 combined). After each merge, update this file’s checkboxes and the README stack versions.
+
+**Dependency roadmap complete.** Optional follow-up outside this plan: TypeScript 6 (Phase 2b) when you want it. Product work (persistence, auth, multi-line data, etc.) was never in scope here — see README Notes.

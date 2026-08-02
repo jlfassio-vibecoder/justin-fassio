@@ -13,10 +13,10 @@ Built with **Astro + React + TypeScript + Tailwind CSS**, recreating the `design
 
 ### TypeScript policy
 
-Stay on **TypeScript 5.x** (currently `^5.9.3`, the latest 5.x). Do not take Dependabot majors to 6 or 7 until a coordinated upgrade in [`roadmap.md`](roadmap.md) Phase 2:
+Stay on **TypeScript 5.x** (currently `^5.9.3`, the latest 5.x). The dependency upgrade [`roadmap.md`](roadmap.md) (Phases 0–5) is complete on `main`; do not take Dependabot majors to TypeScript 6 or 7 without a dedicated PR:
 
 - **5.x** — current supported line (`@astrojs/check` + `typescript-eslint` green with `npm ci`)
-- **6.x** — optional later, only when peers allow a clean `npm ci` (no `--legacy-peer-deps`)
+- **6.x** — optional later (roadmap Phase 2b), only when peers allow a clean `npm ci` (no `--legacy-peer-deps`)
 - **7.x** — blocked until `@astrojs/check` declares support
 
 Dependabot already ignores `typescript` major updates (Phase 0).
@@ -97,8 +97,13 @@ src/
   styles/global.css   Google Fonts import + Tailwind 4 `@theme` Organic tokens
 ```
 
+## Dependency upgrades
+
+Stack majors from Dependabot (#8, #11, #13, #16, #17) were handled via coordinated phases in [`roadmap.md`](roadmap.md). **Phases 0–5 are done** (React 19, TypeScript 5.x policy, Astro 7, Tailwind 4). Optional follow-up: TypeScript 6 when desired.
+
 ## Notes
 
 - The PMF Dashboard, Call Pipeline, and Buyer Insights reaction cloud are intentionally zero/empty states — no seed data. They populate once real call-logging and persistence are wired up.
 - The Log Call modal's Save action currently just closes the modal; there is no persistence layer yet.
 - The line switcher only has data for "Old Guys Rule" today; "Busted Knuckles Garage" shows a dismissible "coming soon" notice per the design spec.
+- Foundational shipping path is in place (CI, Dependabot hygiene, Vercel static deploys on `main`). Product depth — persistence, auth, multi-line catalog data, and anything beyond client-side React state — is still outstanding and was out of scope for the dependency roadmap.
