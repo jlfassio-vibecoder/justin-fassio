@@ -3,6 +3,8 @@ import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { CATALOG_DATA } from '@/data/catalog';
+import { filterCatalogItems, type CatalogFlagFilter } from '@/lib/catalogFilters';
+import { landedCad, marginPct } from '@/lib/landedCost';
 
 const CATEGORY_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Categories' },
@@ -16,8 +18,6 @@ const CATEGORY_OPTIONS: { value: string; label: string }[] = [
   { value: 'Magnets & Stickers', label: 'Magnets & Stickers' },
 ];
 
-type FlagFilter = 'ALL' | 'NEW' | 'NAMEDROP';
-
 interface CatalogTabProps {
   fx: number;
   setFx: (fx: number) => void;
@@ -26,33 +26,29 @@ interface CatalogTabProps {
   marginRangeDisplay: string;
 }
 
-export function CatalogTab({ fx, setFx, freight, setFreight, marginRangeDisplay }: CatalogTabProps) {
+export function CatalogTab({
+  fx,
+  setFx,
+  freight,
+  setFreight,
+  marginRangeDisplay,
+}: CatalogTabProps) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('ALL');
-  const [flag, setFlag] = useState<FlagFilter>('ALL');
+  const [flag, setFlag] = useState<CatalogFlagFilter>('ALL');
 
   const filteredCatalog = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return CATALOG_DATA.filter((item) => {
-      if (category !== 'ALL' && item.cat !== category) return false;
-      if (flag === 'NEW' && !item.isNew) return false;
-      if (flag === 'NAMEDROP' && !item.isNameDrop) return false;
-      if (q) {
-        const hay = `${item.sku} ${item.name} ${item.tagline} ${item.color}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    }).map((item) => {
-      const landed = item.priceUsd * fx * freight;
-      const sellable = item.msrpCad > 0;
-      const margin = sellable ? ((item.msrpCad - landed) / item.msrpCad) * 100 : null;
+    return filterCatalogItems(CATALOG_DATA, { search, category, flag }).map((item) => {
+      const landed = landedCad(item.priceUsd, fx, freight);
+      const margin = marginPct(item.priceUsd, item.msrpCad, fx, freight);
+      const sellable = margin != null;
       return {
         ...item,
         landed,
         priceDisplay: `$${item.priceUsd.toFixed(2)}`,
         landedDisplay: `$${landed.toFixed(2)}`,
         msrpDisplay: sellable ? `$${item.msrpCad.toFixed(2)}` : 'Not for resale',
-        marginDisplay: sellable ? `${margin!.toFixed(1)}%` : '—',
+        marginDisplay: sellable ? `${margin.toFixed(1)}%` : '—',
       };
     });
   }, [search, category, flag, fx, freight]);
@@ -60,8 +56,13 @@ export function CatalogTab({ fx, setFx, freight, setFreight, marginRangeDisplay 
   const newCount = useMemo(() => CATALOG_DATA.filter((it) => it.isNew).length, []);
   const nameDropCount = useMemo(() => CATALOG_DATA.filter((it) => it.isNameDrop).length, []);
 
-  const sampleTee = useMemo(() => CATALOG_DATA.find((it) => it.cat === 'Short Sleeve Tees') ?? CATALOG_DATA[0], []);
-  const sampleTeeLanded = sampleTee ? `$${(sampleTee.priceUsd * fx * freight).toFixed(2)} CAD` : '—';
+  const sampleTee = useMemo(
+    () => CATALOG_DATA.find((it) => it.cat === 'Short Sleeve Tees') ?? CATALOG_DATA[0],
+    [],
+  );
+  const sampleTeeLanded = sampleTee
+    ? `$${landedCad(sampleTee.priceUsd, fx, freight).toFixed(2)} CAD`
+    : '—';
 
   const freightPctDisplay = `${((freight - 1) * 100).toFixed(0)}%`;
 
@@ -144,7 +145,11 @@ export function CatalogTab({ fx, setFx, freight, setFreight, marginRangeDisplay 
             </option>
           ))}
         </Select>
-        <Select className="w-auto" value={flag} onChange={(e) => setFlag(e.target.value as FlagFilter)}>
+        <Select
+          className="w-auto"
+          value={flag}
+          onChange={(e) => setFlag(e.target.value as CatalogFlagFilter)}
+        >
           <option value="ALL">All Flags</option>
           <option value="NEW">NEW 2026</option>
           <option value="NAMEDROP">Name Drop Eligible</option>
@@ -159,16 +164,24 @@ export function CatalogTab({ fx, setFx, freight, setFreight, marginRangeDisplay 
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="sticky top-0 bg-surface">
-                {['Pg', 'SKU', 'Product', 'Category', 'Color', 'Tagline', 'Wholesale', 'Landed CAD', 'MSRP CAD'].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="border-b border-ink/15 p-2 text-left text-[11px] uppercase tracking-wider text-ink/60"
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
+                {[
+                  'Pg',
+                  'SKU',
+                  'Product',
+                  'Category',
+                  'Color',
+                  'Tagline',
+                  'Wholesale',
+                  'Landed CAD',
+                  'MSRP CAD',
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="border-b border-ink/15 p-2 text-left text-[11px] uppercase tracking-wider text-ink/60"
+                  >
+                    {h}
+                  </th>
+                ))}
                 <th className="border-b border-ink/15 p-2 text-right text-[11px] uppercase tracking-wider text-ink/60">
                   Margin
                 </th>
@@ -178,7 +191,9 @@ export function CatalogTab({ fx, setFx, freight, setFreight, marginRangeDisplay 
               {filteredCatalog.map((item) => (
                 <tr key={item.sku} className="hover:bg-ink/[0.04]">
                   <td className="border-b border-ink/[0.08] p-2">{item.page}</td>
-                  <td className="border-b border-ink/[0.08] p-2 font-heading text-[13px]">{item.sku}</td>
+                  <td className="border-b border-ink/[0.08] p-2 font-heading text-[13px]">
+                    {item.sku}
+                  </td>
                   <td className="min-w-[180px] border-b border-ink/[0.08] p-2">
                     <div className="font-semibold">{item.name}</div>
                     <div className="mt-0.5 flex gap-1">
@@ -188,11 +203,15 @@ export function CatalogTab({ fx, setFx, freight, setFreight, marginRangeDisplay 
                   </td>
                   <td className="border-b border-ink/[0.08] p-2">{item.cat}</td>
                   <td className="border-b border-ink/[0.08] p-2">{item.color}</td>
-                  <td className="min-w-[220px] border-b border-ink/[0.08] p-2 opacity-75">{item.tagline}</td>
+                  <td className="min-w-[220px] border-b border-ink/[0.08] p-2 opacity-75">
+                    {item.tagline}
+                  </td>
                   <td className="border-b border-ink/[0.08] p-2">{item.priceDisplay}</td>
                   <td className="border-b border-ink/[0.08] p-2">{item.landedDisplay}</td>
                   <td className="border-b border-ink/[0.08] p-2">{item.msrpDisplay}</td>
-                  <td className="border-b border-ink/[0.08] p-2 text-right font-semibold">{item.marginDisplay}</td>
+                  <td className="border-b border-ink/[0.08] p-2 text-right font-semibold">
+                    {item.marginDisplay}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -208,14 +227,18 @@ export function CatalogTab({ fx, setFx, freight, setFreight, marginRangeDisplay 
             <p className="mb-1">
               <strong>24 pieces</strong> total, <strong>6 pieces</strong> per style.
             </p>
-            <p className="text-xs opacity-70">Free floor display with a qualifying $2,800 USD opening order.</p>
+            <p className="text-xs opacity-70">
+              Free floor display with a qualifying $2,800 USD opening order.
+            </p>
           </div>
           <div className="rounded-md bg-bg p-3.5 text-[13px]">
             <p className="mb-1.5 font-semibold text-sage-800">Shipping</p>
             <p className="mb-1">
               UPS Ground from <strong>Vista, California</strong>.
             </p>
-            <p className="text-xs opacity-70">72-hour standard turnaround; 4–6 days in peak season.</p>
+            <p className="text-xs opacity-70">
+              72-hour standard turnaround; 4–6 days in peak season.
+            </p>
           </div>
           <div className="rounded-md bg-bg p-3.5 text-[13px]">
             <p className="mb-1.5 font-semibold text-accent-700">Terms</p>

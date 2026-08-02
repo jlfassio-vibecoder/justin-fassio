@@ -23,7 +23,10 @@ const CHANNEL_OPTIONS: { value: string; label: string }[] = [
   { value: 'Resort Gift', label: 'Resort Gift Boutiques' },
 ];
 
-const channelTagVariant: Record<Prospect['category'], 'accent-2' | 'accent' | 'neutral' | 'outline'> = {
+const channelTagVariant: Record<
+  Prospect['category'],
+  'accent-2' | 'accent' | 'neutral' | 'outline'
+> = {
   Golf: 'accent-2',
   Marina: 'accent',
   Hardware: 'neutral',
@@ -57,7 +60,7 @@ export function ProspectsTab({ onLogCall }: ProspectsTabProps) {
       <Card row className="flex-wrap items-center gap-3">
         <Input
           className="min-w-[220px] flex-1"
-          placeholder="Search 250 BC prospects by name, city, address, or fit reason…"
+          placeholder="Search 249 BC prospects by name, city, address, or fit reason…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -85,14 +88,16 @@ export function ProspectsTab({ onLogCall }: ProspectsTabProps) {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="sticky top-0 bg-surface">
-                {['#', 'Store', 'Channel', 'City (Region)', 'Address', 'Phone', 'Fit Reason'].map((h) => (
-                  <th
-                    key={h}
-                    className="border-b border-ink/15 p-2 text-left text-[11px] uppercase tracking-wider text-ink/60"
-                  >
-                    {h}
-                  </th>
-                ))}
+                {['#', 'Store', 'Channel', 'City (Region)', 'Address', 'Phone', 'Fit Reason'].map(
+                  (h) => (
+                    <th
+                      key={h}
+                      className="border-b border-ink/15 p-2 text-left text-[11px] uppercase tracking-wider text-ink/60"
+                    >
+                      {h}
+                    </th>
+                  ),
+                )}
                 <th className="border-b border-ink/15 p-2 text-right text-[11px] uppercase tracking-wider text-ink/60">
                   Action
                 </th>
@@ -102,7 +107,9 @@ export function ProspectsTab({ onLogCall }: ProspectsTabProps) {
               {filteredProspects.map((p) => (
                 <tr key={p.id} className="hover:bg-ink/[0.04]">
                   <td className="border-b border-ink/[0.08] p-2">{p.id}</td>
-                  <td className="min-w-[160px] border-b border-ink/[0.08] p-2 font-semibold">{p.name}</td>
+                  <td className="min-w-[160px] border-b border-ink/[0.08] p-2 font-semibold">
+                    {p.name}
+                  </td>
                   <td className="border-b border-ink/[0.08] p-2">
                     <Tag variant={channelTagVariant[p.category]}>{p.category}</Tag>
                   </td>
@@ -111,9 +118,15 @@ export function ProspectsTab({ onLogCall }: ProspectsTabProps) {
                   </td>
                   <td className="border-b border-ink/[0.08] p-2 opacity-75">{p.address}</td>
                   <td className="border-b border-ink/[0.08] p-2">{p.phone}</td>
-                  <td className="min-w-[240px] border-b border-ink/[0.08] p-2 opacity-75">{p.fit}</td>
+                  <td className="min-w-[240px] border-b border-ink/[0.08] p-2 opacity-75">
+                    {p.fit}
+                  </td>
                   <td className="border-b border-ink/[0.08] p-2 text-right">
-                    <Button variant="secondary" className="px-3 py-1 text-xs" onClick={() => onLogCall(p)}>
+                    <Button
+                      variant="secondary"
+                      className="px-3 py-1 text-xs"
+                      onClick={() => onLogCall(p)}
+                    >
                       Log Call
                     </Button>
                   </td>

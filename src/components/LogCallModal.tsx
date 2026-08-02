@@ -1,11 +1,16 @@
-import { useState } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
 import { PROSPECTS_DATA } from '@/data/prospects';
 
-const FEEDBACK_OPTIONS = ['Loves display rack', 'Seasonal rush fit', 'Pre-booked budget', 'Wants higher margin'];
+const FEEDBACK_OPTIONS = [
+  'Loves display rack',
+  'Seasonal rush fit',
+  'Pre-booked budget',
+  'Wants higher margin',
+];
 
 interface LogCallModalProps {
   open: boolean;
@@ -24,17 +29,24 @@ export function LogCallModal({ open, storeId, onClose, onStoreChange }: LogCallM
   const modalCity = selected ? `${selected.city} (${selected.region})` : '';
 
   function toggleFeedback(option: string) {
-    setFeedback((prev) => (prev.includes(option) ? prev.filter((f) => f !== option) : [...prev, option]));
+    setFeedback((prev) =>
+      prev.includes(option) ? prev.filter((f) => f !== option) : [...prev, option],
+    );
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleClose() {
+    setFeedback([]);
+    onClose();
+  }
+
+  function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setFeedback([]);
     onClose();
   }
 
   return (
-    <DialogBackdrop open={open} onClose={onClose}>
+    <DialogBackdrop open={open} onClose={handleClose}>
       <form
         className="flex max-w-[560px] flex-col gap-3.1 rounded-xl bg-surface p-4.1 shadow-lg"
         onSubmit={handleSubmit}
@@ -43,7 +55,7 @@ export function LogCallModal({ open, storeId, onClose, onStoreChange }: LogCallM
           <DialogTitle>Log Prospect Call</DialogTitle>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent"
             aria-label="Close"
           >
@@ -132,7 +144,7 @@ export function LogCallModal({ open, storeId, onClose, onStoreChange }: LogCallM
         </Field>
 
         <div className="mt-1.5 flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={handleClose}>
             Cancel
           </Button>
           <Button type="submit" variant="primary">

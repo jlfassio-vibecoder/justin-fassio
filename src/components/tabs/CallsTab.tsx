@@ -11,7 +11,10 @@ export function CallsTab({ onLogCall }: CallsTabProps) {
   return (
     <section className="flex flex-col gap-5" data-screen-label="calls">
       <Card row className="flex-wrap items-center gap-3">
-        <Input className="min-w-[220px] flex-1" placeholder="Search calls by store, contact, notes…" />
+        <Input
+          className="min-w-[220px] flex-1"
+          placeholder="Search calls by store, contact, notes…"
+        />
         <Select className="w-auto">
           <option>All Retail Channels</option>
           <option>Golf Pro Shops</option>
@@ -37,8 +40,8 @@ export function CallsTab({ onLogCall }: CallsTabProps) {
         <ListChecks size={36} strokeWidth={2.75} className="text-sage-500" />
         <CardTitle className="text-[19px]">Your pipeline is empty</CardTitle>
         <p className="max-w-[46ch] text-[13px] opacity-70">
-          Every call you log — outcome, PMF score, buyer feedback, order value — will build your pipeline here,
-          searchable and filterable by channel and outcome.
+          Every call you log — outcome, PMF score, buyer feedback, order value — will build your
+          pipeline here, searchable and filterable by channel and outcome.
         </p>
         <Button variant="primary" onClick={onLogCall} className="mt-1">
           Log New Call
