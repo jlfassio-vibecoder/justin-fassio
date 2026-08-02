@@ -19,7 +19,8 @@
     "typecheck": "astro check",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run lint && npm run typecheck && npm run test"
+    "check": "npm run lint && npm run typecheck && npm run test",
+    "email:test": "node --env-file=.env scripts/send-test-email.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^6.0.2",
@@ -29,6 +30,7 @@
     "lucide-react": "^1.27.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "resend": "^6.18.1",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {

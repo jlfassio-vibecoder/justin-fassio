@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Field, FieldLabel, Input } from '@/components/ui/Input';
 
 type Mode = 'magic' | 'password';
+type AuthView = 'login' | 'register';
 
 function readMode(): Mode {
   if (typeof window === 'undefined') return 'magic';
@@ -13,6 +14,7 @@ function readMode(): Mode {
 }
 
 export function LoginForm() {
+  const [view, setView] = useState<AuthView>('login');
   const [mode, setMode] = useState<Mode>(() => readMode());
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,14 +37,21 @@ export function LoginForm() {
     const redirectTo = `${window.location.origin}/app`;
     const { error: err } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: redirectTo },
+      options: {
+        emailRedirectTo: redirectTo,
+        shouldCreateUser: view === 'register',
+      },
     });
     setBusy(false);
     if (err) {
       setError(err.message);
       return;
     }
-    setMessage('Check your email for a sign-in link.');
+    setMessage(
+      view === 'register'
+        ? 'Check your email to confirm your account. Access stays pending until Justin approves you.'
+        : 'Check your email for a sign-in link.',
+    );
   }
 
   async function handlePassword(e: SubmitEvent<HTMLFormElement>) {
@@ -50,6 +59,29 @@ export function LoginForm() {
     setBusy(true);
     setError(null);
     setMessage(null);
+
+    if (view === 'register') {
+      const redirectTo = `${window.location.origin}/app`;
+      const { data, error: err } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { emailRedirectTo: redirectTo },
+      });
+      setBusy(false);
+      if (err) {
+        setError(err.message);
+        return;
+      }
+      if (data.session) {
+        window.location.replace('/app');
+        return;
+      }
+      setMessage(
+        'Account created. Confirm your email if required — access stays pending until Justin approves you.',
+      );
+      return;
+    }
+
     const { error: err } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -89,34 +121,72 @@ export function LoginForm() {
         <span className="font-heading text-xl text-ink">Justin Fassio</span>
       </a>
 
-      <h1 className="m-0 text-2xl">Sign in</h1>
+      <h1 className="m-0 text-2xl">
+        {view === 'register' ? 'Request access' : 'Rep / Owner sign in'}
+      </h1>
       <p className="mt-2 mb-6 text-sm text-ink/70">
-        For Justin and invited buyers. Use the email on your account.
+        {view === 'register'
+          ? 'Create an account for Rep Command Center. Justin must approve you before tools unlock.'
+          : 'For Justin and authorized sales reps.'}
       </p>
 
       <div className="mb-5 flex gap-2 rounded-full bg-surface p-1">
         <button
           type="button"
-          onClick={() => setMode('magic')}
+          onClick={() => {
+            setView('login');
+            setError(null);
+            setMessage(null);
+          }}
           className={`flex-1 rounded-full px-3 py-1.5 font-heading text-sm ${
-            mode === 'magic' ? 'bg-accent text-bg' : 'text-ink/70'
+            view === 'login' ? 'bg-accent text-bg' : 'text-ink/70'
           }`}
         >
-          Email link
+          Sign in
         </button>
         <button
           type="button"
-          onClick={() => setMode('password')}
+          onClick={() => {
+            setView('register');
+            setMode('password');
+            setError(null);
+            setMessage(null);
+          }}
           className={`flex-1 rounded-full px-3 py-1.5 font-heading text-sm ${
-            mode === 'password' ? 'bg-accent text-bg' : 'text-ink/70'
+            view === 'register' ? 'bg-accent text-bg' : 'text-ink/70'
           }`}
         >
-          Password
+          Register
         </button>
       </div>
 
+      {view === 'login' && (
+        <div className="mb-5 flex gap-2 rounded-full bg-surface p-1">
+          <button
+            type="button"
+            onClick={() => setMode('magic')}
+            className={`flex-1 rounded-full px-3 py-1.5 font-heading text-sm ${
+              mode === 'magic' ? 'bg-accent text-bg' : 'text-ink/70'
+            }`}
+          >
+            Email link
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('password')}
+            className={`flex-1 rounded-full px-3 py-1.5 font-heading text-sm ${
+              mode === 'password' ? 'bg-accent text-bg' : 'text-ink/70'
+            }`}
+          >
+            Password
+          </button>
+        </div>
+      )}
+
       <form
-        onSubmit={mode === 'magic' ? handleMagicLink : handlePassword}
+        onSubmit={
+          view === 'register' || mode === 'password' ? handlePassword : handleMagicLink
+        }
         className="flex flex-col gap-3.5"
       >
         <Field>
@@ -130,13 +200,14 @@ export function LoginForm() {
           />
         </Field>
 
-        {mode === 'password' && (
+        {(view === 'register' || mode === 'password') && (
           <Field>
             <FieldLabel>Password</FieldLabel>
             <Input
               type="password"
-              autoComplete="current-password"
+              autoComplete={view === 'register' ? 'new-password' : 'current-password'}
               required
+              minLength={6}
               value={password}
               onChange={(ev) => setPassword(ev.target.value)}
             />
@@ -147,9 +218,21 @@ export function LoginForm() {
         {message && <p className="m-0 text-sm text-sage-800">{message}</p>}
 
         <Button type="submit" variant="primary" disabled={busy} className="mt-1">
-          {busy ? 'Working…' : mode === 'magic' ? 'Send login link' : 'Sign in'}
+          {busy
+            ? 'Working…'
+            : view === 'register'
+              ? 'Create account'
+              : mode === 'magic'
+                ? 'Send login link'
+                : 'Sign in'}
         </Button>
       </form>
+
+      <p className="mt-8 text-center text-xs text-ink/55">
+        <a href="/login" className="text-ink/60 no-underline hover:underline">
+          Buyer Portal
+        </a>
+      </p>
     </div>
   );
 }

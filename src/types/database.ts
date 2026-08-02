@@ -6,6 +6,9 @@
  * regenerate this from the real schema instead.
  */
 
+export type UserRole = 'owner' | 'rep' | 'buyer';
+export type UserStatus = 'pending' | 'approved' | 'rejected';
+
 export interface Database {
   public: {
     Tables: {
@@ -160,7 +163,8 @@ export interface Database {
           id: string;
           email: string | null;
           display_name: string | null;
-          role: 'rep' | 'buyer';
+          role: UserRole;
+          status: UserStatus;
           created_at: string;
           updated_at: string;
         };
@@ -168,7 +172,8 @@ export interface Database {
           id: string;
           email?: string | null;
           display_name?: string | null;
-          role?: 'rep' | 'buyer';
+          role?: UserRole;
+          status?: UserStatus;
           created_at?: string;
           updated_at?: string;
         };
@@ -176,14 +181,20 @@ export interface Database {
           id?: string;
           email?: string | null;
           display_name?: string | null;
-          role?: 'rep' | 'buyer';
+          role?: UserRole;
+          status?: UserStatus;
           created_at?: string;
           updated_at?: string;
         };
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      is_approved_staff: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+    };
     Enums: Record<string, never>;
   };
 }
