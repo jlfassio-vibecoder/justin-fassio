@@ -146,8 +146,7 @@ Optional deferred: TypeScript 6 when `@astrojs/check` peers allow a clean `npm c
 
 ## Notes
 
-- Auth and approval are shipped (`/rep-login`, `/app` AuthGate, profiles + `is_approved_staff()` RLS). Outstanding product depth is **persistence** and CRM reads (roadmap Phases B–C), then catalog/prospect confidentiality (Phase D).
-- The PMF Dashboard, Call Pipeline, and Buyer Insights reaction cloud are intentionally zero/empty states until call-logging is wired to Supabase.
-- Log Call Save persists to Supabase `calls` for approved staff (RLS). Dashboard / Insights aggregates still wait on Phase C.
+- Auth and approval are shipped (`/rep-login`, `/app` AuthGate, profiles + `is_approved_staff()` RLS). Outstanding product depth is catalog/prospect confidentiality (Phase D), then server boundary and AI (Phases E–F).
+- Log Call Save persists to Supabase `calls` for approved staff (RLS). Dashboard, Calls (search/filters), and Insights read from those rows — empty UI only when the DB has no calls.
 - The line switcher only has data for "Old Guys Rule" today; "Busted Knuckles Garage" shows a dismissible "coming soon" notice per the design spec.
 - Catalog/prospect UI data still ships in the static client bundle (known residual risk until Phase D).

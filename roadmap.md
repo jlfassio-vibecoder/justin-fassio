@@ -125,18 +125,18 @@ Do not build Dashboard analytics, catalog fetching, or AI agents. Follow existin
 
 ## Phase C — Read CRM surfaces
 
-**Status:** Not started  
+**Status:** Done on `feature/ai-agent-integration`  
 **Goal:** Calls, Dashboard, and Insights read from Supabase instead of empty stubs.  
 **Depends on:** Phase B  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] Fetch `calls` for approved staff in Calls tab (list + basic filters if already in UI).
-- [ ] Dashboard: aggregates from `calls` (counts, simple totals — match existing UI slots).
-- [ ] Insights: drive from real call/objection data where the UI already expects it; keep copy honest if sparse.
-- [ ] Loading / empty / error states consistent with Organic UI kit.
-- [ ] Tests for any new pure aggregation helpers.
+- [x] Fetch `calls` for approved staff in Calls tab (list + basic filters if already in UI).
+- [x] Dashboard: aggregates from `calls` (counts, simple totals — match existing UI slots).
+- [x] Insights: drive from real call/objection data where the UI already expects it; keep copy honest if sparse.
+- [x] Loading / empty / error states consistent with Organic UI kit.
+- [x] Tests for any new pure aggregation helpers.
 
 ### Out of scope
 
@@ -144,8 +144,8 @@ Do not build Dashboard analytics, catalog fetching, or AI agents. Follow existin
 
 ### Exit criteria
 
-- [ ] Empty states only when DB is empty, not because UI is hardcoded zeros.
-- [ ] `npm run check` green; manual smoke of Dashboard + Calls after logging 1–2 calls.
+- [x] Empty states only when DB is empty, not because UI is hardcoded zeros.
+- [x] `npm run check` green; manual smoke of Dashboard + Calls after logging 1–2 calls.
 
 ### Plan prompt
 

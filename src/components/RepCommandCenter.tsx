@@ -54,14 +54,21 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
             marginRangeDisplay={marginRangeDisplay}
           />
         )}
-        {activeTab === 'dashboard' && <DashboardTab onLogCall={() => openModal()} />}
+        {activeTab === 'dashboard' && (
+          <DashboardTab onLogCall={() => openModal()} reloadToken={callsReloadToken} />
+        )}
         {activeTab === 'calls' && (
           <CallsTab onLogCall={() => openModal()} reloadToken={callsReloadToken} />
         )}
         {activeTab === 'prospects' && (
           <ProspectsTab onLogCall={(prospect) => openModal(prospect)} />
         )}
-        {activeTab === 'insights' && <InsightsTab marginRangeDisplay={marginRangeDisplay} />}
+        {activeTab === 'insights' && (
+          <InsightsTab
+            marginRangeDisplay={marginRangeDisplay}
+            reloadToken={callsReloadToken}
+          />
+        )}
       </main>
 
       <LogCallModal

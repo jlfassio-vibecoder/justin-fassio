@@ -1,36 +1,29 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ListChecks, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
-import { PROSPECTS_DATA } from '@/data/prospects';
-import { supabase } from '@/lib/supabase';
-
-type CallListRow = {
-  id: string;
-  prospect_id: number;
-  contact_name: string | null;
-  outcome: string;
-  pmf_score: number | null;
-  order_value_cad: number | null;
-  call_date: string;
-  notes: string | null;
-  objection_tags: string[];
-};
+import {
+  filterCalls,
+  prospectForCall,
+  storeName,
+  type ChannelFilter,
+  type OutcomeFilter,
+} from '@/lib/callAggregates';
+import { fetchCalls, type CallRow } from '@/lib/calls';
 
 interface CallsTabProps {
   onLogCall: () => void;
   reloadToken?: number;
 }
 
-function storeName(prospectId: number): string {
-  return PROSPECTS_DATA.find((p) => p.id === prospectId)?.name ?? `Prospect #${prospectId}`;
-}
-
 export function CallsTab({ onLogCall, reloadToken = 0 }: CallsTabProps) {
-  const [calls, setCalls] = useState<CallListRow[]>([]);
+  const [calls, setCalls] = useState<CallRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [channel, setChannel] = useState<ChannelFilter>('All Retail Channels');
+  const [outcome, setOutcome] = useState<OutcomeFilter>('All Call Outcomes');
 
   useEffect(() => {
     let active = true;
@@ -38,22 +31,16 @@ export function CallsTab({ onLogCall, reloadToken = 0 }: CallsTabProps) {
     async function load() {
       setLoading(true);
       setFetchError(null);
-      const { data, error } = await supabase
-        .from('calls')
-        .select(
-          'id, prospect_id, contact_name, outcome, pmf_score, order_value_cad, call_date, notes, objection_tags',
-        )
-        .order('call_date', { ascending: false })
-        .limit(50);
+      const { data, error } = await fetchCalls(500);
 
       if (!active) return;
       if (error) {
         setCalls([]);
-        setFetchError(error.message);
+        setFetchError(error);
         setLoading(false);
         return;
       }
-      setCalls(data ?? []);
+      setCalls(data);
       setLoading(false);
     }
 
@@ -63,21 +50,36 @@ export function CallsTab({ onLogCall, reloadToken = 0 }: CallsTabProps) {
     };
   }, [reloadToken]);
 
+  const filtered = useMemo(
+    () => filterCalls(calls, { search, channel, outcome }),
+    [calls, search, channel, outcome],
+  );
+
   return (
     <section className="flex flex-col gap-5" data-screen-label="calls">
       <Card row className="flex-wrap items-center gap-3">
         <Input
           className="min-w-[220px] flex-1"
           placeholder="Search calls by store, contact, notes…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
         />
-        <Select className="w-auto">
+        <Select
+          className="w-auto"
+          value={channel}
+          onChange={(e) => setChannel(e.target.value as ChannelFilter)}
+        >
           <option>All Retail Channels</option>
           <option>Golf Pro Shops</option>
           <option>Marinas</option>
           <option>Hardware / Farm Co-op</option>
           <option>Resort Gift</option>
         </Select>
-        <Select className="w-auto">
+        <Select
+          className="w-auto"
+          value={outcome}
+          onChange={(e) => setOutcome(e.target.value as OutcomeFilter)}
+        >
           <option>All Call Outcomes</option>
           <option>Closed PO</option>
           <option>Sample Requested</option>
@@ -91,9 +93,7 @@ export function CallsTab({ onLogCall, reloadToken = 0 }: CallsTabProps) {
         </Button>
       </Card>
 
-      {loading && (
-        <p className="m-0 text-sm text-ink/60">Loading calls…</p>
-      )}
+      {loading && <p className="m-0 text-sm text-ink/60">Loading calls…</p>}
 
       {fetchError && (
         <p className="m-0 text-sm text-accent-800">Could not load calls: {fetchError}</p>
@@ -113,36 +113,49 @@ export function CallsTab({ onLogCall, reloadToken = 0 }: CallsTabProps) {
         </Card>
       )}
 
-      {!loading && !fetchError && calls.length > 0 && (
+      {!loading && !fetchError && calls.length > 0 && filtered.length === 0 && (
+        <Card elevation="md" className="items-center gap-3 px-5 py-10 text-center">
+          <CardTitle className="text-[17px]">No calls match these filters</CardTitle>
+          <p className="max-w-[40ch] text-[13px] opacity-70">
+            Try clearing search or switching channel / outcome back to All.
+          </p>
+        </Card>
+      )}
+
+      {!loading && !fetchError && filtered.length > 0 && (
         <Card elevation="md" className="gap-0 overflow-hidden p-0">
           <ul className="m-0 list-none divide-y divide-ink/10 p-0">
-            {calls.map((call) => (
-              <li
-                key={call.id}
-                className="flex flex-wrap items-baseline justify-between gap-2 px-4.1 py-3.1"
-              >
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <span className="font-heading text-[15px] text-ink">
-                    {storeName(call.prospect_id)}
-                  </span>
-                  <span className="text-[13px] text-ink/70">
-                    {call.outcome}
-                    {call.contact_name ? ` · ${call.contact_name}` : ''}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-[12px] text-ink/65">
-                  <span>PMF {call.pmf_score ?? '—'}</span>
-                  <span>
-                    $
-                    {Number(call.order_value_cad ?? 0).toLocaleString('en-CA', {
-                      maximumFractionDigits: 0,
-                    })}{' '}
-                    CAD
-                  </span>
-                  <span>{call.call_date}</span>
-                </div>
-              </li>
-            ))}
+            {filtered.map((call) => {
+              const channelLabel = prospectForCall(call)?.category;
+              return (
+                <li
+                  key={call.id}
+                  className="flex flex-wrap items-baseline justify-between gap-2 px-4.1 py-3.1"
+                >
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="font-heading text-[15px] text-ink">
+                      {storeName(call.prospect_id)}
+                    </span>
+                    <span className="text-[13px] text-ink/70">
+                      {call.outcome}
+                      {channelLabel ? ` · ${channelLabel}` : ''}
+                      {call.contact_name ? ` · ${call.contact_name}` : ''}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-[12px] text-ink/65">
+                    <span>PMF {call.pmf_score ?? '—'}</span>
+                    <span>
+                      $
+                      {Number(call.order_value_cad ?? 0).toLocaleString('en-CA', {
+                        maximumFractionDigits: 0,
+                      })}{' '}
+                      CAD
+                    </span>
+                    <span>{call.call_date}</span>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </Card>
       )}
