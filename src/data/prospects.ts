@@ -109,7 +109,7 @@ export const PROSPECTS_DATA: Prospect[] = [
     region: 'Okanagan',
     city: 'Peachland',
     address: '5864 Beach Ave',
-    phone: '250-767 Vancouver',
+    phone: '250-767',
     fit: 'Lakeside shop popular with retired boaters and tourists.',
   },
   {
