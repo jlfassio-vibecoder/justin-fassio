@@ -28,6 +28,20 @@
   --color-sage-800: #3d472b;
   --color-sage-900: #272e1b;
 
+  /* Design accent-2 aliases (same ramp as sage) for landing markup parity */
+  --color-accent-2: #7a8a5e;
+  --color-accent-2-100: #f0fae1;
+  --color-accent-2-200: #e1eecc;
+  --color-accent-2-300: #ccdbb2;
+  --color-accent-2-400: #aebf92;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #728157;
+  --color-accent-2-700: #56633f;
+  --color-accent-2-800: #3d472b;
+  --color-accent-2-900: #272e1b;
+
+  --color-divider: rgb(32 30 29 / 0.16);
+
   --color-neutral-100: #f9f4ed;
   --color-neutral-200: #eee7db;
   --color-neutral-300: #dcd3c4;
