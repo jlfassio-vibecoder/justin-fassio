@@ -5,6 +5,30 @@ import {
   tagCloud,
 } from '@/lib/callAggregates';
 import type { CallRow } from '@/lib/calls';
+import type { Prospect } from '@/lib/prospects';
+
+const FIXTURE_PROSPECTS: Prospect[] = [
+  {
+    id: 1,
+    name: 'Kelowna Golf & Country Club',
+    category: 'Golf',
+    region: 'Okanagan',
+    city: 'Kelowna',
+    address: '1297 Glenmore Dr',
+    phone: '250-762-2531',
+    fit: 'Test golf fit',
+  },
+  {
+    id: 8,
+    name: 'Penticton Yacht Club and Marina',
+    category: 'Marina',
+    region: 'Okanagan',
+    city: 'Penticton',
+    address: '1 Harbour',
+    phone: '250-000-0000',
+    fit: 'Test marina fit',
+  },
+];
 
 function call(partial: Partial<CallRow> & Pick<CallRow, 'id' | 'prospect_id' | 'outcome'>): CallRow {
   return {
@@ -38,39 +62,63 @@ describe('filterCalls', () => {
   ];
 
   it('filters by search across store, contact, notes, outcome', () => {
-    expect(filterCalls(rows, {
-      search: 'kelowna',
-      channel: 'All Retail Channels',
-      outcome: 'All Call Outcomes',
-    })).toHaveLength(1);
-    expect(filterCalls(rows, {
-      search: 'gatekeeper',
-      channel: 'All Retail Channels',
-      outcome: 'All Call Outcomes',
-    })[0]?.id).toBe('2');
+    expect(
+      filterCalls(
+        rows,
+        {
+          search: 'kelowna',
+          channel: 'All Retail Channels',
+          outcome: 'All Call Outcomes',
+        },
+        FIXTURE_PROSPECTS,
+      ),
+    ).toHaveLength(1);
+    expect(
+      filterCalls(
+        rows,
+        {
+          search: 'gatekeeper',
+          channel: 'All Retail Channels',
+          outcome: 'All Call Outcomes',
+        },
+        FIXTURE_PROSPECTS,
+      )[0]?.id,
+    ).toBe('2');
   });
 
   it('filters by channel category', () => {
-    const golf = filterCalls(rows, {
-      search: '',
-      channel: 'Golf Pro Shops',
-      outcome: 'All Call Outcomes',
-    });
+    const golf = filterCalls(
+      rows,
+      {
+        search: '',
+        channel: 'Golf Pro Shops',
+        outcome: 'All Call Outcomes',
+      },
+      FIXTURE_PROSPECTS,
+    );
     expect(golf.map((c) => c.id)).toEqual(['1']);
-    const marina = filterCalls(rows, {
-      search: '',
-      channel: 'Marinas',
-      outcome: 'All Call Outcomes',
-    });
+    const marina = filterCalls(
+      rows,
+      {
+        search: '',
+        channel: 'Marinas',
+        outcome: 'All Call Outcomes',
+      },
+      FIXTURE_PROSPECTS,
+    );
     expect(marina.map((c) => c.id)).toEqual(['2']);
   });
 
   it('filters by outcome substring', () => {
-    const closed = filterCalls(rows, {
-      search: '',
-      channel: 'All Retail Channels',
-      outcome: 'Closed PO',
-    });
+    const closed = filterCalls(
+      rows,
+      {
+        search: '',
+        channel: 'All Retail Channels',
+        outcome: 'Closed PO',
+      },
+      FIXTURE_PROSPECTS,
+    );
     expect(closed).toHaveLength(1);
     expect(closed[0]?.outcome).toContain('Closed PO');
   });
@@ -105,7 +153,7 @@ describe('summarizeDashboard', () => {
   ];
 
   it('computes totals, avg PMF, closed PO, pipeline, fit buckets', () => {
-    const s = summarizeDashboard(rows);
+    const s = summarizeDashboard(rows, FIXTURE_PROSPECTS);
     expect(s.totalCalls).toBe(3);
     expect(s.avgPmf).toBe(6);
     expect(s.closedPoCount).toBe(1);

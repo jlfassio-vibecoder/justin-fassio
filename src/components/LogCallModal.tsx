@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
-import { PROSPECTS_DATA } from '@/data/prospects';
+import type { Prospect } from '@/lib/prospects';
 import { supabase } from '@/lib/supabase';
 import type { CallInsert } from '@/types/database';
 
@@ -24,6 +24,7 @@ const OUTCOME_OPTIONS = [
 
 interface LogCallModalProps {
   open: boolean;
+  prospects: Prospect[];
   storeId: number | null;
   onClose: () => void;
   onStoreChange: (id: number) => void;
@@ -50,6 +51,7 @@ function resetFormState(setters: {
 
 export function LogCallModal({
   open,
+  prospects,
   storeId,
   onClose,
   onStoreChange,
@@ -66,7 +68,7 @@ export function LogCallModal({
 
   if (!open) return null;
 
-  const selected = storeId != null ? PROSPECTS_DATA.find((p) => p.id === storeId) : undefined;
+  const selected = storeId != null ? prospects.find((p) => p.id === storeId) : undefined;
   const modalChannel = selected?.category ?? '';
   const modalCity = selected ? `${selected.city} (${selected.region})` : '';
 
@@ -161,7 +163,7 @@ export function LogCallModal({
             onChange={(e) => onStoreChange(parseInt(e.target.value, 10))}
             required
           >
-            {PROSPECTS_DATA.map((p) => (
+            {prospects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} — {p.city}
               </option>

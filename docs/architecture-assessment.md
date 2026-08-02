@@ -11,16 +11,16 @@
 
 **Structurally sound for the phase completed.** The foundation is coherent: Astro 7 static site, React 19 islands, Tailwind 4 design tokens, Supabase Auth + profiles approval workflow, domain RLS gated to approved staff, CI + Dependabot, and a clear public vs internal portal split.
 
-**Not yet “product-complete” or “agent-ready.”** The database and RLS layer are ahead of the UI: catalog, prospects, and calls still live (or stub) in the client. Auth gates the shell; it does not protect the static wholesale/prospect corpora already shipped in the JS bundle. CRM write paths are unimplemented.
+**Not yet “product-complete” or “agent-ready.”** CRM persistence and directory confidentiality (Phases B–D) are implemented on `feature/ai-agent-integration`: calls write/read under RLS; catalog/prospects load via authenticated Supabase fetches. Remaining gap for agents is a server tool boundary (Phase E) and orchestration (Phase F).
 
 | Dimension | Rating | One-line |
 |-----------|--------|----------|
 | Framework / build stack | Strong | Astro 7 + React 19 + Tailwind 4 + Node 22.22.3, intentionally pinned |
 | Auth / approval model | Strong | Client gate + DB trigger + RLS helper aligned |
-| Domain persistence | Weak | Schema ready; UI still static / stubs |
-| Data confidentiality | Weak | Prospects + wholesale prices in client bundle |
-| Test / CI confidence | Moderate | AuthGate covered; CI deletes lockfile; no E2E |
-| AI agent readiness | Not ready | No server tool surface; no CRM write path |
+| Domain persistence | Strong | Calls + catalog_items + prospects wired under approved-staff RLS |
+| Data confidentiality | Moderate | Directories not in `/app` bundle; residual = approved JWT / network capture |
+| Test / CI confidence | Moderate | AuthGate + call insert + aggregates covered; no E2E |
+| AI agent readiness | Not ready | No server tool surface yet (Phase E) |
 
 **Recommendation before `feature/ai-agent-integration` feature work:** treat the items in [§8 Prioritized backlog](#8-prioritized-backlog-before--during-ai-phase) as sequencing constraints. Do not assume RLS alone protects sensitive directory/pricing data.
 
@@ -44,13 +44,13 @@ flowchart TB
   subgraph supabase [Supabase]
     AuthUsers["auth.users"]
     Profiles["profiles role + status"]
-    Domain["lines catalog_items prospect_updates calls"]
+    Domain["lines catalog_items prospects prospect_updates calls"]
     RLS["is_approved_staff RLS"]
   end
 
   subgraph app [Rep Command Center island]
     RCC["RepCommandCenter tabs"]
-    StaticData["catalog.ts + prospects.ts"]
+    RuntimeFetch["fetchCatalogItems + fetchProspects"]
   end
 
   Home --> LandingCTAs --> RepLogin
@@ -60,9 +60,8 @@ flowchart TB
   RepLogin -->|session| AppGate
   AppGate -->|approved owner/rep| RCC
   AppGate -->|profiles select| Profiles
-  RCC --> StaticData
-  Domain -.->|typed but unused by UI| RCC
-  RLS -.->|protects API rows only| Domain
+  RCC --> RuntimeFetch --> Domain
+  RLS -->|protects API rows| Domain
 ```
 
 ### Stack (locked)
@@ -128,9 +127,9 @@ flowchart TB
 |------|--------|-------------|-------------------|
 | Session / user | Supabase Auth | Yes | N/A (Auth) |
 | Profile role/status | `profiles` | Yes | Own-row RLS |
-| Catalog SKUs | `src/data/catalog.ts` (~2.3k lines) | Yes | **No** (bundled) |
-| Prospects directory | `src/data/prospects.ts` (~2.5k lines) | Yes | **No** (bundled) |
-| `lines`, `catalog_items`, `calls`, `prospect_updates` | Supabase | **No** | Yes (approved staff) |
+| Catalog SKUs | Supabase `catalog_items` (runtime fetch) | Yes | Yes (approved staff) |
+| Prospects directory | Supabase `prospects` (runtime fetch) | Yes | Yes (approved staff) |
+| `lines`, `calls`, `prospect_updates` | Supabase | Yes (calls); updates unused | Yes (approved staff) |
 
 ### 4.3 Migrations (canonical order)
 
@@ -139,6 +138,8 @@ flowchart TB
 3. `20260802203500_tighten_auth_rls.sql` — drop public/anon domain access  
 4. `20260802220000_profiles_approval_workflow.sql` — owner/status + `is_approved_staff` + approved-staff RLS  
 5. `20260802223000_profiles_role_default_rep.sql` — role default `rep`
+6. `20260802250000_prospects_table.sql` — `prospects` + approved-staff RLS
+7. `20260802251000_seed_catalog_prospects.sql` — seed OGR catalog + prospect directory
 
 `supabase/schema.sql` matches **end state** of migrations; treat migrations as source of truth for applied databases.
 
@@ -150,8 +151,8 @@ flowchart TB
 
 | ID | Gap | Impact |
 |----|-----|--------|
-| G1 | Catalog + prospects shipped in client JS | Anyone can download wholesale prices and retailer phones without auth |
-| G2 | Log Call does not persist | Pipeline/dashboard/insights stay empty; no CRM learning loop |
+| G1 | ~~Catalog + prospects shipped in client JS~~ **Mitigated (Phase D)** | Anonymous `/app` assets no longer embed corpora; approved JWT still required |
+| G2 | ~~Log Call does not persist~~ **Mitigated (Phase B)** | Calls persist; Dashboard/Calls/Insights read live rows |
 | G3 | Open self-registration → unlimited pending reps | Noise / abuse; not privilege escalation, but ops burden |
 | G4 | All approved staff share full CRUD on all domain rows | Fine for solo Justin; weak for multi-rep least privilege |
 
@@ -201,8 +202,8 @@ flowchart TB
 
 **Residual risk (must not be forgotten)**
 
-1. **Static hosting:** `/app` HTML/JS is public; AuthGate is UX.  
-2. **Bundle exposure:** ~4.8k lines of catalog + prospects are the real confidentiality failure mode today.  
+1. **Static hosting:** `/app` HTML/JS is public; AuthGate is UX (directories now require RLS-backed fetch).  
+2. **~~Bundle exposure~~ mitigated:** corpora live in Supabase; seed copies under `scripts/seed-source/` are not in the Vite client graph. Residual = approved session / network capture.  
 3. **Staff flat privilege:** approved `rep` ≡ `owner` for domain CRUD.  
 4. **Local secrets:** keep `RESEND_API_KEY` / `.env` gitignored; rotate if ever shared.
 
@@ -222,8 +223,8 @@ flowchart TB
 |------|---------------|
 | Server tool / agent runtime | None — pure static; no Edge Functions / API routes |
 | Trusted secrets for agents | Would require service role or scoped server credentials — never `PUBLIC_*` |
-| Writable CRM | Log Call → `calls` not implemented |
-| Auth-backed data APIs | Catalog/prospects not fetched from Supabase |
+| Writable CRM | Calls persist (Phase B); richer CRM still thin |
+| Auth-backed data APIs | Catalog/prospects fetched under RLS (Phase D) |
 | Embeddings / search / agent docs | Absent |
 
 **Suggested sequencing for this branch’s phase**
@@ -255,7 +256,7 @@ flowchart TB
 
 ### P2 — Confidentiality & scale
 
-9. Stop shipping full prospect/catalog arrays in the public `/app` chunk (authenticated fetch or split bundles behind gate is not enough alone — gate is client-side).  
+9. ~~Stop shipping full prospect/catalog arrays in the public `/app` chunk~~ **Done (Phase D).**  
 10. Tab-level code splitting for RCC.  
 11. Owner-only approve RPC + optional in-app approval UI.  
 12. Per-rep row ownership if multi-user.
@@ -296,7 +297,7 @@ Use this before treating the repo as a clean base for AI work:
 | Routes | `src/pages/index.astro`, `login.astro`, `rep-login.astro`, `app/index.astro` |
 | Auth | `src/components/auth/*`, `src/hooks/useAuth.ts`, `src/lib/supabase.ts`, `src/lib/auth.ts` |
 | App shell | `src/components/RepCommandCenter.tsx`, `src/components/tabs/*` |
-| Static data | `src/data/catalog.ts`, `src/data/prospects.ts`, `src/data/landing.ts` |
+| Static data | `src/data/landing.ts` (public); directory seed sources under `scripts/seed-source/` (not client-bundled) |
 | Types | `src/types/database.ts` |
 | DB | `supabase/migrations/*`, `supabase/schema.sql` |
 | CI | `.github/workflows/ci.yml`, `.github/dependabot.yml` |

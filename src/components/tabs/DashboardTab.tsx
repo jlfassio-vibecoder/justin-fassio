@@ -9,15 +9,21 @@ import {
   type DashboardSummary,
 } from '@/lib/callAggregates';
 import { fetchCalls } from '@/lib/calls';
+import type { Prospect } from '@/lib/prospects';
 
 interface DashboardTabProps {
+  prospects: Prospect[];
   onLogCall: () => void;
   reloadToken?: number;
 }
 
 const emptySummary = summarizeDashboard([]);
 
-export function DashboardTab({ onLogCall, reloadToken = 0 }: DashboardTabProps) {
+export function DashboardTab({
+  prospects,
+  onLogCall,
+  reloadToken = 0,
+}: DashboardTabProps) {
   const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -37,7 +43,7 @@ export function DashboardTab({ onLogCall, reloadToken = 0 }: DashboardTabProps) 
         setLoading(false);
         return;
       }
-      setSummary(summarizeDashboard(data));
+      setSummary(summarizeDashboard(data, prospects));
       setLoading(false);
     }
 
@@ -45,7 +51,7 @@ export function DashboardTab({ onLogCall, reloadToken = 0 }: DashboardTabProps) 
     return () => {
       active = false;
     };
-  }, [reloadToken]);
+  }, [reloadToken, prospects]);
 
   const { totalCalls, avgPmf, closedPoCount, pipelineValueCad, reachRatePct } = summary;
   const conversionPct =
@@ -191,7 +197,7 @@ export function DashboardTab({ onLogCall, reloadToken = 0 }: DashboardTabProps) 
           </div>
           <ul className="m-0 list-none divide-y divide-ink/10 p-0">
             {summary.recent.map((call) => {
-              const channelLabel = prospectForCall(call)?.category;
+              const channelLabel = prospectForCall(call, prospects)?.category;
               return (
                 <li
                   key={call.id}
@@ -199,7 +205,7 @@ export function DashboardTab({ onLogCall, reloadToken = 0 }: DashboardTabProps) 
                 >
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="font-heading text-[15px] text-ink">
-                      {storeName(call.prospect_id)}
+                      {storeName(call.prospect_id, prospects)}
                     </span>
                     <span className="text-[13px] text-ink/70">
                       {call.outcome}

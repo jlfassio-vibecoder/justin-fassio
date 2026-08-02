@@ -1,5 +1,5 @@
-import { PROSPECTS_DATA, type Prospect } from '@/data/prospects';
 import type { CallRow } from '@/lib/calls';
+import type { Prospect } from '@/lib/prospects';
 
 export type ChannelFilter =
   | 'All Retail Channels'
@@ -30,15 +30,24 @@ const CHANNEL_TO_CATEGORY: Record<Exclude<ChannelFilter, 'All Retail Channels'>,
     'Resort Gift': 'Resort Gift',
   };
 
-export function prospectForCall(call: CallRow): Prospect | undefined {
-  return PROSPECTS_DATA.find((p) => p.id === call.prospect_id);
+function byId(prospects: Prospect[]): Map<number, Prospect> {
+  return new Map(prospects.map((p) => [p.id, p]));
 }
 
-export function storeName(prospectId: number): string {
-  return PROSPECTS_DATA.find((p) => p.id === prospectId)?.name ?? `Prospect #${prospectId}`;
+export function prospectForCall(call: CallRow, prospects: Prospect[]): Prospect | undefined {
+  return prospects.find((p) => p.id === call.prospect_id);
 }
 
-export function filterCalls(calls: CallRow[], options: CallFilterOptions): CallRow[] {
+export function storeName(prospectId: number, prospects: Prospect[]): string {
+  return prospects.find((p) => p.id === prospectId)?.name ?? `Prospect #${prospectId}`;
+}
+
+export function filterCalls(
+  calls: CallRow[],
+  options: CallFilterOptions,
+  prospects: Prospect[],
+): CallRow[] {
+  const index = byId(prospects);
   const q = options.search.trim().toLowerCase();
   const category =
     options.channel === 'All Retail Channels' ? null : CHANNEL_TO_CATEGORY[options.channel];
@@ -46,12 +55,12 @@ export function filterCalls(calls: CallRow[], options: CallFilterOptions): CallR
     options.outcome === 'All Call Outcomes' ? null : options.outcome.toLowerCase();
 
   return calls.filter((call) => {
-    const prospect = prospectForCall(call);
+    const prospect = index.get(call.prospect_id);
     if (category && prospect?.category !== category) return false;
     if (outcomeNeedle && !call.outcome.toLowerCase().includes(outcomeNeedle)) return false;
     if (q) {
       const hay = [
-        storeName(call.prospect_id),
+        prospect?.name ?? `Prospect #${call.prospect_id}`,
         call.contact_name ?? '',
         call.notes ?? '',
         call.outcome,
@@ -98,7 +107,8 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
-export function summarizeDashboard(calls: CallRow[]): DashboardSummary {
+export function summarizeDashboard(calls: CallRow[], prospects: Prospect[] = []): DashboardSummary {
+  const index = byId(prospects);
   const totalCalls = calls.length;
   const scores = calls.map((c) => c.pmf_score).filter((s): s is number => s != null);
   const avgPmf = scores.length ? round1(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
@@ -134,7 +144,7 @@ export function summarizeDashboard(calls: CallRow[]): DashboardSummary {
 
   const channelMap = new Map<Prospect['category'], { sum: number; scored: number; count: number }>();
   for (const call of calls) {
-    const cat = prospectForCall(call)?.category;
+    const cat = index.get(call.prospect_id)?.category;
     if (!cat) continue;
     const entry = channelMap.get(cat) ?? { sum: 0, scored: 0, count: 0 };
     entry.count += 1;

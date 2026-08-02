@@ -90,6 +90,45 @@ export interface Database {
         };
         Relationships: [];
       };
+      prospects: {
+        Row: {
+          id: number;
+          name: string;
+          category: string;
+          region: string;
+          city: string;
+          address: string;
+          phone: string;
+          fit: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: number;
+          name: string;
+          category: string;
+          region: string;
+          city: string;
+          address?: string;
+          phone?: string;
+          fit?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: number;
+          name?: string;
+          category?: string;
+          region?: string;
+          city?: string;
+          address?: string;
+          phone?: string;
+          fit?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       prospect_updates: {
         Row: {
           id: string;
@@ -207,6 +246,7 @@ export interface Database {
 
 export type Line = Database['public']['Tables']['lines']['Row'];
 export type CatalogItemRow = Database['public']['Tables']['catalog_items']['Row'];
+export type ProspectRow = Database['public']['Tables']['prospects']['Row'];
 export type ProspectUpdate = Database['public']['Tables']['prospect_updates']['Row'];
 export type Call = Database['public']['Tables']['calls']['Row'];
 export type CallInsert = Database['public']['Tables']['calls']['Insert'];

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
-import { CATALOG_DATA } from '@/data/catalog';
+import type { CatalogItem } from '@/lib/catalog';
 import { filterCatalogItems, type CatalogFlagFilter } from '@/lib/catalogFilters';
 import { landedCad, marginPct } from '@/lib/landedCost';
 
@@ -19,6 +19,7 @@ const CATEGORY_OPTIONS: { value: string; label: string }[] = [
 ];
 
 interface CatalogTabProps {
+  catalog: CatalogItem[];
   fx: number;
   setFx: (fx: number) => void;
   freight: number;
@@ -27,6 +28,7 @@ interface CatalogTabProps {
 }
 
 export function CatalogTab({
+  catalog,
   fx,
   setFx,
   freight,
@@ -38,7 +40,7 @@ export function CatalogTab({
   const [flag, setFlag] = useState<CatalogFlagFilter>('ALL');
 
   const filteredCatalog = useMemo(() => {
-    return filterCatalogItems(CATALOG_DATA, { search, category, flag }).map((item) => {
+    return filterCatalogItems(catalog, { search, category, flag }).map((item) => {
       const landed = landedCad(item.priceUsd, fx, freight);
       const margin = marginPct(item.priceUsd, item.msrpCad, fx, freight);
       const sellable = margin != null;
@@ -51,14 +53,14 @@ export function CatalogTab({
         marginDisplay: sellable ? `${margin.toFixed(1)}%` : '—',
       };
     });
-  }, [search, category, flag, fx, freight]);
+  }, [catalog, search, category, flag, fx, freight]);
 
-  const newCount = useMemo(() => CATALOG_DATA.filter((it) => it.isNew).length, []);
-  const nameDropCount = useMemo(() => CATALOG_DATA.filter((it) => it.isNameDrop).length, []);
+  const newCount = useMemo(() => catalog.filter((it) => it.isNew).length, [catalog]);
+  const nameDropCount = useMemo(() => catalog.filter((it) => it.isNameDrop).length, [catalog]);
 
   const sampleTee = useMemo(
-    () => CATALOG_DATA.find((it) => it.cat === 'Short Sleeve Tees') ?? CATALOG_DATA[0],
-    [],
+    () => catalog.find((it) => it.cat === 'Short Sleeve Tees') ?? catalog[0],
+    [catalog],
   );
   const sampleTeeLanded = sampleTee
     ? `$${landedCad(sampleTee.priceUsd, fx, freight).toFixed(2)} CAD`
@@ -71,7 +73,7 @@ export function CatalogTab({
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
         <Card>
           <CardKicker>Total Styles / SKUs</CardKicker>
-          <CardTitle className="text-[28px]">{CATALOG_DATA.length} items</CardTitle>
+          <CardTitle className="text-[28px]">{catalog.length} items</CardTitle>
           <CardMeta>
             {newCount} NEW 2026 &middot; {nameDropCount} Name-Drop eligible
           </CardMeta>
@@ -155,7 +157,7 @@ export function CatalogTab({
           <option value="NAMEDROP">Name Drop Eligible</option>
         </Select>
         <span className="whitespace-nowrap text-xs opacity-65">
-          Showing {filteredCatalog.length} of {CATALOG_DATA.length}
+          Showing {filteredCatalog.length} of {catalog.length}
         </span>
       </Card>
 

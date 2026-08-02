@@ -30,7 +30,7 @@ Dependabot already ignores `typescript` major updates (Phase 0).
 
 ### Auth & approval
 
-New signups create a `profiles` row with `role = 'rep'` and `status = 'pending'`. The `/app` gate shows a pending screen until an owner approves the account. Domain tables (`calls`, `catalog_items`, etc.) are RLS-restricted to approved staff via `is_approved_staff()`.
+New signups create a `profiles` row with `role = 'rep'` and `status = 'pending'`. The `/app` gate shows a pending screen until an owner approves the account. Domain tables (`calls`, `catalog_items`, `prospects`, etc.) are RLS-restricted to approved staff via `is_approved_staff()`.
 
 Apply migrations in order (SQL Editor or `supabase db push`), including
 [`supabase/migrations/20260802220000_profiles_approval_workflow.sql`](supabase/migrations/20260802220000_profiles_approval_workflow.sql).
@@ -53,7 +53,7 @@ where email = 'new.rep@example.com';
 
 In Supabase Auth → URL configuration, set the Site URL and add redirect allow-list entries for `/app` and `/rep-login` on production (`https://justinfassio.com`, `https://justin-fassio.vercel.app`) and local (`http://localhost:4321`).
 
-**Note:** Catalog/prospect UI data still ships in the static client bundle. RLS protects Supabase rows once persistence is wired; moving sensitive directories behind authenticated fetches is a later phase.
+**Note:** Catalog and prospect directories load at runtime from Supabase (`catalog_items`, `prospects`) under `is_approved_staff()` RLS. They are not embedded in the public `/app` JS bundle. Seed sources for regenerating migrations live under `scripts/seed-source/` (not imported by the client).
 
 ## Getting started
 
@@ -146,7 +146,7 @@ Optional deferred: TypeScript 6 when `@astrojs/check` peers allow a clean `npm c
 
 ## Notes
 
-- Auth and approval are shipped (`/rep-login`, `/app` AuthGate, profiles + `is_approved_staff()` RLS). Outstanding product depth is catalog/prospect confidentiality (Phase D), then server boundary and AI (Phases E–F).
+- Auth and approval are shipped (`/rep-login`, `/app` AuthGate, profiles + `is_approved_staff()` RLS). Outstanding product depth is the server tool boundary and AI (Phases E–F).
 - Log Call Save persists to Supabase `calls` for approved staff (RLS). Dashboard, Calls (search/filters), and Insights read from those rows — empty UI only when the DB has no calls.
 - The line switcher only has data for "Old Guys Rule" today; "Busted Knuckles Garage" shows a dismissible "coming soon" notice per the design spec.
-- Catalog/prospect UI data still ships in the static client bundle (known residual risk until Phase D).
+- Catalog + prospect directories are fetched after approved-staff session from Supabase (not in the static `/app` bundle). Residual: a stolen approved JWT or post-login network capture can still read the full corpora; there is no per-rep row ownership yet (Phase G).

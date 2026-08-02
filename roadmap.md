@@ -161,19 +161,19 @@ Do not migrate catalog/prospects off static TS or add agent APIs. Exit when CRM 
 
 ## Phase D — Directory & catalog confidentiality
 
-**Status:** Not started  
+**Status:** Done on `feature/ai-agent-integration`  
 **Goal:** Stop treating client-bundled `prospects.ts` / `catalog.ts` as acceptable access control.  
 **Depends on:** Phase A (B–C recommended first so RLS paths are exercised)  
 **Estimate:** 1–2 PRs (plan as one phase; split PR if needed)
 
 ### In scope
 
-- [ ] Choose and document approach in the PR (prefer authenticated Supabase reads for `catalog_items` + keep prospect ids stable):
+- [x] Choose and document approach in the PR (prefer authenticated Supabase reads for `catalog_items` + keep prospect ids stable):
   - Seed/migrate catalog into `catalog_items` if not already populated.
   - Load catalog/prospects in the `/app` island **only after** approved-staff session (fetch at runtime).
   - Ensure full corpora are not importable into a public prerender path.
-- [ ] Prospects: either DB-backed table/storage or runtime fetch of a non-public asset strategy — **must not** remain a static import that ships to anonymous downloaders of `/app` chunks without auth. (Note: true protection may require removing data from the static build graph; plan must state the threat model clearly.)
-- [ ] Update assessment residual-risk language in README once mitigated or explicitly accepted with owner sign-off.
+- [x] Prospects: either DB-backed table/storage or runtime fetch of a non-public asset strategy — **must not** remain a static import that ships to anonymous downloaders of `/app` chunks without auth. (Note: true protection may require removing data from the static build graph; plan must state the threat model clearly.)
+- [x] Update assessment residual-risk language in README once mitigated or explicitly accepted with owner sign-off.
 
 ### Out of scope
 
@@ -181,9 +181,9 @@ Do not migrate catalog/prospects off static TS or add agent APIs. Exit when CRM 
 
 ### Exit criteria
 
-- [ ] Anonymous curl/download of built assets cannot obtain the full prospect phone list + wholesale sheet **or** README records a signed residual-risk acceptance.
-- [ ] Approved staff still see Catalog + Prospects in-app.
-- [ ] `npm run check && npm run build` green.
+- [x] Anonymous curl/download of built assets cannot obtain the full prospect phone list + wholesale sheet **or** README records a signed residual-risk acceptance.
+- [x] Approved staff still see Catalog + Prospects in-app.
+- [x] `npm run check && npm run build` green.
 
 ### Plan prompt
 

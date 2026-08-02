@@ -3,8 +3,22 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LogCallModal } from '@/components/LogCallModal';
+import type { Prospect } from '@/lib/prospects';
 
 const insertMock = vi.fn();
+
+const TEST_PROSPECTS: Prospect[] = [
+  {
+    id: 1,
+    name: 'Kelowna Golf & Country Club',
+    category: 'Golf',
+    region: 'Okanagan',
+    city: 'Kelowna',
+    address: '1297 Glenmore Dr',
+    phone: '250-762-2531',
+    fit: 'Test',
+  },
+];
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
@@ -38,6 +52,7 @@ function ModalHarness({
       </button>
       <LogCallModal
         open={open}
+        prospects={TEST_PROSPECTS}
         storeId={storeId}
         onClose={() => {
           onClose();

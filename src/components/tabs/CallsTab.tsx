@@ -11,13 +11,15 @@ import {
   type OutcomeFilter,
 } from '@/lib/callAggregates';
 import { fetchCalls, type CallRow } from '@/lib/calls';
+import type { Prospect } from '@/lib/prospects';
 
 interface CallsTabProps {
+  prospects: Prospect[];
   onLogCall: () => void;
   reloadToken?: number;
 }
 
-export function CallsTab({ onLogCall, reloadToken = 0 }: CallsTabProps) {
+export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProps) {
   const [calls, setCalls] = useState<CallRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -51,8 +53,8 @@ export function CallsTab({ onLogCall, reloadToken = 0 }: CallsTabProps) {
   }, [reloadToken]);
 
   const filtered = useMemo(
-    () => filterCalls(calls, { search, channel, outcome }),
-    [calls, search, channel, outcome],
+    () => filterCalls(calls, { search, channel, outcome }, prospects),
+    [calls, search, channel, outcome, prospects],
   );
 
   return (
@@ -126,7 +128,7 @@ export function CallsTab({ onLogCall, reloadToken = 0 }: CallsTabProps) {
         <Card elevation="md" className="gap-0 overflow-hidden p-0">
           <ul className="m-0 list-none divide-y divide-ink/10 p-0">
             {filtered.map((call) => {
-              const channelLabel = prospectForCall(call)?.category;
+              const channelLabel = prospectForCall(call, prospects)?.category;
               return (
                 <li
                   key={call.id}
@@ -134,7 +136,7 @@ export function CallsTab({ onLogCall, reloadToken = 0 }: CallsTabProps) {
                 >
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="font-heading text-[15px] text-ink">
-                      {storeName(call.prospect_id)}
+                      {storeName(call.prospect_id, prospects)}
                     </span>
                     <span className="text-[13px] text-ink/70">
                       {call.outcome}

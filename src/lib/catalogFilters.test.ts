@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CatalogItem } from '@/data/catalog';
+import type { CatalogItem } from '@/lib/catalog';
 import { filterCatalogItems } from '@/lib/catalogFilters';
 
 const SAMPLE: CatalogItem[] = [
