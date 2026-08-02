@@ -26,7 +26,11 @@ drop policy if exists "users update own profile" on profiles;
 create policy "users update own profile" on profiles
   for update to authenticated
   using (auth.uid() = id)
-  with check (auth.uid() = id);
+  with check (
+    auth.uid() = id
+    -- Prevent privilege escalation: users cannot change their own role.
+    and role = (select p.role from profiles p where p.id = auth.uid())
+  );
 
 -- Auto-create a buyer profile on signup; promote Justin to rep in the dashboard.
 create or replace function handle_new_user()

@@ -123,10 +123,8 @@ create trigger calls_set_updated_at
   for each row execute function set_updated_at();
 
 -- ─────────────────────────────────────────────────────────────────────────
--- Row Level Security — public read/write via the anon key.
--- This is a personal, single-user tool with no auth yet; these policies
--- intentionally grant full access to anyone holding the anon key. Revisit
--- before this app ever has more than one user or a public-facing deploy.
+-- Row Level Security — signed-in users only (`authenticated`).
+-- Keep in sync with migrations (initial schema + tighten_auth_rls).
 -- ─────────────────────────────────────────────────────────────────────────
 alter table lines enable row level security;
 alter table catalog_items enable row level security;
@@ -134,20 +132,24 @@ alter table prospect_updates enable row level security;
 alter table calls enable row level security;
 
 drop policy if exists "public full access" on lines;
-create policy "public full access" on lines
-  for all to anon, authenticated using (true) with check (true);
+drop policy if exists "authenticated full access" on lines;
+create policy "authenticated full access" on lines
+  for all to authenticated using (true) with check (true);
 
 drop policy if exists "public full access" on catalog_items;
-create policy "public full access" on catalog_items
-  for all to anon, authenticated using (true) with check (true);
+drop policy if exists "authenticated full access" on catalog_items;
+create policy "authenticated full access" on catalog_items
+  for all to authenticated using (true) with check (true);
 
 drop policy if exists "public full access" on prospect_updates;
-create policy "public full access" on prospect_updates
-  for all to anon, authenticated using (true) with check (true);
+drop policy if exists "authenticated full access" on prospect_updates;
+create policy "authenticated full access" on prospect_updates
+  for all to authenticated using (true) with check (true);
 
 drop policy if exists "public full access" on calls;
-create policy "public full access" on calls
-  for all to anon, authenticated using (true) with check (true);
+drop policy if exists "authenticated full access" on calls;
+create policy "authenticated full access" on calls
+  for all to authenticated using (true) with check (true);
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- profiles — see migrations/20260802193000_profiles_roles.sql
