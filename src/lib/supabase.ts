@@ -21,6 +21,14 @@ if (!hasCredentials) {
 export const supabase: SupabaseClient<Database> = createClient<Database>(
   hasCredentials ? supabaseUrl : 'https://placeholder.supabase.co',
   hasCredentials ? supabaseAnonKey : 'placeholder-anon-key',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce',
+    },
+  },
 );
 
 export const isSupabaseConfigured = hasCredentials;

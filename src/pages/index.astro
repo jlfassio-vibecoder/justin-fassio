@@ -1,8 +1,225 @@
 ---
 import Layout from '@/layouts/Layout.astro';
-import { RepCommandCenter } from '@/components/RepCommandCenter';
 ---
 
-<Layout title="Rep Command Center — Justin Fassio">
-  <RepCommandCenter client:load />
+<Layout title="Justin Fassio — Independent Sales Representative, BC">
+  <main class="landing">
+    <div class="landing__atmosphere" aria-hidden="true"></div>
+
+    <header class="landing__nav">
+      <a href="/" class="landing__brand" aria-current="page">
+        <span class="landing__mark">JF</span>
+        <span class="landing__brand-name">Justin Fassio</span>
+      </a>
+      <a href="/login" class="landing__nav-link">Sign in</a>
+    </header>
+
+    <section class="landing__hero">
+      <p class="landing__brand-hero">Justin Fassio</p>
+      <h1 class="landing__headline">Wholesale apparel for BC retailers</h1>
+      <p class="landing__support">
+        Independent multi-line sales rep — line sheets, landed cost, and account tools for buyers
+        who work with Old Guys Rule and more.
+      </p>
+      <div class="landing__cta">
+        <a href="/login" class="landing__btn landing__btn--primary">Sign in</a>
+        <a href="/login?mode=magic" class="landing__btn landing__btn--secondary">Buyer access</a>
+      </div>
+    </section>
+  </main>
 </Layout>
+
+<style>
+  .landing {
+    position: relative;
+    min-height: 100dvh;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .landing__atmosphere {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(ellipse 90% 70% at 15% 20%, rgb(198 113 57 / 0.28), transparent 55%),
+      radial-gradient(ellipse 70% 60% at 85% 75%, rgb(122 138 94 / 0.22), transparent 50%),
+      linear-gradient(165deg, #f5ead8 0%, #ebddc5 45%, #e4d2b4 100%);
+    animation: landing-glow 14s ease-in-out infinite alternate;
+  }
+
+  @keyframes landing-glow {
+    from {
+      filter: saturate(1) brightness(1);
+    }
+    to {
+      filter: saturate(1.08) brightness(1.03);
+    }
+  }
+
+  .landing__nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 1.25rem 1.5rem;
+    animation: landing-fade 0.7s ease-out both;
+  }
+
+  .landing__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .landing__mark {
+    display: inline-flex;
+    height: 2.5rem;
+    width: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--color-accent);
+    color: var(--color-bg);
+    font-family: var(--font-heading);
+    font-size: 1rem;
+  }
+
+  .landing__brand-name {
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+  }
+
+  .landing__nav-link {
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    color: var(--color-accent-700);
+    text-decoration: none;
+  }
+
+  .landing__nav-link:hover {
+    color: var(--color-accent-800);
+  }
+
+  .landing__hero {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    max-width: 1120px;
+    min-height: calc(100dvh - 5.5rem);
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  .landing__brand-hero {
+    margin: 0 0 0.75rem;
+    font-family: var(--font-heading);
+    font-size: clamp(2.75rem, 8vw, 5.25rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+    animation: landing-rise 0.85s ease-out 0.1s both;
+  }
+
+  .landing__headline {
+    margin: 0 0 1rem;
+    max-width: 18ch;
+    font-size: clamp(1.35rem, 3.2vw, 1.85rem);
+    font-weight: 400;
+    color: var(--color-accent-800);
+    animation: landing-rise 0.85s ease-out 0.22s both;
+  }
+
+  .landing__support {
+    margin: 0 0 2rem;
+    max-width: 36rem;
+    font-size: 1.05rem;
+    color: rgb(32 30 29 / 0.78);
+    animation: landing-rise 0.85s ease-out 0.34s both;
+  }
+
+  .landing__cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    animation: landing-rise 0.85s ease-out 0.46s both;
+  }
+
+  .landing__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.65rem 1.35rem;
+    border-radius: var(--radius-md);
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    text-decoration: none;
+    transition:
+      transform 0.2s ease,
+      background-color 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  .landing__btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .landing__btn--primary {
+    background: var(--color-accent);
+    color: var(--color-bg);
+  }
+
+  .landing__btn--primary:hover {
+    background: var(--color-accent-600);
+  }
+
+  .landing__btn--secondary {
+    border: 1px solid rgb(32 30 29 / 0.18);
+    color: var(--color-ink);
+    background: rgb(245 234 216 / 0.55);
+  }
+
+  .landing__btn--secondary:hover {
+    border-color: rgb(32 30 29 / 0.35);
+    background: rgb(235 221 197 / 0.85);
+  }
+
+  @keyframes landing-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes landing-rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .landing__atmosphere,
+    .landing__nav,
+    .landing__brand-hero,
+    .landing__headline,
+    .landing__support,
+    .landing__cta {
+      animation: none;
+    }
+
+    .landing__btn:hover {
+      transform: none;
+    }
+  }
+</style>

@@ -1,3 +1,5 @@
+-- Initial schema (from supabase/schema.sql)
+
 -- Rep Command Center — initial schema
 --
 -- Run this directly in the Supabase project's SQL Editor (Database > SQL Editor).
@@ -148,9 +150,3 @@ create policy "public full access" on prospect_updates
 drop policy if exists "public full access" on calls;
 create policy "public full access" on calls
   for all to anon, authenticated using (true) with check (true);
-
--- ─────────────────────────────────────────────────────────────────────────
--- profiles — see migrations/20260802193000_profiles_roles.sql
--- (auth.users trigger + rep/buyer roles). Apply that migration in SQL Editor
--- or via `supabase db push` when the CLI is linked.
--- ─────────────────────────────────────────────────────────────────────────

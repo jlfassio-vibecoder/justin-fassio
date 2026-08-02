@@ -155,6 +155,32 @@ export interface Database {
           updated_at?: string;
         };
       };
+      profiles: {
+        Row: {
+          id: string;
+          email: string | null;
+          display_name: string | null;
+          role: 'rep' | 'buyer';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          email?: string | null;
+          display_name?: string | null;
+          role?: 'rep' | 'buyer';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          email?: string | null;
+          display_name?: string | null;
+          role?: 'rep' | 'buyer';
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -167,3 +193,4 @@ export type CatalogItemRow = Database['public']['Tables']['catalog_items']['Row'
 export type ProspectUpdate = Database['public']['Tables']['prospect_updates']['Row'];
 export type Call = Database['public']['Tables']['calls']['Row'];
 export type CallInsert = Database['public']['Tables']['calls']['Insert'];
+export type Profile = Database['public']['Tables']['profiles']['Row'];

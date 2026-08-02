@@ -21,6 +21,14 @@ Stay on **TypeScript 5.x** (currently `^5.9.3`, the latest 5.x). The dependency 
 
 Dependabot already ignores `typescript` major updates (Phase 0).
 
+## Routes
+
+- `/` — public Justin Fassio landing
+- `/login` — Supabase Auth (email magic link or password)
+- `/app` — Rep Command Center (session required)
+
+After creating a user in Supabase Auth, set `profiles.role = 'rep'` for Justin (defaults to `buyer`). Apply [`supabase/migrations/20260802193000_profiles_roles.sql`](supabase/migrations/20260802193000_profiles_roles.sql) in the SQL Editor if it is not applied yet. Add your site URL to Supabase Auth → URL configuration (`https://justin-fassio.vercel.app` and local `http://localhost:4321`).
+
 ## Getting started
 
 Requires **Node ≥ 22.22.3** (see `.nvmrc`).
