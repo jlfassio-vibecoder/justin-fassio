@@ -21,3 +21,7 @@ npm-debug.log*
 # editor
 .vscode/*
 !.vscode/extensions.json
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/

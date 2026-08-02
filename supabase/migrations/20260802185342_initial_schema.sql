@@ -1,3 +1,5 @@
+-- Initial schema (from supabase/schema.sql)
+
 -- Rep Command Center — initial schema
 --
 -- Run this directly in the Supabase project's SQL Editor (Database > SQL Editor).
@@ -124,7 +126,8 @@ create trigger calls_set_updated_at
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- Row Level Security — signed-in users only (`authenticated`).
--- Keep in sync with migrations (initial schema + tighten_auth_rls).
+-- The public anon key must not read/write domain tables; /app is gated in
+-- the UI, and these policies enforce the same at the API layer.
 -- ─────────────────────────────────────────────────────────────────────────
 alter table lines enable row level security;
 alter table catalog_items enable row level security;
@@ -150,9 +153,3 @@ drop policy if exists "public full access" on calls;
 drop policy if exists "authenticated full access" on calls;
 create policy "authenticated full access" on calls
   for all to authenticated using (true) with check (true);
-
--- ─────────────────────────────────────────────────────────────────────────
--- profiles — see migrations/20260802193000_profiles_roles.sql
--- (auth.users trigger + rep/buyer roles). Apply that migration in SQL Editor
--- or via `supabase db push` when the CLI is linked.
--- ─────────────────────────────────────────────────────────────────────────
