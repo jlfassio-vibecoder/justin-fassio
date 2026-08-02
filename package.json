@@ -22,9 +22,9 @@
     "check": "npm run lint && npm run typecheck && npm run test"
   },
   "dependencies": {
-    "@astrojs/react": "^5.0.7",
+    "@astrojs/react": "^6.0.2",
     "@tailwindcss/vite": "^4.3.3",
-    "astro": "^6.4.8",
+    "astro": "^7.1.6",
     "lucide-react": "^1.27.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -53,9 +53,6 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.65.0",
     "vitest": "^4.1.10"
-  },
-  "overrides": {
-    "vite": "^7.3.6"
   },
   "optionalDependencies": {
     "@emnapi/core": "^1.11.3",

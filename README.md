@@ -6,7 +6,7 @@ Built with **Astro + React + TypeScript + Tailwind CSS**, recreating the `design
 
 ## Stack
 
-- [Astro 6](https://astro.build/) — static site framework, React island for the interactive app shell
+- [Astro 7](https://astro.build/) — static site framework, React island for the interactive app shell
 - [React 19](https://react.dev/) + TypeScript — the `RepCommandCenter` app and its tabs
 - [Tailwind CSS 4](https://tailwindcss.com/) — utility classes mapped to Organic design tokens via `@tailwindcss/vite` + CSS `@theme`
 - [lucide-react](https://lucide.dev/) — icons, stroke-width 2.75 to match the design reference
