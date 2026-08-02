@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@astrojs/react": "^6.0.2",
+    "@supabase/supabase-js": "^2.111.0",
     "@tailwindcss/vite": "^4.3.3",
     "astro": "^7.1.6",
     "lucide-react": "^1.27.0",
