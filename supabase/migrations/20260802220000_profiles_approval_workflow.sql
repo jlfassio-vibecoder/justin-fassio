@@ -10,6 +10,9 @@ alter table profiles
   add constraint profiles_role_check
   check (role in ('owner', 'rep', 'buyer'));
 
+-- Align with handle_new_user / schema.sql (was default 'buyer' from earlier migration).
+alter table profiles alter column role set default 'rep';
+
 alter table profiles
   add column if not exists status text;
 

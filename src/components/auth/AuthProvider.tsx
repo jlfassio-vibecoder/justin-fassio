@@ -28,21 +28,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(data);
     }
 
+    async function syncSession(next: Session | null) {
+      if (active) setLoading(true);
+      setSession(next);
+      if (next?.user) await loadProfile(next.user.id);
+      else setProfile(null);
+      if (active) setLoading(false);
+    }
+
     void supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
-      setSession(data.session);
-      if (data.session?.user) void loadProfile(data.session.user.id);
-      else setProfile(null);
-      setLoading(false);
+      void syncSession(data.session);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
-      if (next?.user) void loadProfile(next.user.id);
-      else setProfile(null);
-      setLoading(false);
+    } = supabase.auth.onAuthStateChange((event, next) => {
+      // Avoid pending-screen flash / loading flicker on token refresh.
+      if (event === 'TOKEN_REFRESHED') {
+        setSession(next);
+        return;
+      }
+      void syncSession(next);
     });
 
     return () => {

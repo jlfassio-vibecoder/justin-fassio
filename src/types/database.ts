@@ -205,11 +205,3 @@ export type ProspectUpdate = Database['public']['Tables']['prospect_updates']['R
 export type Call = Database['public']['Tables']['calls']['Row'];
 export type CallInsert = Database['public']['Tables']['calls']['Insert'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];
-
-export function isApprovedStaff(profile: Profile | null | undefined): boolean {
-  return (
-    !!profile &&
-    profile.status === 'approved' &&
-    (profile.role === 'owner' || profile.role === 'rep')
-  );
-}

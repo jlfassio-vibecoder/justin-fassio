@@ -6,7 +6,7 @@ import { RepCommandCenter } from '@/components/RepCommandCenter';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
-import { isApprovedStaff } from '@/types/database';
+import { isApprovedStaff } from '@/lib/auth';
 
 function AuthGateInner() {
   const { loading, session, user, profile, configured } = useAuth();
