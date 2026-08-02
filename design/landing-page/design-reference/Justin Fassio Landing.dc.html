@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<![CDATA[
+<helmet>
+  <link rel="stylesheet" href="_ds/organic-e3c6a074-3258-42b4-9799-98fc35c31c37/styles.css">
+  <script src="_ds/organic-e3c6a074-3258-42b4-9799-98fc35c31c37/_ds_bundle.js"></script>
+  <script src="./image-slot.js"></script>
+  <style>
+    body { margin: 0; background: var(--color-bg); }
+    a { text-decoration: none; }
+    .badge-ring {
+      border: 2px dashed color-mix(in srgb, var(--color-accent-2-900) 35%, transparent);
+      border-radius: 999px;
+    }
+    .brand-card:hover .brand-cta { background: var(--color-accent-600); }
+    .app-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+    .app-card { transition: box-shadow .18s ease, transform .18s ease; }
+    .social-btn:hover { background: var(--color-accent-2-700); }
+    .nav-link:hover { color: var(--color-accent-2-900); }
+    @media (max-width: 860px) {
+      .hero-grid { grid-template-columns: 1fr !important; }
+      .hero-logo { justify-self: center !important; }
+      .brand-grid { grid-template-columns: 1fr !important; }
+    }
+  </style>
+</helmet>
+
+<div style="font-family: var(--font-body); color: var(--color-text); background: var(--color-bg); overflow-x: hidden;">
+
+  <nav style="display:flex; align-items:center; gap:var(--space-6); padding: var(--space-4) var(--space-8); max-width:1240px; margin:0 auto;">
+    <a href="#top" style="font-family:var(--font-heading); font-size:19px; color:var(--color-text); margin-right:auto; letter-spacing:0.01em;">JUSTIN FASSIO</a>
+    <a class="nav-link" href="#brands" style="font-size:14px; color:var(--color-text); font-weight:600;">Brands</a>
+    <a class="nav-link" href="#apps" style="font-size:14px; color:var(--color-text); font-weight:600;">Apps</a>
+    <a class="nav-link" href="#contact" style="font-size:14px; color:var(--color-text); font-weight:600;">Contact</a>
+    <a href="Rep Command Center.dc.html" class="btn btn-primary" style="background:var(--color-accent-2-900);">Sign In</a>
+  </nav>
+
+  <!-- HERO -->
+  <section id="top" style="max-width:1240px; margin:0 auto; padding: var(--space-8) var(--space-8) calc(var(--space-8) * 1.2);">
+    <div class="hero-grid" style="display:grid; grid-template-columns: 420px 1fr; align-items:center; gap: var(--space-8);">
+      <div class="hero-logo badge-ring" style="justify-self:start; padding: var(--space-4); width:380px; height:380px; display:flex; align-items:center; justify-content:center;">
+        <img src="uploads/Outdoor_Lifestyle_Rep_Logo.png" alt="Justin Fassio - Outdoor Lifestyle Rep" style="width:100%; height:100%; object-fit:contain; border-radius:999px;">
+      </div>
+      <div>
+        <span class="tag tag-accent-2" style="font-family:var(--font-heading); letter-spacing:0.08em;">EST. SANTA CRUZ, CA</span>
+        <h1 style="font-size:56px; margin-top:var(--space-3); color:var(--color-accent-2-900);">Outdoor Lifestyle Rep</h1>
+        <p style="font-size:18px; max-width:520px; color:color-mix(in srgb, var(--color-text) 80%, transparent);">
+          Independent sales rep connecting surf, bike, fish, and snow brands with the independent shops that carry them — up and down the coast and beyond.
+        </p>
+        <div style="display:flex; gap:var(--space-3); margin-top:var(--space-4); flex-wrap:wrap;">
+          <a href="#brands" class="btn btn-primary" style="background:var(--color-accent-700); padding: var(--space-3) var(--space-6); font-size:15px;">View Brands</a>
+          <a href="#contact" class="btn btn-secondary" style="padding: var(--space-3) var(--space-6); font-size:15px; border-color:var(--color-accent-2-900); color:var(--color-accent-2-900);">Get In Touch</a>
+        </div>
+        <div style="display:flex; gap:var(--space-4); margin-top:var(--space-6);">
+          <span class="tag tag-outline" style="border-color:var(--color-accent-2-700); color:var(--color-accent-2-800);">Surf</span>
+          <span class="tag tag-outline" style="border-color:var(--color-accent-2-700); color:var(--color-accent-2-800);">Bike</span>
+          <span class="tag tag-outline" style="border-color:var(--color-accent-2-700); color:var(--color-accent-2-800);">Fish</span>
+          <span class="tag tag-outline" style="border-color:var(--color-accent-2-700); color:var(--color-accent-2-800);">Snow</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BRANDS -->
+  <section id="brands" style="background: var(--color-accent-2-900); padding: calc(var(--space-8) * 1.3) var(--space-8);">
+    <div style="max-width:1240px; margin:0 auto;">
+      <span class="tag" style="background:var(--color-accent-300); color:var(--color-accent-900);">Line Card</span>
+      <h2 style="font-size:34px; color:var(--color-bg); margin-top:var(--space-3);">Brands I Represent</h2>
+      <p style="color:color-mix(in srgb, var(--color-bg) 75%, transparent); max-width:520px; margin-bottom:var(--space-6);">
+        The lines I carry into shops today, with more joining the roster soon.
+      </p>
+      <div class="brand-grid" style="display:grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-6);">
+
+        <div class="brand-card elev-md" style="background:var(--color-bg); border-radius: calc(var(--radius-lg) * 1.15); padding: var(--space-4); display:flex; flex-direction:column; gap:var(--space-3);">
+          <image-slot id="brand-ogr" shape="rounded" radius="16" style="width:100%; height:160px;" placeholder="Drop Old Guys Rule logo/lookbook image"></image-slot>
+          <div style="display:flex; align-items:center; gap:var(--space-2);">
+            <span class="card-title" style="font-size:20px;">Old Guys Rule</span>
+            <span class="tag tag-accent-2">Now Repping</span>
+          </div>
+          <p style="font-size:14px; color:color-mix(in srgb, var(--color-text) 70%, transparent); margin:0;">Apparel & lifestyle goods for the surf and skate crowd.</p>
+          <a href="https://www.sellbyownerlocal.com/marketplace/clothing/old-guys-rule" target="_blank" rel="noopener" class="btn btn-primary brand-cta" style="background:var(--color-accent-700); align-self:flex-start;">View Line</a>
+        </div>
+
+        <div class="brand-card elev-sm" style="background:var(--color-bg); border-radius: calc(var(--radius-lg) * 1.15); padding: var(--space-4); display:flex; flex-direction:column; gap:var(--space-3); opacity:0.85;">
+          <image-slot id="brand-bkg" shape="rounded" radius="16" style="width:100%; height:160px;" placeholder="Drop Busted Knuckles Garage image"></image-slot>
+          <div style="display:flex; align-items:center; gap:var(--space-2);">
+            <span class="card-title" style="font-size:20px;">Busted Knuckles Garage</span>
+            <span class="tag tag-neutral">Soon</span>
+          </div>
+          <p style="font-size:14px; color:color-mix(in srgb, var(--color-text) 70%, transparent); margin:0;">Moto-inspired apparel joining the line card soon.</p>
+          <span class="btn btn-secondary" style="align-self:flex-start; pointer-events:none; opacity:0.7;">Coming Soon</span>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- APPS -->
+  <section id="apps" style="max-width:1240px; margin:0 auto; padding: calc(var(--space-8) * 1.3) var(--space-8);">
+    <span class="tag tag-accent">Tools</span>
+    <h2 style="font-size:34px; margin-top:var(--space-3); color:var(--color-accent-2-900);">Command Centers</h2>
+    <p style="color:color-mix(in srgb, var(--color-text) 75%, transparent); max-width:520px; margin-bottom:var(--space-6);">
+      Field tools for running the territory. Each app has its own sign-in.
+    </p>
+    <div style="display:grid; grid-template-columns: minmax(280px, 420px); gap: var(--space-6);">
+      <div class="app-card elev-md" style="background:var(--color-bg); border: 1px solid var(--color-divider); border-radius: calc(var(--radius-lg) * 1.15); padding: var(--space-6); display:flex; flex-direction:column; gap:var(--space-3);">
+        <div style="width:52px; height:52px; border-radius:999px; background:var(--color-accent-2-100); display:flex; align-items:center; justify-content:center;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 10h18"></path><path d="M8 4v16"></path></svg>
+        </div>
+        <span class="card-title" style="font-size:20px;">Rep Command Center</span>
+        <p style="font-size:14px; color:color-mix(in srgb, var(--color-text) 70%, transparent); margin:0;">Catalog, prospect directory, call pipeline, and order tools for the road.</p>
+        <div style="display:flex; align-items:center; gap:var(--space-3); margin-top:var(--space-2);">
+          <a href="Rep Command Center.dc.html" class="btn btn-primary" style="background:var(--color-accent-700);">Open App</a>
+          <span style="display:flex; align-items:center; gap:6px; font-size:12px; color:color-mix(in srgb, var(--color-text) 55%, transparent);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+            Sign-in required
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section id="contact" style="background: var(--color-accent-2-900); padding: calc(var(--space-8) * 1.3) var(--space-8);">
+    <div style="max-width:1240px; margin:0 auto; display:flex; justify-content:space-between; align-items:flex-end; gap:var(--space-6); flex-wrap:wrap;">
+      <div>
+        <span class="tag" style="background:var(--color-accent-300); color:var(--color-accent-900);">Get In Touch</span>
+        <h2 style="font-size:32px; color:var(--color-bg); margin-top:var(--space-3);">Let's talk territory.</h2>
+        <a href="mailto:justin@justinfassio.com" style="font-size:18px; color:var(--color-accent-300); font-weight:600;">justin@justinfassio.com</a>
+      </div>
+      <div style="display:flex; gap:var(--space-3);">
+        <a href="#" class="social-btn" style="width:44px; height:44px; border-radius:999px; background:var(--color-accent-2-800); display:flex; align-items:center; justify-content:center;" aria-label="Instagram">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-bg)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><path d="M17.5 6.5h.01"></path></svg>
+        </a>
+        <a href="#" class="social-btn" style="width:44px; height:44px; border-radius:999px; background:var(--color-accent-2-800); display:flex; align-items:center; justify-content:center;" aria-label="LinkedIn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-bg)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4V8h4v1.5A6 6 0 0 1 16 8Z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>
+        </a>
+      </div>
+    </div>
+    <div style="max-width:1240px; margin: var(--space-8) auto 0; border-top:1px solid var(--color-accent-2-700); padding-top: var(--space-4); display:flex; justify-content:space-between; flex-wrap:wrap; gap:var(--space-2);">
+      <span style="font-size:12px; color:color-mix(in srgb, var(--color-bg) 65%, transparent);">© 2026 Justin Fassio · Santa Cruz, CA</span>
+      <span style="font-size:12px; color:color-mix(in srgb, var(--color-bg) 65%, transparent);">Surf · Bike · Fish · Snow</span>
+    </div>
+  </section>
+
+</div>
+</x-dc>
+</body>
+</html>
