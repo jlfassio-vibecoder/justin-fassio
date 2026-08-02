@@ -7,8 +7,8 @@
     "node": ">=22.22.3"
   },
   "scripts": {
-    "dev": "astro dev",
-    "start": "astro dev",
+    "dev": "astro dev --force",
+    "start": "astro dev --force",
     "build": "astro check && astro build",
     "preview": "astro preview",
     "astro": "astro",
@@ -17,6 +17,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "astro check",
+    "posttypecheck": "rm -rf node_modules/.vite/deps",
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run lint && npm run typecheck && npm run test",

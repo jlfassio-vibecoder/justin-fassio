@@ -1,213 +1,382 @@
-# Dependency upgrade roadmap
+# Product & architecture roadmap
 
-Phased plan for the major upgrades Dependabot opened (and CI/Vercel rejected). Do **not** merge those Dependabot PRs as-is — each bumps one package without the rest of the stack.
+Phased plan derived from [`docs/architecture-assessment.md`](docs/architecture-assessment.md).  
+**Branch context:** start work from `main` (or `feature/ai-agent-integration` after foundation phases land).
 
-**Status:** Phases **0–5 are complete** on `main` (through [#24](https://github.com/jlfassio-vibecoder/justin-fassio/pull/24)). Remaining open boxes below are **optional / deferred** (TypeScript 6), not blockers for this roadmap.
+## How to use (Plan Mode)
 
-## Current baseline (keep until a phase lands)
+Each phase below is sized for **one Plan Mode session → one implementation PR**.
 
-| Package | Current | Failed Dependabot target | Closed PR |
-| --- | --- | --- | --- |
-| `astro` | `^7.1.x` (Phase 5) | `7.1.6` | #17 |
-| `react` / `@types/react` | `^19.2.x` (Phase 1) | React 19 | #16 |
-| `react-dom` / `@types/react-dom` | `^19.2.x` (Phase 1) | React 19 | #8 |
-| `typescript` | `^5.9.3` (Phase 2: stay on 5.x) | `7.0.2` | #13 |
-| `tailwindcss` | `^4.3.x` (Phase 4; `@tailwindcss/vite`) | `4.3.3` | #11 |
+1. Open Plan Mode and paste the phase’s **Plan prompt**.
+2. Review the plan; adjust only if exit criteria or out-of-scope need changing.
+3. Implement on a dedicated branch; gate with `npm run check` (+ manual smoke listed).
+4. Check the phase boxes in this file when the PR merges.
 
-Related packages already on majors that matter for planning:
+Do **not** combine phases in one plan unless a later phase explicitly lists a dependency merge.
 
-- `@astrojs/react` `^6.0.2` (Astro 7 / Vite 8; React 17–19)
-- `@astrojs/tailwind` **removed** (Phase 4) — Tailwind via `@tailwindcss/vite`
-- `@astrojs/check` `^0.9.10` (peer TypeScript `^5 \|\| ^6` — **not** 7 yet)
-- Node `>=22.22.3` (`.nvmrc` `22.22.3`)
-
-## Why the five PRs failed
-
-They are **major** jumps with peer conflicts, not routine patches:
-
-1. **Astro 5 → 7** skips the Astro 6 migration (Vite 7, integration majors, deprecated `@astrojs/tailwind`).
-2. **React / react-dom** were split across two PRs; `@types/react-dom@19` requires `@types/react@^19`.
-3. **TypeScript 7** is outside `@astrojs/check`’s peer range.
-4. **Tailwind 4** conflicts with `@astrojs/tailwind@6`, which still requires Tailwind 3.
-
-**Rule:** one coordinated PR per phase below. Gate every phase with `npm ci && npm run check && npm run build`, then a Vercel preview smoke of the main tabs (Catalog, Calls, Prospects, Dashboard, Insights) and landed-cost calculator.
+**Rule:** No AI agent / secret-bearing tools until **Phases A–D** are done (persistence + confidentiality decision). Prefer **Phase E** before agents that need server secrets.
 
 ---
 
-## Phase 0 — Dependabot hygiene (do first)
+## Completed — Dependency upgrades (Phases 0–5)
 
-**Status:** Merged via #19.
+Stack foundation is done on `main` (through [#24](https://github.com/jlfassio-vibecoder/justin-fassio/pull/24) and related PRs):
 
-Stop the flood of unmergeable majors before more product work.
+| Phase | Outcome |
+| --- | --- |
+| 0 Dependabot hygiene | Major ignores + grouped minors |
+| 1 React 19 | `react` / `react-dom` 19.x |
+| 2 TypeScript 5.x | Stay on 5.x; TS 6 optional later |
+| 3 Astro 5→6 | Vite 7 path, `@astrojs/react` alignment |
+| 4 Tailwind 4 | `@tailwindcss/vite`; `@astrojs/tailwind` removed |
+| 5 Astro 6→7 | Astro 7 + `@astrojs/react` 6 + Node `>=22.22.3` |
 
-- [x] Close #8, #11, #13, #16, #17 (if still open).
-- [x] Tighten [`.github/dependabot.yml`](.github/dependabot.yml):
-  - Lower `open-pull-requests-limit` (e.g. npm `5`, actions `2`).
-  - Prefer `groups` for patch/minor npm bumps.
-  - Add `ignore` rules for major updates on `astro`, `react`, `react-dom`, `typescript`, `tailwindcss` (and optionally `@types/react*`) until the matching phase below is scheduled.
-- [x] Keep merging green **patch/minor** Dependabot PRs as usual.
+Optional deferred: TypeScript 6 when `@astrojs/check` peers allow a clean `npm ci`.
 
-**Exit:** Weekly Dependabot noise is mostly safe minors; majors only appear when you remove an ignore intentionally.
-
-**Note:** Coordinated majors for Phases 1–5 are done. Keep Dependabot major `ignore`s in place unless you intentionally schedule the next major (e.g. optional TypeScript 6).
-
----
-
-## Phase 1 — React 19 (closes the intent of #8 + #16)
-
-**Status:** Merged via #18.
-
-**Goal:** Move `react`, `react-dom`, `@types/react`, and `@types/react-dom` to 19 **in one PR**.
-
-**Why this order:** `@astrojs/react@6` already allows React 19; this is the least coupled major and unblocks type alignment without touching Astro/Tailwind.
-
-### Work
-
-- [x] Branch from current `main` (e.g. `chore/upgrade-react-19`).
-- [x] Bump together:
-  - `react`, `react-dom` → 19
-  - `@types/react`, `@types/react-dom` → matching 19
-- [x] Reinstall (`npm install`) so the lockfile resolves peers together.
-- [x] Fix any React 19 type / lint fallout in `src/components/**` (islands, modals, hooks).
-- [x] Confirm Testing Library + Vitest still pass (`LogCallModal`, `TabNav`, helpers).
-
-### Verify
-
-- [x] `npm run check` and `npm run build`
-- [x] Manual smoke: tab switching, `LogCallModal`, landed-cost inputs (on Vercel preview / local after merge)
-
-### Notes
-
-- Do **not** reopen Dependabot #8 / #16; supersede them with this PR.
-- Leave Astro on 5.x for this phase.
-- React 19 types deprecate `FormEvent` for submit handlers — use `SubmitEvent<HTMLFormElement>` instead.
-
-**Exit:** App on React 19 with green CI + preview; README stack line updated to React 19.
+Also landed (product, not in the old dependency table): public landing, `/rep-login` + buyer `/login`, profiles approval workflow, approved-staff RLS, AuthGate states.
 
 ---
 
-## Phase 2 — TypeScript (replaces #13; stay conservative)
+## Current baseline (do not regress)
 
-**Status:** Merged via #22. Policy exit met; 2b remains an optional future; 2c stays deferred.
-
-**Goal:** Keep a supported TypeScript line; do **not** jump to 7 until the Astro tooling peers catch up.
-
-### 2a — Stay on TypeScript 5.x (default / now) — done
-
-- [x] Keep `typescript` on the latest **5.x** that `@astrojs/check` and `typescript-eslint` accept (`5.9.3` is current latest 5.x; `npm ci` + `npm run check` green).
-- [x] Dependabot: ignore `typescript` major updates (already in Phase 0).
-- [x] Document the policy in [`README.md`](README.md) (TypeScript policy).
-
-### 2b — TypeScript 6 (optional, not required for this roadmap)
-
-- [ ] When `@astrojs/check` (and ESLint TS stack) clearly support TS 6 in CI with `npm ci` (no `--legacy-peer-deps`), bump in one PR.
-- [ ] Re-run `astro check` across `src/` and fix new strictness only if actionable.
-
-Note (verified 2026-08-01): `@astrojs/check@0.9.10` allows `typescript@^5 \|\| ^6`, and `typescript-eslint@8` allows `<6.1.0`. A TS 6 bump is technically peer-plausible but **not** part of this roadmap’s completion criteria — schedule a dedicated PR if/when desired.
-
-### 2c — TypeScript 7 (deferred)
-
-- [x] Block until `@astrojs/check` peer range includes `^7` (or Astro documents a supported path). (`@astrojs/check` still `^5 \|\| ^6` only.)
-- [x] Treat Dependabot’s `5.9 → 7.0` PR as permanently superseded until then.
-
-**Exit for “done enough”:** Documented policy (5.x now; 6 when peers allow; 7 deferred). No broken `npm ci` from a solo TS major.
+| Layer | State |
+| --- | --- |
+| Astro | `^7.1.x`, `output: 'static'` |
+| React islands | `LoginForm` (`/rep-login`), `AuthGate` (`/app`) |
+| Auth | PKCE; profiles `rep`+`pending` on signup; `is_approved_staff()` RLS |
+| Data in UI | Static `catalog.ts` / `prospects.ts`; `calls` table unused |
+| Hosting | Vercel static + `vercel.json` headers |
+| Verify command | `npm ci && npm run check && npm run build` (after Phase A fixes CI) |
 
 ---
 
-## Phase 3 — Astro 5 → 6 (first half of #17)
+## Phase A — Foundation trust (P0)
 
-**Status:** Merged via #23 (combined with Phase 4).
+**Status:** Not started  
+**Goal:** Local/CI/docs match the assessment so later phases start from a clean base.  
+**Depends on:** nothing  
+**Estimate:** small (½–1 day)
 
-**Goal:** Land on **Astro 6** with official upgrade tooling — not Astro 7 in one leap.
+### In scope
 
-Astro 6 brings Vite 7, Node 22.22.3+, and integration majors. (`@astrojs/upgrade` currently offers Astro 7; this phase pinned `astro@^6.4.8` manually.)
+- [ ] Land Vite/`jsxDEV` mitigations if missing on the working branch: `astro dev --force`, `posttypecheck` cache wipe, `optimizeDeps` includes `react/jsx-dev-runtime` ([`astro.config.mjs`](astro.config.mjs), [`package.json`](package.json)).
+- [ ] Fix [`.github/workflows/ci.yml`](.github/workflows/ci.yml) to use **`npm ci`** (stop deleting `package-lock.json`); keep `@astrojs/compiler` rebuild only if still required on Ubuntu.
+- [ ] Update [`README.md`](README.md): auth/approval done; persistence outstanding; project structure lists auth + `supabase/`.
+- [ ] Verify migrations + owner bootstrap on Supabase project `mqsyqxnzpncwdrnugytf` (document result in PR).
 
-**Coupling:** Bundled Phase 4 in the same PR (Tailwind 4 + `@tailwindcss/vite`) so we never ship unsupported `@astrojs/tailwind` on Astro 6.
+### Out of scope
 
-### Work
+- CRM persistence, agent code, CI format/E2E, CSP.
 
-- [x] Branch `chore/upgrade-astro-6`.
-- [x] Pin `astro@^6` (+ keep `@astrojs/react` / `@astrojs/check`).
-- [x] Resolve Tailwind path (bundled with Phase 4).
-- [x] Update [`astro.config.mjs`](astro.config.mjs); Vitest `getViteConfig` unchanged and green on Vitest 4.1.
-- [x] Confirm static output still builds (`output: 'static'`; `dist/index.html`).
-- [x] Re-verify React islands hydrate on Vercel preview (after PR open).
+### Exit criteria
 
-### Verify
+- [ ] `npm ci && npm run check && npm run build` green in CI without lockfile deletion.
+- [ ] Local `/rep-login` works after `npm run check` (no `_jsxDEV` crash).
+- [ ] README no longer claims auth is “outstanding.”
 
-- [x] `npm ci` (clean peers)
-- [x] `npm run check` / `npm run build`
-- [x] `npm run preview` + visual smoke against Organic tokens (colors, type, radii)
-
-**Exit:** Production builds on Astro 6; no reliance on unsupported peer overrides.
-
----
-
-## Phase 4 — Tailwind CSS 3 → 4 (replaces #11)
-
-**Status:** Merged via #23 (combined with Phase 3).
-
-**Goal:** Migrate design tokens and build wiring to Tailwind 4’s Vite plugin; remove `@astrojs/tailwind`.
-
-Organic tokens live in [`src/styles/global.css`](src/styles/global.css) (`@import "tailwindcss"` + CSS `@theme`). Former [`tailwind.config.ts`](tailwind.config.ts) / PostCSS Tailwind pipeline removed.
-
-### Work
-
-- [x] Add `tailwindcss@4` + `@tailwindcss/vite`; remove `@astrojs/tailwind` (and `autoprefixer` / PostCSS).
-- [x] Register the Vite plugin in `astro.config.mjs` (no `tailwind()` integration).
-- [x] Migrate Organic tokens into CSS `@theme`.
-- [x] Update `global.css` directives; keep font import + base element styles.
-- [x] Keep `prettier-plugin-tailwindcss` `^0.8.1` (v4-compatible class sorting).
-- [x] Sweep: `check` / `build` green; built CSS includes Organic `--color-bg` / Caprasimo.
-
-### Verify
-
-- [x] Side-by-side visual pass vs `design/` Organic reference (local preview; Vercel after PR)
-- [x] Full `check` + `build`
-
-**Exit:** Tailwind 4 only; `@astrojs/tailwind` gone; design tokens preserved.
-
----
-
-## Phase 5 — Astro 6 → 7 (second half of #17)
-
-**Status:** Merged via #24.
-
-**Goal:** Move from Astro 6 + Vite 7 override to Astro 7’s native Vite 8 / Rolldown stack.
-
-- [x] Read the Astro 7 upgrade guide; pin manually (`astro@^7.1.6`) rather than relying on bare `@astrojs/upgrade`.
-- [x] Bump `@astrojs/react` `^5` → `^6.0.2`; remove `overrides.vite` (Phase 3+4 Vite 7 workaround).
-- [x] Keep Tailwind 4 + `@tailwindcss/vite`, Node `>=22.22.3`, `ajv` / `@emnapi/*` install fixes.
-- [x] Re-run the full verify suite (`npm ci` / `check` / `build` / preview); Vercel production deploy after merge to `main`.
-
-**Exit:** On Astro 7 with green CI; `@astrojs/react` back on `^6` for Vite 8.
-
----
-
-## Suggested sequence (summary)
+### Plan prompt
 
 ```text
-Phase 0  Dependabot ignores / close failed majors     ✓
-    ↓
-Phase 1  React 19 (react + react-dom + types together) ✓
-    ↓
-Phase 2  TypeScript policy (5.x now; 6 optional; 7 blocked) ✓
-    ↓
-Phase 3  Astro 5 → 6  ──┐
-    ↓                   ├── #23                         ✓
-Phase 4  Tailwind 3 → 4 ┘
-    ↓
-Phase 5  Astro 6 → 7 (#24)                             ✓
+Implement roadmap Phase A (Foundation trust) from roadmap.md.
+
+Read docs/architecture-assessment.md §8 P0 and the Phase A section in roadmap.md.
+Make the smallest changes to: land Vite/jsxDEV mitigations (dev --force, posttypecheck, jsx-dev-runtime optimizeDeps), fix CI to npm ci without deleting package-lock.json, update README for auth-done / persistence-outstanding, and note how to verify Supabase migrations on project mqsyqxnzpncwdrnugytf.
+
+Do not implement CRM persistence or AI agents. Exit when npm run check and build pass and Phase A checkboxes can be marked.
 ```
 
-## Out of scope for these phases
+---
 
-- Product features (new CRM persistence, auth, etc.)
-- Replacing Vitest or ESLint majors unless a phase’s peer deps force it
-- Merging Dependabot majors with `--force` / `--legacy-peer-deps` to “make CI green”
+## Phase B — Persist Log Call
 
-## Tracking
+**Status:** Not started  
+**Goal:** First domain write path — `LogCallModal` inserts into `calls` under the user JWT + existing RLS.  
+**Depends on:** Phase A  
+**Estimate:** 1 PR
 
-Use one PR per phase (or Phases 3+4 combined). After each merge, update this file’s checkboxes and the README stack versions.
+### In scope
 
-**Dependency roadmap complete.** Optional follow-up outside this plan: TypeScript 6 (Phase 2b) when you want it. Product work (persistence, auth, multi-line data, etc.) was never in scope here — see README Notes.
+- [ ] Map modal fields → `calls` / `CallInsert` ([`src/types/database.ts`](src/types/database.ts)).
+- [ ] Insert via `supabase.from('calls')` from an approved-staff session; surface errors in the modal.
+- [ ] On success: close modal + refresh whatever list the Calls tab will use (even if temporary local invalidate).
+- [ ] Vitest: mock Supabase insert success/failure for the submit path.
+
+### Out of scope
+
+- Dashboard aggregates, catalog DB migration, Export CSV, agent tools.
+
+### Exit criteria
+
+- [ ] Approved rep can save a call and see a row in Supabase `calls`.
+- [ ] Pending/rejected users cannot insert (RLS).
+- [ ] `npm run check` green.
+
+### Plan prompt
+
+```text
+Implement roadmap Phase B (Persist Log Call) from roadmap.md.
+
+Wire src/components/LogCallModal.tsx to insert into Supabase public.calls using the existing browser client and CallInsert types. Respect approved-staff RLS; show errors; refresh Calls UI after success. Add Vitest coverage with mocked supabase.from('calls').
+
+Do not build Dashboard analytics, catalog fetching, or AI agents. Follow existing auth/supabase patterns. Exit when an approved session can persist a call and tests pass.
+```
+
+---
+
+## Phase C — Read CRM surfaces
+
+**Status:** Not started  
+**Goal:** Calls, Dashboard, and Insights read from Supabase instead of empty stubs.  
+**Depends on:** Phase B  
+**Estimate:** 1 PR
+
+### In scope
+
+- [ ] Fetch `calls` for approved staff in Calls tab (list + basic filters if already in UI).
+- [ ] Dashboard: aggregates from `calls` (counts, simple totals — match existing UI slots).
+- [ ] Insights: drive from real call/objection data where the UI already expects it; keep copy honest if sparse.
+- [ ] Loading / empty / error states consistent with Organic UI kit.
+- [ ] Tests for any new pure aggregation helpers.
+
+### Out of scope
+
+- Moving catalog/prospects off static files; Export CSV; server/Edge Functions.
+
+### Exit criteria
+
+- [ ] Empty states only when DB is empty, not because UI is hardcoded zeros.
+- [ ] `npm run check` green; manual smoke of Dashboard + Calls after logging 1–2 calls.
+
+### Plan prompt
+
+```text
+Implement roadmap Phase C (Read CRM surfaces) from roadmap.md.
+
+Replace stub zeros/empty shells in DashboardTab, CallsTab, and InsightsTab with reads from Supabase calls (and derived aggregates). Reuse src/lib/supabase.ts and approved-staff session assumptions from AuthGate. Add loading/error/empty states and unit tests for new pure helpers only.
+
+Do not migrate catalog/prospects off static TS or add agent APIs. Exit when CRM tabs reflect persisted calls.
+```
+
+---
+
+## Phase D — Directory & catalog confidentiality
+
+**Status:** Not started  
+**Goal:** Stop treating client-bundled `prospects.ts` / `catalog.ts` as acceptable access control.  
+**Depends on:** Phase A (B–C recommended first so RLS paths are exercised)  
+**Estimate:** 1–2 PRs (plan as one phase; split PR if needed)
+
+### In scope
+
+- [ ] Choose and document approach in the PR (prefer authenticated Supabase reads for `catalog_items` + keep prospect ids stable):
+  - Seed/migrate catalog into `catalog_items` if not already populated.
+  - Load catalog/prospects in the `/app` island **only after** approved-staff session (fetch at runtime).
+  - Ensure full corpora are not importable into a public prerender path.
+- [ ] Prospects: either DB-backed table/storage or runtime fetch of a non-public asset strategy — **must not** remain a static import that ships to anonymous downloaders of `/app` chunks without auth. (Note: true protection may require removing data from the static build graph; plan must state the threat model clearly.)
+- [ ] Update assessment residual-risk language in README once mitigated or explicitly accepted with owner sign-off.
+
+### Out of scope
+
+- AI agents, buyer portal, per-rep row ownership (Phase G).
+
+### Exit criteria
+
+- [ ] Anonymous curl/download of built assets cannot obtain the full prospect phone list + wholesale sheet **or** README records a signed residual-risk acceptance.
+- [ ] Approved staff still see Catalog + Prospects in-app.
+- [ ] `npm run check && npm run build` green.
+
+### Plan prompt
+
+```text
+Implement roadmap Phase D (Directory & catalog confidentiality) from roadmap.md.
+
+Read docs/architecture-assessment.md gaps G1 and §6. Remove or neutralize public-bundle exposure of src/data/catalog.ts and src/data/prospects.ts for anonymous clients while keeping approved-staff UX in /app. Prefer Supabase-backed catalog_items reads under existing RLS; propose the smallest safe prospects strategy.
+
+Do not add AI agents. Document threat-model outcome in the PR. Exit when build/check pass and exposure is mitigated or formally accepted.
+```
+
+---
+
+## Phase E — Server tool boundary
+
+**Status:** Not started  
+**Goal:** A server-side surface that can hold secrets (for agents and privileged ops) without putting service role in `PUBLIC_*`.  
+**Depends on:** Phases B–C; D strongly recommended  
+**Estimate:** 1 PR
+
+### In scope
+
+- [ ] Pick one approach and implement a minimal “health + authorized ping”:
+  - **Preferred:** Supabase Edge Function verifying JWT + `is_approved_staff`, or
+  - Astro hybrid / `@astrojs/vercel` server route (only if Edge is insufficient).
+- [ ] Env: document server secrets in `.env.example` (no `PUBLIC_` prefix).
+- [ ] One authenticated client call from `/app` proving the boundary works.
+- [ ] Do **not** expose service role to the browser.
+
+### Out of scope
+
+- Full agent orchestration, embeddings, Resend productization.
+
+### Exit criteria
+
+- [ ] Unauthenticated callers get 401/403.
+- [ ] Approved staff can invoke the ping successfully.
+- [ ] README documents how to run/deploy the function or server route.
+
+### Plan prompt
+
+```text
+Implement roadmap Phase E (Server tool boundary) from roadmap.md.
+
+Add the smallest server endpoint (prefer Supabase Edge Function) that validates a Supabase JWT and approved-staff status, with a trivial authenticated ping callable from the /app island. Keep service-role keys server-only. Update .env.example and README.
+
+Do not implement LLM agents yet. Exit when unauthenticated access fails and approved staff can call the ping.
+```
+
+---
+
+## Phase F — AI agent integration
+
+**Status:** Not started  
+**Goal:** First useful agent capability on top of persisted CRM + server boundary.  
+**Depends on:** Phases B, C, E (D before any agent that can read directories)  
+**Estimate:** 1–2 PRs
+
+### In scope
+
+- [ ] Define one vertical slice (pick in plan; default: “summarize recent calls / suggest next follow-ups for a prospect”).
+- [ ] Server-side tool handlers: read `calls` (and only data allowed by policy); never return service role to client.
+- [ ] Minimal `/app` UI entry (button or panel) to run the slice; show streaming or final text.
+- [ ] Guardrails: approved-staff only; rate limit or max tokens; no silent writes unless explicitly in scope.
+- [ ] Tests for tool input validation / auth rejection.
+
+### Out of scope
+
+- Full autonomous multi-agent system, buyer portal AI, embeddings platform (unless required for the single slice).
+
+### Exit criteria
+
+- [ ] Approved staff can run the slice against real persisted calls.
+- [ ] Pending users and anon cannot.
+- [ ] Secrets stay server-side; `npm run check` green.
+
+### Plan prompt
+
+```text
+Implement roadmap Phase F (AI agent integration) from roadmap.md.
+
+Design and implement one vertical agent slice (default: summarize recent calls / suggest follow-ups) using the Phase E server boundary and persisted calls from Phases B–C. Approved-staff only. Add a minimal /app UI trigger and tests for auth rejection.
+
+Do not expand into a full agent platform. Exit when the slice works end-to-end on real data with secrets server-side.
+```
+
+---
+
+## Phase G — Multi-rep & owner ops (optional)
+
+**Status:** Not started  
+**Goal:** Least-privilege and in-product approval when more than Justin uses the app.  
+**Depends on:** Phases B–C  
+**Estimate:** 1 PR
+
+### In scope
+
+- [ ] Owner-only RPC or policy to set `profiles.status` / promote roles (users still cannot self-approve).
+- [ ] Optional simple owner UI list of pending profiles.
+- [ ] Decide invite-only signup vs open register (disable public signups or allowlist).
+- [ ] Optional: `calls.created_by` filtering if multi-rep privacy is required.
+
+### Out of scope
+
+- Buyer portal build-out; AI features.
+
+### Exit criteria
+
+- [ ] Owner can approve a pending rep without SQL Editor.
+- [ ] Non-owners cannot approve.
+- [ ] Signup policy documented in README.
+
+### Plan prompt
+
+```text
+Implement roadmap Phase G (Multi-rep & owner ops) from roadmap.md.
+
+Add owner-only approval path for pending profiles (RPC/RLS + minimal UI), keep self-escalation impossible, and document signup policy (invite-only vs open pending). Optional per-rep call filtering only if required for multi-user privacy.
+
+Do not build buyer portal or agents. Exit when an owner can approve a rep in-product.
+```
+
+---
+
+## Phase H — Quality bar
+
+**Status:** Not started  
+**Goal:** Raise automated confidence around auth and CRM.  
+**Depends on:** Phases B–C (run anytime after; best after F for agent tests)  
+**Estimate:** 1 PR
+
+### In scope
+
+- [ ] Tests: `LoginForm` flows (mocked), `isApprovedStaff`, AuthProvider loading behavior, call insert mocks if not in B.
+- [ ] Extract Prospects filter helper (mirror `catalogFilters`) + unit tests.
+- [ ] Add `format:check` to CI.
+- [ ] Optional Playwright smoke: unauthenticated `/app` → `/rep-login`; approved session reaches RCC.
+- [ ] Harden `vercel.json`: CSP baseline + HSTS; document Supabase Auth redirect allow-list for previews.
+
+### Out of scope
+
+- New product features.
+
+### Exit criteria
+
+- [ ] CI runs lint, typecheck, test, format:check, build.
+- [ ] Critical auth/CRM paths have automated coverage beyond AuthGate alone.
+
+### Plan prompt
+
+```text
+Implement roadmap Phase H (Quality bar) from roadmap.md.
+
+Expand Vitest coverage for LoginForm, isApprovedStaff, and CRM helpers; extract prospects filters for testability; add format:check to CI; optionally add a minimal Playwright smoke for /app auth redirect. Tighten Vercel security headers (CSP/HSTS) without breaking the app.
+
+No new product features. Exit when CI is stricter and auth/CRM coverage is materially improved.
+```
+
+---
+
+## Phase order (summary)
+
+```text
+A Foundation trust
+    ↓
+B Persist Log Call
+    ↓
+C Read CRM surfaces
+    ↓
+D Confidentiality (catalog/prospects)     G Owner ops (optional, can parallel after C)
+    ↓
+E Server tool boundary
+    ↓
+F AI agent integration
+    ↓
+H Quality bar (or earlier after C)
+```
+
+| Phase | Plan-sized goal |
+| --- | --- |
+| A | CI/docs/dev trust |
+| B | Write `calls` |
+| C | Read CRM tabs |
+| D | Stop public bundle leak |
+| E | Server secrets boundary |
+| F | One agent vertical slice |
+| G | In-app approval / signup policy |
+| H | Tests + CI + headers |
+
+---
+
+## References
+
+- Assessment: [`docs/architecture-assessment.md`](docs/architecture-assessment.md)
+- Auth/RLS: `supabase/migrations/20260802220000_profiles_approval_workflow.sql`, `src/lib/auth.ts`, `src/components/auth/*`
+- App shell: `src/components/RepCommandCenter.tsx`, `src/components/LogCallModal.tsx`, `src/components/tabs/*`
