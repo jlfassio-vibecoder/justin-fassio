@@ -6,7 +6,7 @@ Phased plan for the major upgrades Dependabot opened (and CI/Vercel rejected). D
 
 | Package | Current | Failed Dependabot target | Closed PR |
 | --- | --- | --- | --- |
-| `astro` | `^6.4.x` (Phase 3) | `7.1.6` | #17 |
+| `astro` | `^7.1.x` (Phase 5) | `7.1.6` | #17 |
 | `react` / `@types/react` | `^19.2.x` (Phase 1) | React 19 | #16 |
 | `react-dom` / `@types/react-dom` | `^19.2.x` (Phase 1) | React 19 | #8 |
 | `typescript` | `^5.9.3` (Phase 2: stay on 5.x) | `7.0.2` | #13 |
@@ -14,7 +14,7 @@ Phased plan for the major upgrades Dependabot opened (and CI/Vercel rejected). D
 
 Related packages already on majors that matter for planning:
 
-- `@astrojs/react` `^5.0.7` (Astro 6 / Vite 7; React 17–19)
+- `@astrojs/react` `^6.0.2` (Astro 7 / Vite 8; React 17–19)
 - `@astrojs/tailwind` **removed** (Phase 4) — Tailwind via `@tailwindcss/vite`
 - `@astrojs/check` `^0.9.10` (peer TypeScript `^5 \|\| ^6` — **not** 7 yet)
 - Node `>=22.22.3` (`.nvmrc` `22.22.3`)
@@ -167,15 +167,18 @@ Organic tokens live in [`src/styles/global.css`](src/styles/global.css) (`@impor
 
 ---
 
-## Phase 5 — Astro 6 → 7 (second half of #17; optional)
+## Phase 5 — Astro 6 → 7 (second half of #17)
 
-**Goal:** Only after Astro 6 + Tailwind 4 are stable in production.
+**Status:** Implemented on `chore/upgrade-astro-7`.
 
-- [ ] Read the Astro 7 upgrade guide once published/stable for your pin.
-- [ ] Upgrade with `@astrojs/upgrade` or coordinated pins; bump `@astrojs/react` / check as required.
-- [ ] Re-run the full verify suite and Vercel production deploy after merge to `main`.
+**Goal:** Move from Astro 6 + Vite 7 override to Astro 7’s native Vite 8 / Rolldown stack.
 
-**Exit:** On Astro 7 with green CI, or explicitly defer and keep Astro 6 as the supported floor.
+- [x] Read the Astro 7 upgrade guide; pin manually (`astro@^7.1.6`) rather than relying on bare `@astrojs/upgrade`.
+- [x] Bump `@astrojs/react` `^5` → `^6.0.2`; remove `overrides.vite` (Phase 3+4 Vite 7 workaround).
+- [x] Keep Tailwind 4 + `@tailwindcss/vite`, Node `>=22.22.3`, `ajv` / `@emnapi/*` install fixes.
+- [x] Re-run the full verify suite (`npm ci` / `check` / `build` / preview); Vercel production deploy after merge to `main`.
+
+**Exit:** On Astro 7 with green CI; `@astrojs/react` back on `^6` for Vite 8.
 
 ---
 
@@ -192,7 +195,7 @@ Phase 3  Astro 5 → 6  ──┐
     ↓                   ├── often one PR if Tailwind is migrated together
 Phase 4  Tailwind 3 → 4 ┘
     ↓
-Phase 5  Astro 6 → 7 (optional, last)
+Phase 5  Astro 6 → 7 (done)
 ```
 
 ## Out of scope for these phases
