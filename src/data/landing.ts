@@ -2,7 +2,7 @@
 export const OGR_MARKETPLACE_URL =
   'https://www.sellbyownerlocal.com/marketplace/clothing/old-guys-rule';
 
-export const CONTACT_EMAIL = 'justin@justinfassio.com';
+export const CONTACT_EMAIL = 'office@justinfassio.com';
 
 /** Placeholders until real handles are known. */
 export const SOCIAL_INSTAGRAM_URL = '#';

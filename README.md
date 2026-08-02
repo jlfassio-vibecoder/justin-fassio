@@ -24,10 +24,36 @@ Dependabot already ignores `typescript` major updates (Phase 0).
 ## Routes
 
 - `/` — public Justin Fassio landing
-- `/login` — Supabase Auth (email magic link or password)
-- `/app` — Rep Command Center (session required)
+- `/login` — Buyer Portal (coming soon) with a link to the rep portal
+- `/rep-login` — Rep / Owner Auth (magic link, password, or register)
+- `/app` — Rep Command Center (approved `owner` / `rep` only)
 
-After creating a user in Supabase Auth, set `profiles.role = 'rep'` for Justin (defaults to `buyer`). Apply [`supabase/migrations/20260802193000_profiles_roles.sql`](supabase/migrations/20260802193000_profiles_roles.sql) in the SQL Editor if it is not applied yet. Add your site URL to Supabase Auth → URL configuration (`https://justin-fassio.vercel.app` and local `http://localhost:4321`).
+### Auth & approval
+
+New signups create a `profiles` row with `role = 'rep'` and `status = 'pending'`. The `/app` gate shows a pending screen until an owner approves the account. Domain tables (`calls`, `catalog_items`, etc.) are RLS-restricted to approved staff via `is_approved_staff()`.
+
+Apply migrations in order (SQL Editor or `supabase db push`), including
+[`supabase/migrations/20260802220000_profiles_approval_workflow.sql`](supabase/migrations/20260802220000_profiles_approval_workflow.sql).
+
+Bootstrap Justin as owner (run once):
+
+```sql
+update public.profiles
+set role = 'owner', status = 'approved', updated_at = now()
+where email = 'office@justinfassio.com';
+```
+
+Approve a pending rep:
+
+```sql
+update public.profiles
+set status = 'approved', role = 'rep', updated_at = now()
+where email = 'new.rep@example.com';
+```
+
+In Supabase Auth → URL configuration, set the Site URL and add redirect allow-list entries for `/app` and `/rep-login` on production (`https://justinfassio.com`, `https://justin-fassio.vercel.app`) and local (`http://localhost:4321`).
+
+**Note:** Catalog/prospect UI data still ships in the static client bundle. RLS protects Supabase rows once persistence is wired; moving sensitive directories behind authenticated fetches is a later phase.
 
 ## Getting started
 
@@ -66,6 +92,8 @@ npm run preview
 3. Set real values in **Vercel → Project → Settings → Environment Variables** for Production, Preview, and Development as needed.
 
 `.env` / `.env.*` are gitignored; `.env.example` is tracked.
+
+Resend (server-only): set `RESEND_API_KEY` in `.env` to your real key (replace `re_xxxxxxxxx`), then run `npm run email:test`. Do not use a `PUBLIC_` prefix — the key must never ship to the browser.
 
 ### Connect GitHub → Vercel (previews + production)
 

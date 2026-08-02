@@ -1,15 +1,19 @@
 import { useEffect } from 'react';
+import { AuthProvider } from '@/components/auth/AuthProvider';
+import { PendingApprovalScreen } from '@/components/auth/PendingApprovalScreen';
+import { WrongPortalScreen } from '@/components/auth/WrongPortalScreen';
 import { RepCommandCenter } from '@/components/RepCommandCenter';
+import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
-import { Button } from '@/components/ui/Button';
+import { isApprovedStaff } from '@/types/database';
 
-export function AuthGate() {
+function AuthGateInner() {
   const { loading, session, user, profile, configured } = useAuth();
 
   useEffect(() => {
     if (!loading && configured && !session) {
-      window.location.replace('/login');
+      window.location.replace('/rep-login');
     }
   }, [loading, configured, session]);
 
@@ -33,6 +37,18 @@ export function AuthGate() {
         {loading ? 'Checking session…' : 'Redirecting to sign in…'}
       </div>
     );
+  }
+
+  if (profile?.role === 'buyer') {
+    return <WrongPortalScreen email={user?.email} />;
+  }
+
+  if (profile?.status === 'rejected') {
+    return <PendingApprovalScreen email={user?.email} variant="rejected" />;
+  }
+
+  if (!isApprovedStaff(profile)) {
+    return <PendingApprovalScreen email={user?.email} variant="pending" />;
   }
 
   return (
@@ -59,5 +75,14 @@ export function AuthGate() {
       </div>
       <RepCommandCenter />
     </div>
+  );
+}
+
+/** Root island for `/app` — owns AuthProvider so nested islands are not required. */
+export function AuthGate() {
+  return (
+    <AuthProvider>
+      <AuthGateInner />
+    </AuthProvider>
   );
 }
