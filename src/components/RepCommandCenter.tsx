@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Header } from '@/components/Header';
 import { TabNav } from '@/components/TabNav';
 import { LogCallModal } from '@/components/LogCallModal';
@@ -8,8 +8,8 @@ import { CallsTab } from '@/components/tabs/CallsTab';
 import { ProspectsTab } from '@/components/tabs/ProspectsTab';
 import { InsightsTab } from '@/components/tabs/InsightsTab';
 import { useLandedCostCalculator } from '@/hooks/useLandedCostCalculator';
-import { CATALOG_DATA } from '@/data/catalog';
-import { PROSPECTS_DATA, type Prospect } from '@/data/prospects';
+import { fetchCatalogItems, type CatalogItem } from '@/lib/catalog';
+import { fetchProspects, type Prospect } from '@/lib/prospects';
 import type { TabKey } from '@/types';
 
 interface RepCommandCenterProps {
@@ -20,52 +20,131 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   const [activeTab, setActiveTab] = useState<TabKey>(defaultTab);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalStoreId, setModalStoreId] = useState<number | null>(null);
+  const [callsReloadToken, setCallsReloadToken] = useState(0);
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [directoryLoading, setDirectoryLoading] = useState(true);
+  const [directoryError, setDirectoryError] = useState<string | null>(null);
 
-  const { fx, setFx, freight, setFreight, marginRangeDisplay } = useLandedCostCalculator();
+  const { fx, setFx, freight, setFreight, marginRangeDisplay } = useLandedCostCalculator(catalog);
+
+  useEffect(() => {
+    let active = true;
+
+    async function load() {
+      setDirectoryLoading(true);
+      setDirectoryError(null);
+      const [catalogResult, prospectsResult] = await Promise.all([
+        fetchCatalogItems(),
+        fetchProspects(),
+      ]);
+
+      if (!active) return;
+
+      const errors = [catalogResult.error, prospectsResult.error].filter(Boolean);
+      if (errors.length) {
+        setCatalog([]);
+        setProspects([]);
+        setDirectoryError(errors.join(' · '));
+        setDirectoryLoading(false);
+        return;
+      }
+
+      setCatalog(catalogResult.data);
+      setProspects(prospectsResult.data);
+      setDirectoryLoading(false);
+    }
+
+    void load();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function openModal(prospect?: Prospect) {
-    const store = prospect ?? PROSPECTS_DATA[0];
+    if (!prospect && prospects.length === 0) return;
+    const store = prospect ?? prospects[0];
     setModalStoreId(store ? store.id : null);
     setModalOpen(true);
   }
 
   return (
-    <div className="min-h-screen bg-bg font-body text-ink">
-      <header className="sticky top-0 z-30 border-b border-ink/15 bg-bg/95 backdrop-blur">
+    <div className="bg-bg font-body text-ink min-h-screen">
+      <header className="border-ink/15 bg-bg/95 sticky top-0 z-30 border-b backdrop-blur">
         <div className="mx-auto max-w-[1400px]">
           <Header activeLine="ogr" onSelectOgr={() => {}} onLogCall={() => openModal()} />
           <TabNav
             activeTab={activeTab}
             onChange={setActiveTab}
-            totalSkuCount={CATALOG_DATA.length}
-            prospectTotalCount={PROSPECTS_DATA.length}
+            totalSkuCount={catalog.length}
+            prospectTotalCount={prospects.length}
           />
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-[1400px] flex-col gap-5 px-7 pb-16 pt-6">
-        {activeTab === 'catalog' && (
-          <CatalogTab
-            fx={fx}
-            setFx={setFx}
-            freight={freight}
-            setFreight={setFreight}
-            marginRangeDisplay={marginRangeDisplay}
-          />
+      <main className="mx-auto flex max-w-[1400px] flex-col gap-5 px-7 pt-6 pb-16">
+        {directoryLoading && (
+          <p className="text-ink/60 m-0 text-sm">Loading catalog and prospect directory…</p>
         )}
-        {activeTab === 'dashboard' && <DashboardTab onLogCall={() => openModal()} />}
-        {activeTab === 'calls' && <CallsTab onLogCall={() => openModal()} />}
-        {activeTab === 'prospects' && (
-          <ProspectsTab onLogCall={(prospect) => openModal(prospect)} />
+        {directoryError && (
+          <p className="text-accent-800 m-0 text-sm">
+            Could not load directory data: {directoryError}
+          </p>
         )}
-        {activeTab === 'insights' && <InsightsTab marginRangeDisplay={marginRangeDisplay} />}
+
+        {!directoryLoading && !directoryError && (
+          <>
+            {activeTab === 'catalog' && (
+              <CatalogTab
+                catalog={catalog}
+                fx={fx}
+                setFx={setFx}
+                freight={freight}
+                setFreight={setFreight}
+                marginRangeDisplay={marginRangeDisplay}
+              />
+            )}
+            {activeTab === 'dashboard' && (
+              <DashboardTab
+                prospects={prospects}
+                onLogCall={() => openModal()}
+                reloadToken={callsReloadToken}
+              />
+            )}
+            {activeTab === 'calls' && (
+              <CallsTab
+                prospects={prospects}
+                onLogCall={() => openModal()}
+                reloadToken={callsReloadToken}
+              />
+            )}
+            {activeTab === 'prospects' && (
+              <ProspectsTab
+                prospects={prospects}
+                onLogCall={(prospect) => openModal(prospect)}
+                onProspectCreated={(prospect) => {
+                  setProspects((prev) =>
+                    [...prev.filter((p) => p.id !== prospect.id), prospect].sort(
+                      (a, b) => a.id - b.id,
+                    ),
+                  );
+                }}
+              />
+            )}
+            {activeTab === 'insights' && (
+              <InsightsTab marginRangeDisplay={marginRangeDisplay} reloadToken={callsReloadToken} />
+            )}
+          </>
+        )}
       </main>
 
       <LogCallModal
         open={modalOpen}
+        prospects={prospects}
         storeId={modalStoreId}
         onClose={() => setModalOpen(false)}
         onStoreChange={(id) => setModalStoreId(id)}
+        onSaved={() => setCallsReloadToken((n) => n + 1)}
       />
     </div>
   );

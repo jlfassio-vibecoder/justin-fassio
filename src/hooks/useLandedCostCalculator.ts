@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
-import { CATALOG_DATA } from '@/data/catalog';
+import type { CatalogItem } from '@/lib/catalog';
 import { formatMarginRange } from '@/lib/landedCost';
 
-export function useLandedCostCalculator() {
+export function useLandedCostCalculator(catalog: CatalogItem[]) {
   const [fx, setFx] = useState(1.45);
   const [freight, setFreight] = useState(1.1);
 
   const marginRangeDisplay = useMemo(
-    () => formatMarginRange(CATALOG_DATA, fx, freight),
-    [fx, freight],
+    () => formatMarginRange(catalog, fx, freight),
+    [catalog, fx, freight],
   );
 
   return { fx, setFx, freight, setFreight, marginRangeDisplay };

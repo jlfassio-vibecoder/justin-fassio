@@ -21,14 +21,66 @@ Stay on **TypeScript 5.x** (currently `^5.9.3`, the latest 5.x). The dependency 
 
 Dependabot already ignores `typescript` major updates (Phase 0).
 
+## Routes
+
+- `/` — public Justin Fassio landing
+- `/login` — Buyer Portal (coming soon) with a link to the rep portal
+- `/rep-login` — Rep / Owner Auth (magic link, password, or register)
+- `/app` — Rep Command Center (approved `owner` / `rep` only)
+
+### Auth & approval
+
+**Signup policy:** Open self-registration at `/rep-login`. New accounts get `role = 'rep'` and `status = 'pending'` (no self-approval). Access stays blocked until an **approved owner** approves them. Public Auth signups are not disabled; the pending gate is the control.
+
+Domain tables (`calls`, `catalog_items`, `prospects`, etc.) are RLS-restricted to approved staff via `is_approved_staff()`.
+
+**In-product approval (Phase G):** An approved owner signed into `/app` can use **Pending reps** to list pending profiles and Approve / Reject via owner-only RPCs (`list_pending_profiles`, `set_profile_status`). Non-owners cannot invoke those RPCs. Approving does not change `role` (stays `rep`). Promoting someone to `owner` remains a SQL bootstrap step.
+
+Apply migrations in order (SQL Editor or `supabase db push`), including the approval workflow and
+[`supabase/migrations/20260802260000_owner_approval_rpcs.sql`](supabase/migrations/20260802260000_owner_approval_rpcs.sql).
+
+Bootstrap the first owner (run once if needed):
+
+```sql
+update public.profiles
+set role = 'owner', status = 'approved', updated_at = now()
+where email = 'office@justinfassio.com';
+```
+
+Fallback SQL approve (prefer **Pending reps** in `/app`):
+
+```sql
+update public.profiles
+set status = 'approved', role = 'rep', updated_at = now()
+where email = 'new.rep@example.com';
+```
+
+### Auth redirect allow-list (Supabase)
+
+In **Supabase → Authentication → URL configuration**:
+
+- **Site URL:** production origin (e.g. `https://justinfassio.com` or `https://justin-fassio.vercel.app`).
+- **Redirect URLs** must include every host that completes magic-link / email confirm into `/app` or `/rep-login`:
+  - Production: `https://justinfassio.com/app`, `https://justinfassio.com/rep-login` (and the `justin-fassio.vercel.app` equivalents if used).
+  - Local: `http://localhost:4321/app`, `http://localhost:4321/rep-login`.
+  - **Vercel previews:** each preview deployment has a unique host (`https://<project>-<hash>-<team>.vercel.app`). Add specific preview URLs when testing auth on a PR, or maintain a documented wildcard if your Supabase plan supports redirect wildcards. Missing preview hosts cause magic-link failures on Preview only.
+
+### Security headers
+
+[`vercel.json`](vercel.json) sets `Strict-Transport-Security` (HSTS) and a baseline `Content-Security-Policy` (allows self, Google Fonts, and `*.supabase.co` / realtime websockets). Existing nosniff / Referrer-Policy / frame / Permissions-Policy headers remain.
+
+<!-- // Copilot suggestion ignored: Phase H locked script-src unsafe-inline for Astro static hydration; nonce pipeline out of scope. -->
+
+**Note:** Catalog and prospect directories load at runtime from Supabase (`catalog_items`, `prospects`) under `is_approved_staff()` RLS. They are not embedded in the public `/app` JS bundle. Seed sources for regenerating migrations live under `scripts/seed-source/` (not imported by the client).
+
 ## Getting started
 
-Requires **Node ≥ 22.22.3** (see `.nvmrc`).
+Requires **Node ≥ 22.22.3** (see `.nvmrc`). Prefer **`npm ci`** for a lockfile-reproducible install (CI uses the same). Root `optionalDependencies` pin Linux `*-linux-x64-gnu` native packages (Astro compiler, Rolldown, Lightning CSS, Tailwind oxide, satteri) so ESLint/`astro check` work on Ubuntu CI despite npm’s optional-dep bugs.
 
 ```sh
-npm install
-npm run dev           # start local dev server
-npm run check         # lint + typecheck + unit/component tests
+npm ci
+npm run dev           # astro dev --force (avoids stale Vite jsxDEV / optimize-deps cache)
+npm run check         # lint + typecheck + format:check + unit/component tests
 npm run test          # Vitest single run
 npm run test:watch    # Vitest watch mode
 npm run format        # write formatting
@@ -40,7 +92,7 @@ Day-to-day: `npm run check` before you push; `npm run format` when you want Pret
 
 ## Deployment & Environments
 
-Hosted on **Vercel** as a static Astro site (`output: 'static'`). Production: [justin-fassio.vercel.app](https://justin-fassio.vercel.app).
+Hosted on **Vercel** with `@astrojs/vercel`: pages stay static by default; on-demand routes (e.g. `/api/agent`) set `export const prerender = false`. Production: [justin-fassio.vercel.app](https://justin-fassio.vercel.app).
 
 ### Local production preview
 
@@ -59,6 +111,8 @@ npm run preview
 
 `.env` / `.env.*` are gitignored; `.env.example` is tracked.
 
+Resend (server-only): set `RESEND_API_KEY` in `.env` to your real key (replace `re_xxxxxxxxx`), then run `npm run email:test`. Do not use a `PUBLIC_` prefix — the key must never ship to the browser.
+
 ### Connect GitHub → Vercel (previews + production)
 
 If the project is not already linked:
@@ -71,39 +125,50 @@ If the project is not already linked:
 ### Deployment lifecycle
 
 1. Open a pull request → Vercel posts an isolated **Preview** URL for visual testing.
-2. Keep GitHub Actions / local `npm run check` green before merge.
+2. Keep [GitHub Actions CI](.github/workflows/ci.yml) / local `npm run check` green before merge.
 3. Merge to **`main`** → Vercel runs an automated **Production** deploy.
 
-GitHub Actions (when configured) remains the quality gate; Vercel runs its own build for each deploy.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) is the quality gate (`npm ci`, check, build); Vercel runs its own build for each deploy.
 
 ## Project structure
 
 ```
 src/
   components/
+    auth/          AuthGate, LoginForm, AuthProvider, approval / wrong-portal screens
     ui/            shared primitives (Button, Card, Tag, Input, Dialog)
-    tabs/           the 5 screens (Catalog, Dashboard, Calls, Prospects, Insights)
-    Header.tsx      brand mark, line switcher, Log Call / Export CSV actions
-    TabNav.tsx      pill tab bar
+    tabs/          Catalog, Dashboard, Calls, Prospects, Insights
+    Header.tsx     brand mark, line switcher, Log Call / Export CSV actions
+    TabNav.tsx     pill tab bar
     LogCallModal.tsx
-    RepCommandCenter.tsx   top-level state + layout
-  data/
-    catalog.ts      190-item wholesale catalog (typed)
-    prospects.ts     249-record BC retailer directory (typed)
-  hooks/
-    useLandedCostCalculator.ts   shared FX/freight derived state
+    RepCommandCenter.tsx
+  data/            landing.ts (directories load from Supabase; seed sources in scripts/seed-source/)
+  hooks/           useAuth.ts, useLandedCostCalculator.ts
+  lib/             supabase.ts, auth.ts, catalog.ts, prospects.ts, calls.ts, callAggregates.ts, …
   layouts/Layout.astro
-  pages/index.astro
-  styles/global.css   Google Fonts import + Tailwind 4 `@theme` Organic tokens
+  pages/           index.astro, login.astro, rep-login.astro, app/index.astro, api/agent.ts (on-demand)
+  styles/global.css
+supabase/
+  migrations/      schema history (profiles + approved-staff RLS)
+  schema.sql       end-state snapshot
+docs/
+  architecture-assessment.md
 ```
 
-## Dependency upgrades
+## Roadmap
 
-Stack majors from Dependabot (#8, #11, #13, #16, #17) were handled via coordinated phases in [`roadmap.md`](roadmap.md). **Phases 0–5 are done** (React 19, TypeScript 5.x policy, Astro 7, Tailwind 4). Optional follow-up: TypeScript 6 when desired.
+- **Dependency Phases 0–5** (React 19, TypeScript 5.x, Astro 7, Tailwind 4) are done — see the archive section in [`roadmap.md`](roadmap.md).
+- **Product Phases A–H** (foundation trust → CRM persistence → confidentiality → server boundary → AI agent) are the active plan in [`roadmap.md`](roadmap.md). Assessment: [`docs/architecture-assessment.md`](docs/architecture-assessment.md).
+
+Optional deferred: TypeScript 6 when `@astrojs/check` peers allow a clean `npm ci`.
 
 ## Notes
 
-- The PMF Dashboard, Call Pipeline, and Buyer Insights reaction cloud are intentionally zero/empty states — no seed data. They populate once real call-logging and persistence are wired up.
-- The Log Call modal's Save action currently just closes the modal; there is no persistence layer yet.
+- Auth and approval are shipped (`/rep-login`, `/app` AuthGate, profiles + `is_approved_staff()` RLS).
+- Log Call Save persists to Supabase `calls` for approved staff (RLS). Dashboard, Calls (search/filters), and Insights read from those rows — empty UI only when the DB has no calls.
 - The line switcher only has data for "Old Guys Rule" today; "Busted Knuckles Garage" shows a dismissible "coming soon" notice per the design spec.
-- Foundational shipping path is in place (CI, Dependabot hygiene, Vercel static deploys on `main`). Product depth — persistence, auth, multi-line catalog data, and anything beyond client-side React state — is still outstanding and was out of scope for the dependency roadmap.
+- Catalog + prospect directories are fetched after approved-staff session from Supabase (not in the static `/app` bundle). Residual: a stolen approved JWT or post-login network capture can still read the full corpora; there is no per-rep call row ownership yet (`calls.created_by` deferred).
+- **Owner ops (Phase G):** Open signup + pending gate; approved owners approve/reject from `/app` → **Pending reps**. Shared domain CRUD for all approved staff remains.
+- **Server tools (Phase E):** Edge Function `authorized-ping` verifies JWT + `is_approved_staff`. From an approved `/app` session, use **Ping server** in the AuthGate chrome. Deploy with `supabase functions deploy authorized-ping`; local: `supabase functions serve authorized-ping`. Document `SUPABASE_SERVICE_ROLE_KEY` in `.env.example` for future privileged ops — never put it under `PUBLIC_*` or in client islands.
+- **AI follow-ups (Phase F → III):** Prospects **Suggest** streams via `/api/agent` (not Edge). Edge `suggest-follow-ups` is **retired** from the repo. Ops cleanup if still deployed: `supabase functions delete suggest-follow-ups`; drop Edge `OPENAI_API_KEY` if nothing else uses it. Never put provider keys under `PUBLIC_*` or in client islands.
+- **Vercel AI SDK baseline:** On-demand route [`src/pages/api/agent.ts`](src/pages/api/agent.ts) (`prerender = false`) streams via `streamText` + AI Gateway model strings (`openai/gpt-4o`). Approved-staff JWT required. **Ops:** in-memory rate limit (20 req / 10 min per user; 429 + `Retry-After`) plus spend caps (`stepCountIs(5)`, `maxOutputTokens: 1100`). UI: multi-turn **AI assist** (`useChat` + `toUIMessageStreamResponse`) in `/app` chrome ([`AIAssistantModal`](src/components/ui/AIAssistantModal.tsx)), with Prospects **Suggest**, **APF Brief** (fit score + walk-in script via `getAccountProductFit`), **+ Add via AI** ([`/api/prospects/enrich`](src/pages/api/prospects/enrich.ts) — `generateObject` then INSERT under RLS), and **Ask AI**, Log Call **Draft as** email/script, Insights tag click, and Calls **Draft** / **Coach**. Phase I/III tools (`getProspectSummary`, `listRecentCalls`, `getAccountProductFit`) read prospects/calls/catalog under the caller’s JWT + RLS. Local Gateway auth: `vercel link` + `vercel env pull`, or set `AI_GATEWAY_API_KEY` in `.env.local` (gitignored via `.env.*`). Dual runtime notes: [`docs/architecture-assessment.md`](docs/architecture-assessment.md) §7.

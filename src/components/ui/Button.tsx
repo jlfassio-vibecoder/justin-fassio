@@ -19,7 +19,7 @@ export function Button({ variant = 'secondary', className, children, ...props }:
   return (
     <button
       className={cn(
-        'inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-transparent px-4 py-2 font-heading text-sm leading-tight no-underline transition-colors disabled:cursor-not-allowed disabled:opacity-45',
+        'font-heading inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-transparent px-4 py-2 text-sm leading-tight no-underline transition-colors disabled:cursor-not-allowed disabled:opacity-45',
         variantClasses[variant],
         className,
       )}

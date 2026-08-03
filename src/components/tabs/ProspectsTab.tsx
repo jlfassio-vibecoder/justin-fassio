@@ -1,9 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { AddProspectAiModal } from '@/components/AddProspectAiModal';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
-import { PROSPECTS_DATA, type Prospect } from '@/data/prospects';
+import type { Prospect } from '@/lib/prospects';
+import { filterProspects } from '@/lib/prospectFilters';
+import { useAiAssist } from '@/hooks/useAiAssist';
+import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
 
 const REGION_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Regions (6 corridors)' },
@@ -34,33 +38,57 @@ const channelTagVariant: Record<
 };
 
 interface ProspectsTabProps {
+  prospects: Prospect[];
   onLogCall: (prospect: Prospect) => void;
+  onProspectCreated: (prospect: Prospect) => void;
 }
 
-export function ProspectsTab({ onLogCall }: ProspectsTabProps) {
+export function ProspectsTab({ prospects, onLogCall, onProspectCreated }: ProspectsTabProps) {
+  const { openAssist } = useAiAssist();
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
+  const [addOpen, setAddOpen] = useState(false);
+  const [highlightedProspectId, setHighlightedProspectId] = useState<number | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
-  const filteredProspects = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return PROSPECTS_DATA.filter((p) => {
-      if (region !== 'ALL' && p.region !== region) return false;
-      if (channel !== 'ALL' && p.category !== channel) return false;
-      if (q) {
-        const hay = `${p.name} ${p.city} ${p.address} ${p.fit}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [search, region, channel]);
+  const filteredProspects = useMemo(
+    () => filterProspects(prospects, { search, region, channel }),
+    [prospects, search, region, channel],
+  );
+
+  useEffect(() => {
+    if (highlightedProspectId == null) return;
+    const row = document.querySelector(`[data-prospect-id="${highlightedProspectId}"]`);
+    row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const timer = window.setTimeout(() => {
+      setHighlightedProspectId(null);
+      setSuccessBanner(null);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [highlightedProspectId]);
+
+  function handleCreated(prospect: Prospect) {
+    onProspectCreated(prospect);
+    setRegion('ALL');
+    setChannel('ALL');
+    setSearch(prospect.name);
+    setHighlightedProspectId(prospect.id);
+    setSuccessBanner(`Added ${prospect.name} (#${prospect.id})`);
+  }
 
   return (
     <section className="flex flex-col gap-5" data-screen-label="prospects">
+      {successBanner && (
+        <p className="text-ink/80 m-0 text-sm" role="status">
+          {successBanner}
+        </p>
+      )}
+
       <Card row className="flex-wrap items-center gap-3">
         <Input
           className="min-w-[220px] flex-1"
-          placeholder="Search 249 BC prospects by name, city, address, or fit reason…"
+          placeholder="Search BC prospects by name, city, address, or fit reason…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -78,8 +106,15 @@ export function ProspectsTab({ onLogCall }: ProspectsTabProps) {
             </option>
           ))}
         </Select>
-        <span className="whitespace-nowrap text-xs opacity-65">
-          Showing {filteredProspects.length} of {PROSPECTS_DATA.length}
+        <Button
+          variant="secondary"
+          className="text-xs whitespace-nowrap"
+          onClick={() => setAddOpen(true)}
+        >
+          + Add via AI
+        </Button>
+        <span className="text-xs whitespace-nowrap opacity-65">
+          Showing {filteredProspects.length} of {prospects.length}
         </span>
       </Card>
 
@@ -87,48 +122,88 @@ export function ProspectsTab({ onLogCall }: ProspectsTabProps) {
         <div className="max-h-[640px] overflow-auto">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="sticky top-0 bg-surface">
+              <tr className="bg-surface sticky top-0">
                 {['#', 'Store', 'Channel', 'City (Region)', 'Address', 'Phone', 'Fit Reason'].map(
                   (h) => (
                     <th
                       key={h}
-                      className="border-b border-ink/15 p-2 text-left text-[11px] uppercase tracking-wider text-ink/60"
+                      className="border-ink/15 text-ink/60 border-b p-2 text-left text-[11px] tracking-wider uppercase"
                     >
                       {h}
                     </th>
                   ),
                 )}
-                <th className="border-b border-ink/15 p-2 text-right text-[11px] uppercase tracking-wider text-ink/60">
+                <th className="border-ink/15 text-ink/60 border-b p-2 text-right text-[11px] tracking-wider uppercase">
                   Action
                 </th>
               </tr>
             </thead>
             <tbody>
               {filteredProspects.map((p) => (
-                <tr key={p.id} className="hover:bg-ink/[0.04]">
-                  <td className="border-b border-ink/[0.08] p-2">{p.id}</td>
-                  <td className="min-w-[160px] border-b border-ink/[0.08] p-2 font-semibold">
+                <tr
+                  key={p.id}
+                  data-prospect-id={p.id}
+                  className={
+                    highlightedProspectId === p.id
+                      ? 'bg-ink/[0.08] ring-accent-800/40 ring-2 ring-inset'
+                      : 'hover:bg-ink/[0.04]'
+                  }
+                >
+                  <td className="border-ink/[0.08] border-b p-2">{p.id}</td>
+                  <td className="border-ink/[0.08] min-w-[160px] border-b p-2 font-semibold">
                     {p.name}
                   </td>
-                  <td className="border-b border-ink/[0.08] p-2">
+                  <td className="border-ink/[0.08] border-b p-2">
                     <Tag variant={channelTagVariant[p.category]}>{p.category}</Tag>
                   </td>
-                  <td className="border-b border-ink/[0.08] p-2">
+                  <td className="border-ink/[0.08] border-b p-2">
                     {p.city} ({p.region})
                   </td>
-                  <td className="border-b border-ink/[0.08] p-2 opacity-75">{p.address}</td>
-                  <td className="border-b border-ink/[0.08] p-2">{p.phone}</td>
-                  <td className="min-w-[240px] border-b border-ink/[0.08] p-2 opacity-75">
+                  <td className="border-ink/[0.08] border-b p-2 opacity-75">{p.address}</td>
+                  <td className="border-ink/[0.08] border-b p-2">{p.phone}</td>
+                  <td className="border-ink/[0.08] min-w-[240px] border-b p-2 opacity-75">
                     {p.fit}
                   </td>
-                  <td className="border-b border-ink/[0.08] p-2 text-right">
-                    <Button
-                      variant="secondary"
-                      className="px-3 py-1 text-xs"
-                      onClick={() => onLogCall(p)}
-                    >
-                      Log Call
-                    </Button>
+                  <td className="border-ink/[0.08] border-b p-2 text-right">
+                    <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                      <Button
+                        variant="secondary"
+                        className="px-3 py-1 text-xs"
+                        onClick={() => {
+                          const chips = { prospectId: p.id, prospectName: p.name };
+                          openAssist({ chips, draft: buildSuggestDraft(chips) });
+                        }}
+                      >
+                        Suggest
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="px-3 py-1 text-xs"
+                        onClick={() => {
+                          const chips = { prospectId: p.id, prospectName: p.name };
+                          openAssist({ chips, draft: buildApfDraft(chips) });
+                        }}
+                      >
+                        APF Brief
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="px-3 py-1 text-xs"
+                        onClick={() => {
+                          const chips = { prospectId: p.id, prospectName: p.name };
+                          openAssist({ chips, draft: buildAssistDraft(chips) });
+                        }}
+                      >
+                        Ask AI
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="px-3 py-1 text-xs"
+                        onClick={() => onLogCall(p)}
+                      >
+                        Log Call
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -136,6 +211,12 @@ export function ProspectsTab({ onLogCall }: ProspectsTabProps) {
           </table>
         </div>
       </Card>
+
+      <AddProspectAiModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCreated={handleCreated}
+      />
     </section>
   );
 }
