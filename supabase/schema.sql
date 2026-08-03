@@ -276,7 +276,8 @@ begin
     p.created_at
   from public.profiles p
   where p.status = 'pending'
-    and p.role in ('rep', 'owner')
+    -- Copilot: pending owners cannot be approved via set_profile_status; list reps only.
+    and p.role = 'rep'
   order by p.created_at asc;
 end;
 $$;

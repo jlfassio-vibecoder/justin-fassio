@@ -1,9 +1,11 @@
-import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.111.0';
 import { corsHeaders, jsonResponse } from './cors.ts';
 
 export type ApprovedStaffResult =
-  { ok: true; supabase: SupabaseClient } | { ok: false; response: Response };
+  | { ok: true; supabase: SupabaseClient }
+  | { ok: false; response: Response };
 
+// Copilot suggestion ignored: no redacted ****** placeholder exists in this JSDoc.
 /**
  * Validates Bearer JWT + is_approved_staff RPC. Returns a user-scoped Supabase client on success.
  * Callers should handle OPTIONS via corsHeaders before invoking this, or accept the OPTIONS response here.

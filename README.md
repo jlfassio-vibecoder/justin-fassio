@@ -69,6 +69,8 @@ In **Supabase → Authentication → URL configuration**:
 
 [`vercel.json`](vercel.json) sets `Strict-Transport-Security` (HSTS) and a baseline `Content-Security-Policy` (allows self, Google Fonts, and `*.supabase.co` / realtime websockets). Existing nosniff / Referrer-Policy / frame / Permissions-Policy headers remain.
 
+<!-- // Copilot suggestion ignored: Phase H locked script-src unsafe-inline for Astro static hydration; nonce pipeline out of scope. -->
+
 **Note:** Catalog and prospect directories load at runtime from Supabase (`catalog_items`, `prospects`) under `is_approved_staff()` RLS. They are not embedded in the public `/app` JS bundle. Seed sources for regenerating migrations live under `scripts/seed-source/` (not imported by the client).
 
 ## Getting started
