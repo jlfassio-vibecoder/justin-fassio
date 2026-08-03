@@ -172,9 +172,10 @@ describe('objectionCatalog', () => {
 });
 
 describe('callOutcomes', () => {
-  it('lists the five Log Call outcomes', () => {
+  it('lists the Log Call outcomes including Account Converted', () => {
     expect(CALL_OUTCOMES).toEqual([
       'Closed PO / Written Order',
+      'Account Converted',
       'Sample Package Requested',
       'Follow-up Scheduled',
       'Left Message / Gatekeeper',

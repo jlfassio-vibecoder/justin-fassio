@@ -4,18 +4,21 @@ import { describe, expect, it, vi } from 'vitest';
 import { TabNav } from '@/components/TabNav';
 
 describe('TabNav', () => {
-  it('renders sku and prospect counts', () => {
+  it('renders sku, prospect, and active account counts', () => {
     render(
       <TabNav
         activeTab="catalog"
         onChange={() => {}}
         totalSkuCount={190}
-        prospectTotalCount={249}
+        prospectTotalCount={240}
+        accountTotalCount={9}
       />,
     );
 
     expect(screen.getByText('190')).toBeInTheDocument();
-    expect(screen.getByText('249')).toBeInTheDocument();
+    expect(screen.getByText('240')).toBeInTheDocument();
+    expect(screen.getByText('9')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Active Accounts/i })).toBeInTheDocument();
   });
 
   it('notifies parent when a tab is clicked', async () => {
@@ -27,11 +30,15 @@ describe('TabNav', () => {
         activeTab="catalog"
         onChange={onChange}
         totalSkuCount={190}
-        prospectTotalCount={249}
+        prospectTotalCount={240}
+        accountTotalCount={9}
       />,
     );
 
     await user.click(screen.getByRole('button', { name: 'PMF Dashboard' }));
     expect(onChange).toHaveBeenCalledWith('dashboard');
+
+    await user.click(screen.getByRole('button', { name: /Active Accounts/i }));
+    expect(onChange).toHaveBeenCalledWith('accounts');
   });
 });

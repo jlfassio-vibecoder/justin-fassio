@@ -1,14 +1,16 @@
 // Copilot suggestion ignored: React 19 types export SubmitEvent; FormEvent is deprecated for form onSubmit.
 import { useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
+import { ConvertAccountModal } from '@/components/ConvertAccountModal';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
-import type { Prospect } from '@/lib/prospects';
 import { useAiAssist } from '@/hooks/useAiAssist';
 import { buildCallDraft, type CallDraftFormat } from '@/lib/aiAssistPrefill';
 import { CALL_OUTCOMES } from '@/lib/callOutcomes';
+import { isConversionOutcome } from '@/lib/convertToActiveAccount';
 import { OBJECTION_TAGS } from '@/lib/objectionCatalog';
+import type { Prospect } from '@/lib/prospects';
 import { supabase } from '@/lib/supabase';
 import type { CallInsert } from '@/types/database';
 
@@ -19,6 +21,7 @@ interface LogCallModalProps {
   onClose: () => void;
   onStoreChange: (id: number) => void;
   onSaved?: () => void;
+  onConverted?: () => void;
 }
 
 function resetFormState(setters: {
@@ -48,6 +51,7 @@ export function LogCallModal({
   onClose,
   onStoreChange,
   onSaved,
+  onConverted,
 }: LogCallModalProps) {
   const { openAssist } = useAiAssist();
   const [feedback, setFeedback] = useState<string[]>([]);
@@ -59,12 +63,14 @@ export function LogCallModal({
   const [draftFormat, setDraftFormat] = useState<CallDraftFormat>('email');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  if (!open) return null;
+  const [convertProspect, setConvertProspect] = useState<Prospect | null>(null);
+  const [convertPrefillCad, setConvertPrefillCad] = useState<number | null>(null);
 
   const selected = storeId != null ? prospects.find((p) => p.id === storeId) : undefined;
   const modalChannel = selected?.category ?? '';
   const modalCity = selected ? `${selected.city} (${selected.region})` : '';
+  const showLogForm = open && convertProspect == null;
+  const showConvert = convertProspect != null;
 
   function toggleFeedback(option: string) {
     setFeedback((prev) =>
@@ -72,7 +78,7 @@ export function LogCallModal({
     );
   }
 
-  function handleClose() {
+  function clearForm() {
     resetFormState({
       setFeedback,
       setContactName,
@@ -83,6 +89,12 @@ export function LogCallModal({
       setDraftFormat,
       setError,
     });
+  }
+
+  function handleClose() {
+    clearForm();
+    setConvertProspect(null);
+    setConvertPrefillCad(null);
     onClose();
   }
 
@@ -120,182 +132,208 @@ export function LogCallModal({
       return;
     }
 
+    onSaved?.();
+
+    const savedOutcome = outcome;
+    const savedOrderValue = orderValue === '' ? 0 : Number(orderValue);
+    const prospectForConvert = selected;
     const chips = {
       prospectId: storeId,
       prospectName: selected?.name,
-      outcome,
+      outcome: savedOutcome,
       objectionTags: feedback.length > 0 ? feedback : undefined,
     };
-    openAssist({ chips, draft: buildCallDraft(chips, draftFormat) });
+    const draft = buildCallDraft(chips, draftFormat);
 
-    resetFormState({
-      setFeedback,
-      setContactName,
-      setOutcome,
-      setPmfScore,
-      setOrderValue,
-      setNotes,
-      setDraftFormat,
-      setError,
-    });
-    onSaved?.();
+    clearForm();
+
+    const shouldPromptConvert =
+      isConversionOutcome(savedOutcome) &&
+      prospectForConvert != null &&
+      prospectForConvert.accountStatus !== 'active_account' &&
+      prospectForConvert.accountStatus !== 'inactive';
+
+    if (shouldPromptConvert) {
+      setConvertPrefillCad(savedOrderValue > 0 ? savedOrderValue : null);
+      setConvertProspect(prospectForConvert);
+      return;
+    }
+
+    openAssist({ chips, draft });
     onClose();
   }
 
+  if (!open && !showConvert) return null;
+
   return (
-    <DialogBackdrop open={open} onClose={handleClose}>
-      <form
-        className="gap-3.1 bg-surface p-4.1 flex max-w-[560px] flex-col rounded-xl shadow-lg"
-        onSubmit={(e) => void handleSubmit(e)}
-      >
-        <div className="flex items-center justify-between">
-          <DialogTitle>Log Prospect Call</DialogTitle>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent"
-            aria-label="Close"
+    <>
+      {showLogForm ? (
+        <DialogBackdrop open={showLogForm} onClose={handleClose}>
+          <form
+            className="gap-3.1 bg-surface p-4.1 flex max-w-[560px] flex-col rounded-xl shadow-lg"
+            onSubmit={(e) => void handleSubmit(e)}
           >
-            <X size={18} strokeWidth={2.75} />
-          </button>
-        </div>
-
-        <Field>
-          <FieldLabel>Store prospect</FieldLabel>
-          <Select
-            value={storeId ?? ''}
-            onChange={(e) => onStoreChange(parseInt(e.target.value, 10))}
-            required
-          >
-            {prospects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {p.city}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel>Retail channel</FieldLabel>
-            <Input readOnly value={modalChannel} className="opacity-70" />
-          </Field>
-          <Field>
-            <FieldLabel>City / Region</FieldLabel>
-            <Input readOnly value={modalCity} className="opacity-70" />
-          </Field>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel>Contact name &amp; title</FieldLabel>
-            <Input
-              placeholder="e.g. Dave Miller (Owner)"
-              required
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Call outcome</FieldLabel>
-            <Select value={outcome} onChange={(e) => setOutcome(e.target.value)}>
-              {CALL_OUTCOMES.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
-
-        <Field>
-          <FieldLabel>Draft as</FieldLabel>
-          <div
-            className="bg-bg flex gap-2 rounded-full p-1"
-            role="group"
-            aria-label="Assist draft format"
-          >
-            <button
-              type="button"
-              className={`font-heading flex-1 cursor-pointer rounded-full px-3 py-1.5 text-sm ${
-                draftFormat === 'email' ? 'bg-accent text-bg' : 'text-ink/70'
-              }`}
-              onClick={() => setDraftFormat('email')}
-            >
-              Email
-            </button>
-            <button
-              type="button"
-              className={`font-heading flex-1 cursor-pointer rounded-full px-3 py-1.5 text-sm ${
-                draftFormat === 'script' ? 'bg-accent text-bg' : 'text-ink/70'
-              }`}
-              onClick={() => setDraftFormat('script')}
-            >
-              Call script
-            </button>
-          </div>
-        </Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel>PMF fit score</FieldLabel>
-            <Select value={pmfScore} onChange={(e) => setPmfScore(e.target.value)}>
-              <option value="10">10 — Perfect fit</option>
-              <option value="8">8 — Strong fit</option>
-              <option value="6">6 — Moderate fit</option>
-              <option value="3">3 — Low fit</option>
-              <option value="1">1 — Poor fit</option>
-            </Select>
-          </Field>
-          <Field>
-            <FieldLabel>Order value (CAD)</FieldLabel>
-            <Input
-              type="number"
-              min="0"
-              placeholder="0 if no PO yet"
-              value={orderValue}
-              onChange={(e) => setOrderValue(e.target.value)}
-            />
-          </Field>
-        </div>
-
-        <Field>
-          <FieldLabel>Primary buyer feedback</FieldLabel>
-          <div className="mb-2 flex flex-wrap gap-2">
-            {OBJECTION_TAGS.map((option) => (
-              <label
-                key={option}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-neutral-100 px-2.5 py-[3px] text-[11px] text-neutral-800"
+            <div className="flex items-center justify-between">
+              <DialogTitle>Log Prospect Call</DialogTitle>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent"
+                aria-label="Close"
               >
-                <input
-                  type="checkbox"
-                  className="m-0"
-                  checked={feedback.includes(option)}
-                  onChange={() => toggleFeedback(option)}
+                <X size={18} strokeWidth={2.75} />
+              </button>
+            </div>
+
+            <Field>
+              <FieldLabel>Store prospect</FieldLabel>
+              <Select
+                value={storeId ?? ''}
+                onChange={(e) => onStoreChange(parseInt(e.target.value, 10))}
+                required
+              >
+                {prospects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — {p.city}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>Retail channel</FieldLabel>
+                <Input readOnly value={modalChannel} className="opacity-70" />
+              </Field>
+              <Field>
+                <FieldLabel>City / Region</FieldLabel>
+                <Input readOnly value={modalCity} className="opacity-70" />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>Contact name &amp; title</FieldLabel>
+                <Input
+                  placeholder="e.g. Dave Miller (Owner)"
+                  required
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
                 />
-                {option}
-              </label>
-            ))}
-          </div>
-          <Textarea
-            rows={3}
-            placeholder="Call summary, buyer reaction…"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </Field>
+              </Field>
+              <Field>
+                <FieldLabel>Call outcome</FieldLabel>
+                <Select value={outcome} onChange={(e) => setOutcome(e.target.value)}>
+                  {CALL_OUTCOMES.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
 
-        {error && <p className="text-accent-800 m-0 text-sm">{error}</p>}
+            <Field>
+              <FieldLabel>Draft as</FieldLabel>
+              <div
+                className="bg-bg flex gap-2 rounded-full p-1"
+                role="group"
+                aria-label="Assist draft format"
+              >
+                <button
+                  type="button"
+                  className={`font-heading flex-1 cursor-pointer rounded-full px-3 py-1.5 text-sm ${
+                    draftFormat === 'email' ? 'bg-accent text-bg' : 'text-ink/70'
+                  }`}
+                  onClick={() => setDraftFormat('email')}
+                >
+                  Email
+                </button>
+                <button
+                  type="button"
+                  className={`font-heading flex-1 cursor-pointer rounded-full px-3 py-1.5 text-sm ${
+                    draftFormat === 'script' ? 'bg-accent text-bg' : 'text-ink/70'
+                  }`}
+                  onClick={() => setDraftFormat('script')}
+                >
+                  Call script
+                </button>
+              </div>
+            </Field>
 
-        <div className="mt-1.5 flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={handleClose} disabled={busy}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" disabled={busy}>
-            {busy ? 'Saving…' : 'Save Call Record'}
-          </Button>
-        </div>
-      </form>
-    </DialogBackdrop>
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>PMF fit score</FieldLabel>
+                <Select value={pmfScore} onChange={(e) => setPmfScore(e.target.value)}>
+                  <option value="10">10 — Perfect fit</option>
+                  <option value="8">8 — Strong fit</option>
+                  <option value="6">6 — Moderate fit</option>
+                  <option value="3">3 — Low fit</option>
+                  <option value="1">1 — Poor fit</option>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Order value (CAD)</FieldLabel>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0 if no PO yet"
+                  value={orderValue}
+                  onChange={(e) => setOrderValue(e.target.value)}
+                />
+              </Field>
+            </div>
+
+            <Field>
+              <FieldLabel>Primary buyer feedback</FieldLabel>
+              <div className="mb-2 flex flex-wrap gap-2">
+                {OBJECTION_TAGS.map((option) => (
+                  <label
+                    key={option}
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-neutral-100 px-2.5 py-[3px] text-[11px] text-neutral-800"
+                  >
+                    <input
+                      type="checkbox"
+                      className="m-0"
+                      checked={feedback.includes(option)}
+                      onChange={() => toggleFeedback(option)}
+                    />
+                    {option}
+                  </label>
+                ))}
+              </div>
+              <Textarea
+                rows={3}
+                placeholder="Call summary, buyer reaction…"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </Field>
+
+            {error && <p className="text-accent-800 m-0 text-sm">{error}</p>}
+
+            <div className="mt-1.5 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={handleClose} disabled={busy}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" disabled={busy}>
+                {busy ? 'Saving…' : 'Save Call Record'}
+              </Button>
+            </div>
+          </form>
+        </DialogBackdrop>
+      ) : null}
+
+      <ConvertAccountModal
+        open={showConvert}
+        prospect={convertProspect}
+        prefillAmountCad={convertPrefillCad}
+        onClose={handleClose}
+        onConverted={() => {
+          onConverted?.();
+          handleClose();
+        }}
+      />
+    </>
   );
 }

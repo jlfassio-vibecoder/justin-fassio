@@ -85,12 +85,17 @@ create table if not exists prospects (
   address text not null default '',
   phone text not null default '',
   fit text not null default '',
+  account_status text not null default 'prospect'
+    check (account_status in ('prospect', 'active_account', 'inactive')),
+  converted_at timestamptz,
+  initial_order_date timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists prospects_category_idx on prospects (category);
 create index if not exists prospects_region_idx on prospects (region);
+create index if not exists prospects_account_status_idx on prospects (account_status);
 
 drop trigger if exists prospects_set_updated_at on prospects;
 create trigger prospects_set_updated_at
@@ -138,6 +143,58 @@ create index if not exists calls_call_date_idx on calls (call_date);
 drop trigger if exists calls_set_updated_at on calls;
 create trigger calls_set_updated_at
   before update on calls
+  for each row execute function set_updated_at();
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- orders — initial / reorder / preorder history (account_id → prospects.id).
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists orders (
+  id uuid primary key default gen_random_uuid(),
+  account_id integer not null references prospects (id),
+  line_id uuid references lines (id) on delete set null,
+  order_type text not null
+    check (order_type in ('initial', 'reorder', 'preorder')),
+  season text not null
+    check (season in (
+      'spring_summer',
+      'fathers_day',
+      'fall_winter',
+      'holiday_christmas',
+      'ats_in_season'
+    )),
+  order_date date not null default current_date,
+  total_amount_cad numeric(10, 2) not null default 0,
+  status text not null default 'draft'
+    check (status in ('draft', 'submitted', 'fulfilled')),
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists orders_account_id_idx on orders (account_id);
+create index if not exists orders_order_date_idx on orders (order_date);
+create index if not exists orders_season_idx on orders (season);
+
+drop trigger if exists orders_set_updated_at on orders;
+create trigger orders_set_updated_at
+  before update on orders
+  for each row execute function set_updated_at();
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- account_reorder_settings — 1:1 cadence / AI reminder fields per account.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists account_reorder_settings (
+  account_id integer primary key references prospects (id) on delete cascade,
+  last_order_date date,
+  next_suggested_contact_date date,
+  seasonal_cadence_tags text[] not null default '{}',
+  ai_reorder_notes text,
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists account_reorder_settings_set_updated_at on account_reorder_settings;
+create trigger account_reorder_settings_set_updated_at
+  before update on account_reorder_settings
   for each row execute function set_updated_at();
 
 -- ─────────────────────────────────────────────────────────────────────────
@@ -336,6 +393,8 @@ alter table catalog_items enable row level security;
 alter table prospects enable row level security;
 alter table prospect_updates enable row level security;
 alter table calls enable row level security;
+alter table orders enable row level security;
+alter table account_reorder_settings enable row level security;
 
 drop policy if exists "public full access" on lines;
 drop policy if exists "authenticated full access" on lines;
@@ -371,6 +430,18 @@ drop policy if exists "public full access" on calls;
 drop policy if exists "authenticated full access" on calls;
 drop policy if exists "approved staff full access" on calls;
 create policy "approved staff full access" on calls
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on orders;
+create policy "approved staff full access" on orders
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on account_reorder_settings;
+create policy "approved staff full access" on account_reorder_settings
   for all to authenticated
   using (public.is_approved_staff())
   with check (public.is_approved_staff());

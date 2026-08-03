@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { ProspectRow } from '@/types/database';
+import type { AccountStatus, ProspectRow } from '@/types/database';
 
 export type ProspectCategory = 'Golf' | 'Marina' | 'Hardware' | 'Resort Gift';
 export type ProspectRegion =
@@ -14,7 +14,18 @@ export interface Prospect {
   address: string;
   phone: string;
   fit: string;
+  accountStatus: AccountStatus;
+  convertedAt: string | null;
+  initialOrderDate: string | null;
 }
+
+export interface FetchProspectsOptions {
+  /** When set, only rows with this account_status are returned. */
+  accountStatus?: AccountStatus;
+}
+
+const PROSPECT_SELECT =
+  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, created_at, updated_at' as const;
 
 export function mapProspectRow(row: ProspectRow): Prospect {
   return {
@@ -26,17 +37,23 @@ export function mapProspectRow(row: ProspectRow): Prospect {
     address: row.address,
     phone: row.phone,
     fit: row.fit,
+    accountStatus: row.account_status,
+    convertedAt: row.converted_at,
+    initialOrderDate: row.initial_order_date,
   };
 }
 
-export async function fetchProspects(): Promise<{
+export async function fetchProspects(options: FetchProspectsOptions = {}): Promise<{
   data: Prospect[];
   error: string | null;
 }> {
-  const { data, error } = await supabase
-    .from('prospects')
-    .select('id, name, category, region, city, address, phone, fit, created_at, updated_at')
-    .order('id', { ascending: true });
+  let query = supabase.from('prospects').select(PROSPECT_SELECT).order('id', { ascending: true });
+
+  if (options.accountStatus) {
+    query = query.eq('account_status', options.accountStatus);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return { data: [], error: error.message };

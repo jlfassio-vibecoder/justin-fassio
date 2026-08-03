@@ -1,6 +1,8 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import type { AgentSupabase } from '@/lib/agentAuth';
+import { computeReorderSuggestion } from '@/lib/reorderCadence';
+import type { ApparelSeason } from '@/types/database';
 
 const NOTES_MAX = 240;
 const DEFAULT_CALL_LIMIT = 12;
@@ -12,7 +14,14 @@ const CATALOG_ANCHOR_LIMIT = 12;
 const CALL_SELECT =
   'call_date,outcome,contact_name,pmf_score,order_value_cad,notes,objection_tags,follow_up_date';
 
-const PROSPECT_SELECT = 'id,name,category,region,city,fit';
+const PROSPECT_SELECT = 'id,name,category,region,city,fit,account_status';
+
+const ORDER_SELECT_FOR_REORDER = 'order_date,season,total_amount_cad,order_type,status';
+
+const REORDER_SETTINGS_SELECT =
+  'account_id,last_order_date,next_suggested_contact_date,seasonal_cadence_tags,ai_reorder_notes';
+
+const ORDER_HISTORY_LIMIT = 10;
 
 const CATALOG_ANCHOR_SELECT = 'sku,name,cat,color,tagline,is_new,is_name_drop,msrp_cad,page';
 
@@ -147,6 +156,81 @@ export function createAgentCrmTools(supabase: AgentSupabase) {
           prospect,
           line,
           catalogAnchors: items ?? [],
+        };
+      },
+    }),
+
+    getReorderSuggestions: tool({
+      description:
+        'Compute seasonal reorder contact timing and a short outreach pitch for an active account (or prospect id). Persists next_suggested_contact_date and ai_reorder_notes. Use for reorder timing / outreach pitches.',
+      inputSchema: z.object({
+        accountId: z.number().int().positive().describe('Account / prospect id (positive integer)'),
+      }),
+      execute: async ({ accountId }) => {
+        const { data: prospect, error: prospectError } = await supabase
+          .from('prospects')
+          .select(PROSPECT_SELECT)
+          .eq('id', accountId)
+          .maybeSingle();
+
+        if (prospectError) {
+          return { error: prospectError.message };
+        }
+        if (!prospect) {
+          return { error: 'Account not found' };
+        }
+
+        const { data: orders, error: ordersError } = await supabase
+          .from('orders')
+          .select(ORDER_SELECT_FOR_REORDER)
+          .eq('account_id', accountId)
+          .order('order_date', { ascending: false })
+          .limit(ORDER_HISTORY_LIMIT);
+
+        if (ordersError) {
+          return { error: ordersError.message };
+        }
+
+        const { data: settings, error: settingsError } = await supabase
+          .from('account_reorder_settings')
+          .select(REORDER_SETTINGS_SELECT)
+          .eq('account_id', accountId)
+          .maybeSingle();
+
+        if (settingsError) {
+          return { error: settingsError.message };
+        }
+
+        const latestOrder = orders?.[0] ?? null;
+        const lastOrderDate = settings?.last_order_date ?? latestOrder?.order_date ?? null;
+        const lastSeason = (latestOrder?.season as ApparelSeason | undefined) ?? null;
+
+        const suggestion = computeReorderSuggestion({
+          lastOrderDate,
+          lastSeason,
+          accountName: prospect.name,
+        });
+
+        const { error: upsertError } = await supabase.from('account_reorder_settings').upsert(
+          {
+            account_id: accountId,
+            last_order_date: lastOrderDate,
+            next_suggested_contact_date: suggestion.nextSuggestedContactDate,
+            seasonal_cadence_tags: suggestion.seasonalCadenceTags,
+            ai_reorder_notes: suggestion.aiReorderNotes,
+          },
+          { onConflict: 'account_id' },
+        );
+
+        if (upsertError) {
+          return { error: upsertError.message };
+        }
+
+        return {
+          nextSuggestedContactDate: suggestion.nextSuggestedContactDate,
+          aiReorderNotes: suggestion.aiReorderNotes,
+          seasonalCadenceTags: suggestion.seasonalCadenceTags,
+          lastOrderDate,
         };
       },
     }),
