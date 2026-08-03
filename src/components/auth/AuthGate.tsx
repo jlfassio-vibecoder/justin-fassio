@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthProvider } from '@/components/auth/AuthProvider';
 import { PendingApprovalScreen } from '@/components/auth/PendingApprovalScreen';
 import { WrongPortalScreen } from '@/components/auth/WrongPortalScreen';
@@ -7,9 +7,12 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { isApprovedStaff } from '@/lib/auth';
+import { pingAuthorizedServer } from '@/lib/serverPing';
 
 function AuthGateInner() {
   const { loading, session, user, profile, configured } = useAuth();
+  const [pingBusy, setPingBusy] = useState(false);
+  const [pingStatus, setPingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && configured && !session) {
@@ -51,15 +54,42 @@ function AuthGateInner() {
     return <PendingApprovalScreen email={user?.email} variant="pending" />;
   }
 
+  async function handlePingServer() {
+    setPingBusy(true);
+    setPingStatus(null);
+    const result = await pingAuthorizedServer();
+    setPingBusy(false);
+    if (result.ok) {
+      setPingStatus('Server: ok');
+      return;
+    }
+    const detail = result.error ? ` ${result.error}` : '';
+    setPingStatus(
+      result.status > 0 ? `Server: ${result.status}${detail}` : `Server: error${detail}`,
+    );
+  }
+
   return (
     <div>
-      <div className="flex items-center justify-end gap-3 border-b border-ink/10 bg-surface/60 px-7 py-2 text-xs text-ink/70">
+      <div className="flex flex-wrap items-center justify-end gap-3 border-b border-ink/10 bg-surface/60 px-7 py-2 text-xs text-ink/70">
         <span className="truncate">{user?.email}</span>
         {profile?.role && (
           <span className="rounded-full bg-bg px-2.5 py-0.5 font-semibold capitalize">
             {profile.role}
           </span>
         )}
+        {pingStatus && <span className="text-ink/60">{pingStatus}</span>}
+        <Button
+          type="button"
+          variant="ghost"
+          className="text-xs"
+          disabled={pingBusy}
+          onClick={() => {
+            void handlePingServer();
+          }}
+        >
+          {pingBusy ? 'Pinging…' : 'Ping server'}
+        </Button>
         <Button
           type="button"
           variant="ghost"

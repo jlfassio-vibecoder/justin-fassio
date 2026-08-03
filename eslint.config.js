@@ -14,6 +14,7 @@ export default [
       'node_modules/**',
       '.astro/**',
       'design/design-reference/**',
+      'supabase/functions/**',
       'src/env.d.ts',
     ],
   },

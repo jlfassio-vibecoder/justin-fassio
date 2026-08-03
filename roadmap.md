@@ -199,19 +199,19 @@ Do not add AI agents. Document threat-model outcome in the PR. Exit when build/c
 
 ## Phase E — Server tool boundary
 
-**Status:** Not started  
+**Status:** Done on `feature/ai-agent-integration`  
 **Goal:** A server-side surface that can hold secrets (for agents and privileged ops) without putting service role in `PUBLIC_*`.  
 **Depends on:** Phases B–C; D strongly recommended  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] Pick one approach and implement a minimal “health + authorized ping”:
+- [x] Pick one approach and implement a minimal “health + authorized ping”:
   - **Preferred:** Supabase Edge Function verifying JWT + `is_approved_staff`, or
   - Astro hybrid / `@astrojs/vercel` server route (only if Edge is insufficient).
-- [ ] Env: document server secrets in `.env.example` (no `PUBLIC_` prefix).
-- [ ] One authenticated client call from `/app` proving the boundary works.
-- [ ] Do **not** expose service role to the browser.
+- [x] Env: document server secrets in `.env.example` (no `PUBLIC_` prefix).
+- [x] One authenticated client call from `/app` proving the boundary works.
+- [x] Do **not** expose service role to the browser.
 
 ### Out of scope
 
@@ -219,9 +219,9 @@ Do not add AI agents. Document threat-model outcome in the PR. Exit when build/c
 
 ### Exit criteria
 
-- [ ] Unauthenticated callers get 401/403.
-- [ ] Approved staff can invoke the ping successfully.
-- [ ] README documents how to run/deploy the function or server route.
+- [x] Unauthenticated callers get 401/403.
+- [x] Approved staff can invoke the ping successfully.
+- [x] README documents how to run/deploy the function or server route.
 
 ### Plan prompt
 

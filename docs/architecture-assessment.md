@@ -11,7 +11,7 @@
 
 **Structurally sound for the phase completed.** The foundation is coherent: Astro 7 static site, React 19 islands, Tailwind 4 design tokens, Supabase Auth + profiles approval workflow, domain RLS gated to approved staff, CI + Dependabot, and a clear public vs internal portal split.
 
-**Not yet “product-complete” or “agent-ready.”** CRM persistence and directory confidentiality (Phases B–D) are implemented on `feature/ai-agent-integration`: calls write/read under RLS; catalog/prospects load via authenticated Supabase fetches. Remaining gap for agents is a server tool boundary (Phase E) and orchestration (Phase F).
+**Not yet “product-complete” or “agent-ready.”** CRM persistence and directory confidentiality (Phases B–D) are implemented on `feature/ai-agent-integration`: calls write/read under RLS; catalog/prospects load via authenticated Supabase fetches. Server tool boundary (Phase E) is an Edge Function `authorized-ping`; agent orchestration remains Phase F.
 
 | Dimension | Rating | One-line |
 |-----------|--------|----------|
@@ -20,7 +20,7 @@
 | Domain persistence | Strong | Calls + catalog_items + prospects wired under approved-staff RLS |
 | Data confidentiality | Moderate | Directories not in `/app` bundle; residual = approved JWT / network capture |
 | Test / CI confidence | Moderate | AuthGate + call insert + aggregates covered; no E2E |
-| AI agent readiness | Not ready | No server tool surface yet (Phase E) |
+| AI agent readiness | Partial | Edge `authorized-ping` boundary exists; no LLM tools yet (Phase F) |
 
 **Recommendation before `feature/ai-agent-integration` feature work:** treat the items in [§8 Prioritized backlog](#8-prioritized-backlog-before--during-ai-phase) as sequencing constraints. Do not assume RLS alone protects sensitive directory/pricing data.
 
@@ -221,8 +221,8 @@ flowchart TB
 
 | Need | Current state |
 |------|---------------|
-| Server tool / agent runtime | None — pure static; no Edge Functions / API routes |
-| Trusted secrets for agents | Would require service role or scoped server credentials — never `PUBLIC_*` |
+| Server tool / agent runtime | Edge Function `authorized-ping` (JWT + `is_approved_staff`); no LLM agents yet |
+| Trusted secrets for agents | Document `SUPABASE_SERVICE_ROLE_KEY` server-only — never `PUBLIC_*` |
 | Writable CRM | Calls persist (Phase B); richer CRM still thin |
 | Auth-backed data APIs | Catalog/prospects fetched under RLS (Phase D) |
 | Embeddings / search / agent docs | Absent |
