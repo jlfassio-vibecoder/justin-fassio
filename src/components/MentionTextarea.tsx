@@ -73,6 +73,7 @@ export function MentionTextarea({
   const [contactsError, setContactsError] = useState<string | null>(null);
   const [contactsFetching, setContactsFetching] = useState(false);
   const [globalHits, setGlobalHits] = useState<AccountContact[] | null>(null);
+  const [globalHitsQuery, setGlobalHitsQuery] = useState<string | null>(null);
 
   const catalog = items && items.length > 0 ? items : (fetchedCatalog ?? []);
   const scopedContacts =
@@ -90,7 +91,9 @@ export function MentionTextarea({
         ? scopedContacts
         : trigger.query.trim().length < 1
           ? []
-          : (globalHits ?? [])
+          : globalHitsQuery === trigger.query.trim()
+            ? (globalHits ?? [])
+            : []
       : [];
   const contactMatches =
     trigger?.kind === 'contact' ? filterContactMentions(contactSource, trigger.query) : [];
@@ -98,9 +101,18 @@ export function MentionTextarea({
   const matchCount = trigger?.kind === 'contact' ? contactMatches.length : productMatches.length;
   const activeIndex = matchCount === 0 ? 0 : Math.min(highlight, matchCount - 1);
 
+  const globalContactSearchPending =
+    trigger?.kind === 'contact' &&
+    accountId == null &&
+    !(contactsProp && contactsProp.length > 0) &&
+    trigger.query.trim().length >= 1 &&
+    globalHitsQuery !== trigger.query.trim();
+
   const loadingList =
     (trigger?.kind === 'product' && catalogFetching && catalog.length === 0) ||
-    (trigger?.kind === 'contact' && contactsFetching && contactSource.length === 0);
+    (trigger?.kind === 'contact' &&
+      contactSource.length === 0 &&
+      (contactsFetching || globalContactSearchPending));
   const listError =
     trigger?.kind === 'product' ? catalogError : trigger?.kind === 'contact' ? contactsError : null;
 
@@ -159,20 +171,18 @@ export function MentionTextarea({
     }
 
     let active = true;
-    setContactsFetching(true);
-    setContactsError(null);
-    setGlobalHits(null);
     const timer = window.setTimeout(() => {
       void searchContactsByName(q).then((result) => {
         if (!active) return;
-        setContactsFetching(false);
         if (result.error) {
           setContactsError(result.error);
           setGlobalHits([]);
+          setGlobalHitsQuery(q);
           return;
         }
         setContactsError(null);
         setGlobalHits(result.data);
+        setGlobalHitsQuery(q);
       });
     }, 200);
 
