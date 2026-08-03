@@ -182,27 +182,28 @@ Do not ship the other Phase III slices in this PR. Exit when the slice works on 
 
 ## Phase IV — Ops & hardening
 
-**Status:** Not started  
+**Status:** Done  
 **Goal:** Production guardrails and documented dual runtime.  
 **Depends on:** Phase 0 (best after I–II have real traffic patterns)  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] Rate limits / spend caps on `/api/agent`.
-- [ ] CSP review if AI Gateway (or other) origins expand beyond current `[vercel.json](vercel.json)`.
-- [ ] Vitest for agent route auth rejection (mock `streamText`).
-- [ ] Update `[docs/architecture-assessment.md](docs/architecture-assessment.md)` and cross-link from `[roadmap.md](roadmap.md)`: dual runtime (Edge + Vercel on-demand).
+- [x] Rate limits / spend caps on `/api/agent` (in-memory 20/10m per user + `stepCountIs(5)` / `maxOutputTokens: 1100`).
+- [x] CSP review if AI Gateway (or other) origins expand beyond current [`vercel.json`](vercel.json) — **no change**; clients only hit same-origin `/api/*`.
+- [x] Vitest for agent route auth rejection (mock `streamText`).
+- [x] Update [`docs/architecture-assessment.md`](docs/architecture-assessment.md) and cross-link from [`roadmap.md`](roadmap.md): dual runtime (Edge + Vercel on-demand).
 
 ### Out of scope
 
 - New agent product features.
+- Upstash / enrich rate limit (follow-ups if needed).
 
 ### Exit criteria
 
-- [ ] Unauthenticated agent calls fail in automated tests.
-- [ ] Rate/spend control documented and enforced at the route (or platform) layer.
-- [ ] Assessment reflects dual AI runtime; `npm run check` green.
+- [x] Unauthenticated agent calls fail in automated tests.
+- [x] Rate/spend control documented and enforced at the route (or platform) layer.
+- [x] Assessment reflects dual AI runtime; `npm run check` green.
 
 ### Plan prompt
 
@@ -228,7 +229,7 @@ II Chat UX (useChat + prefills)               ← done
 III Product slices (one PR each)              ← done (retire Edge Suggest)
 
     ↓
-IV Ops & hardening
+IV Ops & hardening                            ← done
 ```
 
 | Phase | Plan-sized goal                                              |

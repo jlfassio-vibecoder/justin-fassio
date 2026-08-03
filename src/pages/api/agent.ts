@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { streamText, stepCountIs, convertToModelMessages, type UIMessage } from 'ai';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { createAgentCrmTools } from '@/lib/agentCrmTools';
+import { checkAgentRateLimit, rateLimitResponse } from '@/lib/agentRateLimit';
 import { objectionCatalogBlurb } from '@/lib/objectionCatalog';
 
 export const prerender = false;
@@ -36,6 +37,11 @@ export const POST: APIRoute = async ({ request }) => {
   const gate = await requireApprovedStaffClient(request);
   if (!gate.ok) return gate.response;
 
+  const limited = checkAgentRateLimit(gate.userId);
+  if (!limited.ok) {
+    return rateLimitResponse(limited.retryAfterSec);
+  }
+
   let body: { messages?: unknown };
   try {
     body = (await request.json()) as { messages?: unknown };
@@ -51,6 +57,7 @@ export const POST: APIRoute = async ({ request }) => {
   const modelMessages = convertToModelMessages(body.messages);
 
   // Model strings like openai/gpt-4o route through Vercel AI Gateway (OIDC on Vercel; AI_GATEWAY_API_KEY locally).
+  // Spend caps: stepCountIs(5) + maxOutputTokens; request rate: checkAgentRateLimit (per user, in-memory).
   const result = streamText({
     model: 'openai/gpt-4o',
     system: SYSTEM_PROMPT,

@@ -4,7 +4,7 @@ import type { Database } from '@/types/database';
 export type AgentSupabase = SupabaseClient<Database>;
 
 export type ApprovedStaffClientResult =
-  { ok: true; supabase: AgentSupabase } | { ok: false; response: Response };
+  { ok: true; supabase: AgentSupabase; userId: string } | { ok: false; response: Response };
 
 function jsonError(message: string, status: number): Response {
   return new Response(JSON.stringify({ ok: false, error: message }), {
@@ -14,8 +14,8 @@ function jsonError(message: string, status: number): Response {
 }
 
 /**
- * Gate for /api/agent: Bearer JWT → getUser → is_approved_staff.
- * On success returns a user-scoped Supabase client (RLS applies).
+ * Gate for /api/agent (and other AI routes): Bearer JWT → getUser → is_approved_staff.
+ * On success returns a user-scoped Supabase client (RLS applies) plus userId for rate limits.
  */
 export async function requireApprovedStaffClient(
   request: Request,
@@ -52,5 +52,5 @@ export async function requireApprovedStaffClient(
     return { ok: false, response: jsonError('Forbidden', 403) };
   }
 
-  return { ok: true, supabase };
+  return { ok: true, supabase, userId: user.id };
 }
