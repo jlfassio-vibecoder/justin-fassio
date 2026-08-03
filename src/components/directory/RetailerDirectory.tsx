@@ -52,15 +52,13 @@ export function RetailerDirectory({
 
   useEffect(() => {
     if (highlightedId == null) return;
-    const match = retailers.find((r) => r.id === highlightedId);
-    if (match) {
-      setSearch(match.name);
-      setRegion('ALL');
-      setChannel('ALL');
-    }
-    const row = document.querySelector(`[data-prospect-id="${highlightedId}"]`);
-    row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [highlightedId, retailers]);
+    const timer = window.setTimeout(() => {
+      document
+        .querySelector(`[data-prospect-id="${highlightedId}"]`)
+        ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [highlightedId]);
 
   const filtered = useMemo(
     () => filterProspects(retailers, { search, region, channel }),

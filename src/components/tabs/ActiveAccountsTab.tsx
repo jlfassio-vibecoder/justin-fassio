@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AccountOrderHistoryModal } from '@/components/AccountOrderHistoryModal';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
+import {
+  fetchAccountReorderSettingsForAccounts,
+  upsertAccountReorderSettings,
+  type AccountReorderSettingsRow,
+} from '@/lib/accountReorderSettings';
 import { apparelSeasonLabel } from '@/lib/apparelSeasons';
 import {
   groupOrdersByAccountId,
@@ -11,13 +16,12 @@ import {
   totalLifetimeValueCad,
 } from '@/lib/orderAggregates';
 import { fetchOrdersForAccounts, type OrderRow } from '@/lib/orders';
+import { computeReorderSuggestion, formatLocalIsoDate } from '@/lib/reorderCadence';
 import type { Prospect } from '@/lib/prospects';
 
 interface ActiveAccountsTabProps {
   accounts: Prospect[];
   onLogCall: (account: Prospect) => void;
-  /** Reserved for Phase V AI reorder badge. Defaults to null (no fake due badges). */
-  renderAiReminder?: (account: Prospect) => ReactNode;
 }
 
 function formatCad(amount: number): string {
@@ -33,16 +37,26 @@ function formatDate(isoDate: string | null): string {
   return isoDate;
 }
 
-export function ActiveAccountsTab({
-  accounts,
-  onLogCall,
-  renderAiReminder,
-}: ActiveAccountsTabProps) {
+function isContactDue(isoDate: string | null | undefined, todayIso: string): boolean {
+  if (!isoDate) return false;
+  return isoDate <= todayIso;
+}
+
+export function ActiveAccountsTab({ accounts, onLogCall }: ActiveAccountsTabProps) {
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [historyAccount, setHistoryAccount] = useState<Prospect | null>(null);
   const [ordersReloadToken, setOrdersReloadToken] = useState(0);
+  const [settingsByAccount, setSettingsByAccount] = useState<
+    Map<number, AccountReorderSettingsRow>
+  >(new Map());
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsReloadToken, setSettingsReloadToken] = useState(0);
+  const [refreshBusy, setRefreshBusy] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+
+  const todayIso = formatLocalIsoDate(new Date());
 
   const accountIdsKey = useMemo(
     () =>
@@ -55,6 +69,10 @@ export function ActiveAccountsTab({
 
   const reloadOrders = useCallback(() => {
     setOrdersReloadToken((n) => n + 1);
+  }, []);
+
+  const reloadSettings = useCallback(() => {
+    setSettingsReloadToken((n) => n + 1);
   }, []);
 
   useEffect(() => {
@@ -88,6 +106,85 @@ export function ActiveAccountsTab({
     };
   }, [accountIdsKey, ordersReloadToken]);
 
+  useEffect(() => {
+    let active = true;
+    const ids = accountIdsKey === '' ? [] : accountIdsKey.split(',').map((s) => Number(s));
+
+    async function loadSettings() {
+      if (ids.length === 0) {
+        setSettingsByAccount(new Map());
+        setSettingsError(null);
+        return;
+      }
+
+      const result = await fetchAccountReorderSettingsForAccounts(ids);
+      if (!active) return;
+      if (result.error) {
+        setSettingsByAccount(new Map());
+        setSettingsError(result.error);
+        return;
+      }
+      const map = new Map<number, AccountReorderSettingsRow>();
+      for (const row of result.data) {
+        map.set(row.account_id, row);
+      }
+      setSettingsByAccount(map);
+      setSettingsError(null);
+    }
+
+    void loadSettings();
+    return () => {
+      active = false;
+    };
+  }, [accountIdsKey, settingsReloadToken]);
+
+  async function handleRefreshAiReminders() {
+    setRefreshBusy(true);
+    setRefreshError(null);
+
+    for (const account of accounts) {
+      const orders = ordersByAccount.get(account.id) ?? [];
+      const existing = settingsByAccount.get(account.id);
+      const lastOrder = lastOrderDate(orders) ?? existing?.last_order_date ?? null;
+      const season = latestSeason(orders);
+      const suggestion = computeReorderSuggestion({
+        lastOrderDate: lastOrder,
+        lastSeason: season,
+        accountName: account.name,
+      });
+
+      const result = await upsertAccountReorderSettings({
+        account_id: account.id,
+        last_order_date: lastOrder,
+        next_suggested_contact_date: suggestion.nextSuggestedContactDate,
+        seasonal_cadence_tags: suggestion.seasonalCadenceTags,
+        ai_reorder_notes: suggestion.aiReorderNotes,
+      });
+
+      if (result.error) {
+        setRefreshBusy(false);
+        setRefreshError(`${account.name}: ${result.error}`);
+        return;
+      }
+    }
+
+    setRefreshBusy(false);
+    reloadSettings();
+  }
+
+  function renderAiReminder(account: Prospect) {
+    const settings = settingsByAccount.get(account.id);
+    if (!isContactDue(settings?.next_suggested_contact_date, todayIso)) {
+      return null;
+    }
+    const notes = settings?.ai_reorder_notes?.trim() || undefined;
+    return (
+      <Tag variant="accent" title={notes} aria-label={notes ?? 'AI Suggested Reorder Contact'}>
+        AI Suggested Reorder Contact
+      </Tag>
+    );
+  }
+
   return (
     <>
       <RetailerDirectory
@@ -96,6 +193,18 @@ export function ActiveAccountsTab({
         searchPlaceholder="Search active accounts by name, city, address, or fit…"
         emptyMessage="No active accounts yet. Convert a prospect after a Closed PO or from Details."
         extraColumnHeaders={['TLV', 'Last order', 'Season']}
+        toolbarExtra={
+          accounts.length > 0 ? (
+            <Button
+              variant="secondary"
+              className="text-xs whitespace-nowrap"
+              disabled={refreshBusy}
+              onClick={() => void handleRefreshAiReminders()}
+            >
+              {refreshBusy ? 'Refreshing…' : 'Refresh AI reminders'}
+            </Button>
+          ) : null
+        }
         banner={
           <>
             {ordersLoading ? (
@@ -104,6 +213,16 @@ export function ActiveAccountsTab({
             {ordersError ? (
               <p className="text-sm text-red-700" role="alert">
                 Could not load orders: {ordersError}
+              </p>
+            ) : null}
+            {settingsError ? (
+              <p className="text-sm text-red-700" role="alert">
+                Could not load reorder settings: {settingsError}
+              </p>
+            ) : null}
+            {refreshError ? (
+              <p className="text-sm text-red-700" role="alert">
+                Could not refresh AI reminders: {refreshError}
               </p>
             ) : null}
           </>
@@ -131,7 +250,7 @@ export function ActiveAccountsTab({
         }}
         renderActions={(account) => (
           <>
-            {renderAiReminder?.(account) ?? null}
+            {renderAiReminder(account)}
             <Button
               variant="primary"
               className="px-3 py-1 text-xs"
@@ -155,7 +274,10 @@ export function ActiveAccountsTab({
         account={historyAccount}
         orders={historyAccount ? (ordersByAccount.get(historyAccount.id) ?? []) : []}
         onClose={() => setHistoryAccount(null)}
-        onOrderSaved={reloadOrders}
+        onOrderSaved={() => {
+          reloadOrders();
+          reloadSettings();
+        }}
       />
     </>
   );

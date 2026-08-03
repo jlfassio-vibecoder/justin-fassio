@@ -181,7 +181,7 @@ Do not start Phase V. Gate with npm run check.
 
 ## Phase V — AI reorder reminders
 
-**Status:** Not started  
+**Status:** Done (this PR)  
 **Goal:** Seasonal outreach suggestions + UI highlight on Active Accounts.  
 **Depends on:** Phase IV **and** AI agent stack on branch (`src/pages/api/agent.ts`, `createAgentCrmTools`)  
 **Estimate:** 1 PR
@@ -192,10 +192,10 @@ Rebase/merge `feature/ai-agent-integration` (or wait until that work is on `main
 
 ### In scope
 
-- [ ] Tool `getReorderSuggestions` on `/api/agent` CRM tools
-- [ ] Persist `next_suggested_contact_date` + `ai_reorder_notes`
-- [ ] Active Accounts: “AI Suggested Reorder Contact” when contact date ≤ today
-- [ ] Tests for suggestion date logic (pure calendar helper; mock tool execute)
+- [x] Tool `getReorderSuggestions` on `/api/agent` CRM tools
+- [x] Persist `next_suggested_contact_date` + `ai_reorder_notes`
+- [x] Active Accounts: “AI Suggested Reorder Contact” when contact date ≤ today
+- [x] Tests for suggestion date logic (pure calendar helper; mock tool execute)
 
 ### Out of scope
 
@@ -203,9 +203,9 @@ Rebase/merge `feature/ai-agent-integration` (or wait until that work is on `main
 
 ### Exit criteria
 
-- [ ] Suggestions return contact date + ~2-sentence pitch
-- [ ] Due accounts show AI banner/icon
-- [ ] `npm run check` green
+- [x] Suggestions return contact date + ~2-sentence pitch
+- [x] Due accounts show AI banner/icon
+- [x] `npm run check` green
 
 ### Plan prompt
 

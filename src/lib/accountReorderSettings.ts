@@ -22,6 +22,26 @@ export async function fetchAccountReorderSettings(
   return { data: (data as AccountReorderSettingsRow | null) ?? null, error: null };
 }
 
+/** Batch-fetch reorder settings. Empty id list returns [] without querying. */
+export async function fetchAccountReorderSettingsForAccounts(
+  accountIds: number[],
+): Promise<{ data: AccountReorderSettingsRow[]; error: string | null }> {
+  if (accountIds.length === 0) {
+    return { data: [], error: null };
+  }
+
+  const { data, error } = await supabase
+    .from('account_reorder_settings')
+    .select(ACCOUNT_REORDER_SETTINGS_SELECT)
+    .in('account_id', accountIds);
+
+  if (error) {
+    return { data: [], error: error.message };
+  }
+
+  return { data: (data ?? []) as AccountReorderSettingsRow[], error: null };
+}
+
 export async function upsertAccountReorderSettings(
   input: AccountReorderSettingsInsert,
 ): Promise<{ data: AccountReorderSettingsRow | null; error: string | null }> {
