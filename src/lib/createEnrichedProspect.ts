@@ -92,7 +92,7 @@ async function insertProspect(
       fit,
     })
     .select(
-      'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, created_at, updated_at',
+      'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, created_at, updated_at',
     )
     .single();
 

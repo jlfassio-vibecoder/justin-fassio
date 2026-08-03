@@ -12,6 +12,7 @@ interface ProspectsTabProps {
   onLogCall: (prospect: Prospect) => void;
   onConverted?: () => void;
   onProspectCreated?: (prospect: Prospect) => void;
+  onNotesSaved?: (id: number, notes: string | null) => void;
 }
 
 export function ProspectsTab({
@@ -19,6 +20,7 @@ export function ProspectsTab({
   onLogCall,
   onConverted,
   onProspectCreated,
+  onNotesSaved,
 }: ProspectsTabProps) {
   const { openAssist } = useAiAssist();
   const [addOpen, setAddOpen] = useState(false);
@@ -127,6 +129,11 @@ export function ProspectsTab({
         onClose={() => setDetailProspect(null)}
         onLogCall={onLogCall}
         onConverted={onConverted}
+        onNotesSaved={(notes) => {
+          if (!detailProspect) return;
+          setDetailProspect({ ...detailProspect, notes });
+          onNotesSaved?.(detailProspect.id, notes);
+        }}
       />
     </>
   );

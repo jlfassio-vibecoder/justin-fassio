@@ -23,6 +23,7 @@ import type { Prospect } from '@/lib/prospects';
 interface ActiveAccountsTabProps {
   accounts: Prospect[];
   onLogCall: (account: Prospect) => void;
+  onNotesSaved?: (id: number, notes: string | null) => void;
 }
 
 function formatCad(amount: number): string {
@@ -43,7 +44,7 @@ function isContactDue(isoDate: string | null | undefined, todayIso: string): boo
   return isoDate <= todayIso;
 }
 
-export function ActiveAccountsTab({ accounts, onLogCall }: ActiveAccountsTabProps) {
+export function ActiveAccountsTab({ accounts, onLogCall, onNotesSaved }: ActiveAccountsTabProps) {
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -300,6 +301,11 @@ export function ActiveAccountsTab({ accounts, onLogCall }: ActiveAccountsTabProp
         onClose={() => setDetailAccount(null)}
         onLogCall={onLogCall}
         onLogOrder={(account) => setHistoryAccount(account)}
+        onNotesSaved={(notes) => {
+          if (!detailAccount) return;
+          setDetailAccount({ ...detailAccount, notes });
+          onNotesSaved?.(detailAccount.id, notes);
+        }}
       />
 
       <AccountOrderHistoryModal

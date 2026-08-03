@@ -110,6 +110,7 @@ export interface Database {
           account_status: AccountStatus;
           converted_at: string | null;
           initial_order_date: string | null;
+          notes: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -125,6 +126,7 @@ export interface Database {
           account_status?: AccountStatus;
           converted_at?: string | null;
           initial_order_date?: string | null;
+          notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -140,6 +142,7 @@ export interface Database {
           account_status?: AccountStatus;
           converted_at?: string | null;
           initial_order_date?: string | null;
+          notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };

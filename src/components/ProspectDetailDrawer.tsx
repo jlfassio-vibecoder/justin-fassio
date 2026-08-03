@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { AccountContactsSection } from '@/components/AccountContactsSection';
+import { AccountNotesEditor } from '@/components/AccountNotesEditor';
 import { ConvertAccountModal } from '@/components/ConvertAccountModal';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
@@ -11,6 +12,7 @@ interface ProspectDetailDrawerProps {
   onClose: () => void;
   onLogCall: (prospect: Prospect) => void;
   onConverted?: () => void;
+  onNotesSaved?: (notes: string | null) => void;
 }
 
 const STATUS_LABEL: Record<Prospect['accountStatus'], string> = {
@@ -24,6 +26,7 @@ export function ProspectDetailDrawer({
   onClose,
   onLogCall,
   onConverted,
+  onNotesSaved,
 }: ProspectDetailDrawerProps) {
   const [convertOpen, setConvertOpen] = useState(false);
 
@@ -82,6 +85,13 @@ export function ProspectDetailDrawer({
               <dd className="text-ink/80 m-0 mt-0.5 leading-relaxed">{prospect.fit || '—'}</dd>
             </div>
           </dl>
+
+          <AccountNotesEditor
+            key={prospect.id}
+            accountId={prospect.id}
+            initialNotes={prospect.notes}
+            onSaved={onNotesSaved}
+          />
 
           <AccountContactsSection accountId={prospect.id} />
         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { AccountContactsSection } from '@/components/AccountContactsSection';
+import { AccountNotesEditor } from '@/components/AccountNotesEditor';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
@@ -27,6 +28,7 @@ interface AccountDetailDrawerProps {
   onClose: () => void;
   onLogCall: (account: Prospect) => void;
   onLogOrder: (account: Prospect) => void;
+  onNotesSaved?: (notes: string | null) => void;
 }
 
 function formatCad(amount: number): string {
@@ -131,6 +133,7 @@ export function AccountDetailDrawer({
   onClose,
   onLogCall,
   onLogOrder,
+  onNotesSaved,
 }: AccountDetailDrawerProps) {
   if (!account) return null;
 
@@ -228,6 +231,13 @@ export function AccountDetailDrawer({
               </div>
             ) : null}
           </dl>
+
+          <AccountNotesEditor
+            key={account.id}
+            accountId={account.id}
+            initialNotes={account.notes}
+            onSaved={onNotesSaved}
+          />
 
           <ContactNameSearch key={account.id} currentAccountId={account.id} />
 

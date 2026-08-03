@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type SubmitEvent } from 'react';
+import { MentionTextarea } from '@/components/MentionTextarea';
 import { Button } from '@/components/ui/Button';
-import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
+import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import {
   ACCOUNT_CONTACT_ROLES,
@@ -275,10 +276,12 @@ export function AccountContactsSection({ accountId }: AccountContactsSectionProp
           </div>
           <Field>
             <FieldLabel>Notes</FieldLabel>
-            <Textarea
+            <MentionTextarea
               rows={2}
+              placeholder="Use # for products, @ for contacts"
               value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              onChange={(value) => setForm((f) => ({ ...f, notes: value }))}
+              accountId={accountId}
               disabled={busy}
             />
           </Field>

@@ -17,6 +17,7 @@ export interface Prospect {
   accountStatus: AccountStatus;
   convertedAt: string | null;
   initialOrderDate: string | null;
+  notes: string | null;
 }
 
 export interface FetchProspectsOptions {
@@ -25,7 +26,7 @@ export interface FetchProspectsOptions {
 }
 
 const PROSPECT_SELECT =
-  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, created_at, updated_at' as const;
+  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, created_at, updated_at' as const;
 
 export function mapProspectRow(row: ProspectRow): Prospect {
   return {
@@ -40,6 +41,7 @@ export function mapProspectRow(row: ProspectRow): Prospect {
     accountStatus: row.account_status,
     convertedAt: row.converted_at,
     initialOrderDate: row.initial_order_date,
+    notes: row.notes,
   };
 }
 
@@ -60,4 +62,22 @@ export async function fetchProspects(options: FetchProspectsOptions = {}): Promi
   }
 
   return { data: (data ?? []).map(mapProspectRow), error: null };
+}
+
+export async function updateProspectNotes(
+  id: number,
+  notes: string | null,
+): Promise<{ data: Prospect | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('prospects')
+    .update({ notes })
+    .eq('id', id)
+    .select(PROSPECT_SELECT)
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return { data: mapProspectRow(data as ProspectRow), error: null };
 }

@@ -22,6 +22,7 @@ const TEST_PROSPECTS: Prospect[] = [
     accountStatus: 'prospect',
     convertedAt: null,
     initialOrderDate: null,
+    notes: null,
   },
 ];
 

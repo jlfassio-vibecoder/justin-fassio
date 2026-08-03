@@ -39,6 +39,7 @@ const ACCOUNT: Prospect = {
   accountStatus: 'active_account',
   convertedAt: '2026-08-01T00:00:00Z',
   initialOrderDate: '2026-08-01T00:00:00Z',
+  notes: null,
 };
 
 const ORDERS: OrderRow[] = [

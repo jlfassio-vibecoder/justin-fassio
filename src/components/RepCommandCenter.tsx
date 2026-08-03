@@ -151,12 +151,18 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                     ),
                   );
                 }}
+                onNotesSaved={(id, notes) => {
+                  setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
+                }}
               />
             )}
             {activeTab === 'accounts' && (
               <ActiveAccountsTab
                 accounts={activeAccounts}
                 onLogCall={(account) => openModal(account)}
+                onNotesSaved={(id, notes) => {
+                  setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
+                }}
               />
             )}
             {activeTab === 'insights' && (

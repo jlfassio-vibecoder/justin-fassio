@@ -89,6 +89,7 @@ create table if not exists prospects (
     check (account_status in ('prospect', 'active_account', 'inactive')),
   converted_at timestamptz,
   initial_order_date timestamptz,
+  notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
