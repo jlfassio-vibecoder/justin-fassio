@@ -1,8 +1,10 @@
 import { useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
+import { ConvertAccountModal } from '@/components/ConvertAccountModal';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
+import { isConversionOutcome } from '@/lib/convertToActiveAccount';
 import type { Prospect } from '@/lib/prospects';
 import { supabase } from '@/lib/supabase';
 import type { CallInsert } from '@/types/database';
@@ -16,6 +18,7 @@ const FEEDBACK_OPTIONS = [
 
 const OUTCOME_OPTIONS = [
   'Closed PO / Written Order',
+  'Account Converted',
   'Sample Package Requested',
   'Follow-up Scheduled',
   'Left Message / Gatekeeper',
@@ -29,6 +32,7 @@ interface LogCallModalProps {
   onClose: () => void;
   onStoreChange: (id: number) => void;
   onSaved?: () => void;
+  onConverted?: () => void;
 }
 
 function resetFormState(setters: {
@@ -56,6 +60,7 @@ export function LogCallModal({
   onClose,
   onStoreChange,
   onSaved,
+  onConverted,
 }: LogCallModalProps) {
   const [feedback, setFeedback] = useState<string[]>([]);
   const [contactName, setContactName] = useState('');
@@ -65,12 +70,14 @@ export function LogCallModal({
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  if (!open) return null;
+  const [convertProspect, setConvertProspect] = useState<Prospect | null>(null);
+  const [convertPrefillCad, setConvertPrefillCad] = useState<number | null>(null);
 
   const selected = storeId != null ? prospects.find((p) => p.id === storeId) : undefined;
   const modalChannel = selected?.category ?? '';
   const modalCity = selected ? `${selected.city} (${selected.region})` : '';
+  const showLogForm = open && convertProspect == null;
+  const showConvert = convertProspect != null;
 
   function toggleFeedback(option: string) {
     setFeedback((prev) =>
@@ -78,7 +85,7 @@ export function LogCallModal({
     );
   }
 
-  function handleClose() {
+  function clearForm() {
     resetFormState({
       setFeedback,
       setContactName,
@@ -88,6 +95,12 @@ export function LogCallModal({
       setNotes,
       setError,
     });
+  }
+
+  function handleClose() {
+    clearForm();
+    setConvertProspect(null);
+    setConvertPrefillCad(null);
     onClose();
   }
 
@@ -125,145 +138,171 @@ export function LogCallModal({
       return;
     }
 
-    resetFormState({
-      setFeedback,
-      setContactName,
-      setOutcome,
-      setPmfScore,
-      setOrderValue,
-      setNotes,
-      setError,
-    });
     onSaved?.();
+
+    const savedOutcome = outcome;
+    const savedOrderValue = orderValue === '' ? 0 : Number(orderValue);
+    const prospectForConvert = selected;
+
+    clearForm();
+
+    const shouldPromptConvert =
+      isConversionOutcome(savedOutcome) &&
+      prospectForConvert != null &&
+      prospectForConvert.accountStatus !== 'active_account';
+
+    if (shouldPromptConvert) {
+      setConvertPrefillCad(savedOrderValue > 0 ? savedOrderValue : null);
+      setConvertProspect(prospectForConvert);
+      return;
+    }
+
     onClose();
   }
 
+  if (!open && !showConvert) return null;
+
   return (
-    <DialogBackdrop open={open} onClose={handleClose}>
-      <form
-        className="gap-3.1 bg-surface p-4.1 flex max-w-[560px] flex-col rounded-xl shadow-lg"
-        onSubmit={(e) => void handleSubmit(e)}
-      >
-        <div className="flex items-center justify-between">
-          <DialogTitle>Log Prospect Call</DialogTitle>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent"
-            aria-label="Close"
+    <>
+      {showLogForm ? (
+        <DialogBackdrop open={showLogForm} onClose={handleClose}>
+          <form
+            className="gap-3.1 bg-surface p-4.1 flex max-w-[560px] flex-col rounded-xl shadow-lg"
+            onSubmit={(e) => void handleSubmit(e)}
           >
-            <X size={18} strokeWidth={2.75} />
-          </button>
-        </div>
-
-        <Field>
-          <FieldLabel>Store prospect</FieldLabel>
-          <Select
-            value={storeId ?? ''}
-            onChange={(e) => onStoreChange(parseInt(e.target.value, 10))}
-            required
-          >
-            {prospects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {p.city}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel>Retail channel</FieldLabel>
-            <Input readOnly value={modalChannel} className="opacity-70" />
-          </Field>
-          <Field>
-            <FieldLabel>City / Region</FieldLabel>
-            <Input readOnly value={modalCity} className="opacity-70" />
-          </Field>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel>Contact name &amp; title</FieldLabel>
-            <Input
-              placeholder="e.g. Dave Miller (Owner)"
-              required
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Call outcome</FieldLabel>
-            <Select value={outcome} onChange={(e) => setOutcome(e.target.value)}>
-              {OUTCOME_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel>PMF fit score</FieldLabel>
-            <Select value={pmfScore} onChange={(e) => setPmfScore(e.target.value)}>
-              <option value="10">10 — Perfect fit</option>
-              <option value="8">8 — Strong fit</option>
-              <option value="6">6 — Moderate fit</option>
-              <option value="3">3 — Low fit</option>
-              <option value="1">1 — Poor fit</option>
-            </Select>
-          </Field>
-          <Field>
-            <FieldLabel>Order value (CAD)</FieldLabel>
-            <Input
-              type="number"
-              min="0"
-              placeholder="0 if no PO yet"
-              value={orderValue}
-              onChange={(e) => setOrderValue(e.target.value)}
-            />
-          </Field>
-        </div>
-
-        <Field>
-          <FieldLabel>Primary buyer feedback</FieldLabel>
-          <div className="mb-2 flex flex-wrap gap-2">
-            {FEEDBACK_OPTIONS.map((option) => (
-              <label
-                key={option}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-neutral-100 px-2.5 py-[3px] text-[11px] text-neutral-800"
+            <div className="flex items-center justify-between">
+              <DialogTitle>Log Prospect Call</DialogTitle>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent"
+                aria-label="Close"
               >
-                <input
-                  type="checkbox"
-                  className="m-0"
-                  checked={feedback.includes(option)}
-                  onChange={() => toggleFeedback(option)}
+                <X size={18} strokeWidth={2.75} />
+              </button>
+            </div>
+
+            <Field>
+              <FieldLabel>Store prospect</FieldLabel>
+              <Select
+                value={storeId ?? ''}
+                onChange={(e) => onStoreChange(parseInt(e.target.value, 10))}
+                required
+              >
+                {prospects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — {p.city}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>Retail channel</FieldLabel>
+                <Input readOnly value={modalChannel} className="opacity-70" />
+              </Field>
+              <Field>
+                <FieldLabel>City / Region</FieldLabel>
+                <Input readOnly value={modalCity} className="opacity-70" />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>Contact name &amp; title</FieldLabel>
+                <Input
+                  placeholder="e.g. Dave Miller (Owner)"
+                  required
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
                 />
-                {option}
-              </label>
-            ))}
-          </div>
-          <Textarea
-            rows={3}
-            placeholder="Call summary, buyer reaction…"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </Field>
+              </Field>
+              <Field>
+                <FieldLabel>Call outcome</FieldLabel>
+                <Select value={outcome} onChange={(e) => setOutcome(e.target.value)}>
+                  {OUTCOME_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
 
-        {error && <p className="text-accent-800 m-0 text-sm">{error}</p>}
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>PMF fit score</FieldLabel>
+                <Select value={pmfScore} onChange={(e) => setPmfScore(e.target.value)}>
+                  <option value="10">10 — Perfect fit</option>
+                  <option value="8">8 — Strong fit</option>
+                  <option value="6">6 — Moderate fit</option>
+                  <option value="3">3 — Low fit</option>
+                  <option value="1">1 — Poor fit</option>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Order value (CAD)</FieldLabel>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0 if no PO yet"
+                  value={orderValue}
+                  onChange={(e) => setOrderValue(e.target.value)}
+                />
+              </Field>
+            </div>
 
-        <div className="mt-1.5 flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={handleClose} disabled={busy}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" disabled={busy}>
-            {busy ? 'Saving…' : 'Save Call Record'}
-          </Button>
-        </div>
-      </form>
-    </DialogBackdrop>
+            <Field>
+              <FieldLabel>Primary buyer feedback</FieldLabel>
+              <div className="mb-2 flex flex-wrap gap-2">
+                {FEEDBACK_OPTIONS.map((option) => (
+                  <label
+                    key={option}
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-neutral-100 px-2.5 py-[3px] text-[11px] text-neutral-800"
+                  >
+                    <input
+                      type="checkbox"
+                      className="m-0"
+                      checked={feedback.includes(option)}
+                      onChange={() => toggleFeedback(option)}
+                    />
+                    {option}
+                  </label>
+                ))}
+              </div>
+              <Textarea
+                rows={3}
+                placeholder="Call summary, buyer reaction…"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </Field>
+
+            {error && <p className="text-accent-800 m-0 text-sm">{error}</p>}
+
+            <div className="mt-1.5 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={handleClose} disabled={busy}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" disabled={busy}>
+                {busy ? 'Saving…' : 'Save Call Record'}
+              </Button>
+            </div>
+          </form>
+        </DialogBackdrop>
+      ) : null}
+
+      <ConvertAccountModal
+        open={showConvert}
+        prospect={convertProspect}
+        prefillAmountCad={convertPrefillCad}
+        onClose={handleClose}
+        onConverted={() => {
+          onConverted?.();
+          handleClose();
+        }}
+      />
+    </>
   );
 }

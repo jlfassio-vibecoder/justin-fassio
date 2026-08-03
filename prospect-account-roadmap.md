@@ -82,18 +82,18 @@ Do not start Phase II+. Gate with npm run check.
 
 ## Phase II — Conversion workflow
 
-**Status:** Not started  
+**Status:** Done (this PR)  
 **Goal:** Prospect → Active Account from Log Call and a detail Convert action.  
 **Depends on:** Phase I  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] `src/lib/convertToActiveAccount.ts` — set status + timestamps, insert initial order, upsert reorder settings
-- [ ] [`LogCallModal`](src/components/LogCallModal.tsx): after save, if outcome is `Closed PO / Written Order` or `Account Converted`, prompt convert / log initial order
-- [ ] Add outcome option `Account Converted`
-- [ ] Minimal prospect detail slide-over with **Convert to Active Account**
-- [ ] Unit tests for convert helper + LogCallModal conversion branch
+- [x] `src/lib/convertToActiveAccount.ts` — set status + timestamps, insert initial order, upsert reorder settings
+- [x] [`LogCallModal`](src/components/LogCallModal.tsx): after save, if outcome is `Closed PO / Written Order` or `Account Converted`, prompt convert / log initial order
+- [x] Add outcome option `Account Converted`
+- [x] Minimal prospect detail slide-over with **Convert to Active Account**
+- [x] Unit tests for convert helper + LogCallModal conversion branch
 
 ### Out of scope
 
@@ -101,9 +101,9 @@ Do not start Phase II+. Gate with npm run check.
 
 ### Exit criteria
 
-- [ ] Can convert from call log or detail
-- [ ] Row shows as `active_account` in DB; initial order persisted
-- [ ] `npm run check` green
+- [x] Can convert from call log or detail
+- [x] Row shows as `active_account` in DB; initial order persisted
+- [x] `npm run check` green
 
 ### Plan prompt
 
@@ -116,17 +116,17 @@ Do not start Phase III+. Gate with npm run check.
 
 ## Phase III — DRY directory + Active Accounts tab
 
-**Status:** Not started  
+**Status:** Done (this PR)  
 **Goal:** Shared directory primitives powering Prospects and a dedicated Active Accounts tab.  
 **Depends on:** Phase II  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] Extract [`src/components/directory/RetailerDirectory.tsx`](src/components/directory/RetailerDirectory.tsx) from [`ProspectsTab`](src/components/tabs/ProspectsTab.tsx)
-- [ ] Refactor ProspectsTab to use shared component; exclude `active_account` by default
-- [ ] New [`src/components/tabs/ActiveAccountsTab.tsx`](src/components/tabs/ActiveAccountsTab.tsx): TLV / last order / season badges; `+ Log Order / Reorder` stub; AI badge slot
-- [ ] Wire `TabKey`, [`TabNav`](src/components/TabNav.tsx), [`RepCommandCenter`](src/components/RepCommandCenter.tsx), [`TabNav.test.tsx`](src/components/TabNav.test.tsx)
+- [x] Extract [`src/components/directory/RetailerDirectory.tsx`](src/components/directory/RetailerDirectory.tsx) from [`ProspectsTab`](src/components/tabs/ProspectsTab.tsx)
+- [x] Refactor ProspectsTab to use shared component; exclude `active_account` by default
+- [x] New [`src/components/tabs/ActiveAccountsTab.tsx`](src/components/tabs/ActiveAccountsTab.tsx): TLV / last order / season badges; `+ Log Order / Reorder` stub; AI badge slot
+- [x] Wire `TabKey`, [`TabNav`](src/components/TabNav.tsx), [`RepCommandCenter`](src/components/RepCommandCenter.tsx), [`TabNav.test.tsx`](src/components/TabNav.test.tsx)
 
 ### Out of scope
 
@@ -134,9 +134,9 @@ Do not start Phase III+. Gate with npm run check.
 
 ### Exit criteria
 
-- [ ] Dedicated Active Accounts tab (not a Prospects filter)
-- [ ] Prospects + Accounts share directory chrome
-- [ ] `npm run check` + TabNav tests green
+- [x] Dedicated Active Accounts tab (not a Prospects filter)
+- [x] Prospects + Accounts share directory chrome
+- [x] `npm run check` + TabNav tests green
 
 ### Plan prompt
 

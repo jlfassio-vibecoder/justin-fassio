@@ -22,6 +22,27 @@ export async function fetchOrdersForAccount(
   return { data: (data ?? []) as OrderRow[], error: null };
 }
 
+/** Batch-fetch orders for many accounts. Empty id list returns [] without querying. */
+export async function fetchOrdersForAccounts(
+  accountIds: number[],
+): Promise<{ data: OrderRow[]; error: string | null }> {
+  if (accountIds.length === 0) {
+    return { data: [], error: null };
+  }
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select(ORDER_SELECT)
+    .in('account_id', accountIds)
+    .order('order_date', { ascending: false });
+
+  if (error) {
+    return { data: [], error: error.message };
+  }
+
+  return { data: (data ?? []) as OrderRow[], error: null };
+}
+
 export async function insertOrder(
   input: OrderInsert,
 ): Promise<{ data: OrderRow | null; error: string | null }> {

@@ -1,0 +1,92 @@
+import { insertOrder } from '@/lib/orders';
+import { upsertAccountReorderSettings } from '@/lib/accountReorderSettings';
+import { supabase } from '@/lib/supabase';
+import type { AccountStatus, ApparelSeason } from '@/types/database';
+
+export const CONVERSION_OUTCOMES = ['Closed PO / Written Order', 'Account Converted'] as const;
+
+export type ConversionOutcome = (typeof CONVERSION_OUTCOMES)[number];
+
+export function isConversionOutcome(outcome: string): boolean {
+  return (CONVERSION_OUTCOMES as readonly string[]).includes(outcome);
+}
+
+export interface ConvertInitialOrderInput {
+  season: ApparelSeason;
+  totalAmountCad: number;
+  notes?: string | null;
+  /** YYYY-MM-DD; defaults to today (local). */
+  orderDate?: string;
+  lineId?: string | null;
+}
+
+export interface ConvertToActiveAccountInput {
+  accountId: number;
+  currentStatus: AccountStatus;
+  initialOrder?: ConvertInitialOrderInput;
+}
+
+export type ConvertToActiveAccountResult =
+  { ok: true; alreadyActive: boolean } | { ok: false; error: string };
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Promote a prospect to active_account, optionally logging an initial order.
+ * Sequential client writes (no DB transaction) — a mid-step failure may leave
+ * the prospect updated without an order/settings row.
+ */
+export async function convertToActiveAccount(
+  input: ConvertToActiveAccountInput,
+): Promise<ConvertToActiveAccountResult> {
+  if (input.currentStatus === 'active_account') {
+    return { ok: true, alreadyActive: true };
+  }
+
+  const nowIso = new Date().toISOString();
+  const orderDate = input.initialOrder?.orderDate ?? todayIsoDate();
+  const hasOrder = input.initialOrder != null;
+
+  const { error: updateError } = await supabase
+    .from('prospects')
+    .update({
+      account_status: 'active_account',
+      converted_at: nowIso,
+      initial_order_date: hasOrder ? `${orderDate}T12:00:00.000Z` : null,
+    })
+    .eq('id', input.accountId);
+
+  if (updateError) {
+    return { ok: false, error: updateError.message };
+  }
+
+  if (input.initialOrder) {
+    const orderResult = await insertOrder({
+      account_id: input.accountId,
+      line_id: input.initialOrder.lineId ?? null,
+      order_type: 'initial',
+      season: input.initialOrder.season,
+      order_date: orderDate,
+      total_amount_cad: input.initialOrder.totalAmountCad,
+      status: 'submitted',
+      notes: input.initialOrder.notes ?? null,
+    });
+
+    if (orderResult.error) {
+      return { ok: false, error: orderResult.error };
+    }
+  }
+
+  const settingsResult = await upsertAccountReorderSettings({
+    account_id: input.accountId,
+    last_order_date: hasOrder ? orderDate : null,
+  });
+
+  if (settingsResult.error) {
+    return { ok: false, error: settingsResult.error };
+  }
+
+  return { ok: true, alreadyActive: false };
+}

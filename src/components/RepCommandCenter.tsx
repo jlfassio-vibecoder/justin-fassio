@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Header } from '@/components/Header';
 import { TabNav } from '@/components/TabNav';
 import { LogCallModal } from '@/components/LogCallModal';
@@ -6,6 +6,7 @@ import { CatalogTab } from '@/components/tabs/CatalogTab';
 import { DashboardTab } from '@/components/tabs/DashboardTab';
 import { CallsTab } from '@/components/tabs/CallsTab';
 import { ProspectsTab } from '@/components/tabs/ProspectsTab';
+import { ActiveAccountsTab } from '@/components/tabs/ActiveAccountsTab';
 import { InsightsTab } from '@/components/tabs/InsightsTab';
 import { useLandedCostCalculator } from '@/hooks/useLandedCostCalculator';
 import { fetchCatalogItems, type CatalogItem } from '@/lib/catalog';
@@ -21,6 +22,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   const [modalOpen, setModalOpen] = useState(false);
   const [modalStoreId, setModalStoreId] = useState<number | null>(null);
   const [callsReloadToken, setCallsReloadToken] = useState(0);
+  const [directoryReloadToken, setDirectoryReloadToken] = useState(0);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [directoryLoading, setDirectoryLoading] = useState(true);
@@ -28,11 +30,27 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
 
   const { fx, setFx, freight, setFreight, marginRangeDisplay } = useLandedCostCalculator(catalog);
 
+  const pipelineProspects = useMemo(
+    () => prospects.filter((p) => p.accountStatus !== 'active_account'),
+    [prospects],
+  );
+  const activeAccounts = useMemo(
+    () => prospects.filter((p) => p.accountStatus === 'active_account'),
+    [prospects],
+  );
+
+  const reloadDirectory = useCallback(() => {
+    setDirectoryReloadToken((n) => n + 1);
+  }, []);
+
   useEffect(() => {
     let active = true;
+    const isInitial = directoryReloadToken === 0;
 
     async function load() {
-      setDirectoryLoading(true);
+      if (isInitial) {
+        setDirectoryLoading(true);
+      }
       setDirectoryError(null);
       const [catalogResult, prospectsResult] = await Promise.all([
         fetchCatalogItems(),
@@ -43,8 +61,10 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
 
       const errors = [catalogResult.error, prospectsResult.error].filter(Boolean);
       if (errors.length) {
-        setCatalog([]);
-        setProspects([]);
+        if (isInitial) {
+          setCatalog([]);
+          setProspects([]);
+        }
         setDirectoryError(errors.join(' · '));
         setDirectoryLoading(false);
         return;
@@ -59,7 +79,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
     return () => {
       active = false;
     };
-  }, []);
+  }, [directoryReloadToken]);
 
   function openModal(prospect?: Prospect) {
     if (!prospect && prospects.length === 0) return;
@@ -77,7 +97,8 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
             activeTab={activeTab}
             onChange={setActiveTab}
             totalSkuCount={catalog.length}
-            prospectTotalCount={prospects.length}
+            prospectTotalCount={pipelineProspects.length}
+            accountTotalCount={activeAccounts.length}
           />
         </div>
       </header>
@@ -119,7 +140,17 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
               />
             )}
             {activeTab === 'prospects' && (
-              <ProspectsTab prospects={prospects} onLogCall={(prospect) => openModal(prospect)} />
+              <ProspectsTab
+                prospects={pipelineProspects}
+                onLogCall={(prospect) => openModal(prospect)}
+                onConverted={reloadDirectory}
+              />
+            )}
+            {activeTab === 'accounts' && (
+              <ActiveAccountsTab
+                accounts={activeAccounts}
+                onLogCall={(account) => openModal(account)}
+              />
             )}
             {activeTab === 'insights' && (
               <InsightsTab marginRangeDisplay={marginRangeDisplay} reloadToken={callsReloadToken} />
@@ -135,6 +166,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
         onClose={() => setModalOpen(false)}
         onStoreChange={(id) => setModalStoreId(id)}
         onSaved={() => setCallsReloadToken((n) => n + 1)}
+        onConverted={reloadDirectory}
       />
     </div>
   );
