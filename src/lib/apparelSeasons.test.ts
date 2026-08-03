@@ -27,6 +27,7 @@ describe('mapProspectRow', () => {
       account_status: 'active_account',
       converted_at: '2026-08-01T12:00:00Z',
       initial_order_date: '2026-08-01T12:00:00Z',
+      notes: null,
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-08-01T12:00:00Z',
     };
@@ -43,6 +44,7 @@ describe('mapProspectRow', () => {
       accountStatus: 'active_account',
       convertedAt: '2026-08-01T12:00:00Z',
       initialOrderDate: '2026-08-01T12:00:00Z',
+      notes: null,
     });
   });
 });

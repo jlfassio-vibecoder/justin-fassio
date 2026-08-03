@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AddProspectAiModal } from '@/components/AddProspectAiModal';
+import { AiUpdateResearchModal } from '@/components/AiUpdateResearchModal';
 import { ProspectDetailDrawer } from '@/components/ProspectDetailDrawer';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
@@ -12,6 +13,8 @@ interface ProspectsTabProps {
   onLogCall: (prospect: Prospect) => void;
   onConverted?: () => void;
   onProspectCreated?: (prospect: Prospect) => void;
+  onProspectUpdated?: (prospect: Prospect) => void;
+  onNotesSaved?: (id: number, notes: string | null) => void;
 }
 
 export function ProspectsTab({
@@ -19,12 +22,15 @@ export function ProspectsTab({
   onLogCall,
   onConverted,
   onProspectCreated,
+  onProspectUpdated,
+  onNotesSaved,
 }: ProspectsTabProps) {
   const { openAssist } = useAiAssist();
   const [addOpen, setAddOpen] = useState(false);
   const [highlightedProspectId, setHighlightedProspectId] = useState<number | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [detailProspect, setDetailProspect] = useState<Prospect | null>(null);
+  const [aiUpdateProspect, setAiUpdateProspect] = useState<Prospect | null>(null);
 
   const pipelineProspects = useMemo(
     () => prospects.filter((p) => p.accountStatus !== 'active_account'),
@@ -82,6 +88,13 @@ export function ProspectsTab({
             <Button
               variant="secondary"
               className="px-3 py-1 text-xs"
+              onClick={() => setAiUpdateProspect(p)}
+            >
+              AI Update
+            </Button>
+            <Button
+              variant="secondary"
+              className="px-3 py-1 text-xs"
               onClick={() => {
                 const chips = { prospectId: p.id, prospectName: p.name };
                 openAssist({ chips, draft: buildSuggestDraft(chips) });
@@ -122,11 +135,30 @@ export function ProspectsTab({
         onCreated={handleCreated}
       />
 
+      <AiUpdateResearchModal
+        open={aiUpdateProspect != null}
+        prospect={aiUpdateProspect}
+        onClose={() => setAiUpdateProspect(null)}
+        onApplied={(prospect) => {
+          onProspectUpdated?.(prospect);
+          if (detailProspect?.id === prospect.id) {
+            setDetailProspect(prospect);
+          }
+          setHighlightedProspectId(prospect.id);
+          setSuccessBanner(`Updated ${prospect.name} (#${prospect.id})`);
+        }}
+      />
+
       <ProspectDetailDrawer
         prospect={detailProspect}
         onClose={() => setDetailProspect(null)}
         onLogCall={onLogCall}
         onConverted={onConverted}
+        onNotesSaved={(notes) => {
+          if (!detailProspect) return;
+          setDetailProspect({ ...detailProspect, notes });
+          onNotesSaved?.(detailProspect.id, notes);
+        }}
       />
     </>
   );

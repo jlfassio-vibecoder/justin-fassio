@@ -14,6 +14,7 @@ export type OrderType = 'initial' | 'reorder' | 'preorder';
 export type ApparelSeason =
   'spring_summer' | 'fathers_day' | 'fall_winter' | 'holiday_christmas' | 'ats_in_season';
 export type OrderStatus = 'draft' | 'submitted' | 'fulfilled';
+export type AccountContactRole = 'buyer' | 'manager' | 'owner';
 
 export interface Database {
   public: {
@@ -109,6 +110,7 @@ export interface Database {
           account_status: AccountStatus;
           converted_at: string | null;
           initial_order_date: string | null;
+          notes: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -124,6 +126,7 @@ export interface Database {
           account_status?: AccountStatus;
           converted_at?: string | null;
           initial_order_date?: string | null;
+          notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -139,6 +142,7 @@ export interface Database {
           account_status?: AccountStatus;
           converted_at?: string | null;
           initial_order_date?: string | null;
+          notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -285,6 +289,48 @@ export interface Database {
         };
         Relationships: [];
       };
+      account_contacts: {
+        Row: {
+          id: string;
+          account_id: number;
+          role: AccountContactRole;
+          full_name: string;
+          title: string | null;
+          phone: string | null;
+          email: string | null;
+          is_primary: boolean;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          account_id: number;
+          role: AccountContactRole;
+          full_name: string;
+          title?: string | null;
+          phone?: string | null;
+          email?: string | null;
+          is_primary?: boolean;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          account_id?: number;
+          role?: AccountContactRole;
+          full_name?: string;
+          title?: string | null;
+          phone?: string | null;
+          email?: string | null;
+          is_primary?: boolean;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -362,4 +408,7 @@ export type AccountReorderSettings =
   Database['public']['Tables']['account_reorder_settings']['Row'];
 export type AccountReorderSettingsInsert =
   Database['public']['Tables']['account_reorder_settings']['Insert'];
+export type AccountContact = Database['public']['Tables']['account_contacts']['Row'];
+export type AccountContactInsert = Database['public']['Tables']['account_contacts']['Insert'];
+export type AccountContactUpdate = Database['public']['Tables']['account_contacts']['Update'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];

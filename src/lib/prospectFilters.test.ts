@@ -15,6 +15,7 @@ const SAMPLE: Prospect[] = [
     accountStatus: 'prospect',
     convertedAt: null,
     initialOrderDate: null,
+    notes: null,
   },
   {
     id: 2,
@@ -28,6 +29,7 @@ const SAMPLE: Prospect[] = [
     accountStatus: 'prospect',
     convertedAt: null,
     initialOrderDate: null,
+    notes: null,
   },
   {
     id: 3,
@@ -41,6 +43,7 @@ const SAMPLE: Prospect[] = [
     accountStatus: 'prospect',
     convertedAt: null,
     initialOrderDate: null,
+    notes: null,
   },
 ];
 

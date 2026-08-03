@@ -16,6 +16,7 @@ const FIXTURE_PROSPECTS: Prospect[] = [
     accountStatus: 'prospect',
     convertedAt: null,
     initialOrderDate: null,
+    notes: null,
   },
   {
     id: 8,
@@ -29,6 +30,7 @@ const FIXTURE_PROSPECTS: Prospect[] = [
     accountStatus: 'prospect',
     convertedAt: null,
     initialOrderDate: null,
+    notes: null,
   },
 ];
 

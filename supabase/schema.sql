@@ -89,6 +89,7 @@ create table if not exists prospects (
     check (account_status in ('prospect', 'active_account', 'inactive')),
   converted_at timestamptz,
   initial_order_date timestamptz,
+  notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -195,6 +196,35 @@ create table if not exists account_reorder_settings (
 drop trigger if exists account_reorder_settings_set_updated_at on account_reorder_settings;
 create trigger account_reorder_settings_set_updated_at
   before update on account_reorder_settings
+  for each row execute function set_updated_at();
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- account_contacts — buyers / managers / owners shared across prospect + account.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists account_contacts (
+  id uuid primary key default gen_random_uuid(),
+  account_id integer not null references prospects (id) on delete cascade,
+  role text not null
+    check (role in ('buyer', 'manager', 'owner')),
+  full_name text not null,
+  title text,
+  phone text,
+  email text,
+  is_primary boolean not null default false,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists account_contacts_account_id_idx on account_contacts (account_id);
+create index if not exists account_contacts_full_name_lower_idx on account_contacts (lower(full_name));
+create unique index if not exists account_contacts_one_primary_per_account_idx
+  on account_contacts (account_id)
+  where is_primary;
+
+drop trigger if exists account_contacts_set_updated_at on account_contacts;
+create trigger account_contacts_set_updated_at
+  before update on account_contacts
   for each row execute function set_updated_at();
 
 -- ─────────────────────────────────────────────────────────────────────────
@@ -395,6 +425,7 @@ alter table prospect_updates enable row level security;
 alter table calls enable row level security;
 alter table orders enable row level security;
 alter table account_reorder_settings enable row level security;
+alter table account_contacts enable row level security;
 
 drop policy if exists "public full access" on lines;
 drop policy if exists "authenticated full access" on lines;
@@ -442,6 +473,12 @@ create policy "approved staff full access" on orders
 
 drop policy if exists "approved staff full access" on account_reorder_settings;
 create policy "approved staff full access" on account_reorder_settings
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on account_contacts;
+create policy "approved staff full access" on account_contacts
   for all to authenticated
   using (public.is_approved_staff())
   with check (public.is_approved_staff());

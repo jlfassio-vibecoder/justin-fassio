@@ -2,11 +2,13 @@
 import { useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
 import { ConvertAccountModal } from '@/components/ConvertAccountModal';
+import { MentionTextarea } from '@/components/MentionTextarea';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
-import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
+import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { useAiAssist } from '@/hooks/useAiAssist';
 import { buildCallDraft, type CallDraftFormat } from '@/lib/aiAssistPrefill';
+import type { CatalogItem } from '@/lib/catalog';
 import { CALL_OUTCOMES } from '@/lib/callOutcomes';
 import { isConversionOutcome } from '@/lib/convertToActiveAccount';
 import { OBJECTION_TAGS } from '@/lib/objectionCatalog';
@@ -18,6 +20,7 @@ interface LogCallModalProps {
   open: boolean;
   prospects: Prospect[];
   storeId: number | null;
+  catalog?: CatalogItem[];
   onClose: () => void;
   onStoreChange: (id: number) => void;
   onSaved?: () => void;
@@ -48,6 +51,7 @@ export function LogCallModal({
   open,
   prospects,
   storeId,
+  catalog,
   onClose,
   onStoreChange,
   onSaved,
@@ -302,11 +306,13 @@ export function LogCallModal({
                   </label>
                 ))}
               </div>
-              <Textarea
+              <MentionTextarea
                 rows={3}
-                placeholder="Call summary, buyer reaction…"
+                placeholder="Call summary, buyer reaction… Use # for products, @ for contacts"
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={setNotes}
+                items={catalog}
+                accountId={storeId}
               />
             </Field>
 
@@ -328,6 +334,7 @@ export function LogCallModal({
         open={showConvert}
         prospect={convertProspect}
         prefillAmountCad={convertPrefillCad}
+        catalog={catalog}
         onClose={handleClose}
         onConverted={() => {
           onConverted?.();
