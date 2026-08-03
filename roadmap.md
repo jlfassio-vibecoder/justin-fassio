@@ -378,5 +378,6 @@ H Quality bar (or earlier after C)
 ## References
 
 - Assessment: [`docs/architecture-assessment.md`](docs/architecture-assessment.md)
+- AI agents (post A–H): [`ai-agent-roadmap.md`](ai-agent-roadmap.md)
 - Auth/RLS: `supabase/migrations/20260802220000_profiles_approval_workflow.sql`, `src/lib/auth.ts`, `src/components/auth/*`
 - App shell: `src/components/RepCommandCenter.tsx`, `src/components/LogCallModal.tsx`, `src/components/tabs/*`
