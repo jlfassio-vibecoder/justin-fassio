@@ -274,17 +274,17 @@ Do not expand into a full agent platform. Exit when the slice works end-to-end o
 
 ## Phase G — Multi-rep & owner ops (optional)
 
-**Status:** Not started  
+**Status:** Done on `feature/ai-agent-integration`  
 **Goal:** Least-privilege and in-product approval when more than Justin uses the app.  
 **Depends on:** Phases B–C  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] Owner-only RPC or policy to set `profiles.status` / promote roles (users still cannot self-approve).
-- [ ] Optional simple owner UI list of pending profiles.
-- [ ] Decide invite-only signup vs open register (disable public signups or allowlist).
-- [ ] Optional: `calls.created_by` filtering if multi-rep privacy is required.
+- [x] Owner-only RPC or policy to set `profiles.status` / promote roles (users still cannot self-approve).
+- [x] Optional simple owner UI list of pending profiles.
+- [x] Decide invite-only signup vs open register (disable public signups or allowlist).
+- [ ] Optional: `calls.created_by` filtering if multi-rep privacy is required. *(Deferred — shared CRM for approved staff.)*
 
 ### Out of scope
 
@@ -292,9 +292,9 @@ Do not expand into a full agent platform. Exit when the slice works end-to-end o
 
 ### Exit criteria
 
-- [ ] Owner can approve a pending rep without SQL Editor.
-- [ ] Non-owners cannot approve.
-- [ ] Signup policy documented in README.
+- [x] Owner can approve a pending rep without SQL Editor.
+- [x] Non-owners cannot approve.
+- [x] Signup policy documented in README.
 
 ### Plan prompt
 

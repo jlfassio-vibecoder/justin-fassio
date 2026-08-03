@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { AuthProvider } from '@/components/auth/AuthProvider';
+import { OwnerPendingPanel } from '@/components/auth/OwnerPendingPanel';
 import { PendingApprovalScreen } from '@/components/auth/PendingApprovalScreen';
 import { WrongPortalScreen } from '@/components/auth/WrongPortalScreen';
 import { RepCommandCenter } from '@/components/RepCommandCenter';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
-import { isApprovedStaff } from '@/lib/auth';
+import { isApprovedOwner, isApprovedStaff } from '@/lib/auth';
 import { pingAuthorizedServer } from '@/lib/serverPing';
 
 function AuthGateInner() {
@@ -78,6 +79,7 @@ function AuthGateInner() {
             {profile.role}
           </span>
         )}
+        {isApprovedOwner(profile) ? <OwnerPendingPanel /> : null}
         {pingStatus && <span className="text-ink/60">{pingStatus}</span>}
         <Button
           type="button"

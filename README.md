@@ -30,12 +30,16 @@ Dependabot already ignores `typescript` major updates (Phase 0).
 
 ### Auth & approval
 
-New signups create a `profiles` row with `role = 'rep'` and `status = 'pending'`. The `/app` gate shows a pending screen until an owner approves the account. Domain tables (`calls`, `catalog_items`, `prospects`, etc.) are RLS-restricted to approved staff via `is_approved_staff()`.
+**Signup policy:** Open self-registration at `/rep-login`. New accounts get `role = 'rep'` and `status = 'pending'` (no self-approval). Access stays blocked until an **approved owner** approves them. Public Auth signups are not disabled; the pending gate is the control.
 
-Apply migrations in order (SQL Editor or `supabase db push`), including
-[`supabase/migrations/20260802220000_profiles_approval_workflow.sql`](supabase/migrations/20260802220000_profiles_approval_workflow.sql).
+Domain tables (`calls`, `catalog_items`, `prospects`, etc.) are RLS-restricted to approved staff via `is_approved_staff()`.
 
-Bootstrap Justin as owner (run once):
+**In-product approval (Phase G):** An approved owner signed into `/app` can use **Pending reps** to list pending profiles and Approve / Reject via owner-only RPCs (`list_pending_profiles`, `set_profile_status`). Non-owners cannot invoke those RPCs. Approving does not change `role` (stays `rep`). Promoting someone to `owner` remains a SQL bootstrap step.
+
+Apply migrations in order (SQL Editor or `supabase db push`), including the approval workflow and
+[`supabase/migrations/20260802260000_owner_approval_rpcs.sql`](supabase/migrations/20260802260000_owner_approval_rpcs.sql).
+
+Bootstrap the first owner (run once if needed):
 
 ```sql
 update public.profiles
@@ -43,7 +47,7 @@ set role = 'owner', status = 'approved', updated_at = now()
 where email = 'office@justinfassio.com';
 ```
 
-Approve a pending rep:
+Fallback SQL approve (prefer **Pending reps** in `/app`):
 
 ```sql
 update public.profiles
@@ -149,6 +153,7 @@ Optional deferred: TypeScript 6 when `@astrojs/check` peers allow a clean `npm c
 - Auth and approval are shipped (`/rep-login`, `/app` AuthGate, profiles + `is_approved_staff()` RLS).
 - Log Call Save persists to Supabase `calls` for approved staff (RLS). Dashboard, Calls (search/filters), and Insights read from those rows — empty UI only when the DB has no calls.
 - The line switcher only has data for "Old Guys Rule" today; "Busted Knuckles Garage" shows a dismissible "coming soon" notice per the design spec.
-- Catalog + prospect directories are fetched after approved-staff session from Supabase (not in the static `/app` bundle). Residual: a stolen approved JWT or post-login network capture can still read the full corpora; there is no per-rep row ownership yet (Phase G).
+- Catalog + prospect directories are fetched after approved-staff session from Supabase (not in the static `/app` bundle). Residual: a stolen approved JWT or post-login network capture can still read the full corpora; there is no per-rep call row ownership yet (`calls.created_by` deferred).
+- **Owner ops (Phase G):** Open signup + pending gate; approved owners approve/reject from `/app` → **Pending reps**. Shared domain CRUD for all approved staff remains.
 - **Server tools (Phase E):** Edge Function `authorized-ping` verifies JWT + `is_approved_staff`. From an approved `/app` session, use **Ping server** in the AuthGate chrome. Deploy with `supabase functions deploy authorized-ping`; local: `supabase functions serve authorized-ping`. Document `SUPABASE_SERVICE_ROLE_KEY` in `.env.example` for future privileged ops — never put it under `PUBLIC_*` or in client islands.
 - **AI follow-ups (Phase F):** Edge Function `suggest-follow-ups` reads one prospect’s recent calls under RLS, calls OpenAI server-side, and returns a summary + follow-up list (display-only). From Prospects, use **Suggest** on a store with logged calls. Deploy with `supabase functions deploy suggest-follow-ups` (also redeploy `authorized-ping` after shared auth changes). Set `supabase secrets set OPENAI_API_KEY=...`. Never put the OpenAI key under `PUBLIC_*` or in client islands.

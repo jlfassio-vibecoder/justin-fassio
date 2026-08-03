@@ -16,7 +16,7 @@
 | Dimension | Rating | One-line |
 |-----------|--------|----------|
 | Framework / build stack | Strong | Astro 7 + React 19 + Tailwind 4 + Node 22.22.3, intentionally pinned |
-| Auth / approval model | Strong | Client gate + DB trigger + RLS helper aligned |
+| Auth / approval model | Strong | Client gate + DB trigger + RLS + owner Pending reps RPCs |
 | Domain persistence | Strong | Calls + catalog_items + prospects wired under approved-staff RLS |
 | Data confidentiality | Moderate | Directories not in `/app` bundle; residual = approved JWT / network capture |
 | Test / CI confidence | Moderate | AuthGate + call insert + aggregates covered; no E2E |
@@ -140,6 +140,7 @@ flowchart TB
 5. `20260802223000_profiles_role_default_rep.sql` — role default `rep`
 6. `20260802250000_prospects_table.sql` — `prospects` + approved-staff RLS
 7. `20260802251000_seed_catalog_prospects.sql` — seed OGR catalog + prospect directory
+8. `20260802260000_owner_approval_rpcs.sql` — `is_approved_owner` + pending list/approve RPCs
 
 `supabase/schema.sql` matches **end state** of migrations; treat migrations as source of truth for applied databases.
 
@@ -153,8 +154,8 @@ flowchart TB
 |----|-----|--------|
 | G1 | ~~Catalog + prospects shipped in client JS~~ **Mitigated (Phase D)** | Anonymous `/app` assets no longer embed corpora; approved JWT still required |
 | G2 | ~~Log Call does not persist~~ **Mitigated (Phase B)** | Calls persist; Dashboard/Calls/Insights read live rows |
-| G3 | Open self-registration → unlimited pending reps | Noise / abuse; not privilege escalation, but ops burden |
-| G4 | All approved staff share full CRUD on all domain rows | Fine for solo Justin; weak for multi-rep least privilege |
+| G3 | Open self-registration → unlimited pending reps | Documented ops choice; owners clear queue via `/app` Pending reps |
+| G4 | All approved staff share full CRUD on all domain rows | Fine for solo Justin; `calls.created_by` still deferred |
 
 ### 5.2 Structural / consistency gaps
 
@@ -183,10 +184,10 @@ flowchart TB
 
 ### 5.4 Explicitly out of scope / accepted for prior phase
 
-- In-app owner approval UI (SQL/dashboard by design for v1)  
 - Buyer-facing catalog commerce  
 - Astro middleware / SSR session (would require leaving pure `static` or adding edge)  
 - Resend as product email (script-only smoke test; Auth email is Supabase’s)
+- Per-rep `calls.created_by` ownership (deferred past Phase G)
 
 ---
 
@@ -258,8 +259,8 @@ flowchart TB
 
 9. ~~Stop shipping full prospect/catalog arrays in the public `/app` chunk~~ **Done (Phase D).**  
 10. Tab-level code splitting for RCC.  
-11. Owner-only approve RPC + optional in-app approval UI.  
-12. Per-rep row ownership if multi-user.
+11. Owner-only approve RPC + in-app approval UI. *(Done Phase G)*  
+12. Per-rep row ownership if multi-user. *(Still deferred)*
 
 ### P3 — Quality bar
 
@@ -286,7 +287,7 @@ Use this before treating the repo as a clean base for AI work:
 - [x] Server surface exists for any agent/tooling that needs secrets  
 - [x] One vertical AI slice (`suggest-follow-ups`) — still not a multi-agent platform
 
-**Phase-gate conclusion:** Phases A–F vertical slice is on `feature/ai-agent-integration`. Residual confidentiality (approved JWT / network capture) and multi-rep ownership remain Phase G+.
+**Phase-gate conclusion:** Phases A–G (through in-product owner approval) are on `feature/ai-agent-integration`. Residual: approved JWT / network capture on directories; shared domain CRUD without per-rep call ownership.
 
 ---
 
