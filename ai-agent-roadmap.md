@@ -24,11 +24,11 @@ Do **not** combine phases in one plan unless a later phase explicitly lists a de
 **CRM-bound reads/tools → Supabase Edge (or JWT + RLS from the Vercel route).**  
 **Never** put provider keys in `PUBLIC_*` or React islands.
 
-| Layer | Responsibility |
-| ----- | -------------- |
-| [`src/pages/api/agent.ts`](src/pages/api/agent.ts) + `ai` | Streaming assist; model strings via Gateway (`openai/gpt-4o`); OIDC on Vercel / `AI_GATEWAY_API_KEY` locally |
-| Supabase Edge (`suggest-follow-ups`, `authorized-ping`, later tools) | Auth boundary + CRM under user JWT + RLS; Edge may keep `OPENAI_API_KEY` for final-text slices |
-| Client islands | Bearer to `/api/*` or `functions.invoke`; no LLM secrets |
+| Layer                                                                | Responsibility                                                                                               |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| [`src/pages/api/agent.ts`](src/pages/api/agent.ts) + `ai`            | Streaming assist; model strings via Gateway (`openai/gpt-4o`); OIDC on Vercel / `AI_GATEWAY_API_KEY` locally |
+| Supabase Edge (`suggest-follow-ups`, `authorized-ping`, later tools) | Auth boundary + CRM under user JWT + RLS; Edge may keep `OPENAI_API_KEY` for final-text slices               |
+| Client islands                                                       | Bearer to `/api/*` or `functions.invoke`; no LLM secrets                                                     |
 
 ```text
 React /app
@@ -69,19 +69,19 @@ React /app
 
 ## Phase I — Agent tools on the Vercel route
 
-**Status:** Not started  
+**Status:** Done  
 **Goal:** Give `/api/agent` read tools over CRM data under the caller’s JWT + RLS (no browser secrets).  
 **Depends on:** Phase 0  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] AI SDK `tools` on `/api/agent` that create a user-scoped Supabase client from the request Bearer token and read under RLS — **or** thin HTTP wrappers that invoke existing Edge functions with the same JWT.
-- [ ] First tools (reuse shapes from [`suggest-follow-ups`](supabase/functions/suggest-follow-ups/index.ts)):
+- [x] AI SDK `tools` on `/api/agent` that create a user-scoped Supabase client from the request Bearer token and read under RLS — **or** thin HTTP wrappers that invoke existing Edge functions with the same JWT.
+- [x] First tools (reuse shapes from [`suggest-follow-ups`](supabase/functions/suggest-follow-ups/index.ts)):
   - `getProspectSummary` — prospect `id,name,category,region,city,fit`
   - `listRecentCalls` — recent calls for a `prospect_id` (date, outcome, contact, PMF, notes truncated, tags, follow_up)
-- [ ] Guardrails: `stopWhen` / max steps; token caps; approved-staff only (keep existing gate).
-- [ ] Prefer **not** duplicating OpenAI secrets on Vercel for CRM tools that already work on Edge until streaming-with-tools in one turn requires it.
+- [x] Guardrails: `stopWhen` / max steps; token caps; approved-staff only (keep existing gate).
+- [x] Prefer **not** duplicating OpenAI secrets on Vercel for CRM tools that already work on Edge until streaming-with-tools in one turn requires it.
 
 ### Out of scope
 
@@ -89,9 +89,9 @@ React /app
 
 ### Exit criteria
 
-- [ ] Approved staff can ask a question that triggers tools and gets a grounded reply from real prospect/call data.
-- [ ] Non-approved / anon cannot invoke tools usefully (401/403).
-- [ ] `npm run check` green; no `PUBLIC_*` LLM keys.
+- [x] Approved staff can ask a question that triggers tools and gets a grounded reply from real prospect/call data.
+- [x] Non-approved / anon cannot invoke tools usefully (401/403).
+- [x] `npm run check` green; no `PUBLIC_*` LLM keys.
 
 ### Plan prompt
 
@@ -217,7 +217,7 @@ No new agent product features. Exit when CI covers auth failure and docs match t
 ```text
 0 AI SDK baseline (/api/agent + AI assist)     ← done
     ↓
-I  Tools on /api/agent (JWT + RLS CRM reads)
+I  Tools on /api/agent (JWT + RLS CRM reads)   ← done
     ↓
 II Chat UX (useChat + prefills)
     ↓
@@ -226,13 +226,13 @@ III Product slices (one PR each)
 IV Ops & hardening
 ```
 
-| Phase | Plan-sized goal |
-| ----- | --------------- |
-| 0 | Streaming baseline + staff gate |
-| I | Tool-grounded CRM reads |
-| II | Multi-turn chat UX |
-| III | Objection / draft / summarize (+ Edge Suggest decision) |
-| IV | Limits, tests, docs |
+| Phase | Plan-sized goal                                         |
+| ----- | ------------------------------------------------------- |
+| 0     | Streaming baseline + staff gate                         |
+| I     | Tool-grounded CRM reads                                 |
+| II    | Multi-turn chat UX                                      |
+| III   | Objection / draft / summarize (+ Edge Suggest decision) |
+| IV    | Limits, tests, docs                                     |
 
 ---
 

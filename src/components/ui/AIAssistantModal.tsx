@@ -111,10 +111,13 @@ export function AIAssistantModal() {
             <Textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="e.g. Draft a follow-up after a sample request at a golf shop…"
+              placeholder="e.g. Summarize prospect 12 call history…"
               rows={4}
               required
             />
+            <p className="text-ink/60 m-0 text-xs">
+              Include a prospect # (e.g. 12) so the agent can load CRM calls.
+            </p>
           </Field>
 
           {error ? (
