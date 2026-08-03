@@ -26,8 +26,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm config set optional true
-          npm ci --include=optional
+          npm ci
           npm rebuild @astrojs/compiler
 
       - name: Lint, typecheck, and test
