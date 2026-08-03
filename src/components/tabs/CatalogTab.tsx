@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Button } from '@/components/ui/Button';
 import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
@@ -11,6 +12,7 @@ import {
   marginPct,
   type LandedCostFactors,
 } from '@/lib/landedCost';
+import { fetchLandedRates, type LandedRatesPayload } from '@/lib/landedRatesClient';
 
 const CATEGORY_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Categories' },
@@ -28,6 +30,27 @@ function parseRatePctInput(raw: string, fallback: number): number {
   const n = parseFloat(raw);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(0, n) / 100;
+}
+
+function applyLandedRatesPayload(
+  rates: LandedRatesPayload,
+  setters: {
+    setFx: (fx: number) => void;
+    setFreightRate: (rate: number) => void;
+    setGstRate: (rate: number) => void;
+    setOtherTaxRate: (rate: number) => void;
+  },
+) {
+  setters.setFx(rates.fx);
+  if (rates.freightRate != null && Number.isFinite(rates.freightRate)) {
+    setters.setFreightRate(rates.freightRate);
+  }
+  if (rates.gstRate != null && Number.isFinite(rates.gstRate)) {
+    setters.setGstRate(rates.gstRate);
+  }
+  if (rates.otherTaxRate != null && Number.isFinite(rates.otherTaxRate)) {
+    setters.setOtherTaxRate(rates.otherTaxRate);
+  }
 }
 
 interface CatalogTabProps {
@@ -60,6 +83,9 @@ export function CatalogTab({
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('ALL');
   const [flag, setFlag] = useState<CatalogFlagFilter>('ALL');
+  const [ratesBusy, setRatesBusy] = useState(false);
+  const [ratesError, setRatesError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const filteredCatalog = useMemo(() => {
     return filterCatalogItems(catalog, { search, category, flag }).map((item) => {
@@ -97,6 +123,24 @@ export function CatalogTab({
     landedMetaParts.push(`other +${formatRatePct(otherTaxRate)}`);
   }
 
+  async function handleUpdateRates() {
+    setRatesBusy(true);
+    setRatesError(null);
+    const result = await fetchLandedRates();
+    setRatesBusy(false);
+    if (!result.ok) {
+      setRatesError(result.error);
+      return;
+    }
+    applyLandedRatesPayload(result.rates, {
+      setFx,
+      setFreightRate,
+      setGstRate,
+      setOtherTaxRate,
+    });
+    setLastUpdated(result.rates.asOf);
+  }
+
   return (
     <section className="flex flex-col gap-5" data-screen-label="catalog">
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
@@ -125,64 +169,87 @@ export function CatalogTab({
       </div>
 
       <Card row className="flex-wrap items-center justify-between gap-5">
-        <div className="flex flex-wrap items-center gap-3.5">
-          <span className="text-xs font-semibold opacity-70">CAD Landed Multiplier</span>
-          <div className="flex items-center gap-1.5">
-            <label className="text-xs whitespace-nowrap">FX rate</label>
-            <Input
-              type="number"
-              step="0.01"
-              min="1"
-              value={fx}
-              onChange={(e) => setFx(parseFloat(e.target.value) || DEFAULT_LANDED_COST_FACTORS.fx)}
-              className="w-20"
-            />
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-3.5">
+            <span className="text-xs font-semibold opacity-70">CAD Landed Multiplier</span>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs whitespace-nowrap">FX rate</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="1"
+                value={fx}
+                onChange={(e) =>
+                  setFx(parseFloat(e.target.value) || DEFAULT_LANDED_COST_FACTORS.fx)
+                }
+                className="w-20"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs whitespace-nowrap">Freight %</label>
+              <Input
+                type="number"
+                step="0.1"
+                min="0"
+                value={Number((freightRate * 100).toFixed(2))}
+                onChange={(e) =>
+                  setFreightRate(
+                    parseRatePctInput(e.target.value, DEFAULT_LANDED_COST_FACTORS.freightRate),
+                  )
+                }
+                className="w-20"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs whitespace-nowrap">GST %</label>
+              <Input
+                type="number"
+                step="0.1"
+                min="0"
+                value={Number((gstRate * 100).toFixed(2))}
+                onChange={(e) =>
+                  setGstRate(parseRatePctInput(e.target.value, DEFAULT_LANDED_COST_FACTORS.gstRate))
+                }
+                className="w-20"
+                title="Federal Goods and Services Tax"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs whitespace-nowrap">Other tax %</label>
+              <Input
+                type="number"
+                step="0.1"
+                min="0"
+                value={Number((otherTaxRate * 100).toFixed(2))}
+                onChange={(e) =>
+                  setOtherTaxRate(
+                    parseRatePctInput(e.target.value, DEFAULT_LANDED_COST_FACTORS.otherTaxRate),
+                  )
+                }
+                className="w-20"
+                title="PST / HST / other combined"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              className="text-xs"
+              disabled={ratesBusy}
+              onClick={() => void handleUpdateRates()}
+            >
+              {ratesBusy ? 'Updating…' : 'Update'}
+            </Button>
+            <span className="text-xs opacity-60">
+              {lastUpdated
+                ? `Updated ${new Date(lastUpdated).toLocaleString()}`
+                : 'Not updated yet'}
+            </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <label className="text-xs whitespace-nowrap">Freight %</label>
-            <Input
-              type="number"
-              step="0.1"
-              min="0"
-              value={Number((freightRate * 100).toFixed(2))}
-              onChange={(e) =>
-                setFreightRate(
-                  parseRatePctInput(e.target.value, DEFAULT_LANDED_COST_FACTORS.freightRate),
-                )
-              }
-              className="w-20"
-            />
-          </div>
-          <div className="flex items-center gap-1.5">
-            <label className="text-xs whitespace-nowrap">GST %</label>
-            <Input
-              type="number"
-              step="0.1"
-              min="0"
-              value={Number((gstRate * 100).toFixed(2))}
-              onChange={(e) =>
-                setGstRate(parseRatePctInput(e.target.value, DEFAULT_LANDED_COST_FACTORS.gstRate))
-              }
-              className="w-20"
-              title="Federal Goods and Services Tax"
-            />
-          </div>
-          <div className="flex items-center gap-1.5">
-            <label className="text-xs whitespace-nowrap">Other tax %</label>
-            <Input
-              type="number"
-              step="0.1"
-              min="0"
-              value={Number((otherTaxRate * 100).toFixed(2))}
-              onChange={(e) =>
-                setOtherTaxRate(
-                  parseRatePctInput(e.target.value, DEFAULT_LANDED_COST_FACTORS.otherTaxRate),
-                )
-              }
-              className="w-20"
-              title="PST / HST / other combined"
-            />
-          </div>
+          {ratesError ? (
+            <p className="text-accent-800 m-0 text-sm" role="alert">
+              {ratesError}
+            </p>
+          ) : null}
         </div>
         <div className="gap-4.1 flex flex-wrap text-[13px]">
           <span>

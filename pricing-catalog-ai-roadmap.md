@@ -94,16 +94,16 @@ No AI, no Update button, no API. Gate with npm run check.
 
 ## Phase II — Update control + client shell (no live search yet)
 
-**Status:** Not started  
+**Status:** Done  
 **Goal:** Add **Update** UX and a typed client helper; stub or soft-fail until Phase III.  
 **Depends on:** Phase I  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] **Update** button on the CAD Landed Multiplier bar (busy / error / optional last-updated placeholder)
-- [ ] Client module (e.g. [`src/lib/landedRatesClient.ts`](src/lib/landedRatesClient.ts)) posting to `/api/pricing/landed-rates` with Bearer token (mirror enrich client pattern)
-- [ ] Soft-surface errors when the API is missing or returns 501; do **not** leave a permanent mock flag in main after Phase III
+- [x] **Update** button on the CAD Landed Multiplier bar (busy / error / optional last-updated placeholder)
+- [x] Client module (e.g. [`src/lib/landedRatesClient.ts`](src/lib/landedRatesClient.ts)) posting to `/api/pricing/landed-rates` with Bearer token (mirror enrich client pattern)
+- [x] Soft-surface errors when the API is missing or returns 501; do **not** leave a permanent mock flag in main after Phase III
 
 ### Out of scope
 
@@ -112,9 +112,9 @@ No AI, no Update button, no API. Gate with npm run check.
 
 ### Exit criteria
 
-- [ ] Manual fields still work without Update
-- [ ] Update shows clear busy/error (or soft “not ready”) without crashing
-- [ ] `npm run check` green
+- [x] Manual fields still work without Update
+- [x] Update shows clear busy/error (or soft “not ready”) without crashing
+- [x] `npm run check` green
 
 ### Plan prompt
 
