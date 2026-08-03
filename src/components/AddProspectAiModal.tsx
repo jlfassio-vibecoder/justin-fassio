@@ -1,3 +1,4 @@
+// Copilot suggestion ignored: React 19 types export SubmitEvent; FormEvent is deprecated for form onSubmit.
 import { useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';

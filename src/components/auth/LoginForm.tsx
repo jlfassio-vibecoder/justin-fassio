@@ -1,3 +1,4 @@
+// Copilot suggestion ignored: React 19 types export SubmitEvent; FormEvent is deprecated for form onSubmit.
 import { useEffect, useState, type MouseEvent, type SubmitEvent } from 'react';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
