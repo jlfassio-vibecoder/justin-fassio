@@ -127,18 +127,18 @@ No live web research yet. Gate with npm run check.
 
 ## Phase III — Web research API (core AI)
 
-**Status:** Not started  
+**Status:** Done  
 **Goal:** Authenticated API researches current USD→CAD (and optional suggested rates) and applies into calculator state.  
 **Depends on:** Phase II  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] `researchUsdCadLandedFactors` (Perplexity via AI Gateway → brief; structured via `generateObject`)
-- [ ] Return shape: `{ fx, freightRate?, gstRate?, otherTaxRate?, brief, asOf }`
-- [ ] [`src/pages/api/pricing/landed-rates.ts`](src/pages/api/pricing/landed-rates.ts) (or `index.ts`): `prerender = false`, `requireApprovedStaffClient`
-- [ ] Wire Update to apply FX (and any suggested rates); fields remain editable after apply
-- [ ] Unit tests with mocked search / `generateObject`; auth rejection covered where practical
+- [x] `researchUsdCadLandedFactors` (Perplexity via AI Gateway → brief; structured via `generateObject`)
+- [x] Return shape: `{ fx, freightRate?, gstRate?, otherTaxRate?, brief, asOf }`
+- [x] [`src/pages/api/pricing/landed-rates.ts`](src/pages/api/pricing/landed-rates.ts) (or `index.ts`): `prerender = false`, `requireApprovedStaffClient`
+- [x] Wire Update to apply FX (and any suggested rates); fields remain editable after apply
+- [x] Unit tests with mocked search / `generateObject`; auth rejection covered where practical
 
 ### Out of scope
 
@@ -146,9 +146,9 @@ No live web research yet. Gate with npm run check.
 
 ### Exit criteria
 
-- [ ] Authenticated Update refreshes FX from the web into the calculator
-- [ ] Unauthenticated → 401
-- [ ] `npm run check` green
+- [x] Authenticated Update refreshes FX from the web into the calculator
+- [x] Unauthenticated → 401
+- [x] `npm run check` green
 
 ### Plan prompt
 
