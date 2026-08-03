@@ -4,7 +4,13 @@ import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import type { CatalogItem } from '@/lib/catalog';
 import { filterCatalogItems, type CatalogFlagFilter } from '@/lib/catalogFilters';
-import { landedCad, marginPct } from '@/lib/landedCost';
+import {
+  DEFAULT_LANDED_COST_FACTORS,
+  formatRatePct,
+  landedCad,
+  marginPct,
+  type LandedCostFactors,
+} from '@/lib/landedCost';
 
 const CATEGORY_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Categories' },
@@ -18,12 +24,23 @@ const CATEGORY_OPTIONS: { value: string; label: string }[] = [
   { value: 'Magnets & Stickers', label: 'Magnets & Stickers' },
 ];
 
+function parseRatePctInput(raw: string, fallback: number): number {
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, n) / 100;
+}
+
 interface CatalogTabProps {
   catalog: CatalogItem[];
   fx: number;
   setFx: (fx: number) => void;
-  freight: number;
-  setFreight: (freight: number) => void;
+  freightRate: number;
+  setFreightRate: (rate: number) => void;
+  gstRate: number;
+  setGstRate: (rate: number) => void;
+  otherTaxRate: number;
+  setOtherTaxRate: (rate: number) => void;
+  factors: LandedCostFactors;
   marginRangeDisplay: string;
 }
 
@@ -31,8 +48,13 @@ export function CatalogTab({
   catalog,
   fx,
   setFx,
-  freight,
-  setFreight,
+  freightRate,
+  setFreightRate,
+  gstRate,
+  setGstRate,
+  otherTaxRate,
+  setOtherTaxRate,
+  factors,
   marginRangeDisplay,
 }: CatalogTabProps) {
   const [search, setSearch] = useState('');
@@ -41,8 +63,8 @@ export function CatalogTab({
 
   const filteredCatalog = useMemo(() => {
     return filterCatalogItems(catalog, { search, category, flag }).map((item) => {
-      const landed = landedCad(item.priceUsd, fx, freight);
-      const margin = marginPct(item.priceUsd, item.msrpCad, fx, freight);
+      const landed = landedCad(item.priceUsd, factors);
+      const margin = marginPct(item.priceUsd, item.msrpCad, factors);
       const sellable = margin != null;
       return {
         ...item,
@@ -53,7 +75,7 @@ export function CatalogTab({
         marginDisplay: sellable ? `${margin.toFixed(1)}%` : '—',
       };
     });
-  }, [catalog, search, category, flag, fx, freight]);
+  }, [catalog, search, category, flag, factors]);
 
   const newCount = useMemo(() => catalog.filter((it) => it.isNew).length, [catalog]);
   const nameDropCount = useMemo(() => catalog.filter((it) => it.isNameDrop).length, [catalog]);
@@ -63,10 +85,17 @@ export function CatalogTab({
     [catalog],
   );
   const sampleTeeLanded = sampleTee
-    ? `$${landedCad(sampleTee.priceUsd, fx, freight).toFixed(2)} CAD`
+    ? `$${landedCad(sampleTee.priceUsd, factors).toFixed(2)} CAD`
     : '—';
 
-  const freightPctDisplay = `${((freight - 1) * 100).toFixed(0)}%`;
+  const landedMetaParts = [
+    `FX ${fx}`,
+    `freight +${formatRatePct(freightRate)}`,
+    `GST +${formatRatePct(gstRate)}`,
+  ];
+  if (otherTaxRate > 0) {
+    landedMetaParts.push(`other +${formatRatePct(otherTaxRate)}`);
+  }
 
   return (
     <section className="flex flex-col gap-5" data-screen-label="catalog">
@@ -86,9 +115,7 @@ export function CatalogTab({
         <Card>
           <CardKicker>Est. Landed CAD Cost</CardKicker>
           <CardTitle className="text-sage-800 text-[28px]">{sampleTeeLanded}</CardTitle>
-          <CardMeta>
-            FX {fx} &middot; freight +{freightPctDisplay}
-          </CardMeta>
+          <CardMeta>{landedMetaParts.join(' · ')}</CardMeta>
         </Card>
         <Card>
           <CardKicker>Retailer Keystone Margin</CardKicker>
@@ -107,19 +134,53 @@ export function CatalogTab({
               step="0.01"
               min="1"
               value={fx}
-              onChange={(e) => setFx(parseFloat(e.target.value) || 1.45)}
+              onChange={(e) => setFx(parseFloat(e.target.value) || DEFAULT_LANDED_COST_FACTORS.fx)}
               className="w-20"
             />
           </div>
           <div className="flex items-center gap-1.5">
-            <label className="text-xs whitespace-nowrap">Freight</label>
+            <label className="text-xs whitespace-nowrap">Freight %</label>
             <Input
               type="number"
-              step="0.01"
-              min="1"
-              value={freight}
-              onChange={(e) => setFreight(parseFloat(e.target.value) || 1.1)}
+              step="0.1"
+              min="0"
+              value={Number((freightRate * 100).toFixed(2))}
+              onChange={(e) =>
+                setFreightRate(
+                  parseRatePctInput(e.target.value, DEFAULT_LANDED_COST_FACTORS.freightRate),
+                )
+              }
               className="w-20"
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs whitespace-nowrap">GST %</label>
+            <Input
+              type="number"
+              step="0.1"
+              min="0"
+              value={Number((gstRate * 100).toFixed(2))}
+              onChange={(e) =>
+                setGstRate(parseRatePctInput(e.target.value, DEFAULT_LANDED_COST_FACTORS.gstRate))
+              }
+              className="w-20"
+              title="Federal Goods and Services Tax"
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs whitespace-nowrap">Other tax %</label>
+            <Input
+              type="number"
+              step="0.1"
+              min="0"
+              value={Number((otherTaxRate * 100).toFixed(2))}
+              onChange={(e) =>
+                setOtherTaxRate(
+                  parseRatePctInput(e.target.value, DEFAULT_LANDED_COST_FACTORS.otherTaxRate),
+                )
+              }
+              className="w-20"
+              title="PST / HST / other combined"
             />
           </div>
         </div>

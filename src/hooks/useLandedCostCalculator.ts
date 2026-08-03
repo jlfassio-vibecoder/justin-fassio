@@ -1,15 +1,34 @@
 import { useMemo, useState } from 'react';
 import type { CatalogItem } from '@/lib/catalog';
-import { formatMarginRange } from '@/lib/landedCost';
+import {
+  DEFAULT_LANDED_COST_FACTORS,
+  formatMarginRange,
+  type LandedCostFactors,
+} from '@/lib/landedCost';
 
 export function useLandedCostCalculator(catalog: CatalogItem[]) {
-  const [fx, setFx] = useState(1.45);
-  const [freight, setFreight] = useState(1.1);
+  const [fx, setFx] = useState(DEFAULT_LANDED_COST_FACTORS.fx);
+  const [freightRate, setFreightRate] = useState(DEFAULT_LANDED_COST_FACTORS.freightRate);
+  const [gstRate, setGstRate] = useState(DEFAULT_LANDED_COST_FACTORS.gstRate);
+  const [otherTaxRate, setOtherTaxRate] = useState(DEFAULT_LANDED_COST_FACTORS.otherTaxRate);
 
-  const marginRangeDisplay = useMemo(
-    () => formatMarginRange(catalog, fx, freight),
-    [catalog, fx, freight],
+  const factors: LandedCostFactors = useMemo(
+    () => ({ fx, freightRate, gstRate, otherTaxRate }),
+    [fx, freightRate, gstRate, otherTaxRate],
   );
 
-  return { fx, setFx, freight, setFreight, marginRangeDisplay };
+  const marginRangeDisplay = useMemo(() => formatMarginRange(catalog, factors), [catalog, factors]);
+
+  return {
+    fx,
+    setFx,
+    freightRate,
+    setFreightRate,
+    gstRate,
+    setGstRate,
+    otherTaxRate,
+    setOtherTaxRate,
+    factors,
+    marginRangeDisplay,
+  };
 }
