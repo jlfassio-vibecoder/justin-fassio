@@ -13,6 +13,9 @@ const FIXTURE_PROSPECTS: Prospect[] = [
     address: '1297 Glenmore Dr',
     phone: '250-762-2531',
     fit: 'Test golf fit',
+    accountStatus: 'prospect',
+    convertedAt: null,
+    initialOrderDate: null,
   },
   {
     id: 8,
@@ -23,6 +26,9 @@ const FIXTURE_PROSPECTS: Prospect[] = [
     address: '1 Harbour',
     phone: '250-000-0000',
     fit: 'Test marina fit',
+    accountStatus: 'prospect',
+    convertedAt: null,
+    initialOrderDate: null,
   },
 ];
 

@@ -17,6 +17,9 @@ const TEST_PROSPECTS: Prospect[] = [
     address: '1297 Glenmore Dr',
     phone: '250-762-2531',
     fit: 'Test',
+    accountStatus: 'prospect',
+    convertedAt: null,
+    initialOrderDate: null,
   },
 ];
 
