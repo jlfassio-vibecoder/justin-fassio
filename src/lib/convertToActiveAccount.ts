@@ -1,5 +1,6 @@
 import { insertOrder } from '@/lib/orders';
 import { upsertAccountReorderSettings } from '@/lib/accountReorderSettings';
+import { formatLocalIsoDate } from '@/lib/reorderCadence';
 import { supabase } from '@/lib/supabase';
 import type { AccountStatus, ApparelSeason } from '@/types/database';
 
@@ -30,7 +31,7 @@ export type ConvertToActiveAccountResult =
   { ok: true; alreadyActive: boolean } | { ok: false; error: string };
 
 function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
+  return formatLocalIsoDate(new Date());
 }
 
 /**
@@ -49,6 +50,7 @@ export async function convertToActiveAccount(
   const orderDate = input.initialOrder?.orderDate ?? todayIsoDate();
   const hasOrder = input.initialOrder != null;
 
+  // Copilot suggestion ignored: atomic RPC/rollback would add a new DB surface; sequential writes are intentional for this client flow.
   const { error: updateError } = await supabase
     .from('prospects')
     .update({

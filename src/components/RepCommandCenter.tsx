@@ -113,7 +113,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
           </p>
         )}
 
-        {!directoryLoading && !directoryError && (
+        {!directoryLoading && (catalog.length > 0 || prospects.length > 0 || !directoryError) && (
           <>
             {activeTab === 'catalog' && (
               <CatalogTab

@@ -142,33 +142,40 @@ export function ActiveAccountsTab({ accounts, onLogCall }: ActiveAccountsTabProp
     setRefreshBusy(true);
     setRefreshError(null);
 
-    for (const account of accounts) {
-      const orders = ordersByAccount.get(account.id) ?? [];
-      const existing = settingsByAccount.get(account.id);
-      const lastOrder = lastOrderDate(orders) ?? existing?.last_order_date ?? null;
-      const season = latestSeason(orders);
-      const suggestion = computeReorderSuggestion({
-        lastOrderDate: lastOrder,
-        lastSeason: season,
-        accountName: account.name,
-      });
+    const results = await Promise.allSettled(
+      accounts.map(async (account) => {
+        const orders = ordersByAccount.get(account.id) ?? [];
+        const existing = settingsByAccount.get(account.id);
+        const lastOrder = lastOrderDate(orders) ?? existing?.last_order_date ?? null;
+        const season = latestSeason(orders);
+        const suggestion = computeReorderSuggestion({
+          lastOrderDate: lastOrder,
+          lastSeason: season,
+          accountName: account.name,
+        });
 
-      const result = await upsertAccountReorderSettings({
-        account_id: account.id,
-        last_order_date: lastOrder,
-        next_suggested_contact_date: suggestion.nextSuggestedContactDate,
-        seasonal_cadence_tags: suggestion.seasonalCadenceTags,
-        ai_reorder_notes: suggestion.aiReorderNotes,
-      });
+        const result = await upsertAccountReorderSettings({
+          account_id: account.id,
+          last_order_date: lastOrder,
+          next_suggested_contact_date: suggestion.nextSuggestedContactDate,
+          seasonal_cadence_tags: suggestion.seasonalCadenceTags,
+          ai_reorder_notes: suggestion.aiReorderNotes,
+        });
 
-      if (result.error) {
-        setRefreshBusy(false);
-        setRefreshError(`${account.name}: ${result.error}`);
-        return;
-      }
-    }
+        if (result.error) {
+          throw new Error(`${account.name}: ${result.error}`);
+        }
+      }),
+    );
+
+    const failures = results
+      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)));
 
     setRefreshBusy(false);
+    if (failures.length > 0) {
+      setRefreshError(failures.join(' · '));
+    }
     reloadSettings();
   }
 

@@ -175,6 +175,23 @@ describe('LogCallModal', () => {
     expect(screen.queryByText(/Convert to Active Account/i)).not.toBeInTheDocument();
   });
 
+  it('skips convert prompt when prospect is inactive', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onSaved = vi.fn();
+    const inactiveProspects: Prospect[] = [{ ...TEST_PROSPECTS[0]!, accountStatus: 'inactive' }];
+    render(<ModalHarness onClose={onClose} onSaved={onSaved} prospects={inactiveProspects} />);
+
+    await user.type(screen.getByPlaceholderText(/Dave Miller/i), 'Dave Miller (Owner)');
+    await user.click(screen.getByRole('button', { name: /Save Call Record/i }));
+
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
+    });
+    expect(screen.queryByText(/Convert to Active Account/i)).not.toBeInTheDocument();
+  });
+
   it('shows an error and stays open when insert fails', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

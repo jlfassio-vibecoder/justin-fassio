@@ -150,7 +150,8 @@ export function LogCallModal({
     const shouldPromptConvert =
       isConversionOutcome(savedOutcome) &&
       prospectForConvert != null &&
-      prospectForConvert.accountStatus !== 'active_account';
+      prospectForConvert.accountStatus !== 'active_account' &&
+      prospectForConvert.accountStatus !== 'inactive';
 
     if (shouldPromptConvert) {
       setConvertPrefillCad(savedOrderValue > 0 ? savedOrderValue : null);

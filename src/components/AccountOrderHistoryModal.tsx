@@ -13,6 +13,7 @@ import { resolveOgrLineId } from '@/lib/lines';
 import { filterOrdersBySeason, type SeasonFilter } from '@/lib/orderAggregates';
 import { insertOrder, type OrderRow } from '@/lib/orders';
 import type { Prospect } from '@/lib/prospects';
+import { formatLocalIsoDate } from '@/lib/reorderCadence';
 import type { ApparelSeason, OrderStatus, OrderType } from '@/types/database';
 
 interface AccountOrderHistoryModalProps {
@@ -36,7 +37,7 @@ const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
 ];
 
 function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
+  return formatLocalIsoDate(new Date());
 }
 
 function formatCad(amount: number): string {
