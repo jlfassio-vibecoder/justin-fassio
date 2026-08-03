@@ -28,8 +28,9 @@ jobs:
         run: |
           set -euo pipefail
           npm ci
-          # Must match what eslint-plugin-astro loads (not @astrojs/compiler JS).
+          # Probe packages ESLint / astro check actually load (not JS stubs).
           node -e "import('@astrojs/compiler-binding')"
+          node -e "import('rolldown')"
 
       - name: Lint, typecheck, and test
         run: npm run check
