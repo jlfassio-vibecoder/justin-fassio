@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  filterOrdersBySeason,
   groupOrdersByAccountId,
   lastOrderDate,
   latestSeason,
@@ -73,5 +74,16 @@ describe('orderAggregates', () => {
     ]);
     expect(grouped.get(10)).toHaveLength(2);
     expect(grouped.get(20)).toHaveLength(1);
+  });
+
+  it('filters orders by season', () => {
+    const rows = [
+      order({ id: '1', account_id: 1, order_date: '2026-01-01', season: 'fathers_day' }),
+      order({ id: '2', account_id: 1, order_date: '2026-02-01', season: 'holiday_christmas' }),
+      order({ id: '3', account_id: 1, order_date: '2026-03-01', season: 'fathers_day' }),
+    ];
+    expect(filterOrdersBySeason(rows, 'ALL')).toHaveLength(3);
+    expect(filterOrdersBySeason(rows, 'fathers_day').map((o) => o.id)).toEqual(['1', '3']);
+    expect(filterOrdersBySeason(rows, 'ats_in_season')).toEqual([]);
   });
 });

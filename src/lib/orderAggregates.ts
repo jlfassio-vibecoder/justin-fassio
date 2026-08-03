@@ -38,3 +38,14 @@ export function groupOrdersByAccountId(orders: OrderRow[]): Map<number, OrderRow
   }
   return map;
 }
+
+export type SeasonFilter = ApparelSeason | 'ALL';
+
+/** Filter by apparel season. `'ALL'` returns a shallow copy (order preserved). */
+export function filterOrdersBySeason<T extends Pick<OrderRow, 'season'>>(
+  orders: T[],
+  season: SeasonFilter,
+): T[] {
+  if (season === 'ALL') return [...orders];
+  return orders.filter((o) => o.season === season);
+}

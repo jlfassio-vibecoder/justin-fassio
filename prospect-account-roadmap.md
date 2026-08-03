@@ -149,17 +149,17 @@ Do not start Phase IV+. Gate with npm run check.
 
 ## Phase IV — Order history + log order
 
-**Status:** Not started  
+**Status:** Done (this PR)  
 **Goal:** Order timeline and log/reorder from Active Accounts.  
 **Depends on:** Phase III  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] [`AccountOrderHistoryModal.tsx`](src/components/AccountOrderHistoryModal.tsx) — timeline + apparel season filters
-- [ ] Log Order / Reorder form (type, line, season, amount, notes, status)
-- [ ] On save: update `account_reorder_settings.last_order_date`; refresh badges
-- [ ] Pure helpers + tests for season filter / TLV aggregate
+- [x] [`AccountOrderHistoryModal.tsx`](src/components/AccountOrderHistoryModal.tsx) — timeline + apparel season filters
+- [x] Log Order / Reorder form (type, line, season, amount, notes, status)
+- [x] On save: update `account_reorder_settings.last_order_date`; refresh badges
+- [x] Pure helpers + tests for season filter / TLV aggregate
 
 ### Out of scope
 
@@ -167,8 +167,8 @@ Do not start Phase IV+. Gate with npm run check.
 
 ### Exit criteria
 
-- [ ] Order CRUD-lite from Active Accounts; season filters work
-- [ ] `npm run check` green
+- [x] Order CRUD-lite from Active Accounts; season filters work
+- [x] `npm run check` green
 
 ### Plan prompt
 

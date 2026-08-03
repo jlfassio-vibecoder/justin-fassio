@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AccountOrderHistoryModal } from '@/components/AccountOrderHistoryModal';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
-import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Tag } from '@/components/ui/Tag';
 import { apparelSeasonLabel } from '@/lib/apparelSeasons';
 import {
@@ -42,7 +41,8 @@ export function ActiveAccountsTab({
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
-  const [stubAccount, setStubAccount] = useState<Prospect | null>(null);
+  const [historyAccount, setHistoryAccount] = useState<Prospect | null>(null);
+  const [ordersReloadToken, setOrdersReloadToken] = useState(0);
 
   const accountIdsKey = useMemo(
     () =>
@@ -52,6 +52,10 @@ export function ActiveAccountsTab({
         .join(','),
     [accounts],
   );
+
+  const reloadOrders = useCallback(() => {
+    setOrdersReloadToken((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -82,7 +86,7 @@ export function ActiveAccountsTab({
     return () => {
       active = false;
     };
-  }, [accountIdsKey]);
+  }, [accountIdsKey, ordersReloadToken]);
 
   return (
     <>
@@ -131,7 +135,7 @@ export function ActiveAccountsTab({
             <Button
               variant="primary"
               className="px-3 py-1 text-xs"
-              onClick={() => setStubAccount(account)}
+              onClick={() => setHistoryAccount(account)}
             >
               + Log Order / Reorder
             </Button>
@@ -146,32 +150,13 @@ export function ActiveAccountsTab({
         )}
       />
 
-      <DialogBackdrop open={stubAccount != null} onClose={() => setStubAccount(null)}>
-        {stubAccount ? (
-          <div className="bg-surface p-4.1 flex max-w-[560px] flex-col gap-3 rounded-xl shadow-lg">
-            <div className="flex items-center justify-between gap-3">
-              <DialogTitle>Log Order / Reorder</DialogTitle>
-              <button
-                type="button"
-                onClick={() => setStubAccount(null)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent"
-                aria-label="Close"
-              >
-                <X size={18} strokeWidth={2.75} />
-              </button>
-            </div>
-            <p className="text-ink/80 m-0 text-sm leading-relaxed">
-              Order history for <span className="font-semibold">{stubAccount.name}</span> is coming
-              in Phase IV. This stub reserves the action until the full log/reorder flow ships.
-            </p>
-            <div className="flex justify-end">
-              <Button variant="secondary" onClick={() => setStubAccount(null)}>
-                Close
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </DialogBackdrop>
+      <AccountOrderHistoryModal
+        open={historyAccount != null}
+        account={historyAccount}
+        orders={historyAccount ? (ordersByAccount.get(historyAccount.id) ?? []) : []}
+        onClose={() => setHistoryAccount(null)}
+        onOrderSaved={reloadOrders}
+      />
     </>
   );
 }

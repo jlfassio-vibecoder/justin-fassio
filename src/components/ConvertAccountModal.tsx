@@ -5,8 +5,8 @@ import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
 import { APPAREL_SEASON_LABELS, APPAREL_SEASONS } from '@/lib/apparelSeasons';
 import { convertToActiveAccount } from '@/lib/convertToActiveAccount';
+import { resolveOgrLineId } from '@/lib/lines';
 import type { Prospect } from '@/lib/prospects';
-import { supabase } from '@/lib/supabase';
 import type { ApparelSeason } from '@/types/database';
 
 interface ConvertAccountModalProps {
@@ -16,12 +16,6 @@ interface ConvertAccountModalProps {
   prefillAmountCad?: number | null;
   onClose: () => void;
   onConverted?: () => void;
-}
-
-async function resolveOgrLineId(): Promise<string | null> {
-  const { data, error } = await supabase.from('lines').select('id').eq('code', 'ogr').maybeSingle();
-  if (error || !data) return null;
-  return data.id;
 }
 
 function ConvertAccountForm({
