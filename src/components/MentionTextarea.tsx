@@ -100,10 +100,7 @@ export function MentionTextarea({
 
   const loadingList =
     (trigger?.kind === 'product' && catalogFetching && catalog.length === 0) ||
-    (trigger?.kind === 'contact' &&
-      contactsFetching &&
-      contactSource.length === 0 &&
-      accountId != null);
+    (trigger?.kind === 'contact' && contactsFetching && contactSource.length === 0);
   const listError =
     trigger?.kind === 'product' ? catalogError : trigger?.kind === 'contact' ? contactsError : null;
 
@@ -162,6 +159,9 @@ export function MentionTextarea({
     }
 
     let active = true;
+    setContactsFetching(true);
+    setContactsError(null);
+    setGlobalHits(null);
     const timer = window.setTimeout(() => {
       void searchContactsByName(q).then((result) => {
         if (!active) return;

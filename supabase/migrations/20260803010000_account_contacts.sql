@@ -24,6 +24,9 @@ alter table account_contacts
 
 create index if not exists account_contacts_account_id_idx on account_contacts (account_id);
 create index if not exists account_contacts_full_name_lower_idx on account_contacts (lower(full_name));
+create unique index if not exists account_contacts_one_primary_per_account_idx
+  on account_contacts (account_id)
+  where is_primary;
 
 drop trigger if exists account_contacts_set_updated_at on account_contacts;
 create trigger account_contacts_set_updated_at
