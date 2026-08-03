@@ -1,4 +1,4 @@
-import { Gauge, Home, Lightbulb, ListChecks, Package } from 'lucide-react';
+import { Building2, Gauge, Home, Lightbulb, ListChecks, Package } from 'lucide-react';
 import { Tag } from '@/components/ui/Tag';
 import { cn } from '@/lib/cn';
 import type { TabKey } from '@/types';
@@ -8,6 +8,7 @@ interface TabNavProps {
   onChange: (tab: TabKey) => void;
   totalSkuCount: number;
   prospectTotalCount: number;
+  accountTotalCount: number;
 }
 
 const tabs: { key: TabKey; label: string; icon: typeof Package }[] = [
@@ -15,10 +16,17 @@ const tabs: { key: TabKey; label: string; icon: typeof Package }[] = [
   { key: 'dashboard', label: 'PMF Dashboard', icon: Gauge },
   { key: 'calls', label: 'Call Pipeline', icon: ListChecks },
   { key: 'prospects', label: 'BC Prospect Directory', icon: Home },
+  { key: 'accounts', label: 'Active Accounts', icon: Building2 },
   { key: 'insights', label: 'Buyer Insights', icon: Lightbulb },
 ];
 
-export function TabNav({ activeTab, onChange, totalSkuCount, prospectTotalCount }: TabNavProps) {
+export function TabNav({
+  activeTab,
+  onChange,
+  totalSkuCount,
+  prospectTotalCount,
+  accountTotalCount,
+}: TabNavProps) {
   return (
     <nav className="mx-auto flex max-w-[1400px] flex-wrap gap-2 px-7 pb-3.5">
       {tabs.map(({ key, label, icon: Icon }) => {
@@ -37,6 +45,7 @@ export function TabNav({ activeTab, onChange, totalSkuCount, prospectTotalCount 
             <span>{label}</span>
             {key === 'catalog' && <Tag variant="accent">{totalSkuCount}</Tag>}
             {key === 'prospects' && <Tag variant="accent-2">{prospectTotalCount}</Tag>}
+            {key === 'accounts' && <Tag variant="accent">{accountTotalCount}</Tag>}
           </button>
         );
       })}

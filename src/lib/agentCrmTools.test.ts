@@ -59,7 +59,7 @@ describe('createAgentCrmTools', () => {
     const result = await tools.getProspectSummary.execute!({ prospectId: 12 }, toolOpts);
 
     expect(from).toHaveBeenCalledWith('prospects');
-    expect(select).toHaveBeenCalledWith('id,name,category,region,city,fit');
+    expect(select).toHaveBeenCalledWith('id,name,category,region,city,fit,account_status');
     expect(eq).toHaveBeenCalledWith('id', 12);
     expect(result).toEqual(row);
   });
@@ -264,5 +264,100 @@ describe('createAgentCrmTools', () => {
     );
 
     expect(result).toEqual({ error: 'Line not found for code "missing"' });
+  });
+
+  it('getReorderSuggestions computes cadence, upserts settings, and returns pitch', async () => {
+    const prospect = {
+      id: 5,
+      name: 'Kelowna Golf',
+      category: 'Golf',
+      region: 'Okanagan',
+      city: 'Kelowna',
+      fit: 'Strong',
+      account_status: 'active_account',
+    };
+    const orders = [
+      {
+        order_date: '2026-03-01',
+        season: 'fathers_day',
+        total_amount_cad: 1200,
+        order_type: 'initial',
+        status: 'submitted',
+      },
+    ];
+    const settings = {
+      account_id: 5,
+      last_order_date: '2026-03-01',
+      next_suggested_contact_date: null,
+      seasonal_cadence_tags: [],
+      ai_reorder_notes: null,
+    };
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+
+    const from = vi.fn((table: string) => {
+      if (table === 'prospects') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: prospect, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === 'orders') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: orders, error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === 'account_reorder_settings') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: settings, error: null }),
+            }),
+          }),
+          upsert,
+        };
+      }
+      throw new Error(`unexpected table ${table}`);
+    });
+    const supabase = { from } as unknown as AgentSupabase;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 3, 1));
+
+    const tools = createAgentCrmTools(supabase);
+    const result = await tools.getReorderSuggestions.execute!({ accountId: 5 }, toolOpts);
+
+    vi.useRealTimers();
+
+    expect(result).toMatchObject({
+      nextSuggestedContactDate: '2026-05-10',
+      seasonalCadenceTags: ['fathers_day'],
+      lastOrderDate: '2026-03-01',
+    });
+    expect(result).toHaveProperty('aiReorderNotes');
+    if (!('error' in (result as object)) && result && 'aiReorderNotes' in result) {
+      expect(
+        String(result.aiReorderNotes)
+          .split(/(?<=\.)\s+/)
+          .filter(Boolean),
+      ).toHaveLength(2);
+    }
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        account_id: 5,
+        last_order_date: '2026-03-01',
+        next_suggested_contact_date: '2026-05-10',
+        seasonal_cadence_tags: ['fathers_day'],
+      }),
+      { onConflict: 'account_id' },
+    );
   });
 });

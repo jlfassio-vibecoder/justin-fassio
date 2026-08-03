@@ -12,6 +12,9 @@ const SAMPLE: Prospect[] = [
     address: '1297 Glenmore Dr',
     phone: '250-762-2531',
     fit: 'Strong golf lifestyle fit',
+    accountStatus: 'prospect',
+    convertedAt: null,
+    initialOrderDate: null,
   },
   {
     id: 2,
@@ -22,6 +25,9 @@ const SAMPLE: Prospect[] = [
     address: '1 Harbour Rd',
     phone: '250-555-0100',
     fit: 'Dockside apparel traffic',
+    accountStatus: 'prospect',
+    convertedAt: null,
+    initialOrderDate: null,
   },
   {
     id: 3,
@@ -32,6 +38,9 @@ const SAMPLE: Prospect[] = [
     address: '200 Baker St',
     phone: '250-555-0200',
     fit: 'Workwear cross-sell',
+    accountStatus: 'prospect',
+    convertedAt: null,
+    initialOrderDate: null,
   },
 ];
 

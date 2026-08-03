@@ -9,6 +9,12 @@
 export type UserRole = 'owner' | 'rep' | 'buyer';
 export type UserStatus = 'pending' | 'approved' | 'rejected';
 
+export type AccountStatus = 'prospect' | 'active_account' | 'inactive';
+export type OrderType = 'initial' | 'reorder' | 'preorder';
+export type ApparelSeason =
+  'spring_summer' | 'fathers_day' | 'fall_winter' | 'holiday_christmas' | 'ats_in_season';
+export type OrderStatus = 'draft' | 'submitted' | 'fulfilled';
+
 export interface Database {
   public: {
     Tables: {
@@ -100,6 +106,9 @@ export interface Database {
           address: string;
           phone: string;
           fit: string;
+          account_status: AccountStatus;
+          converted_at: string | null;
+          initial_order_date: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -112,6 +121,9 @@ export interface Database {
           address?: string;
           phone?: string;
           fit?: string;
+          account_status?: AccountStatus;
+          converted_at?: string | null;
+          initial_order_date?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -124,6 +136,9 @@ export interface Database {
           address?: string;
           phone?: string;
           fit?: string;
+          account_status?: AccountStatus;
+          converted_at?: string | null;
+          initial_order_date?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -201,6 +216,75 @@ export interface Database {
         };
         Relationships: [];
       };
+      orders: {
+        Row: {
+          id: string;
+          account_id: number;
+          line_id: string | null;
+          order_type: OrderType;
+          season: ApparelSeason;
+          order_date: string;
+          total_amount_cad: number;
+          status: OrderStatus;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          account_id: number;
+          line_id?: string | null;
+          order_type: OrderType;
+          season: ApparelSeason;
+          order_date?: string;
+          total_amount_cad?: number;
+          status?: OrderStatus;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          account_id?: number;
+          line_id?: string | null;
+          order_type?: OrderType;
+          season?: ApparelSeason;
+          order_date?: string;
+          total_amount_cad?: number;
+          status?: OrderStatus;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      account_reorder_settings: {
+        Row: {
+          account_id: number;
+          last_order_date: string | null;
+          next_suggested_contact_date: string | null;
+          seasonal_cadence_tags: string[];
+          ai_reorder_notes: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          account_id: number;
+          last_order_date?: string | null;
+          next_suggested_contact_date?: string | null;
+          seasonal_cadence_tags?: string[];
+          ai_reorder_notes?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          account_id?: number;
+          last_order_date?: string | null;
+          next_suggested_contact_date?: string | null;
+          seasonal_cadence_tags?: string[];
+          ai_reorder_notes?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -272,4 +356,10 @@ export type ProspectRow = Database['public']['Tables']['prospects']['Row'];
 export type ProspectUpdate = Database['public']['Tables']['prospect_updates']['Row'];
 export type Call = Database['public']['Tables']['calls']['Row'];
 export type CallInsert = Database['public']['Tables']['calls']['Insert'];
+export type Order = Database['public']['Tables']['orders']['Row'];
+export type OrderInsert = Database['public']['Tables']['orders']['Insert'];
+export type AccountReorderSettings =
+  Database['public']['Tables']['account_reorder_settings']['Row'];
+export type AccountReorderSettingsInsert =
+  Database['public']['Tables']['account_reorder_settings']['Insert'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];
