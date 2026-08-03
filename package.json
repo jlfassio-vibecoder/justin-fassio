@@ -7,8 +7,8 @@
     "node": ">=22.22.3"
   },
   "scripts": {
-    "dev": "astro dev",
-    "start": "astro dev",
+    "dev": "astro dev --force",
+    "start": "astro dev --force",
     "build": "astro check && astro build",
     "preview": "astro preview",
     "astro": "astro",
@@ -17,6 +17,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "astro check",
+    "posttypecheck": "node -e \"require('node:fs').rmSync('node_modules/.vite/deps',{recursive:true,force:true})\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run lint && npm run typecheck && npm run test",
@@ -58,8 +59,14 @@
     "vitest": "^4.1.10"
   },
   "optionalDependencies": {
+    "@astrojs/compiler-binding-linux-x64-gnu": "0.3.2",
+    "@astrojs/compiler-binding-wasm32-wasi": "0.3.2",
+    "@bruits/satteri-linux-x64-gnu": "0.9.5",
     "@emnapi/core": "^1.11.3",
     "@emnapi/runtime": "^1.11.3",
-    "@emnapi/wasi-threads": "^1.2.3"
+    "@emnapi/wasi-threads": "^1.2.3",
+    "@rolldown/binding-linux-x64-gnu": "1.2.1",
+    "@tailwindcss/oxide-linux-x64-gnu": "4.3.3",
+    "lightningcss-linux-x64-gnu": "1.33.0"
   }
 }

@@ -1,4 +1,4 @@
-import type { CatalogItem } from '@/data/catalog';
+import type { CatalogItem } from '@/lib/catalog';
 
 export type CatalogFlagFilter = 'ALL' | 'NEW' | 'NAMEDROP';
 

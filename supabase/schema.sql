@@ -44,9 +44,8 @@ values
 on conflict (code) do nothing;
 
 -- ─────────────────────────────────────────────────────────────────────────
--- catalog_items — wholesale SKUs, scoped to a line. Seeded today from the
--- static src/data/catalog.ts array (Old Guys Rule); this table lets future
--- lines (and edits) live in the database instead of hardcoded arrays.
+-- catalog_items — wholesale SKUs, scoped to a line. Seeded from the former
+-- static OGR corpus (see migrations/*_seed_catalog_prospects.sql).
 -- ─────────────────────────────────────────────────────────────────────────
 create table if not exists catalog_items (
   id uuid primary key default gen_random_uuid(),
@@ -75,10 +74,32 @@ create trigger catalog_items_set_updated_at
   for each row execute function set_updated_at();
 
 -- ─────────────────────────────────────────────────────────────────────────
--- prospect_updates — notes / status changes against the 249 BC retailer
--- prospect records. Prospects themselves stay in src/data/prospects.ts
--- (static reference data), so prospect_id here is a plain integer matching
--- that array's `id` field, not a foreign key into a prospects table.
+-- prospects — BC retailer directory (integer ids stable for calls / updates).
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists prospects (
+  id integer primary key,
+  name text not null,
+  category text not null,
+  region text not null,
+  city text not null,
+  address text not null default '',
+  phone text not null default '',
+  fit text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists prospects_category_idx on prospects (category);
+create index if not exists prospects_region_idx on prospects (region);
+
+drop trigger if exists prospects_set_updated_at on prospects;
+create trigger prospects_set_updated_at
+  before update on prospects
+  for each row execute function set_updated_at();
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- prospect_updates — notes / status changes against prospect directory rows.
+-- prospect_id is a plain integer matching prospects.id (no FK in this phase).
 -- ─────────────────────────────────────────────────────────────────────────
 create table if not exists prospect_updates (
   id uuid primary key default gen_random_uuid(),
@@ -92,8 +113,7 @@ create index if not exists prospect_updates_prospect_id_idx on prospect_updates 
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- calls — logged prospect calls from the Log Call modal, with PMF scoring.
--- prospect_id references the static prospect directory the same way
--- prospect_updates does (plain integer, not a DB foreign key).
+-- prospect_id matches prospects.id (plain integer, not a DB foreign key).
 -- ─────────────────────────────────────────────────────────────────────────
 create table if not exists calls (
   id uuid primary key default gen_random_uuid(),
@@ -209,6 +229,7 @@ grant execute on function public.is_approved_staff() to authenticated;
 
 alter table lines enable row level security;
 alter table catalog_items enable row level security;
+alter table prospects enable row level security;
 alter table prospect_updates enable row level security;
 alter table calls enable row level security;
 
@@ -224,6 +245,12 @@ drop policy if exists "public full access" on catalog_items;
 drop policy if exists "authenticated full access" on catalog_items;
 drop policy if exists "approved staff full access" on catalog_items;
 create policy "approved staff full access" on catalog_items
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on prospects;
+create policy "approved staff full access" on prospects
   for all to authenticated
   using (public.is_approved_staff())
   with check (public.is_approved_staff());

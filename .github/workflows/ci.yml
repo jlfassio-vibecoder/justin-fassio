@@ -26,9 +26,14 @@ jobs:
 
       - name: Install dependencies
         run: |
-          rm -rf node_modules package-lock.json
-          npm install
-          npm rebuild @astrojs/compiler
+          set -euo pipefail
+          npm ci
+          # Probe packages ESLint / astro check actually load (not JS stubs).
+          node -e "import('@astrojs/compiler-binding')"
+          node -e "import('rolldown')"
+          node -e "import('lightningcss')"
+          # Loads Vite + nested lightningcss the same way astro check does.
+          node -e "import('./astro.config.mjs')"
 
       - name: Lint, typecheck, and test
         run: npm run check

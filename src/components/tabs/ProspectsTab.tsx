@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
-import { PROSPECTS_DATA, type Prospect } from '@/data/prospects';
+import type { Prospect } from '@/lib/prospects';
 
 const REGION_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Regions (6 corridors)' },
@@ -34,17 +34,18 @@ const channelTagVariant: Record<
 };
 
 interface ProspectsTabProps {
+  prospects: Prospect[];
   onLogCall: (prospect: Prospect) => void;
 }
 
-export function ProspectsTab({ onLogCall }: ProspectsTabProps) {
+export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
 
   const filteredProspects = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return PROSPECTS_DATA.filter((p) => {
+    return prospects.filter((p) => {
       if (region !== 'ALL' && p.region !== region) return false;
       if (channel !== 'ALL' && p.category !== channel) return false;
       if (q) {
@@ -53,7 +54,7 @@ export function ProspectsTab({ onLogCall }: ProspectsTabProps) {
       }
       return true;
     });
-  }, [search, region, channel]);
+  }, [prospects, search, region, channel]);
 
   return (
     <section className="flex flex-col gap-5" data-screen-label="prospects">
@@ -79,7 +80,7 @@ export function ProspectsTab({ onLogCall }: ProspectsTabProps) {
           ))}
         </Select>
         <span className="whitespace-nowrap text-xs opacity-65">
-          Showing {filteredProspects.length} of {PROSPECTS_DATA.length}
+          Showing {filteredProspects.length} of {prospects.length}
         </span>
       </Card>
 

@@ -37,6 +37,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       catalog_items: {
         Row: {
@@ -87,6 +88,46 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
+      };
+      prospects: {
+        Row: {
+          id: number;
+          name: string;
+          category: string;
+          region: string;
+          city: string;
+          address: string;
+          phone: string;
+          fit: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: number;
+          name: string;
+          category: string;
+          region: string;
+          city: string;
+          address?: string;
+          phone?: string;
+          fit?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: number;
+          name?: string;
+          category?: string;
+          region?: string;
+          city?: string;
+          address?: string;
+          phone?: string;
+          fit?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
       };
       prospect_updates: {
         Row: {
@@ -110,6 +151,7 @@ export interface Database {
           note?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       calls: {
         Row: {
@@ -157,6 +199,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       profiles: {
         Row: {
@@ -186,6 +229,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
@@ -196,11 +240,13 @@ export interface Database {
       };
     };
     Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }
 
 export type Line = Database['public']['Tables']['lines']['Row'];
 export type CatalogItemRow = Database['public']['Tables']['catalog_items']['Row'];
+export type ProspectRow = Database['public']['Tables']['prospects']['Row'];
 export type ProspectUpdate = Database['public']['Tables']['prospect_updates']['Row'];
 export type Call = Database['public']['Tables']['calls']['Row'];
 export type CallInsert = Database['public']['Tables']['calls']['Insert'];
