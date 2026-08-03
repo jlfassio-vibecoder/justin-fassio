@@ -26,12 +26,19 @@ jobs:
 
       - name: Install dependencies
         run: |
+          set -euo pipefail
+
           npm ci
-          node -e "import('@astrojs/compiler').catch(() => process.exit(42))" || {
-            echo "Astro native binding missing after npm ci; reinstalling cleanly..."
-            rm -rf node_modules package-lock.json
-            npm install
-          }
+
+          # Validate Astro native binding after clean install
+          if ! node -e "import('@astrojs/compiler')"; then
+            echo "Astro native binding missing after npm ci; retrying clean install..."
+            rm -rf node_modules
+            npm ci
+
+            # Validate again and fail immediately if still broken
+            node -e "import('@astrojs/compiler')"
+          fi
 
       - name: Lint, typecheck, and test
         run: npm run check
