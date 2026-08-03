@@ -95,10 +95,10 @@ export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProp
         </Button>
       </Card>
 
-      {loading && <p className="m-0 text-sm text-ink/60">Loading calls…</p>}
+      {loading && <p className="text-ink/60 m-0 text-sm">Loading calls…</p>}
 
       {fetchError && (
-        <p className="m-0 text-sm text-accent-800">Could not load calls: {fetchError}</p>
+        <p className="text-accent-800 m-0 text-sm">Could not load calls: {fetchError}</p>
       )}
 
       {!loading && !fetchError && calls.length === 0 && (
@@ -126,25 +126,25 @@ export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProp
 
       {!loading && !fetchError && filtered.length > 0 && (
         <Card elevation="md" className="gap-0 overflow-hidden p-0">
-          <ul className="m-0 list-none divide-y divide-ink/10 p-0">
+          <ul className="divide-ink/10 m-0 list-none divide-y p-0">
             {filtered.map((call) => {
               const channelLabel = prospectForCall(call, prospects)?.category;
               return (
                 <li
                   key={call.id}
-                  className="flex flex-wrap items-baseline justify-between gap-2 px-4.1 py-3.1"
+                  className="px-4.1 py-3.1 flex flex-wrap items-baseline justify-between gap-2"
                 >
                   <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="font-heading text-[15px] text-ink">
+                    <span className="font-heading text-ink text-[15px]">
                       {storeName(call.prospect_id, prospects)}
                     </span>
-                    <span className="text-[13px] text-ink/70">
+                    <span className="text-ink/70 text-[13px]">
                       {call.outcome}
                       {channelLabel ? ` · ${channelLabel}` : ''}
                       {call.contact_name ? ` · ${call.contact_name}` : ''}
                     </span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 text-[12px] text-ink/65">
+                  <div className="text-ink/65 flex flex-wrap items-center gap-3 text-[12px]">
                     <span>PMF {call.pmf_score ?? '—'}</span>
                     <span>
                       $

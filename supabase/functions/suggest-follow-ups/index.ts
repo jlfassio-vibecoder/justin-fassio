@@ -102,7 +102,10 @@ Deno.serve(async (req) => {
 
   const openaiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openaiKey) {
-    return jsonResponse({ ok: false, error: 'OPENAI_API_KEY is not configured on the server' }, 500);
+    return jsonResponse(
+      { ok: false, error: 'OPENAI_API_KEY is not configured on the server' },
+      500,
+    );
   }
 
   const callLines = rows.map((c, i) => {
@@ -175,7 +178,9 @@ Deno.serve(async (req) => {
       ? parsed.summary.trim()
       : 'Unable to produce a summary from the call history.';
   const followUps = Array.isArray(parsed.followUps)
-    ? parsed.followUps.filter((s): s is string => typeof s === 'string' && s.trim().length > 0).slice(0, 5)
+    ? parsed.followUps
+        .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+        .slice(0, 5)
     : [];
 
   return jsonResponse({ ok: true, summary, followUps }, 200);

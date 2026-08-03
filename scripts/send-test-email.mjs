@@ -10,9 +10,7 @@ import { Resend } from 'resend';
 const apiKey = process.env.RESEND_API_KEY;
 
 if (!apiKey || apiKey === 're_xxxxxxxxx') {
-  console.error(
-    'Set RESEND_API_KEY in `.env` to your real Resend API key (replace re_xxxxxxxxx).',
-  );
+  console.error('Set RESEND_API_KEY in `.env` to your real Resend API key (replace re_xxxxxxxxx).');
   process.exit(1);
 }
 

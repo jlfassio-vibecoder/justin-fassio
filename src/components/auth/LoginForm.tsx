@@ -97,11 +97,11 @@ export function LoginForm() {
   if (!isSupabaseConfigured) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-12">
-        <p className="m-0 text-sm text-ink/70">
+        <p className="text-ink/70 m-0 text-sm">
           Supabase is not configured. Add <code>PUBLIC_SUPABASE_URL</code> and{' '}
           <code>PUBLIC_SUPABASE_ANON_KEY</code> to your environment to enable sign-in.
         </p>
-        <a href="/" className="mt-4 font-heading text-accent-700 no-underline">
+        <a href="/" className="font-heading text-accent-700 mt-4 no-underline">
           Back to home
         </a>
       </div>
@@ -115,22 +115,22 @@ export function LoginForm() {
         aria-hidden
       />
       <a href="/" className="mb-8 inline-flex items-center gap-3 no-underline">
-        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent font-heading text-bg">
+        <span className="bg-accent font-heading text-bg flex h-11 w-11 items-center justify-center rounded-full">
           JF
         </span>
-        <span className="font-heading text-xl text-ink">Justin Fassio</span>
+        <span className="font-heading text-ink text-xl">Justin Fassio</span>
       </a>
 
       <h1 className="m-0 text-2xl">
         {view === 'register' ? 'Request access' : 'Rep / Owner sign in'}
       </h1>
-      <p className="mt-2 mb-6 text-sm text-ink/70">
+      <p className="text-ink/70 mt-2 mb-6 text-sm">
         {view === 'register'
           ? 'Create an account for Rep Command Center. Justin must approve you before tools unlock.'
           : 'For Justin and authorized sales reps.'}
       </p>
 
-      <div className="mb-5 flex gap-2 rounded-full bg-surface p-1">
+      <div className="bg-surface mb-5 flex gap-2 rounded-full p-1">
         <button
           type="button"
           onClick={() => {
@@ -138,7 +138,7 @@ export function LoginForm() {
             setError(null);
             setMessage(null);
           }}
-          className={`flex-1 rounded-full px-3 py-1.5 font-heading text-sm ${
+          className={`font-heading flex-1 rounded-full px-3 py-1.5 text-sm ${
             view === 'login' ? 'bg-accent text-bg' : 'text-ink/70'
           }`}
         >
@@ -152,7 +152,7 @@ export function LoginForm() {
             setError(null);
             setMessage(null);
           }}
-          className={`flex-1 rounded-full px-3 py-1.5 font-heading text-sm ${
+          className={`font-heading flex-1 rounded-full px-3 py-1.5 text-sm ${
             view === 'register' ? 'bg-accent text-bg' : 'text-ink/70'
           }`}
         >
@@ -161,11 +161,11 @@ export function LoginForm() {
       </div>
 
       {view === 'login' && (
-        <div className="mb-5 flex gap-2 rounded-full bg-surface p-1">
+        <div className="bg-surface mb-5 flex gap-2 rounded-full p-1">
           <button
             type="button"
             onClick={() => setMode('magic')}
-            className={`flex-1 rounded-full px-3 py-1.5 font-heading text-sm ${
+            className={`font-heading flex-1 rounded-full px-3 py-1.5 text-sm ${
               mode === 'magic' ? 'bg-accent text-bg' : 'text-ink/70'
             }`}
           >
@@ -174,7 +174,7 @@ export function LoginForm() {
           <button
             type="button"
             onClick={() => setMode('password')}
-            className={`flex-1 rounded-full px-3 py-1.5 font-heading text-sm ${
+            className={`font-heading flex-1 rounded-full px-3 py-1.5 text-sm ${
               mode === 'password' ? 'bg-accent text-bg' : 'text-ink/70'
             }`}
           >
@@ -184,9 +184,7 @@ export function LoginForm() {
       )}
 
       <form
-        onSubmit={
-          view === 'register' || mode === 'password' ? handlePassword : handleMagicLink
-        }
+        onSubmit={view === 'register' || mode === 'password' ? handlePassword : handleMagicLink}
         className="flex flex-col gap-3.5"
       >
         <Field>
@@ -214,8 +212,8 @@ export function LoginForm() {
           </Field>
         )}
 
-        {error && <p className="m-0 text-sm text-accent-800">{error}</p>}
-        {message && <p className="m-0 text-sm text-sage-800">{message}</p>}
+        {error && <p className="text-accent-800 m-0 text-sm">{error}</p>}
+        {message && <p className="text-sage-800 m-0 text-sm">{message}</p>}
 
         <Button type="submit" variant="primary" disabled={busy} className="mt-1">
           {busy
@@ -228,7 +226,7 @@ export function LoginForm() {
         </Button>
       </form>
 
-      <p className="mt-8 text-center text-xs text-ink/55">
+      <p className="text-ink/55 mt-8 text-center text-xs">
         <a href="/login" className="text-ink/60 no-underline hover:underline">
           Buyer Portal
         </a>

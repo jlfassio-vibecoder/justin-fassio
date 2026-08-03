@@ -10,10 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const outPath = join(
-  root,
-  'supabase/migrations/20260802251000_seed_catalog_prospects.sql',
-);
+const outPath = join(root, 'supabase/migrations/20260802251000_seed_catalog_prospects.sql');
 
 function extractExportedArray(source, exportName) {
   const marker = `export const ${exportName}`;
@@ -104,6 +101,4 @@ on conflict (id) do update set
 `;
 
 writeFileSync(outPath, sql);
-console.log(
-  `Wrote ${outPath} (${catalog.length} catalog items, ${prospects.length} prospects)`,
-);
+console.log(`Wrote ${outPath} (${catalog.length} catalog items, ${prospects.length} prospects)`);

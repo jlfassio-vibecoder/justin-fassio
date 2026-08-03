@@ -2,11 +2,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
-import {
-  listPendingProfiles,
-  setProfileStatus,
-  type PendingProfile,
-} from '@/lib/ownerApprovals';
+import { listPendingProfiles, setProfileStatus, type PendingProfile } from '@/lib/ownerApprovals';
 
 export function OwnerPendingPanel() {
   const [open, setOpen] = useState(false);
@@ -55,7 +51,7 @@ export function OwnerPendingPanel() {
       </Button>
 
       <DialogBackdrop open={open} onClose={() => setOpen(false)}>
-        <div className="flex max-w-[560px] flex-col gap-3 rounded-xl bg-surface p-4.1 shadow-lg">
+        <div className="bg-surface p-4.1 flex max-w-[560px] flex-col gap-3 rounded-xl shadow-lg">
           <div className="flex items-center justify-between gap-3">
             <DialogTitle>Pending reps</DialogTitle>
             <button
@@ -75,21 +71,23 @@ export function OwnerPendingPanel() {
           ) : null}
 
           {loading ? (
-            <p className="text-sm text-ink/60">Loading…</p>
+            <p className="text-ink/60 text-sm">Loading…</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-ink/60">No pending registrations.</p>
+            <p className="text-ink/60 text-sm">No pending registrations.</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {rows.map((row) => (
                 <li
                   key={row.id}
-                  className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/10 pb-2 last:border-0"
+                  className="border-ink/10 flex flex-wrap items-center justify-between gap-2 border-b pb-2 last:border-0"
                 >
                   <div className="min-w-0">
                     <p className="m-0 truncate text-sm font-semibold">
                       {row.display_name || row.email || row.id}
                     </p>
-                    {row.email ? <p className="m-0 truncate text-xs text-ink/60">{row.email}</p> : null}
+                    {row.email ? (
+                      <p className="text-ink/60 m-0 truncate text-xs">{row.email}</p>
+                    ) : null}
                   </div>
                   <div className="flex gap-1.5">
                     <Button

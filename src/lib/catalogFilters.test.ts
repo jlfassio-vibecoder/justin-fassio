@@ -43,9 +43,9 @@ const SAMPLE: CatalogItem[] = [
 
 describe('filterCatalogItems', () => {
   it('returns all items when filters are open', () => {
-    expect(
-      filterCatalogItems(SAMPLE, { search: '', category: 'ALL', flag: 'ALL' }),
-    ).toHaveLength(3);
+    expect(filterCatalogItems(SAMPLE, { search: '', category: 'ALL', flag: 'ALL' })).toHaveLength(
+      3,
+    );
   });
 
   it('matches search across sku, name, tagline, and color', () => {

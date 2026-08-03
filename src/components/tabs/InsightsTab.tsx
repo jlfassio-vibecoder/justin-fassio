@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Card, CardBody, CardTitle } from '@/components/ui/Card';
-import {
-  PLAYBOOK_TAG_MATCH,
-  tagCloud,
-  type TagCloudItem,
-} from '@/lib/callAggregates';
+import { PLAYBOOK_TAG_MATCH, tagCloud, type TagCloudItem } from '@/lib/callAggregates';
 import { fetchCalls } from '@/lib/calls';
 
 interface InsightsTabProps {
@@ -60,9 +56,9 @@ export function InsightsTab({ marginRangeDisplay, reloadToken = 0 }: InsightsTab
 
   return (
     <section className="flex flex-col gap-5" data-screen-label="insights">
-      {loading && <p className="m-0 text-sm text-ink/60">Loading insights…</p>}
+      {loading && <p className="text-ink/60 m-0 text-sm">Loading insights…</p>}
       {fetchError && (
-        <p className="m-0 text-sm text-accent-800">Could not load calls: {fetchError}</p>
+        <p className="text-accent-800 m-0 text-sm">Could not load calls: {fetchError}</p>
       )}
 
       <Card>
@@ -91,28 +87,28 @@ export function InsightsTab({ marginRangeDisplay, reloadToken = 0 }: InsightsTab
       <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
         <Card>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <CardTitle className="text-[15px] text-accent-700">
+            <CardTitle className="text-accent-700 text-[15px]">
               Objection: &quot;Our budget is already pre-booked&quot;
             </CardTitle>
             {seenCounts.budget > 0 && (
-              <span className="text-[11px] uppercase tracking-wider text-ink/55">
+              <span className="text-ink/55 text-[11px] tracking-wider uppercase">
                 Seen in calls: {seenCounts.budget}
               </span>
             )}
           </div>
           <CardBody>
             Ship in 72 hours from Vista, CA with flexible 24-piece minimums. Offer a low-risk test
-            order or a Father&apos;s Day impulse display tray so the buyer isn&apos;t waiting on next
-            season&apos;s plan.
+            order or a Father&apos;s Day impulse display tray so the buyer isn&apos;t waiting on
+            next season&apos;s plan.
           </CardBody>
         </Card>
         <Card>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <CardTitle className="text-[15px] text-accent-700">
+            <CardTitle className="text-accent-700 text-[15px]">
               Objection: &quot;We need bigger margin to cover FX&quot;
             </CardTitle>
             {seenCounts.margin > 0 && (
-              <span className="text-[11px] uppercase tracking-wider text-ink/55">
+              <span className="text-ink/55 text-[11px] tracking-wider uppercase">
                 Seen in calls: {seenCounts.margin}
               </span>
             )}
@@ -124,7 +120,7 @@ export function InsightsTab({ marginRangeDisplay, reloadToken = 0 }: InsightsTab
           </CardBody>
         </Card>
         <Card>
-          <CardTitle className="text-[15px] text-accent-700">
+          <CardTitle className="text-accent-700 text-[15px]">
             Objection: &quot;Never heard of this brand&quot;
           </CardTitle>
           <CardBody>

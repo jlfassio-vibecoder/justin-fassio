@@ -11,9 +11,7 @@ export type PendingProfile = {
 
 export type ProfileStatusAction = 'approved' | 'rejected';
 
-export type OwnerApprovalsResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: string };
+export type OwnerApprovalsResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
 export async function listPendingProfiles(): Promise<OwnerApprovalsResult<PendingProfile[]>> {
   const { data, error } = await supabase.rpc('list_pending_profiles');

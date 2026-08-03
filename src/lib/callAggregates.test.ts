@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  filterCalls,
-  summarizeDashboard,
-  tagCloud,
-} from '@/lib/callAggregates';
+import { filterCalls, summarizeDashboard, tagCloud } from '@/lib/callAggregates';
 import type { CallRow } from '@/lib/calls';
 import type { Prospect } from '@/lib/prospects';
 
@@ -30,7 +26,9 @@ const FIXTURE_PROSPECTS: Prospect[] = [
   },
 ];
 
-function call(partial: Partial<CallRow> & Pick<CallRow, 'id' | 'prospect_id' | 'outcome'>): CallRow {
+function call(
+  partial: Partial<CallRow> & Pick<CallRow, 'id' | 'prospect_id' | 'outcome'>,
+): CallRow {
   return {
     contact_name: null,
     pmf_score: null,

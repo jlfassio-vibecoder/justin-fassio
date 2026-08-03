@@ -55,7 +55,19 @@ set status = 'approved', role = 'rep', updated_at = now()
 where email = 'new.rep@example.com';
 ```
 
-In Supabase Auth → URL configuration, set the Site URL and add redirect allow-list entries for `/app` and `/rep-login` on production (`https://justinfassio.com`, `https://justin-fassio.vercel.app`) and local (`http://localhost:4321`).
+### Auth redirect allow-list (Supabase)
+
+In **Supabase → Authentication → URL configuration**:
+
+- **Site URL:** production origin (e.g. `https://justinfassio.com` or `https://justin-fassio.vercel.app`).
+- **Redirect URLs** must include every host that completes magic-link / email confirm into `/app` or `/rep-login`:
+  - Production: `https://justinfassio.com/app`, `https://justinfassio.com/rep-login` (and the `justin-fassio.vercel.app` equivalents if used).
+  - Local: `http://localhost:4321/app`, `http://localhost:4321/rep-login`.
+  - **Vercel previews:** each preview deployment has a unique host (`https://<project>-<hash>-<team>.vercel.app`). Add specific preview URLs when testing auth on a PR, or maintain a documented wildcard if your Supabase plan supports redirect wildcards. Missing preview hosts cause magic-link failures on Preview only.
+
+### Security headers
+
+[`vercel.json`](vercel.json) sets `Strict-Transport-Security` (HSTS) and a baseline `Content-Security-Policy` (allows self, Google Fonts, and `*.supabase.co` / realtime websockets). Existing nosniff / Referrer-Policy / frame / Permissions-Policy headers remain.
 
 **Note:** Catalog and prospect directories load at runtime from Supabase (`catalog_items`, `prospects`) under `is_approved_staff()` RLS. They are not embedded in the public `/app` JS bundle. Seed sources for regenerating migrations live under `scripts/seed-source/` (not imported by the client).
 
@@ -66,7 +78,7 @@ Requires **Node ≥ 22.22.3** (see `.nvmrc`). Prefer **`npm ci`** for a lockfile
 ```sh
 npm ci
 npm run dev           # astro dev --force (avoids stale Vite jsxDEV / optimize-deps cache)
-npm run check         # lint + typecheck + unit/component tests
+npm run check         # lint + typecheck + format:check + unit/component tests
 npm run test          # Vitest single run
 npm run test:watch    # Vitest watch mode
 npm run format        # write formatting

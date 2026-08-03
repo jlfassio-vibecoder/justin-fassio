@@ -3,12 +3,7 @@ import type { ProspectRow } from '@/types/database';
 
 export type ProspectCategory = 'Golf' | 'Marina' | 'Hardware' | 'Resort Gift';
 export type ProspectRegion =
-  | 'Okanagan'
-  | 'Shuswap'
-  | 'Vancouver Island'
-  | 'Sea-to-Sky'
-  | 'Kootenays'
-  | 'Fraser Valley';
+  'Okanagan' | 'Shuswap' | 'Vancouver Island' | 'Sea-to-Sky' | 'Kootenays' | 'Fraser Valley';
 
 export interface Prospect {
   id: number;

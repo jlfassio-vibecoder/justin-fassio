@@ -29,8 +29,8 @@ export function TabNav({ activeTab, onChange, totalSkuCount, prospectTotalCount 
             onClick={() => onChange(key)}
             data-screen-label={`tab-${key}`}
             className={cn(
-              'inline-flex cursor-pointer items-center gap-1.5 rounded-full border-none px-4 py-2 font-heading text-sm',
-              active ? 'bg-accent text-bg' : 'bg-transparent text-ink',
+              'font-heading inline-flex cursor-pointer items-center gap-1.5 rounded-full border-none px-4 py-2 text-sm',
+              active ? 'bg-accent text-bg' : 'text-ink bg-transparent',
             )}
           >
             <Icon size={16} strokeWidth={2.75} />

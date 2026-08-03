@@ -3,3 +3,5 @@ dist
 .astro
 package-lock.json
 design/design-reference
+design/landing-page/design-reference
+supabase/functions

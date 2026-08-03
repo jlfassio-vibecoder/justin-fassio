@@ -2,8 +2,7 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from './cors.ts';
 
 export type ApprovedStaffResult =
-  | { ok: true; supabase: SupabaseClient }
-  | { ok: false; response: Response };
+  { ok: true; supabase: SupabaseClient } | { ok: false; response: Response };
 
 /**
  * Validates Bearer JWT + is_approved_staff RPC. Returns a user-scoped Supabase client on success.

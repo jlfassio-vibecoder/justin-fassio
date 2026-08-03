@@ -13,18 +13,18 @@ export function WrongPortalScreen({ email }: Props) {
         aria-hidden
       />
       <h1 className="m-0 text-2xl">Buyer account</h1>
-      <p className="mt-3 mb-2 text-sm text-ink/70">
-        This login is for the buyer portal, which is not available here. Use the
-        buyer portal link below, or sign out if you need a different account.
+      <p className="text-ink/70 mt-3 mb-2 text-sm">
+        This login is for the buyer portal, which is not available here. Use the buyer portal link
+        below, or sign out if you need a different account.
       </p>
       {email && (
-        <p className="m-0 mb-6 text-sm text-ink/80">
+        <p className="text-ink/80 m-0 mb-6 text-sm">
           Signed in as <span className="font-semibold">{email}</span>
         </p>
       )}
       <a
         href="/login"
-        className="mb-4 font-heading text-accent-700 no-underline hover:text-accent-800"
+        className="font-heading text-accent-700 hover:text-accent-800 mb-4 no-underline"
       >
         Go to Buyer Portal
       </a>

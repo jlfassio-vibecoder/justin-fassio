@@ -17,32 +17,32 @@ export function Header({ activeLine, onSelectOgr, onLogCall }: HeaderProps) {
   return (
     <>
       <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-7 py-3.5">
-        <div className="flex items-center gap-3.1">
-          <div className="flex h-[46px] w-[46px] flex-none items-center justify-center rounded-full bg-accent font-heading text-lg text-bg">
+        <div className="gap-3.1 flex items-center">
+          <div className="bg-accent font-heading text-bg flex h-[46px] w-[46px] flex-none items-center justify-center rounded-full text-lg">
             JF
           </div>
           <div>
             <h1 className="m-0 text-xl">Justin Fassio</h1>
-            <p className="mb-0 mt-0.5 text-xs font-semibold text-accent-700">
+            <p className="text-accent-700 mt-0.5 mb-0 text-xs font-semibold">
               Independent Sales Representative — British Columbia
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="flex items-center gap-2 rounded-full bg-surface p-1">
+          <div className="bg-surface flex items-center gap-2 rounded-full p-1">
             <button
               onClick={onSelectOgr}
               className={cn(
-                'inline-flex items-center rounded-full px-3.5 py-1.5 font-heading text-sm',
-                activeLine === 'ogr' ? 'bg-accent text-bg' : 'bg-transparent text-ink/70',
+                'font-heading inline-flex items-center rounded-full px-3.5 py-1.5 text-sm',
+                activeLine === 'ogr' ? 'bg-accent text-bg' : 'text-ink/70 bg-transparent',
               )}
             >
               Old Guys Rule
             </button>
             <button
               onClick={() => setShowLineNotice((v) => !v)}
-              className="inline-flex items-center rounded-full bg-transparent px-3.5 py-1.5 font-heading text-sm text-ink/70"
+              className="font-heading text-ink/70 inline-flex items-center rounded-full bg-transparent px-3.5 py-1.5 text-sm"
             >
               <span>Busted Knuckles Garage</span>
               <Tag variant="outline" className="ml-2">
@@ -66,7 +66,7 @@ export function Header({ activeLine, onSelectOgr, onLogCall }: HeaderProps) {
 
       {showLineNotice && (
         <div className="mx-auto max-w-[1400px] px-7 pb-3.5">
-          <div className="flex items-center justify-between gap-3 rounded-md bg-sage-100 px-4 py-2.5 text-sm text-sage-800">
+          <div className="bg-sage-100 text-sage-800 flex items-center justify-between gap-3 rounded-md px-4 py-2.5 text-sm">
             <span>
               Busted Knuckles Garage is a new line Justin is adding soon — catalog and prospecting
               tools will unlock here once the line sheet is loaded.

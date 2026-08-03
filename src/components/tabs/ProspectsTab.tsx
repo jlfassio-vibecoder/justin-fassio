@@ -6,6 +6,7 @@ import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import type { Prospect } from '@/lib/prospects';
+import { filterProspects } from '@/lib/prospectFilters';
 import { suggestFollowUps } from '@/lib/suggestFollowUps';
 
 const REGION_OPTIONS: { value: string; label: string }[] = [
@@ -55,18 +56,10 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [suggestResult, setSuggestResult] = useState<SuggestState>(null);
 
-  const filteredProspects = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return prospects.filter((p) => {
-      if (region !== 'ALL' && p.region !== region) return false;
-      if (channel !== 'ALL' && p.category !== channel) return false;
-      if (q) {
-        const hay = `${p.name} ${p.city} ${p.address} ${p.fit}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [prospects, search, region, channel]);
+  const filteredProspects = useMemo(
+    () => filterProspects(prospects, { search, region, channel }),
+    [prospects, search, region, channel],
+  );
 
   async function handleSuggest(prospect: Prospect) {
     setSuggestError(null);
@@ -107,7 +100,7 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
             </option>
           ))}
         </Select>
-        <span className="whitespace-nowrap text-xs opacity-65">
+        <span className="text-xs whitespace-nowrap opacity-65">
           Showing {filteredProspects.length} of {prospects.length}
         </span>
       </Card>
@@ -122,18 +115,18 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
         <div className="max-h-[640px] overflow-auto">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="sticky top-0 bg-surface">
+              <tr className="bg-surface sticky top-0">
                 {['#', 'Store', 'Channel', 'City (Region)', 'Address', 'Phone', 'Fit Reason'].map(
                   (h) => (
                     <th
                       key={h}
-                      className="border-b border-ink/15 p-2 text-left text-[11px] uppercase tracking-wider text-ink/60"
+                      className="border-ink/15 text-ink/60 border-b p-2 text-left text-[11px] tracking-wider uppercase"
                     >
                       {h}
                     </th>
                   ),
                 )}
-                <th className="border-b border-ink/15 p-2 text-right text-[11px] uppercase tracking-wider text-ink/60">
+                <th className="border-ink/15 text-ink/60 border-b p-2 text-right text-[11px] tracking-wider uppercase">
                   Action
                 </th>
               </tr>
@@ -141,22 +134,22 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
             <tbody>
               {filteredProspects.map((p) => (
                 <tr key={p.id} className="hover:bg-ink/[0.04]">
-                  <td className="border-b border-ink/[0.08] p-2">{p.id}</td>
-                  <td className="min-w-[160px] border-b border-ink/[0.08] p-2 font-semibold">
+                  <td className="border-ink/[0.08] border-b p-2">{p.id}</td>
+                  <td className="border-ink/[0.08] min-w-[160px] border-b p-2 font-semibold">
                     {p.name}
                   </td>
-                  <td className="border-b border-ink/[0.08] p-2">
+                  <td className="border-ink/[0.08] border-b p-2">
                     <Tag variant={channelTagVariant[p.category]}>{p.category}</Tag>
                   </td>
-                  <td className="border-b border-ink/[0.08] p-2">
+                  <td className="border-ink/[0.08] border-b p-2">
                     {p.city} ({p.region})
                   </td>
-                  <td className="border-b border-ink/[0.08] p-2 opacity-75">{p.address}</td>
-                  <td className="border-b border-ink/[0.08] p-2">{p.phone}</td>
-                  <td className="min-w-[240px] border-b border-ink/[0.08] p-2 opacity-75">
+                  <td className="border-ink/[0.08] border-b p-2 opacity-75">{p.address}</td>
+                  <td className="border-ink/[0.08] border-b p-2">{p.phone}</td>
+                  <td className="border-ink/[0.08] min-w-[240px] border-b p-2 opacity-75">
                     {p.fit}
                   </td>
-                  <td className="border-b border-ink/[0.08] p-2 text-right">
+                  <td className="border-ink/[0.08] border-b p-2 text-right">
                     <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
                       <Button
                         variant="secondary"
@@ -184,7 +177,7 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
 
       <DialogBackdrop open={suggestResult != null} onClose={() => setSuggestResult(null)}>
         {suggestResult ? (
-          <div className="flex max-w-[560px] flex-col gap-3 rounded-xl bg-surface p-4.1 shadow-lg">
+          <div className="bg-surface p-4.1 flex max-w-[560px] flex-col gap-3 rounded-xl shadow-lg">
             <div className="flex items-center justify-between gap-3">
               <DialogTitle>Follow-ups · {suggestResult.prospectName}</DialogTitle>
               <button
@@ -196,9 +189,9 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
                 <X size={18} strokeWidth={2.75} />
               </button>
             </div>
-            <p className="text-sm leading-relaxed text-ink/85">{suggestResult.summary}</p>
+            <p className="text-ink/85 text-sm leading-relaxed">{suggestResult.summary}</p>
             {suggestResult.followUps.length > 0 ? (
-              <ol className="list-decimal space-y-1.5 pl-5 text-sm text-ink/85">
+              <ol className="text-ink/85 list-decimal space-y-1.5 pl-5 text-sm">
                 {suggestResult.followUps.map((step) => (
                   <li key={step}>{step}</li>
                 ))}

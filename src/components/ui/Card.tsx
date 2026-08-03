@@ -20,7 +20,7 @@ export function Card({ elevation = 'sm', row = false, className, children, ...pr
   return (
     <div
       className={cn(
-        'flex gap-2 rounded-xl bg-surface p-3.1',
+        'bg-surface p-3.1 flex gap-2 rounded-xl',
         row ? 'flex-row' : 'flex-col',
         elevationClasses[elevation],
         className,
@@ -34,7 +34,7 @@ export function Card({ elevation = 'sm', row = false, className, children, ...pr
 
 export function CardKicker({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <p className={cn('text-[10px] uppercase tracking-[0.1em] text-accent', className)}>
+    <p className={cn('text-accent text-[10px] tracking-[0.1em] uppercase', className)}>
       {children}
     </p>
   );
@@ -50,6 +50,6 @@ export function CardBody({ children, className }: { children: ReactNode; classNa
 
 export function CardMeta({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <p className={cn('flex items-center gap-1.5 text-[11px] text-ink/50', className)}>{children}</p>
+    <p className={cn('text-ink/50 flex items-center gap-1.5 text-[11px]', className)}>{children}</p>
   );
 }
