@@ -45,6 +45,8 @@ export interface ContactsDirectoryProps {
   emptyMessage?: string;
   renderActions: (contact: ContactDirectoryRow) => ReactNode;
   'data-screen-label'?: string;
+  /** Extra controls in the filter toolbar (e.g. Add via AI). */
+  toolbarExtra?: ReactNode;
 }
 
 export function ContactsDirectory({
@@ -53,6 +55,7 @@ export function ContactsDirectory({
   emptyMessage = 'No contacts match these filters.',
   renderActions,
   'data-screen-label': dataScreenLabel,
+  toolbarExtra,
 }: ContactsDirectoryProps) {
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
@@ -98,6 +101,7 @@ export function ContactsDirectory({
             </option>
           ))}
         </Select>
+        {toolbarExtra}
         <span className="text-xs whitespace-nowrap opacity-65">
           Showing {filtered.length} of {contacts.length}
         </span>

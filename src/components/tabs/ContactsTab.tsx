@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AddContactAiModal } from '@/components/AddContactAiModal';
 import { AccountDetailDrawer } from '@/components/AccountDetailDrawer';
 import { AccountOrderHistoryModal } from '@/components/AccountOrderHistoryModal';
 import { ProspectDetailDrawer } from '@/components/ProspectDetailDrawer';
@@ -15,6 +16,7 @@ interface ContactsTabProps {
   onNotesSaved?: (id: number, notes: string | null) => void;
   /** Reload directory contacts after drawer contact CRUD. */
   onReloadContacts?: () => void;
+  onProspectCreated?: (prospect: Prospect) => void;
 }
 
 export function ContactsTab({
@@ -23,10 +25,13 @@ export function ContactsTab({
   onLogCall,
   onNotesSaved,
   onReloadContacts,
+  onProspectCreated,
 }: ContactsTabProps) {
+  const [addOpen, setAddOpen] = useState(false);
   const [detailStore, setDetailStore] = useState<Prospect | null>(null);
   const [historyAccount, setHistoryAccount] = useState<Prospect | null>(null);
   const [historyOrders, setHistoryOrders] = useState<OrderRow[]>([]);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   const prospectsById = useMemo(() => {
     const map = new Map<number, Prospect>();
@@ -38,6 +43,12 @@ export function ContactsTab({
     setDetailStore(null);
     onReloadContacts?.();
   }, [onReloadContacts]);
+
+  useEffect(() => {
+    if (!successBanner) return;
+    const timer = window.setTimeout(() => setSuccessBanner(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [successBanner]);
 
   useEffect(() => {
     if (!historyAccount) return;
@@ -64,6 +75,15 @@ export function ContactsTab({
         contacts={contacts}
         searchPlaceholder="Search contacts by name, email, phone, or store…"
         emptyMessage="No contacts match these filters. Add contacts from Prospect or Active Account details."
+        toolbarExtra={
+          <Button
+            variant="secondary"
+            className="text-xs whitespace-nowrap"
+            onClick={() => setAddOpen(true)}
+          >
+            + Add via AI
+          </Button>
+        }
         renderActions={(contact) => {
           const store = resolveStore(contact);
           return (
@@ -91,6 +111,23 @@ export function ContactsTab({
               </Button>
             </>
           );
+        }}
+      />
+
+      {successBanner ? (
+        <p className="text-ink/80 m-0 text-sm" role="status">
+          {successBanner}
+        </p>
+      ) : null}
+
+      <AddContactAiModal
+        open={addOpen}
+        prospects={prospects}
+        onClose={() => setAddOpen(false)}
+        onCreated={({ prospect, contact }) => {
+          onProspectCreated?.(prospect);
+          onReloadContacts?.();
+          setSuccessBanner(`Added ${contact.fullName} at ${prospect.name} (#${prospect.id})`);
         }}
       />
 

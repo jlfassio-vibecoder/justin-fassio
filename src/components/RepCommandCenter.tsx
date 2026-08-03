@@ -201,6 +201,13 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                   setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
                 }}
                 onReloadContacts={reloadContacts}
+                onProspectCreated={(prospect) => {
+                  setProspects((prev) =>
+                    [...prev.filter((p) => p.id !== prospect.id), prospect].sort(
+                      (a, b) => a.id - b.id,
+                    ),
+                  );
+                }}
               />
             )}
             {activeTab === 'insights' && (
