@@ -57,7 +57,7 @@ In Supabase Auth → URL configuration, set the Site URL and add redirect allow-
 
 ## Getting started
 
-Requires **Node ≥ 22.22.3** (see `.nvmrc`). Prefer **`npm ci`** for a lockfile-reproducible install (CI uses the same).
+Requires **Node ≥ 22.22.3** (see `.nvmrc`). Prefer **`npm ci`** for a lockfile-reproducible install (CI uses the same). Root `optionalDependencies` pin `@astrojs/compiler-binding-linux-x64-gnu` (and WASM) so ESLint/`compiler-rs` get a native binding on Linux CI despite npm’s optional-dep bugs.
 
 ```sh
 npm ci
