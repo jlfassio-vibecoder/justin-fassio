@@ -4,6 +4,7 @@ import { OwnerPendingPanel } from '@/components/auth/OwnerPendingPanel';
 import { PendingApprovalScreen } from '@/components/auth/PendingApprovalScreen';
 import { WrongPortalScreen } from '@/components/auth/WrongPortalScreen';
 import { RepCommandCenter } from '@/components/RepCommandCenter';
+import { AIAssistantModal } from '@/components/ui/AIAssistantModal';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -80,6 +81,7 @@ function AuthGateInner() {
           </span>
         )}
         {isApprovedOwner(profile) ? <OwnerPendingPanel /> : null}
+        <AIAssistantModal />
         {pingStatus && <span className="text-ink/60">{pingStatus}</span>}
         <Button
           type="button"

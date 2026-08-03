@@ -92,7 +92,7 @@ Day-to-day: `npm run check` before you push; `npm run format` when you want Pret
 
 ## Deployment & Environments
 
-Hosted on **Vercel** as a static Astro site (`output: 'static'`). Production: [justin-fassio.vercel.app](https://justin-fassio.vercel.app).
+Hosted on **Vercel** with `@astrojs/vercel`: pages stay static by default; on-demand routes (e.g. `/api/agent`) set `export const prerender = false`. Production: [justin-fassio.vercel.app](https://justin-fassio.vercel.app).
 
 ### Local production preview
 
@@ -146,7 +146,7 @@ src/
   hooks/           useAuth.ts, useLandedCostCalculator.ts
   lib/             supabase.ts, auth.ts, catalog.ts, prospects.ts, calls.ts, callAggregates.ts, …
   layouts/Layout.astro
-  pages/           index.astro, login.astro, rep-login.astro, app/index.astro
+  pages/           index.astro, login.astro, rep-login.astro, app/index.astro, api/agent.ts (on-demand)
   styles/global.css
 supabase/
   migrations/      schema history (profiles + approved-staff RLS)
@@ -171,3 +171,4 @@ Optional deferred: TypeScript 6 when `@astrojs/check` peers allow a clean `npm c
 - **Owner ops (Phase G):** Open signup + pending gate; approved owners approve/reject from `/app` → **Pending reps**. Shared domain CRUD for all approved staff remains.
 - **Server tools (Phase E):** Edge Function `authorized-ping` verifies JWT + `is_approved_staff`. From an approved `/app` session, use **Ping server** in the AuthGate chrome. Deploy with `supabase functions deploy authorized-ping`; local: `supabase functions serve authorized-ping`. Document `SUPABASE_SERVICE_ROLE_KEY` in `.env.example` for future privileged ops — never put it under `PUBLIC_*` or in client islands.
 - **AI follow-ups (Phase F):** Edge Function `suggest-follow-ups` reads one prospect’s recent calls under RLS, calls OpenAI server-side, and returns a summary + follow-up list (display-only). From Prospects, use **Suggest** on a store with logged calls. Deploy with `supabase functions deploy suggest-follow-ups` (also redeploy `authorized-ping` after shared auth changes). Set `supabase secrets set OPENAI_API_KEY=...`. Never put the OpenAI key under `PUBLIC_*` or in client islands.
+- **Vercel AI SDK baseline:** On-demand route [`src/pages/api/agent.ts`](src/pages/api/agent.ts) (`prerender = false`) streams via `streamText` + AI Gateway model strings (`openai/gpt-4o`). Approved-staff JWT required. UI: **AI assist** in `/app` chrome ([`AIAssistantModal`](src/components/ui/AIAssistantModal.tsx)). Keep CRM-bound tools on Supabase Edge; use this route for streaming chat UX. Response helper is AI SDK 5 `toTextStreamResponse` (replaces older `toDataStreamResponse`). Local Gateway auth: `vercel link` + `vercel env pull`, or set `AI_GATEWAY_API_KEY` in `.env.local` (gitignored via `.env.*`).

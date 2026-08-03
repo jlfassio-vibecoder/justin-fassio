@@ -1,9 +1,13 @@
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
+import vercel from '@astrojs/vercel';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
+  // Static pages by default; `export const prerender = false` opts routes into serverless
+  // (required for /api/agent + Vercel AI Gateway streaming).
   output: 'static',
+  adapter: vercel(),
   integrations: [react()],
   vite: {
     plugins: [tailwindcss()],
