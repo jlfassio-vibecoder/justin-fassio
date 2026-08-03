@@ -1,4 +1,4 @@
-import { useEffect, useState, type SubmitEvent } from 'react';
+import { useEffect, useState, type MouseEvent, type SubmitEvent } from 'react';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { Field, FieldLabel, Input } from '@/components/ui/Input';
@@ -6,16 +6,31 @@ import { Field, FieldLabel, Input } from '@/components/ui/Input';
 type Mode = 'magic' | 'password';
 type AuthView = 'login' | 'register';
 
-function readMode(): Mode {
-  if (typeof window === 'undefined') return 'magic';
-  return new URLSearchParams(window.location.search).get('mode') === 'password'
-    ? 'password'
-    : 'magic';
+export type LoginFormProps = {
+  initialView?: AuthView;
+  initialMode?: Mode;
+};
+
+const toggleBase =
+  'font-heading flex-1 cursor-pointer rounded-full px-3 py-1.5 text-center text-sm no-underline';
+const toggleActive = 'bg-accent text-bg';
+const toggleIdle = 'text-ink/70 hover:text-ink';
+
+function loginHref(view: AuthView, mode: Mode): string {
+  const params = new URLSearchParams();
+  if (view === 'register') {
+    params.set('view', 'register');
+    params.set('mode', 'password');
+  } else if (mode === 'password') {
+    params.set('mode', 'password');
+  }
+  const q = params.toString();
+  return q ? `/rep-login?${q}` : '/rep-login';
 }
 
-export function LoginForm() {
-  const [view, setView] = useState<AuthView>('login');
-  const [mode, setMode] = useState<Mode>(() => readMode());
+export function LoginForm({ initialView = 'login', initialMode = 'magic' }: LoginFormProps) {
+  const [view, setView] = useState<AuthView>(initialView);
+  const [mode, setMode] = useState<Mode>(initialView === 'register' ? 'password' : initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -28,6 +43,21 @@ export function LoginForm() {
       if (data.session) window.location.replace('/app');
     });
   }, []);
+
+  function selectView(next: AuthView, e: MouseEvent<HTMLAnchorElement>) {
+    e.preventDefault();
+    setView(next);
+    if (next === 'register') setMode('password');
+    setError(null);
+    setMessage(null);
+  }
+
+  function selectMode(next: Mode, e: MouseEvent<HTMLAnchorElement>) {
+    e.preventDefault();
+    setMode(next);
+    setError(null);
+    setMessage(null);
+  }
 
   async function handleMagicLink(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -109,11 +139,7 @@ export function LoginForm() {
   }
 
   return (
-    <div className="relative mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-12">
-      <div
-        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_rgb(198_113_57_/_0.18),_transparent_55%),linear-gradient(180deg,#f5ead8,#ebddc5)]"
-        aria-hidden
-      />
+    <div className="relative z-0 mx-auto flex min-h-dvh max-w-md flex-col justify-center bg-[radial-gradient(ellipse_at_top,_rgb(198_113_57_/_0.18),_transparent_55%),linear-gradient(180deg,#f5ead8,#ebddc5)] px-6 py-12">
       <a href="/" className="mb-8 inline-flex items-center gap-3 no-underline">
         <span className="bg-accent font-heading text-bg flex h-11 w-11 items-center justify-center rounded-full">
           JF
@@ -130,62 +156,57 @@ export function LoginForm() {
           : 'For Justin and authorized sales reps.'}
       </p>
 
-      <div className="bg-surface mb-5 flex gap-2 rounded-full p-1">
-        <button
-          type="button"
-          onClick={() => {
-            setView('login');
-            setError(null);
-            setMessage(null);
-          }}
-          className={`font-heading flex-1 rounded-full px-3 py-1.5 text-sm ${
-            view === 'login' ? 'bg-accent text-bg' : 'text-ink/70'
-          }`}
+      <div
+        className="bg-surface relative z-10 mb-5 flex gap-2 rounded-full p-1"
+        role="group"
+        aria-label="Account mode"
+      >
+        <a
+          href={loginHref('login', mode === 'password' ? 'password' : 'magic')}
+          onClick={(e) => selectView('login', e)}
+          aria-current={view === 'login' ? 'page' : undefined}
+          className={`${toggleBase} ${view === 'login' ? toggleActive : toggleIdle}`}
         >
           Sign in
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setView('register');
-            setMode('password');
-            setError(null);
-            setMessage(null);
-          }}
-          className={`font-heading flex-1 rounded-full px-3 py-1.5 text-sm ${
-            view === 'register' ? 'bg-accent text-bg' : 'text-ink/70'
-          }`}
+        </a>
+        <a
+          href={loginHref('register', 'password')}
+          onClick={(e) => selectView('register', e)}
+          aria-current={view === 'register' ? 'page' : undefined}
+          className={`${toggleBase} ${view === 'register' ? toggleActive : toggleIdle}`}
         >
           Register
-        </button>
+        </a>
       </div>
 
       {view === 'login' && (
-        <div className="bg-surface mb-5 flex gap-2 rounded-full p-1">
-          <button
-            type="button"
-            onClick={() => setMode('magic')}
-            className={`font-heading flex-1 rounded-full px-3 py-1.5 text-sm ${
-              mode === 'magic' ? 'bg-accent text-bg' : 'text-ink/70'
-            }`}
+        <div
+          className="bg-surface relative z-10 mb-5 flex gap-2 rounded-full p-1"
+          role="group"
+          aria-label="Sign-in method"
+        >
+          <a
+            href={loginHref('login', 'magic')}
+            onClick={(e) => selectMode('magic', e)}
+            aria-current={mode === 'magic' ? 'page' : undefined}
+            className={`${toggleBase} ${mode === 'magic' ? toggleActive : toggleIdle}`}
           >
             Email link
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('password')}
-            className={`font-heading flex-1 rounded-full px-3 py-1.5 text-sm ${
-              mode === 'password' ? 'bg-accent text-bg' : 'text-ink/70'
-            }`}
+          </a>
+          <a
+            href={loginHref('login', 'password')}
+            onClick={(e) => selectMode('password', e)}
+            aria-current={mode === 'password' ? 'page' : undefined}
+            className={`${toggleBase} ${mode === 'password' ? toggleActive : toggleIdle}`}
           >
             Password
-          </button>
+          </a>
         </div>
       )}
 
       <form
         onSubmit={view === 'register' || mode === 'password' ? handlePassword : handleMagicLink}
-        className="flex flex-col gap-3.5"
+        className="relative z-10 flex flex-col gap-3.5"
       >
         <Field>
           <FieldLabel>Email</FieldLabel>
@@ -226,7 +247,7 @@ export function LoginForm() {
         </Button>
       </form>
 
-      <p className="text-ink/55 mt-8 text-center text-xs">
+      <p className="text-ink/55 relative z-10 mt-8 text-center text-xs">
         <a href="/login" className="text-ink/60 no-underline hover:underline">
           Buyer Portal
         </a>

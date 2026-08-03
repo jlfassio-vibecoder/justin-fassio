@@ -142,14 +142,14 @@ Do not ship new product agent slices (Phase III). Exit when multi-turn streaming
 
 ## Phase III — Product agent slices
 
-**Status:** Not started  
+**Status:** In progress  
 **Goal:** Ship roadmap-aligned verticals one PR at a time.  
 **Depends on:** Phases 0–I (II recommended for streaming UX)  
 **Estimate:** 1 PR per slice
 
 ### Slices (separate PRs)
 
-1. **Objection handling** — prompt + catalog / `objection_tags` context.
+1. **Objection handling** — prompt + catalog / `objection_tags` context. **Done** (shared [`objectionCatalog`](src/lib/objectionCatalog.ts); Insights tag click + Calls **Coach** → assist drafts).
 2. **Call draft generation** — outcome → email/script draft.
 3. **Prospect summarization streaming** — complement or gradually replace final-text Edge Prospects **Suggest** UI.
 4. **Routing decision** — document whether Edge `suggest-follow-ups` stays as the Prospects **Suggest** action, becomes a tool invoked from `/api/agent`, or is retired after streaming parity.
@@ -160,8 +160,8 @@ Do not ship new product agent slices (Phase III). Exit when multi-turn streaming
 
 ### Exit criteria (per slice PR)
 
-- [ ] Approved staff can run the slice end-to-end on real data.
-- [ ] Secrets stay server-side; `npm run check` green.
+- [x] Approved staff can run the slice end-to-end on real data. _(slice 1)_
+- [x] Secrets stay server-side; `npm run check` green. _(slice 1)_
 - [ ] Slice decision for Edge Suggest documented when summarization streaming lands.
 
 ### Plan prompt (template)
@@ -221,7 +221,7 @@ I  Tools on /api/agent (JWT + RLS CRM reads)   ← done
     ↓
 II Chat UX (useChat + prefills)               ← done
     ↓
-III Product slices (one PR each)
+III Product slices (one PR each)              ← in progress (objection done)
     ↓
 IV Ops & hardening
 ```

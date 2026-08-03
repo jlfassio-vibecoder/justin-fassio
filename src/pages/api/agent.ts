@@ -2,11 +2,15 @@ import type { APIRoute } from 'astro';
 import { streamText, stepCountIs, convertToModelMessages, type UIMessage } from 'ai';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { createAgentCrmTools } from '@/lib/agentCrmTools';
+import { objectionCatalogBlurb } from '@/lib/objectionCatalog';
 
 export const prerender = false;
 
-const SYSTEM_PROMPT =
-  "You are a concise coach for a BC wholesale apparel sales rep (Old Guys Rule). Help with objections, follow-ups, call drafts, and prospect summaries. Do not invent store facts. Use getProspectSummary and listRecentCalls when the user names a prospect id or asks about a store's call history. Do not invent CRM facts.";
+const SYSTEM_PROMPT = [
+  'You are a concise coach for a BC wholesale apparel sales rep (Old Guys Rule). Help with objections, follow-ups, call drafts, and prospect summaries. Do not invent store facts.',
+  "Use getProspectSummary and listRecentCalls when the user names a prospect id or asks about a store's call history. Do not invent CRM facts.",
+  `When the user asks about buyer feedback or objections, give 2-3 short talk tracks. Prefer logged objection_tags from listRecentCalls when a prospect id is present. Known catalog tags: ${objectionCatalogBlurb()}. Do not invent other tag names.`,
+].join(' ');
 
 function jsonError(message: string, status: number): Response {
   return new Response(JSON.stringify({ ok: false, error: message }), {

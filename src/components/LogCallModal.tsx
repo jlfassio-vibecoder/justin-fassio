@@ -6,15 +6,9 @@ import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Inpu
 import type { Prospect } from '@/lib/prospects';
 import { useAiAssist } from '@/hooks/useAiAssist';
 import { buildAssistDraft } from '@/lib/aiAssistPrefill';
+import { OBJECTION_TAGS } from '@/lib/objectionCatalog';
 import { supabase } from '@/lib/supabase';
 import type { CallInsert } from '@/types/database';
-
-const FEEDBACK_OPTIONS = [
-  'Loves display rack',
-  'Seasonal rush fit',
-  'Pre-booked budget',
-  'Wants higher margin',
-];
 
 const OUTCOME_OPTIONS = [
   'Closed PO / Written Order',
@@ -240,7 +234,7 @@ export function LogCallModal({
         <Field>
           <FieldLabel>Primary buyer feedback</FieldLabel>
           <div className="mb-2 flex flex-wrap gap-2">
-            {FEEDBACK_OPTIONS.map((option) => (
+            {OBJECTION_TAGS.map((option) => (
               <label
                 key={option}
                 className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-neutral-100 px-2.5 py-[3px] text-[11px] text-neutral-800"
