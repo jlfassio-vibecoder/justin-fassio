@@ -237,18 +237,18 @@ Do not implement LLM agents yet. Exit when unauthenticated access fails and appr
 
 ## Phase F — AI agent integration
 
-**Status:** Not started  
+**Status:** Done on `feature/ai-agent-integration`  
 **Goal:** First useful agent capability on top of persisted CRM + server boundary.  
 **Depends on:** Phases B, C, E (D before any agent that can read directories)  
 **Estimate:** 1–2 PRs
 
 ### In scope
 
-- [ ] Define one vertical slice (pick in plan; default: “summarize recent calls / suggest next follow-ups for a prospect”).
-- [ ] Server-side tool handlers: read `calls` (and only data allowed by policy); never return service role to client.
-- [ ] Minimal `/app` UI entry (button or panel) to run the slice; show streaming or final text.
-- [ ] Guardrails: approved-staff only; rate limit or max tokens; no silent writes unless explicitly in scope.
-- [ ] Tests for tool input validation / auth rejection.
+- [x] Define one vertical slice (pick in plan; default: “summarize recent calls / suggest next follow-ups for a prospect”).
+- [x] Server-side tool handlers: read `calls` (and only data allowed by policy); never return service role to client.
+- [x] Minimal `/app` UI entry (button or panel) to run the slice; show streaming or final text.
+- [x] Guardrails: approved-staff only; rate limit or max tokens; no silent writes unless explicitly in scope.
+- [x] Tests for tool input validation / auth rejection.
 
 ### Out of scope
 
@@ -256,9 +256,9 @@ Do not implement LLM agents yet. Exit when unauthenticated access fails and appr
 
 ### Exit criteria
 
-- [ ] Approved staff can run the slice against real persisted calls.
-- [ ] Pending users and anon cannot.
-- [ ] Secrets stay server-side; `npm run check` green.
+- [x] Approved staff can run the slice against real persisted calls.
+- [x] Pending users and anon cannot.
+- [x] Secrets stay server-side; `npm run check` green.
 
 ### Plan prompt
 
