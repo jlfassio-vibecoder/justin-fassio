@@ -6,9 +6,15 @@ const NOTES_MAX = 240;
 const DEFAULT_CALL_LIMIT = 12;
 const MIN_CALL_LIMIT = 1;
 const MAX_CALL_LIMIT = 20;
+const DEFAULT_LINE_CODE = 'ogr';
+const CATALOG_ANCHOR_LIMIT = 12;
 
 const CALL_SELECT =
   'call_date,outcome,contact_name,pmf_score,order_value_cad,notes,objection_tags,follow_up_date';
+
+const PROSPECT_SELECT = 'id,name,category,region,city,fit';
+
+const CATALOG_ANCHOR_SELECT = 'sku,name,cat,color,tagline,is_new,is_name_drop,msrp_cad,page';
 
 /** Clamp listRecentCalls limit to 1–20 (default 12). */
 export function clampCallLimit(limit?: number): number {
@@ -37,7 +43,7 @@ export function createAgentCrmTools(supabase: AgentSupabase) {
       execute: async ({ prospectId }) => {
         const { data, error } = await supabase
           .from('prospects')
-          .select('id,name,category,region,city,fit')
+          .select(PROSPECT_SELECT)
           .eq('id', prospectId)
           .maybeSingle();
 
@@ -81,6 +87,67 @@ export function createAgentCrmTools(supabase: AgentSupabase) {
           ...row,
           notes: truncateNotes(row.notes),
         }));
+      },
+    }),
+
+    getAccountProductFit: tool({
+      description:
+        'Load account-product-fit grounding for a prospect: store metadata plus a capped set of catalog anchors for a product line (default Old Guys Rule / ogr). Use for APF briefs and walk-in pitch scripts. Does not score fit — the model scores from this data.',
+      inputSchema: z.object({
+        prospectId: z.number().int().positive().describe('Prospect id (positive integer)'),
+        lineCode: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(`Product line code (default ${DEFAULT_LINE_CODE})`),
+      }),
+      execute: async ({ prospectId, lineCode }) => {
+        const code = (lineCode?.trim() || DEFAULT_LINE_CODE).toLowerCase();
+
+        const { data: prospect, error: prospectError } = await supabase
+          .from('prospects')
+          .select(PROSPECT_SELECT)
+          .eq('id', prospectId)
+          .maybeSingle();
+
+        if (prospectError) {
+          return { error: prospectError.message };
+        }
+        if (!prospect) {
+          return { error: 'Prospect not found' };
+        }
+
+        const { data: line, error: lineError } = await supabase
+          .from('lines')
+          .select('id,code,name')
+          .eq('code', code)
+          .maybeSingle();
+
+        if (lineError) {
+          return { error: lineError.message };
+        }
+        if (!line) {
+          return { error: `Line not found for code "${code}"` };
+        }
+
+        const { data: items, error: itemsError } = await supabase
+          .from('catalog_items')
+          .select(CATALOG_ANCHOR_SELECT)
+          .eq('line_id', line.id)
+          .order('is_name_drop', { ascending: false })
+          .order('is_new', { ascending: false })
+          .order('page', { ascending: true })
+          .limit(CATALOG_ANCHOR_LIMIT);
+
+        if (itemsError) {
+          return { error: itemsError.message };
+        }
+
+        return {
+          prospect,
+          line,
+          catalogAnchors: items ?? [],
+        };
       },
     }),
   };

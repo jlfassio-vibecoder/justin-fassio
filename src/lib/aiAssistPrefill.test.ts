@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildApfDraft,
   buildAssistDraft,
   buildCallDraft,
   buildObjectionDraft,
@@ -138,6 +139,19 @@ describe('buildSuggestDraft', () => {
 
   it('falls back when prospect id is missing', () => {
     expect(buildSuggestDraft({})).toContain('3–5 concrete next follow-up actions');
+  });
+});
+
+describe('buildApfDraft', () => {
+  it('asks for APF brief via getAccountProductFit for a prospect', () => {
+    expect(buildApfDraft({ prospectId: 12, prospectName: 'Coastal Golf' })).toBe(
+      'For prospect 12 (Coastal Golf), call getAccountProductFit (default Old Guys Rule / ogr line). Reply with: (1) Fit score (1–10) and short rationale from category/region/fit vs catalog; (2) Background — 2–3 sentences on store positioning; (3) Initial call/walk-in script with Opener, Product Anchor (1–2 real SKUs/names from the tool), and CTA. Do not invent store or catalog facts.',
+    );
+  });
+
+  it('falls back when prospect id is missing', () => {
+    expect(buildApfDraft({})).toContain('getAccountProductFit');
+    expect(buildApfDraft({})).toContain('Fit score (1–10)');
   });
 });
 

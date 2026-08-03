@@ -134,4 +134,135 @@ describe('createAgentCrmTools', () => {
 
     expect(limit).toHaveBeenCalledWith(12);
   });
+
+  it('getAccountProductFit returns prospect, line, and catalog anchors', async () => {
+    const prospect = {
+      id: 12,
+      name: 'Coastal Golf',
+      category: 'Golf',
+      region: 'Vancouver Island',
+      city: 'Nanaimo',
+      fit: 'Strong coastal golf traffic',
+    };
+    const line = { id: 'line-1', code: 'ogr', name: 'Old Guys Rule' };
+    const anchors = [
+      {
+        sku: 'OGR-100',
+        name: 'Classic Tee',
+        cat: 'Tees',
+        color: 'Navy',
+        tagline: 'Keep it simple',
+        is_new: false,
+        is_name_drop: true,
+        msrp_cad: 42,
+        page: 1,
+      },
+    ];
+
+    const prospectMaybeSingle = vi.fn().mockResolvedValue({ data: prospect, error: null });
+    const lineMaybeSingle = vi.fn().mockResolvedValue({ data: line, error: null });
+    const catalogLimit = vi.fn().mockResolvedValue({ data: anchors, error: null });
+    const catalogOrderPage = vi.fn().mockReturnValue({ limit: catalogLimit });
+    const catalogOrderNew = vi.fn().mockReturnValue({ order: catalogOrderPage });
+    const catalogOrderDrop = vi.fn().mockReturnValue({ order: catalogOrderNew });
+    const catalogEq = vi.fn().mockReturnValue({ order: catalogOrderDrop });
+
+    const from = vi.fn((table: string) => {
+      if (table === 'prospects') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({ maybeSingle: prospectMaybeSingle }),
+          }),
+        };
+      }
+      if (table === 'lines') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({ maybeSingle: lineMaybeSingle }),
+          }),
+        };
+      }
+      if (table === 'catalog_items') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: catalogEq,
+          }),
+        };
+      }
+      throw new Error(`unexpected table ${table}`);
+    });
+    const supabase = { from } as unknown as AgentSupabase;
+
+    const tools = createAgentCrmTools(supabase);
+    const result = await tools.getAccountProductFit.execute!({ prospectId: 12 }, toolOpts);
+
+    expect(from).toHaveBeenCalledWith('prospects');
+    expect(from).toHaveBeenCalledWith('lines');
+    expect(from).toHaveBeenCalledWith('catalog_items');
+    expect(catalogEq).toHaveBeenCalledWith('line_id', 'line-1');
+    expect(catalogLimit).toHaveBeenCalledWith(12);
+    expect(result).toEqual({ prospect, line, catalogAnchors: anchors });
+  });
+
+  it('getAccountProductFit returns not-found when prospect missing', async () => {
+    const from = vi.fn((table: string) => {
+      if (table === 'prospects') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        };
+      }
+      throw new Error(`unexpected table ${table}`);
+    });
+    const supabase = { from } as unknown as AgentSupabase;
+
+    const tools = createAgentCrmTools(supabase);
+    const result = await tools.getAccountProductFit.execute!({ prospectId: 99 }, toolOpts);
+
+    expect(result).toEqual({ error: 'Prospect not found' });
+  });
+
+  it('getAccountProductFit returns error when line missing', async () => {
+    const prospect = {
+      id: 12,
+      name: 'Coastal Golf',
+      category: 'Golf',
+      region: 'Vancouver Island',
+      city: 'Nanaimo',
+      fit: 'Strong',
+    };
+    const from = vi.fn((table: string) => {
+      if (table === 'prospects') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: prospect, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === 'lines') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        };
+      }
+      throw new Error(`unexpected table ${table}`);
+    });
+    const supabase = { from } as unknown as AgentSupabase;
+
+    const tools = createAgentCrmTools(supabase);
+    const result = await tools.getAccountProductFit.execute!(
+      { prospectId: 12, lineCode: 'missing' },
+      toolOpts,
+    );
+
+    expect(result).toEqual({ error: 'Line not found for code "missing"' });
+  });
 });

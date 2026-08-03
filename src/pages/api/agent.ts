@@ -7,11 +7,13 @@ import { objectionCatalogBlurb } from '@/lib/objectionCatalog';
 export const prerender = false;
 
 const SYSTEM_PROMPT = [
-  'You are a concise coach for a BC wholesale apparel sales rep (Old Guys Rule). Help with objections, follow-ups, call drafts, and prospect summaries. Do not invent store facts.',
+  'You are a concise coach for a BC wholesale apparel sales rep (Old Guys Rule). Help with objections, follow-ups, call drafts, prospect summaries, and account-product-fit briefs. Do not invent store facts.',
   "Use getProspectSummary and listRecentCalls when the user names a prospect id or asks about a store's call history. Do not invent CRM facts.",
+  'Use getAccountProductFit when the user asks for an APF brief, fit score, background summary, or initial call/walk-in pitch script. It returns prospect metadata plus catalog anchors — do not invent SKUs or store facts.',
   `When the user asks about buyer feedback or objections, give 2-3 short talk tracks. Prefer logged objection_tags from listRecentCalls when a prospect id is present. Known catalog tags: ${objectionCatalogBlurb()}. Do not invent other tag names.`,
   'When asked for a follow-up email or call script after a logged outcome, draft that artifact only (email: subject + body; script: 30–60s talk track). Use tools for prospect/call facts; do not invent store details; keep under ~200 words.',
   'When asked for prospect follow-up suggestions, use tools then reply with a brief summary plus a numbered action list (3–5 items); no invented CRM facts.',
+  'When asked for an APF brief or walk-in pitch, call getAccountProductFit then reply in Markdown with: (1) Fit score (1–10) and 1–2 sentence rationale from category/region/fit vs catalog; (2) Background — 2–3 sentences on store positioning; (3) Initial call/walk-in script with Opener, Product Anchor (cite 1–2 real SKUs/names from catalogAnchors), and CTA. No invented CRM or catalog facts.',
 ].join(' ');
 
 function jsonError(message: string, status: number): Response {
@@ -55,7 +57,7 @@ export const POST: APIRoute = async ({ request }) => {
     messages: modelMessages,
     tools,
     stopWhen: stepCountIs(5),
-    maxOutputTokens: 800,
+    maxOutputTokens: 1100,
   });
 
   return result.toUIMessageStreamResponse();

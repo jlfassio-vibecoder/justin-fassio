@@ -6,7 +6,7 @@ import { Tag } from '@/components/ui/Tag';
 import type { Prospect } from '@/lib/prospects';
 import { filterProspects } from '@/lib/prospectFilters';
 import { useAiAssist } from '@/hooks/useAiAssist';
-import { buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
+import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
 
 const REGION_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Regions (6 corridors)' },
@@ -129,6 +129,16 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
                         }}
                       >
                         Suggest
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="px-3 py-1 text-xs"
+                        onClick={() => {
+                          const chips = { prospectId: p.id, prospectName: p.name };
+                          openAssist({ chips, draft: buildApfDraft(chips) });
+                        }}
+                      >
+                        APF Brief
                       </Button>
                       <Button
                         variant="secondary"

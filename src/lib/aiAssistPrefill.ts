@@ -107,3 +107,14 @@ export function buildSuggestDraft(chip: AiAssistContextChip): string {
   }
   return `For ${label}, use CRM tools to load the store and recent calls. Write a short call-history summary, then give 3–5 concrete next follow-up actions as a numbered list for a BC wholesale apparel rep (Old Guys Rule). Do not invent store facts.`;
 }
+
+/**
+ * Prospects APF Brief draft: fit score, background, and walk-in script via getAccountProductFit.
+ */
+export function buildApfDraft(chip: AiAssistContextChip): string {
+  const label = prospectLabel(chip);
+  if (!label) {
+    return 'Prepare an account-product-fit brief for a prospect: call getAccountProductFit with a prospect id (default Old Guys Rule / ogr line), then reply with Fit score (1–10) + rationale, a 2–3 sentence Background, and an Initial call/walk-in script (Opener, Product Anchor citing 1–2 real catalog items, CTA). Do not invent store or catalog facts.';
+  }
+  return `For ${label}, call getAccountProductFit (default Old Guys Rule / ogr line). Reply with: (1) Fit score (1–10) and short rationale from category/region/fit vs catalog; (2) Background — 2–3 sentences on store positioning; (3) Initial call/walk-in script with Opener, Product Anchor (1–2 real SKUs/names from the tool), and CTA. Do not invent store or catalog facts.`;
+}
