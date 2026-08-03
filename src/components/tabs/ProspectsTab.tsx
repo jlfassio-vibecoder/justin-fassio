@@ -7,6 +7,8 @@ import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import type { Prospect } from '@/lib/prospects';
 import { filterProspects } from '@/lib/prospectFilters';
+import { useAiAssist } from '@/hooks/useAiAssist';
+import { buildAssistDraft } from '@/lib/aiAssistPrefill';
 import { suggestFollowUps } from '@/lib/suggestFollowUps';
 
 const REGION_OPTIONS: { value: string; label: string }[] = [
@@ -49,6 +51,7 @@ type SuggestState = {
 } | null;
 
 export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
+  const { openAssist } = useAiAssist();
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
@@ -158,6 +161,16 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
                         onClick={() => void handleSuggest(p)}
                       >
                         {suggestBusyId === p.id ? 'Suggest…' : 'Suggest'}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="px-3 py-1 text-xs"
+                        onClick={() => {
+                          const chips = { prospectId: p.id, prospectName: p.name };
+                          openAssist({ chips, draft: buildAssistDraft(chips) });
+                        }}
+                      >
+                        Ask AI
                       </Button>
                       <Button
                         variant="secondary"

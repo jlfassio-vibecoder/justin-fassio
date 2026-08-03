@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
 import type { Prospect } from '@/lib/prospects';
+import { useAiAssist } from '@/hooks/useAiAssist';
+import { buildAssistDraft } from '@/lib/aiAssistPrefill';
 import { supabase } from '@/lib/supabase';
 import type { CallInsert } from '@/types/database';
 
@@ -57,6 +59,7 @@ export function LogCallModal({
   onStoreChange,
   onSaved,
 }: LogCallModalProps) {
+  const { openAssist } = useAiAssist();
   const [feedback, setFeedback] = useState<string[]>([]);
   const [contactName, setContactName] = useState('');
   const [outcome, setOutcome] = useState<string>(OUTCOME_OPTIONS[0]);
@@ -124,6 +127,13 @@ export function LogCallModal({
       setError(insertError.message);
       return;
     }
+
+    const chips = {
+      prospectId: storeId,
+      prospectName: selected?.name,
+      outcome,
+    };
+    openAssist({ chips, draft: buildAssistDraft(chips) });
 
     resetFormState({
       setFeedback,

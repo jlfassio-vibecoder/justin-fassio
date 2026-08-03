@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { streamText, stepCountIs, type ModelMessage } from 'ai';
+import { streamText, stepCountIs, convertToModelMessages, type UIMessage } from 'ai';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { createAgentCrmTools } from '@/lib/agentCrmTools';
 
@@ -15,54 +15,42 @@ function jsonError(message: string, status: number): Response {
   });
 }
 
-function normalizeMessages(raw: unknown): ModelMessage[] | null {
-  if (!Array.isArray(raw) || raw.length === 0) return null;
-  const out: ModelMessage[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') return null;
+function isUIMessageArray(raw: unknown): raw is UIMessage[] {
+  if (!Array.isArray(raw) || raw.length === 0) return false;
+  return raw.every((item) => {
+    if (!item || typeof item !== 'object') return false;
     const role = (item as { role?: unknown }).role;
-    const content = (item as { content?: unknown }).content;
-    if (
-      (role !== 'user' && role !== 'assistant' && role !== 'system') ||
-      typeof content !== 'string'
-    ) {
-      return null;
-    }
-    out.push({ role, content });
-  }
-  return out;
+    return role === 'user' || role === 'assistant' || role === 'system';
+  });
 }
 
 export const POST: APIRoute = async ({ request }) => {
   const gate = await requireApprovedStaffClient(request);
   if (!gate.ok) return gate.response;
 
-  let body: { prompt?: unknown; messages?: unknown };
+  let body: { messages?: unknown };
   try {
-    body = (await request.json()) as { prompt?: unknown; messages?: unknown };
+    body = (await request.json()) as { messages?: unknown };
   } catch {
     return jsonError('Invalid JSON body', 400);
   }
 
-  const messages = normalizeMessages(body.messages);
-  const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
-
-  if (!messages && !prompt) {
-    return jsonError('Provide prompt or messages', 400);
+  if (!isUIMessageArray(body.messages)) {
+    return jsonError('Provide messages', 400);
   }
 
   const tools = createAgentCrmTools(gate.supabase);
-  const shared = {
-    model: 'openai/gpt-4o' as const,
+  const modelMessages = convertToModelMessages(body.messages);
+
+  // Model strings like openai/gpt-4o route through Vercel AI Gateway (OIDC on Vercel; AI_GATEWAY_API_KEY locally).
+  const result = streamText({
+    model: 'openai/gpt-4o',
     system: SYSTEM_PROMPT,
+    messages: modelMessages,
     tools,
     stopWhen: stepCountIs(5),
     maxOutputTokens: 800,
-  };
+  });
 
-  // AI SDK 5: toDataStreamResponse was replaced by toTextStreamResponse / toUIMessageStreamResponse.
-  // Model strings like openai/gpt-4o route through Vercel AI Gateway (OIDC on Vercel; AI_GATEWAY_API_KEY locally).
-  const result = messages ? streamText({ ...shared, messages }) : streamText({ ...shared, prompt });
-
-  return result.toTextStreamResponse();
+  return result.toUIMessageStreamResponse();
 };

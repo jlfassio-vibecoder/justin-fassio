@@ -107,16 +107,16 @@ Do not rebuild the chat UI (Phase II) or ship objection/call-draft product slice
 
 ## Phase II — Chat UX upgrade
 
-**Status:** Not started  
+**Status:** Done  
 **Goal:** Multi-turn streaming chat UX for sales assist.  
 **Depends on:** Phase 0 (Phase I recommended so chats can use tools)  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] Replace one-shot prompt modal with `@ai-sdk/react` `useChat` + server `toUIMessageStreamResponse` (keep `toTextStreamResponse` only if it remains sufficient after review).
-- [ ] Context chips / prefills from Prospects row and/or Log Call outcome (pass into initial message or system context).
-- [ ] Persist optional chat threads later — **not** required for this phase.
+- [x] Replace one-shot prompt modal with `@ai-sdk/react` `useChat` + server `toUIMessageStreamResponse` (keep `toTextStreamResponse` only if it remains sufficient after review).
+- [x] Context chips / prefills from Prospects row and/or Log Call outcome (pass into initial message or system context).
+- [x] Persist optional chat threads later — **not** required for this phase.
 
 ### Out of scope
 
@@ -124,9 +124,9 @@ Do not rebuild the chat UI (Phase II) or ship objection/call-draft product slice
 
 ### Exit criteria
 
-- [ ] Approved staff can run a multi-turn assist session in `/app` with live streaming.
-- [ ] Prefill from at least one CRM surface (Prospects or Log Call) works.
-- [ ] `npm run check` green.
+- [x] Approved staff can run a multi-turn assist session in `/app` with live streaming.
+- [x] Prefill from at least one CRM surface (Prospects or Log Call) works.
+- [x] `npm run check` green.
 
 ### Plan prompt
 
@@ -219,7 +219,7 @@ No new agent product features. Exit when CI covers auth failure and docs match t
     ↓
 I  Tools on /api/agent (JWT + RLS CRM reads)   ← done
     ↓
-II Chat UX (useChat + prefills)
+II Chat UX (useChat + prefills)               ← done
     ↓
 III Product slices (one PR each)
     ↓
