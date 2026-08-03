@@ -1,3 +1,4 @@
+-- Copilot suggestion ignored: consolidating into an earlier migration would rewrite applied migration history; this follow-up intentionally replaces list_pending_profiles to reps-only.
 -- Align list_pending_profiles with set_profile_status: only pending reps are actionable.
 
 create or replace function public.list_pending_profiles()

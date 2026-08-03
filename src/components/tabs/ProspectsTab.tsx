@@ -1,13 +1,13 @@
-import { useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AddProspectAiModal } from '@/components/AddProspectAiModal';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import type { Prospect } from '@/lib/prospects';
 import { filterProspects } from '@/lib/prospectFilters';
-import { suggestFollowUps } from '@/lib/suggestFollowUps';
+import { useAiAssist } from '@/hooks/useAiAssist';
+import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
 
 const REGION_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Regions (6 corridors)' },
@@ -40,49 +40,55 @@ const channelTagVariant: Record<
 interface ProspectsTabProps {
   prospects: Prospect[];
   onLogCall: (prospect: Prospect) => void;
+  onProspectCreated: (prospect: Prospect) => void;
 }
 
-type SuggestState = {
-  prospectName: string;
-  summary: string;
-  followUps: string[];
-} | null;
-
-export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
+export function ProspectsTab({ prospects, onLogCall, onProspectCreated }: ProspectsTabProps) {
+  const { openAssist } = useAiAssist();
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
-  const [suggestBusyId, setSuggestBusyId] = useState<number | null>(null);
-  const [suggestError, setSuggestError] = useState<string | null>(null);
-  const [suggestResult, setSuggestResult] = useState<SuggestState>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [highlightedProspectId, setHighlightedProspectId] = useState<number | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   const filteredProspects = useMemo(
     () => filterProspects(prospects, { search, region, channel }),
     [prospects, search, region, channel],
   );
 
-  async function handleSuggest(prospect: Prospect) {
-    setSuggestError(null);
-    setSuggestBusyId(prospect.id);
-    const result = await suggestFollowUps(prospect.id);
-    setSuggestBusyId(null);
-    if (!result.ok) {
-      setSuggestError(`${prospect.name}: ${result.error}`);
-      return;
-    }
-    setSuggestResult({
-      prospectName: prospect.name,
-      summary: result.summary,
-      followUps: result.followUps,
-    });
+  useEffect(() => {
+    if (highlightedProspectId == null) return;
+    const row = document.querySelector(`[data-prospect-id="${highlightedProspectId}"]`);
+    row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const timer = window.setTimeout(() => {
+      setHighlightedProspectId(null);
+      setSuccessBanner(null);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [highlightedProspectId]);
+
+  function handleCreated(prospect: Prospect) {
+    onProspectCreated(prospect);
+    setRegion('ALL');
+    setChannel('ALL');
+    setSearch(prospect.name);
+    setHighlightedProspectId(prospect.id);
+    setSuccessBanner(`Added ${prospect.name} (#${prospect.id})`);
   }
 
   return (
     <section className="flex flex-col gap-5" data-screen-label="prospects">
+      {successBanner && (
+        <p className="text-ink/80 m-0 text-sm" role="status">
+          {successBanner}
+        </p>
+      )}
+
       <Card row className="flex-wrap items-center gap-3">
         <Input
           className="min-w-[220px] flex-1"
-          placeholder="Search 249 BC prospects by name, city, address, or fit reason…"
+          placeholder="Search BC prospects by name, city, address, or fit reason…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -100,16 +106,17 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
             </option>
           ))}
         </Select>
+        <Button
+          variant="secondary"
+          className="text-xs whitespace-nowrap"
+          onClick={() => setAddOpen(true)}
+        >
+          + Add via AI
+        </Button>
         <span className="text-xs whitespace-nowrap opacity-65">
           Showing {filteredProspects.length} of {prospects.length}
         </span>
       </Card>
-
-      {suggestError ? (
-        <p className="text-sm text-red-700" role="alert">
-          {suggestError}
-        </p>
-      ) : null}
 
       <Card elevation="md" className="overflow-hidden p-0">
         <div className="max-h-[640px] overflow-auto">
@@ -133,7 +140,15 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
             </thead>
             <tbody>
               {filteredProspects.map((p) => (
-                <tr key={p.id} className="hover:bg-ink/[0.04]">
+                <tr
+                  key={p.id}
+                  data-prospect-id={p.id}
+                  className={
+                    highlightedProspectId === p.id
+                      ? 'bg-ink/[0.08] ring-accent-800/40 ring-2 ring-inset'
+                      : 'hover:bg-ink/[0.04]'
+                  }
+                >
                   <td className="border-ink/[0.08] border-b p-2">{p.id}</td>
                   <td className="border-ink/[0.08] min-w-[160px] border-b p-2 font-semibold">
                     {p.name}
@@ -154,10 +169,32 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
                       <Button
                         variant="secondary"
                         className="px-3 py-1 text-xs"
-                        disabled={suggestBusyId === p.id}
-                        onClick={() => void handleSuggest(p)}
+                        onClick={() => {
+                          const chips = { prospectId: p.id, prospectName: p.name };
+                          openAssist({ chips, draft: buildSuggestDraft(chips) });
+                        }}
                       >
-                        {suggestBusyId === p.id ? 'Suggest…' : 'Suggest'}
+                        Suggest
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="px-3 py-1 text-xs"
+                        onClick={() => {
+                          const chips = { prospectId: p.id, prospectName: p.name };
+                          openAssist({ chips, draft: buildApfDraft(chips) });
+                        }}
+                      >
+                        APF Brief
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="px-3 py-1 text-xs"
+                        onClick={() => {
+                          const chips = { prospectId: p.id, prospectName: p.name };
+                          openAssist({ chips, draft: buildAssistDraft(chips) });
+                        }}
+                      >
+                        Ask AI
                       </Button>
                       <Button
                         variant="secondary"
@@ -175,36 +212,11 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
         </div>
       </Card>
 
-      <DialogBackdrop open={suggestResult != null} onClose={() => setSuggestResult(null)}>
-        {suggestResult ? (
-          <div className="bg-surface p-4.1 flex max-w-[560px] flex-col gap-3 rounded-xl shadow-lg">
-            <div className="flex items-center justify-between gap-3">
-              <DialogTitle>Follow-ups · {suggestResult.prospectName}</DialogTitle>
-              <button
-                type="button"
-                onClick={() => setSuggestResult(null)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent"
-                aria-label="Close"
-              >
-                <X size={18} strokeWidth={2.75} />
-              </button>
-            </div>
-            <p className="text-ink/85 text-sm leading-relaxed">{suggestResult.summary}</p>
-            {suggestResult.followUps.length > 0 ? (
-              <ol className="text-ink/85 list-decimal space-y-1.5 pl-5 text-sm">
-                {suggestResult.followUps.map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
-              </ol>
-            ) : null}
-            <div className="flex justify-end">
-              <Button variant="secondary" onClick={() => setSuggestResult(null)}>
-                Close
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </DialogBackdrop>
+      <AddProspectAiModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCreated={handleCreated}
+      />
     </section>
   );
 }

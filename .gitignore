@@ -10,7 +10,7 @@ node_modules/
 # logs
 npm-debug.log*
 
-# environment variables
+# environment variables (.env.local included via .env.*)
 .env
 .env.*
 !.env.example
@@ -25,3 +25,6 @@ npm-debug.log*
 # Supabase CLI local state
 supabase/.temp/
 supabase/.branches/
+
+# Vercel CLI
+.vercel

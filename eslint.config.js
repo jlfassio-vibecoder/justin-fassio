@@ -13,6 +13,7 @@ export default [
       'dist/**',
       'node_modules/**',
       '.astro/**',
+      '.vercel/**',
       'design/design-reference/**',
       'supabase/functions/**',
       'src/env.d.ts',

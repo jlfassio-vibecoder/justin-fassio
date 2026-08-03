@@ -377,6 +377,7 @@ H Quality bar (or earlier after C)
 
 ## References
 
-- Assessment: [`docs/architecture-assessment.md`](docs/architecture-assessment.md)
+- Assessment: [`docs/architecture-assessment.md`](docs/architecture-assessment.md) (see §7 dual Edge + Vercel AI runtime / rate-spend notes)
+- AI agents (post A–H): [`ai-agent-roadmap.md`](ai-agent-roadmap.md) (Phases 0–IV; Phase IV ops & hardening)
 - Auth/RLS: `supabase/migrations/20260802220000_profiles_approval_workflow.sql`, `src/lib/auth.ts`, `src/components/auth/*`
 - App shell: `src/components/RepCommandCenter.tsx`, `src/components/LogCallModal.tsx`, `src/components/tabs/*`

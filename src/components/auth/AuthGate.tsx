@@ -4,8 +4,10 @@ import { OwnerPendingPanel } from '@/components/auth/OwnerPendingPanel';
 import { PendingApprovalScreen } from '@/components/auth/PendingApprovalScreen';
 import { WrongPortalScreen } from '@/components/auth/WrongPortalScreen';
 import { RepCommandCenter } from '@/components/RepCommandCenter';
+import { AIAssistantModal } from '@/components/ui/AIAssistantModal';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
+import { AiAssistProvider } from '@/lib/AiAssistProvider';
 import { supabase } from '@/lib/supabase';
 import { isApprovedOwner, isApprovedStaff } from '@/lib/auth';
 import { pingAuthorizedServer } from '@/lib/serverPing';
@@ -71,42 +73,45 @@ function AuthGateInner() {
   }
 
   return (
-    <div>
-      <div className="border-ink/10 bg-surface/60 text-ink/70 flex flex-wrap items-center justify-end gap-3 border-b px-7 py-2 text-xs">
-        <span className="truncate">{user?.email}</span>
-        {profile?.role && (
-          <span className="bg-bg rounded-full px-2.5 py-0.5 font-semibold capitalize">
-            {profile.role}
-          </span>
-        )}
-        {isApprovedOwner(profile) ? <OwnerPendingPanel /> : null}
-        {pingStatus && <span className="text-ink/60">{pingStatus}</span>}
-        <Button
-          type="button"
-          variant="ghost"
-          className="text-xs"
-          disabled={pingBusy}
-          onClick={() => {
-            void handlePingServer();
-          }}
-        >
-          {pingBusy ? 'Pinging…' : 'Ping server'}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className="text-xs"
-          onClick={() => {
-            void supabase.auth.signOut().then(() => {
-              window.location.href = '/';
-            });
-          }}
-        >
-          Sign out
-        </Button>
+    <AiAssistProvider>
+      <div>
+        <div className="border-ink/10 bg-surface/60 text-ink/70 flex flex-wrap items-center justify-end gap-3 border-b px-7 py-2 text-xs">
+          <span className="truncate">{user?.email}</span>
+          {profile?.role && (
+            <span className="bg-bg rounded-full px-2.5 py-0.5 font-semibold capitalize">
+              {profile.role}
+            </span>
+          )}
+          {isApprovedOwner(profile) ? <OwnerPendingPanel /> : null}
+          <AIAssistantModal />
+          {pingStatus && <span className="text-ink/60">{pingStatus}</span>}
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-xs"
+            disabled={pingBusy}
+            onClick={() => {
+              void handlePingServer();
+            }}
+          >
+            {pingBusy ? 'Pinging…' : 'Ping server'}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-xs"
+            onClick={() => {
+              void supabase.auth.signOut().then(() => {
+                window.location.href = '/';
+              });
+            }}
+          >
+            Sign out
+          </Button>
+        </div>
+        <RepCommandCenter />
       </div>
-      <RepCommandCenter />
-    </div>
+    </AiAssistProvider>
   );
 }
 
