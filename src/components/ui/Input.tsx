@@ -26,7 +26,7 @@ export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
 }
 
 export function FieldLabel({ children }: { children: ReactNode }) {
-  return <label className="mb-1 block text-xs text-ink/70">{children}</label>;
+  return <label className="text-ink/70 mb-1 block text-xs">{children}</label>;
 }
 
 export function Field({ children, className }: { children: ReactNode; className?: string }) {

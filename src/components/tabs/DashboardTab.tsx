@@ -19,11 +19,7 @@ interface DashboardTabProps {
 
 const emptySummary = summarizeDashboard([]);
 
-export function DashboardTab({
-  prospects,
-  onLogCall,
-  reloadToken = 0,
-}: DashboardTabProps) {
+export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: DashboardTabProps) {
   const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -54,14 +50,13 @@ export function DashboardTab({
   }, [reloadToken, prospects]);
 
   const { totalCalls, avgPmf, closedPoCount, pipelineValueCad, reachRatePct } = summary;
-  const conversionPct =
-    totalCalls > 0 ? Math.round((closedPoCount / totalCalls) * 100) : null;
+  const conversionPct = totalCalls > 0 ? Math.round((closedPoCount / totalCalls) * 100) : null;
 
   return (
     <section className="flex flex-col gap-5" data-screen-label="dashboard">
-      {loading && <p className="m-0 text-sm text-ink/60">Loading dashboard…</p>}
+      {loading && <p className="text-ink/60 m-0 text-sm">Loading dashboard…</p>}
       {fetchError && (
-        <p className="m-0 text-sm text-accent-800">Could not load calls: {fetchError}</p>
+        <p className="text-accent-800 m-0 text-sm">Could not load calls: {fetchError}</p>
       )}
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
@@ -79,9 +74,7 @@ export function DashboardTab({
           <CardTitle className="text-[28px]">
             {avgPmf != null ? `${avgPmf.toFixed(1)} / 10` : '— / 10'}
           </CardTitle>
-          <CardMeta>
-            {avgPmf != null ? 'Across scored calls' : 'Log calls to calculate'}
-          </CardMeta>
+          <CardMeta>{avgPmf != null ? 'Across scored calls' : 'Log calls to calculate'}</CardMeta>
         </Card>
         <Card>
           <CardKicker>Closed Purchase Orders</CardKicker>
@@ -115,17 +108,14 @@ export function DashboardTab({
                   <span>{row.label}</span>
                   <span>{row.pct}%</span>
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-bg">
-                  <div
-                    className={`h-full ${row.colorClass}`}
-                    style={{ width: `${row.pct}%` }}
-                  />
+                <div className="bg-bg h-1.5 overflow-hidden rounded-full">
+                  <div className={`h-full ${row.colorClass}`} style={{ width: `${row.pct}%` }} />
                 </div>
               </div>
             ))}
           </div>
-          <div className="mt-1.5 rounded-md bg-bg p-3 text-xs">
-            <p className="mb-1 font-semibold text-accent-700">Strategic Insight</p>
+          <div className="bg-bg mt-1.5 rounded-md p-3 text-xs">
+            <p className="text-accent-700 mb-1 font-semibold">Strategic Insight</p>
             <p className="opacity-80">
               {totalCalls > 0
                 ? 'Fit mix updates as you log PMF scores on each call.'
@@ -138,7 +128,7 @@ export function DashboardTab({
           <CardTitle className="text-base">PMF by Channel &amp; Call Outcomes</CardTitle>
           <div className="mt-1.5 grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
-              <p className="text-[11px] uppercase tracking-wider opacity-60">By Channel</p>
+              <p className="text-[11px] tracking-wider uppercase opacity-60">By Channel</p>
               {summary.byChannel.length === 0 ? (
                 <p className="text-[13px] opacity-60">
                   No channel data yet — appears once calls are logged.
@@ -158,7 +148,7 @@ export function DashboardTab({
               )}
             </div>
             <div className="flex flex-col gap-2">
-              <p className="text-[11px] uppercase tracking-wider opacity-60">Outcomes</p>
+              <p className="text-[11px] tracking-wider uppercase opacity-60">Outcomes</p>
               {summary.byOutcome.length === 0 ? (
                 <p className="text-[13px] opacity-60">
                   No outcomes yet — appears once calls are logged.
@@ -192,27 +182,27 @@ export function DashboardTab({
         </Card>
       ) : (
         <Card elevation="md" className="gap-0 overflow-hidden p-0">
-          <div className="border-b border-ink/10 px-4.1 py-3">
+          <div className="border-ink/10 px-4.1 border-b py-3">
             <CardTitle className="text-base">Recent activity</CardTitle>
           </div>
-          <ul className="m-0 list-none divide-y divide-ink/10 p-0">
+          <ul className="divide-ink/10 m-0 list-none divide-y p-0">
             {summary.recent.map((call) => {
               const channelLabel = prospectForCall(call, prospects)?.category;
               return (
                 <li
                   key={call.id}
-                  className="flex flex-wrap items-baseline justify-between gap-2 px-4.1 py-3.1"
+                  className="px-4.1 py-3.1 flex flex-wrap items-baseline justify-between gap-2"
                 >
                   <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="font-heading text-[15px] text-ink">
+                    <span className="font-heading text-ink text-[15px]">
                       {storeName(call.prospect_id, prospects)}
                     </span>
-                    <span className="text-[13px] text-ink/70">
+                    <span className="text-ink/70 text-[13px]">
                       {call.outcome}
                       {channelLabel ? ` · ${channelLabel}` : ''}
                     </span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 text-[12px] text-ink/65">
+                  <div className="text-ink/65 flex flex-wrap items-center gap-3 text-[12px]">
                     <span>PMF {call.pmf_score ?? '—'}</span>
                     <span>
                       $

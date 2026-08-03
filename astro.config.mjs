@@ -22,7 +22,5 @@ export default defineConfig({
         'react/jsx-dev-runtime',
       ],
     },
-
   },
 });
-

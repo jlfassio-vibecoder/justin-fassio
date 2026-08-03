@@ -22,14 +22,14 @@ Do **not** combine phases in one plan unless a later phase explicitly lists a de
 
 Stack foundation is done on `main` (through [#24](https://github.com/jlfassio-vibecoder/justin-fassio/pull/24) and related PRs):
 
-| Phase | Outcome |
-| --- | --- |
-| 0 Dependabot hygiene | Major ignores + grouped minors |
-| 1 React 19 | `react` / `react-dom` 19.x |
-| 2 TypeScript 5.x | Stay on 5.x; TS 6 optional later |
-| 3 Astro 5→6 | Vite 7 path, `@astrojs/react` alignment |
-| 4 Tailwind 4 | `@tailwindcss/vite`; `@astrojs/tailwind` removed |
-| 5 Astro 6→7 | Astro 7 + `@astrojs/react` 6 + Node `>=22.22.3` |
+| Phase                | Outcome                                          |
+| -------------------- | ------------------------------------------------ |
+| 0 Dependabot hygiene | Major ignores + grouped minors                   |
+| 1 React 19           | `react` / `react-dom` 19.x                       |
+| 2 TypeScript 5.x     | Stay on 5.x; TS 6 optional later                 |
+| 3 Astro 5→6          | Vite 7 path, `@astrojs/react` alignment          |
+| 4 Tailwind 4         | `@tailwindcss/vite`; `@astrojs/tailwind` removed |
+| 5 Astro 6→7          | Astro 7 + `@astrojs/react` 6 + Node `>=22.22.3`  |
 
 Optional deferred: TypeScript 6 when `@astrojs/check` peers allow a clean `npm ci`.
 
@@ -39,13 +39,13 @@ Also landed (product, not in the old dependency table): public landing, `/rep-lo
 
 ## Current baseline (do not regress)
 
-| Layer | State |
-| --- | --- |
-| Astro | `^7.1.x`, `output: 'static'` |
-| React islands | `LoginForm` (`/rep-login`), `AuthGate` (`/app`) |
-| Auth | PKCE; profiles `rep`+`pending` on signup; `is_approved_staff()` RLS |
-| Data in UI | Static `catalog.ts` / `prospects.ts`; `calls` table unused |
-| Hosting | Vercel static + `vercel.json` headers |
+| Layer          | State                                                               |
+| -------------- | ------------------------------------------------------------------- |
+| Astro          | `^7.1.x`, `output: 'static'`                                        |
+| React islands  | `LoginForm` (`/rep-login`), `AuthGate` (`/app`)                     |
+| Auth           | PKCE; profiles `rep`+`pending` on signup; `is_approved_staff()` RLS |
+| Data in UI     | Static `catalog.ts` / `prospects.ts`; `calls` table unused          |
+| Hosting        | Vercel static + `vercel.json` headers                               |
 | Verify command | `npm ci && npm run check && npm run build` (after Phase A fixes CI) |
 
 ---
@@ -199,19 +199,19 @@ Do not add AI agents. Document threat-model outcome in the PR. Exit when build/c
 
 ## Phase E — Server tool boundary
 
-**Status:** Not started  
+**Status:** Done on `feature/ai-agent-integration`  
 **Goal:** A server-side surface that can hold secrets (for agents and privileged ops) without putting service role in `PUBLIC_*`.  
 **Depends on:** Phases B–C; D strongly recommended  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] Pick one approach and implement a minimal “health + authorized ping”:
+- [x] Pick one approach and implement a minimal “health + authorized ping”:
   - **Preferred:** Supabase Edge Function verifying JWT + `is_approved_staff`, or
   - Astro hybrid / `@astrojs/vercel` server route (only if Edge is insufficient).
-- [ ] Env: document server secrets in `.env.example` (no `PUBLIC_` prefix).
-- [ ] One authenticated client call from `/app` proving the boundary works.
-- [ ] Do **not** expose service role to the browser.
+- [x] Env: document server secrets in `.env.example` (no `PUBLIC_` prefix).
+- [x] One authenticated client call from `/app` proving the boundary works.
+- [x] Do **not** expose service role to the browser.
 
 ### Out of scope
 
@@ -219,9 +219,9 @@ Do not add AI agents. Document threat-model outcome in the PR. Exit when build/c
 
 ### Exit criteria
 
-- [ ] Unauthenticated callers get 401/403.
-- [ ] Approved staff can invoke the ping successfully.
-- [ ] README documents how to run/deploy the function or server route.
+- [x] Unauthenticated callers get 401/403.
+- [x] Approved staff can invoke the ping successfully.
+- [x] README documents how to run/deploy the function or server route.
 
 ### Plan prompt
 
@@ -237,18 +237,18 @@ Do not implement LLM agents yet. Exit when unauthenticated access fails and appr
 
 ## Phase F — AI agent integration
 
-**Status:** Not started  
+**Status:** Done on `feature/ai-agent-integration`  
 **Goal:** First useful agent capability on top of persisted CRM + server boundary.  
 **Depends on:** Phases B, C, E (D before any agent that can read directories)  
 **Estimate:** 1–2 PRs
 
 ### In scope
 
-- [ ] Define one vertical slice (pick in plan; default: “summarize recent calls / suggest next follow-ups for a prospect”).
-- [ ] Server-side tool handlers: read `calls` (and only data allowed by policy); never return service role to client.
-- [ ] Minimal `/app` UI entry (button or panel) to run the slice; show streaming or final text.
-- [ ] Guardrails: approved-staff only; rate limit or max tokens; no silent writes unless explicitly in scope.
-- [ ] Tests for tool input validation / auth rejection.
+- [x] Define one vertical slice (pick in plan; default: “summarize recent calls / suggest next follow-ups for a prospect”).
+- [x] Server-side tool handlers: read `calls` (and only data allowed by policy); never return service role to client.
+- [x] Minimal `/app` UI entry (button or panel) to run the slice; show streaming or final text.
+- [x] Guardrails: approved-staff only; rate limit or max tokens; no silent writes unless explicitly in scope.
+- [x] Tests for tool input validation / auth rejection.
 
 ### Out of scope
 
@@ -256,9 +256,9 @@ Do not implement LLM agents yet. Exit when unauthenticated access fails and appr
 
 ### Exit criteria
 
-- [ ] Approved staff can run the slice against real persisted calls.
-- [ ] Pending users and anon cannot.
-- [ ] Secrets stay server-side; `npm run check` green.
+- [x] Approved staff can run the slice against real persisted calls.
+- [x] Pending users and anon cannot.
+- [x] Secrets stay server-side; `npm run check` green.
 
 ### Plan prompt
 
@@ -274,17 +274,17 @@ Do not expand into a full agent platform. Exit when the slice works end-to-end o
 
 ## Phase G — Multi-rep & owner ops (optional)
 
-**Status:** Not started  
+**Status:** Done on `feature/ai-agent-integration`  
 **Goal:** Least-privilege and in-product approval when more than Justin uses the app.  
 **Depends on:** Phases B–C  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] Owner-only RPC or policy to set `profiles.status` / promote roles (users still cannot self-approve).
-- [ ] Optional simple owner UI list of pending profiles.
-- [ ] Decide invite-only signup vs open register (disable public signups or allowlist).
-- [ ] Optional: `calls.created_by` filtering if multi-rep privacy is required.
+- [x] Owner-only RPC or policy to set `profiles.status` / promote roles (users still cannot self-approve).
+- [x] Optional simple owner UI list of pending profiles.
+- [x] Decide invite-only signup vs open register (disable public signups or allowlist).
+- [ ] Optional: `calls.created_by` filtering if multi-rep privacy is required. _(Deferred — shared CRM for approved staff.)_
 
 ### Out of scope
 
@@ -292,9 +292,9 @@ Do not expand into a full agent platform. Exit when the slice works end-to-end o
 
 ### Exit criteria
 
-- [ ] Owner can approve a pending rep without SQL Editor.
-- [ ] Non-owners cannot approve.
-- [ ] Signup policy documented in README.
+- [x] Owner can approve a pending rep without SQL Editor.
+- [x] Non-owners cannot approve.
+- [x] Signup policy documented in README.
 
 ### Plan prompt
 
@@ -310,18 +310,18 @@ Do not build buyer portal or agents. Exit when an owner can approve a rep in-pro
 
 ## Phase H — Quality bar
 
-**Status:** Not started  
+**Status:** Done on `feature/ai-agent-integration`  
 **Goal:** Raise automated confidence around auth and CRM.  
 **Depends on:** Phases B–C (run anytime after; best after F for agent tests)  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] Tests: `LoginForm` flows (mocked), `isApprovedStaff`, AuthProvider loading behavior, call insert mocks if not in B.
-- [ ] Extract Prospects filter helper (mirror `catalogFilters`) + unit tests.
-- [ ] Add `format:check` to CI.
-- [ ] Optional Playwright smoke: unauthenticated `/app` → `/rep-login`; approved session reaches RCC.
-- [ ] Harden `vercel.json`: CSP baseline + HSTS; document Supabase Auth redirect allow-list for previews.
+- [x] Tests: `LoginForm` flows (mocked), `isApprovedStaff`, AuthProvider loading behavior, call insert mocks if not in B.
+- [x] Extract Prospects filter helper (mirror `catalogFilters`) + unit tests.
+- [x] Add `format:check` to CI.
+- [ ] Optional Playwright smoke: unauthenticated `/app` → `/rep-login`; approved session reaches RCC. _(Deferred — AuthGate unit coverage covers redirect; no e2e deps this PR.)_
+- [x] Harden `vercel.json`: CSP baseline + HSTS; document Supabase Auth redirect allow-list for previews.
 
 ### Out of scope
 
@@ -329,8 +329,8 @@ Do not build buyer portal or agents. Exit when an owner can approve a rep in-pro
 
 ### Exit criteria
 
-- [ ] CI runs lint, typecheck, test, format:check, build.
-- [ ] Critical auth/CRM paths have automated coverage beyond AuthGate alone.
+- [x] CI runs lint, typecheck, test, format:check, build.
+- [x] Critical auth/CRM paths have automated coverage beyond AuthGate alone.
 
 ### Plan prompt
 
@@ -362,16 +362,16 @@ F AI agent integration
 H Quality bar (or earlier after C)
 ```
 
-| Phase | Plan-sized goal |
-| --- | --- |
-| A | CI/docs/dev trust |
-| B | Write `calls` |
-| C | Read CRM tabs |
-| D | Stop public bundle leak |
-| E | Server secrets boundary |
-| F | One agent vertical slice |
-| G | In-app approval / signup policy |
-| H | Tests + CI + headers |
+| Phase | Plan-sized goal                 |
+| ----- | ------------------------------- |
+| A     | CI/docs/dev trust               |
+| B     | Write `calls`                   |
+| C     | Read CRM tabs                   |
+| D     | Stop public bundle leak         |
+| E     | Server secrets boundary         |
+| F     | One agent vertical slice        |
+| G     | In-app approval / signup policy |
+| H     | Tests + CI + headers            |
 
 ---
 

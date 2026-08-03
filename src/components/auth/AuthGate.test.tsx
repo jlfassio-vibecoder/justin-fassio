@@ -134,6 +134,7 @@ describe('AuthGate', () => {
     expect(screen.getByText('Rep Command Center')).toBeInTheDocument();
     expect(screen.getByText('justin@example.com')).toBeInTheDocument();
     expect(screen.getByText('rep')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pending reps' })).not.toBeInTheDocument();
   });
 
   it('renders the app for an approved owner', () => {
@@ -149,6 +150,7 @@ describe('AuthGate', () => {
     render(<AuthGate />);
     expect(screen.getByText('Rep Command Center')).toBeInTheDocument();
     expect(screen.getByText('owner')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pending reps' })).toBeInTheDocument();
   });
 
   it('signs out and returns home from the approved app shell', async () => {

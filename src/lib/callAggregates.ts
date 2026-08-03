@@ -2,11 +2,7 @@ import type { CallRow } from '@/lib/calls';
 import type { Prospect } from '@/lib/prospects';
 
 export type ChannelFilter =
-  | 'All Retail Channels'
-  | 'Golf Pro Shops'
-  | 'Marinas'
-  | 'Hardware / Farm Co-op'
-  | 'Resort Gift';
+  'All Retail Channels' | 'Golf Pro Shops' | 'Marinas' | 'Hardware / Farm Co-op' | 'Resort Gift';
 
 export type OutcomeFilter =
   | 'All Call Outcomes'
@@ -22,13 +18,15 @@ export interface CallFilterOptions {
   outcome: OutcomeFilter;
 }
 
-const CHANNEL_TO_CATEGORY: Record<Exclude<ChannelFilter, 'All Retail Channels'>, Prospect['category']> =
-  {
-    'Golf Pro Shops': 'Golf',
-    Marinas: 'Marina',
-    'Hardware / Farm Co-op': 'Hardware',
-    'Resort Gift': 'Resort Gift',
-  };
+const CHANNEL_TO_CATEGORY: Record<
+  Exclude<ChannelFilter, 'All Retail Channels'>,
+  Prospect['category']
+> = {
+  'Golf Pro Shops': 'Golf',
+  Marinas: 'Marina',
+  'Hardware / Farm Co-op': 'Hardware',
+  'Resort Gift': 'Resort Gift',
+};
 
 /** UI filter labels → substrings that match persisted Log Call outcome strings. */
 const OUTCOME_FILTER_NEEDLE: Record<Exclude<OutcomeFilter, 'All Call Outcomes'>, string> = {
@@ -151,7 +149,10 @@ export function summarizeDashboard(calls: CallRow[], prospects: Prospect[] = [])
     },
   ];
 
-  const channelMap = new Map<Prospect['category'], { sum: number; scored: number; count: number }>();
+  const channelMap = new Map<
+    Prospect['category'],
+    { sum: number; scored: number; count: number }
+  >();
   for (const call of calls) {
     const cat = index.get(call.prospect_id)?.category;
     if (!cat) continue;
@@ -179,9 +180,7 @@ export function summarizeDashboard(calls: CallRow[], prospects: Prospect[] = [])
     .map(([outcome, count]) => ({ outcome, count }))
     .sort((a, b) => b.count - a.count);
 
-  const recent = [...calls]
-    .sort((a, b) => b.call_date.localeCompare(a.call_date))
-    .slice(0, 5);
+  const recent = [...calls].sort((a, b) => b.call_date.localeCompare(a.call_date)).slice(0, 5);
 
   return {
     totalCalls,

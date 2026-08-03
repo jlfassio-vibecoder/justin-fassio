@@ -141,7 +141,7 @@ export function LogCallModal({
   return (
     <DialogBackdrop open={open} onClose={handleClose}>
       <form
-        className="flex max-w-[560px] flex-col gap-3.1 rounded-xl bg-surface p-4.1 shadow-lg"
+        className="gap-3.1 bg-surface p-4.1 flex max-w-[560px] flex-col rounded-xl shadow-lg"
         onSubmit={(e) => void handleSubmit(e)}
       >
         <div className="flex items-center justify-between">
@@ -253,7 +253,7 @@ export function LogCallModal({
           />
         </Field>
 
-        {error && <p className="m-0 text-sm text-accent-800">{error}</p>}
+        {error && <p className="text-accent-800 m-0 text-sm">{error}</p>}
 
         <div className="mt-1.5 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={handleClose} disabled={busy}>

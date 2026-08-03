@@ -30,12 +30,16 @@ Dependabot already ignores `typescript` major updates (Phase 0).
 
 ### Auth & approval
 
-New signups create a `profiles` row with `role = 'rep'` and `status = 'pending'`. The `/app` gate shows a pending screen until an owner approves the account. Domain tables (`calls`, `catalog_items`, `prospects`, etc.) are RLS-restricted to approved staff via `is_approved_staff()`.
+**Signup policy:** Open self-registration at `/rep-login`. New accounts get `role = 'rep'` and `status = 'pending'` (no self-approval). Access stays blocked until an **approved owner** approves them. Public Auth signups are not disabled; the pending gate is the control.
 
-Apply migrations in order (SQL Editor or `supabase db push`), including
-[`supabase/migrations/20260802220000_profiles_approval_workflow.sql`](supabase/migrations/20260802220000_profiles_approval_workflow.sql).
+Domain tables (`calls`, `catalog_items`, `prospects`, etc.) are RLS-restricted to approved staff via `is_approved_staff()`.
 
-Bootstrap Justin as owner (run once):
+**In-product approval (Phase G):** An approved owner signed into `/app` can use **Pending reps** to list pending profiles and Approve / Reject via owner-only RPCs (`list_pending_profiles`, `set_profile_status`). Non-owners cannot invoke those RPCs. Approving does not change `role` (stays `rep`). Promoting someone to `owner` remains a SQL bootstrap step.
+
+Apply migrations in order (SQL Editor or `supabase db push`), including the approval workflow and
+[`supabase/migrations/20260802260000_owner_approval_rpcs.sql`](supabase/migrations/20260802260000_owner_approval_rpcs.sql).
+
+Bootstrap the first owner (run once if needed):
 
 ```sql
 update public.profiles
@@ -43,7 +47,7 @@ set role = 'owner', status = 'approved', updated_at = now()
 where email = 'office@justinfassio.com';
 ```
 
-Approve a pending rep:
+Fallback SQL approve (prefer **Pending reps** in `/app`):
 
 ```sql
 update public.profiles
@@ -51,7 +55,21 @@ set status = 'approved', role = 'rep', updated_at = now()
 where email = 'new.rep@example.com';
 ```
 
-In Supabase Auth → URL configuration, set the Site URL and add redirect allow-list entries for `/app` and `/rep-login` on production (`https://justinfassio.com`, `https://justin-fassio.vercel.app`) and local (`http://localhost:4321`).
+### Auth redirect allow-list (Supabase)
+
+In **Supabase → Authentication → URL configuration**:
+
+- **Site URL:** production origin (e.g. `https://justinfassio.com` or `https://justin-fassio.vercel.app`).
+- **Redirect URLs** must include every host that completes magic-link / email confirm into `/app` or `/rep-login`:
+  - Production: `https://justinfassio.com/app`, `https://justinfassio.com/rep-login` (and the `justin-fassio.vercel.app` equivalents if used).
+  - Local: `http://localhost:4321/app`, `http://localhost:4321/rep-login`.
+  - **Vercel previews:** each preview deployment has a unique host (`https://<project>-<hash>-<team>.vercel.app`). Add specific preview URLs when testing auth on a PR, or maintain a documented wildcard if your Supabase plan supports redirect wildcards. Missing preview hosts cause magic-link failures on Preview only.
+
+### Security headers
+
+[`vercel.json`](vercel.json) sets `Strict-Transport-Security` (HSTS) and a baseline `Content-Security-Policy` (allows self, Google Fonts, and `*.supabase.co` / realtime websockets). Existing nosniff / Referrer-Policy / frame / Permissions-Policy headers remain.
+
+<!-- // Copilot suggestion ignored: Phase H locked script-src unsafe-inline for Astro static hydration; nonce pipeline out of scope. -->
 
 **Note:** Catalog and prospect directories load at runtime from Supabase (`catalog_items`, `prospects`) under `is_approved_staff()` RLS. They are not embedded in the public `/app` JS bundle. Seed sources for regenerating migrations live under `scripts/seed-source/` (not imported by the client).
 
@@ -62,7 +80,7 @@ Requires **Node ≥ 22.22.3** (see `.nvmrc`). Prefer **`npm ci`** for a lockfile
 ```sh
 npm ci
 npm run dev           # astro dev --force (avoids stale Vite jsxDEV / optimize-deps cache)
-npm run check         # lint + typecheck + unit/component tests
+npm run check         # lint + typecheck + format:check + unit/component tests
 npm run test          # Vitest single run
 npm run test:watch    # Vitest watch mode
 npm run format        # write formatting
@@ -146,7 +164,10 @@ Optional deferred: TypeScript 6 when `@astrojs/check` peers allow a clean `npm c
 
 ## Notes
 
-- Auth and approval are shipped (`/rep-login`, `/app` AuthGate, profiles + `is_approved_staff()` RLS). Outstanding product depth is the server tool boundary and AI (Phases E–F).
+- Auth and approval are shipped (`/rep-login`, `/app` AuthGate, profiles + `is_approved_staff()` RLS).
 - Log Call Save persists to Supabase `calls` for approved staff (RLS). Dashboard, Calls (search/filters), and Insights read from those rows — empty UI only when the DB has no calls.
 - The line switcher only has data for "Old Guys Rule" today; "Busted Knuckles Garage" shows a dismissible "coming soon" notice per the design spec.
-- Catalog + prospect directories are fetched after approved-staff session from Supabase (not in the static `/app` bundle). Residual: a stolen approved JWT or post-login network capture can still read the full corpora; there is no per-rep row ownership yet (Phase G).
+- Catalog + prospect directories are fetched after approved-staff session from Supabase (not in the static `/app` bundle). Residual: a stolen approved JWT or post-login network capture can still read the full corpora; there is no per-rep call row ownership yet (`calls.created_by` deferred).
+- **Owner ops (Phase G):** Open signup + pending gate; approved owners approve/reject from `/app` → **Pending reps**. Shared domain CRUD for all approved staff remains.
+- **Server tools (Phase E):** Edge Function `authorized-ping` verifies JWT + `is_approved_staff`. From an approved `/app` session, use **Ping server** in the AuthGate chrome. Deploy with `supabase functions deploy authorized-ping`; local: `supabase functions serve authorized-ping`. Document `SUPABASE_SERVICE_ROLE_KEY` in `.env.example` for future privileged ops — never put it under `PUBLIC_*` or in client islands.
+- **AI follow-ups (Phase F):** Edge Function `suggest-follow-ups` reads one prospect’s recent calls under RLS, calls OpenAI server-side, and returns a summary + follow-up list (display-only). From Prospects, use **Suggest** on a store with logged calls. Deploy with `supabase functions deploy suggest-follow-ups` (also redeploy `authorized-ping` after shared auth changes). Set `supabase secrets set OPENAI_API_KEY=...`. Never put the OpenAI key under `PUBLIC_*` or in client islands.

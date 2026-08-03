@@ -238,6 +238,28 @@ export interface Database {
         Args: Record<string, never>;
         Returns: boolean;
       };
+      is_approved_owner: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      list_pending_profiles: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          email: string | null;
+          display_name: string | null;
+          role: string;
+          status: string;
+          created_at: string;
+        }[];
+      };
+      set_profile_status: {
+        Args: {
+          target_id: string;
+          new_status: string;
+        };
+        Returns: undefined;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

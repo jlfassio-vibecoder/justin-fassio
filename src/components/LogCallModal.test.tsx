@@ -94,15 +94,9 @@ describe('LogCallModal', () => {
     const onSaved = vi.fn();
     render(<ModalHarness onClose={onClose} onSaved={onSaved} />);
 
-    await user.type(
-      screen.getByPlaceholderText(/Dave Miller/i),
-      'Dave Miller (Owner)',
-    );
+    await user.type(screen.getByPlaceholderText(/Dave Miller/i), 'Dave Miller (Owner)');
     await user.click(screen.getByRole('checkbox', { name: /Loves display rack/i }));
-    await user.type(
-      screen.getByPlaceholderText(/Call summary/i),
-      'Interested in spring book.',
-    );
+    await user.type(screen.getByPlaceholderText(/Call summary/i), 'Interested in spring book.');
     await user.click(screen.getByRole('button', { name: /Save Call Record/i }));
 
     await waitFor(() => {

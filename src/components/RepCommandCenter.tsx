@@ -69,8 +69,8 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   }
 
   return (
-    <div className="min-h-screen bg-bg font-body text-ink">
-      <header className="sticky top-0 z-30 border-b border-ink/15 bg-bg/95 backdrop-blur">
+    <div className="bg-bg font-body text-ink min-h-screen">
+      <header className="border-ink/15 bg-bg/95 sticky top-0 z-30 border-b backdrop-blur">
         <div className="mx-auto max-w-[1400px]">
           <Header activeLine="ogr" onSelectOgr={() => {}} onLogCall={() => openModal()} />
           <TabNav
@@ -82,12 +82,12 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-[1400px] flex-col gap-5 px-7 pb-16 pt-6">
+      <main className="mx-auto flex max-w-[1400px] flex-col gap-5 px-7 pt-6 pb-16">
         {directoryLoading && (
-          <p className="m-0 text-sm text-ink/60">Loading catalog and prospect directory…</p>
+          <p className="text-ink/60 m-0 text-sm">Loading catalog and prospect directory…</p>
         )}
         {directoryError && (
-          <p className="m-0 text-sm text-accent-800">
+          <p className="text-accent-800 m-0 text-sm">
             Could not load directory data: {directoryError}
           </p>
         )}
@@ -122,10 +122,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
               <ProspectsTab prospects={prospects} onLogCall={(prospect) => openModal(prospect)} />
             )}
             {activeTab === 'insights' && (
-              <InsightsTab
-                marginRangeDisplay={marginRangeDisplay}
-                reloadToken={callsReloadToken}
-              />
+              <InsightsTab marginRangeDisplay={marginRangeDisplay} reloadToken={callsReloadToken} />
             )}
           </>
         )}
