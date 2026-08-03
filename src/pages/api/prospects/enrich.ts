@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
+import { checkAgentRateLimit, rateLimitResponse } from '@/lib/agentRateLimit';
 import { createEnrichedProspect } from '@/lib/createEnrichedProspect';
 
 export const prerender = false;
@@ -14,6 +15,14 @@ function jsonError(message: string, status: number): Response {
 export const POST: APIRoute = async ({ request }) => {
   const gate = await requireApprovedStaffClient(request);
   if (!gate.ok) return gate.response;
+
+  // createEnrichedProspect calls generateObject (paid gpt-4o via AI Gateway) per request.
+  // Throttle per user (in-memory) like /api/agent; use a separate key so the two paid
+  // endpoints don't share/starve one another's budget.
+  const limited = checkAgentRateLimit(`enrich:${gate.userId}`);
+  if (!limited.ok) {
+    return rateLimitResponse(limited.retryAfterSec);
+  }
 
   let body: { companyName?: unknown; websiteUrl?: unknown };
   try {
