@@ -178,6 +178,9 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                     ),
                   );
                 }}
+                onProspectUpdated={(prospect) => {
+                  setProspects((prev) => prev.map((p) => (p.id === prospect.id ? prospect : p)));
+                }}
                 onNotesSaved={(id, notes) => {
                   setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
                 }}
@@ -189,6 +192,9 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                 onLogCall={(account) => openModal(account)}
                 onNotesSaved={(id, notes) => {
                   setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
+                }}
+                onProspectUpdated={(prospect) => {
+                  setProspects((prev) => prev.map((p) => (p.id === prospect.id ? prospect : p)));
                 }}
               />
             )}

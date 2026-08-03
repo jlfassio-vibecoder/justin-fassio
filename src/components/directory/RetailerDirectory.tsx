@@ -153,7 +153,7 @@ export function RetailerDirectory({
                     </td>
                     {renderExtraCells ? renderExtraCells(p) : null}
                     <td className="border-ink/[0.08] border-b p-2 text-right">
-                      <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                      <div className="grid grid-cols-2 justify-items-stretch gap-1.5 text-right">
                         {renderActions(p)}
                       </div>
                     </td>

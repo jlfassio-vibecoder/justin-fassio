@@ -9,6 +9,7 @@ import {
   type ProspectCategory,
   type ProspectRegion,
 } from '@/lib/prospects';
+import type { ProspectRow } from '@/types/database';
 
 export const PROSPECT_CATEGORIES = [
   'Golf',
@@ -26,7 +27,7 @@ export const PROSPECT_REGIONS = [
   'Fraser Valley',
 ] as const satisfies readonly ProspectRegion[];
 
-const enrichedProspectSchema = z.object({
+export const enrichedProspectSchema = z.object({
   name: z.string().min(1).describe('Cleaned business / store name'),
   category: z
     .enum(PROSPECT_CATEGORIES)
@@ -64,6 +65,13 @@ export type CreateEnrichedProspectInput = {
 export type CreateEnrichedProspectResult =
   { ok: true; prospect: Prospect; researchBrief: string | null } | { ok: false; error: string };
 
+export type InferEnrichedProspectFieldsResult =
+  | { ok: true; fields: EnrichedProspectFields; researchBrief: string | null }
+  | { ok: false; error: string };
+
+const PROSPECT_SELECT =
+  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, created_at, updated_at' as const;
+
 /** Encode fit score + positioning notes into the prospects.fit column. */
 export function formatProspectFit(fitScore: number, notes: string): string {
   const score = Math.min(10, Math.max(1, Math.round(fitScore)));
@@ -75,6 +83,23 @@ export function formatProspectFit(fitScore: number, notes: string): string {
 export function nextProspectId(maxId: number | null | undefined): number {
   if (maxId == null || !Number.isFinite(maxId)) return 1;
   return Math.floor(maxId) + 1;
+}
+
+/** Map inferred fields onto an existing prospect for preview (no DB write). */
+export function proposedProspectFromFields(
+  current: Prospect,
+  fields: EnrichedProspectFields,
+): Prospect {
+  return {
+    ...current,
+    name: fields.name.trim(),
+    category: fields.category,
+    region: fields.region,
+    city: fields.city.trim(),
+    address: fields.address?.trim() || '',
+    phone: fields.phone?.trim() || '',
+    fit: formatProspectFit(fields.fitScore, fields.notes),
+  };
 }
 
 function isUniqueViolation(message: string): boolean {
@@ -112,9 +137,7 @@ async function insertProspect(
       phone: fields.phone?.trim() || '',
       fit,
     })
-    .select(
-      'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, created_at, updated_at',
-    )
+    .select(PROSPECT_SELECT)
     .single();
 
   if (error) {
@@ -123,17 +146,15 @@ async function insertProspect(
   if (!data) {
     return { ok: false, error: 'Insert returned no row' };
   }
-  return { ok: true, prospect: mapProspectRow(data), researchBrief: null };
+  return { ok: true, prospect: mapProspectRow(data as ProspectRow), researchBrief: null };
 }
 
 /**
- * Infer CRM fields for a BC retailer via AI Gateway (+ optional web research), then INSERT under JWT/RLS.
- * Address/phone only when research cites them. Encodes fit score + notes into `fit`.
+ * Research + structured CRM fields without writing to the database.
  */
-export async function createEnrichedProspect(
-  supabase: AgentSupabase,
+export async function inferEnrichedProspectFields(
   input: CreateEnrichedProspectInput,
-): Promise<CreateEnrichedProspectResult> {
+): Promise<InferEnrichedProspectFieldsResult> {
   const companyName = input.companyName.trim();
   if (!companyName) {
     return { ok: false, error: 'Company name is required' };
@@ -164,7 +185,6 @@ export async function createEnrichedProspect(
       ].join('\n')
     : 'No web research brief available; infer carefully from the company name and website hint only. Set address and phone to null. Do not assume Golf from "Sports" in the name.';
 
-  let fields: EnrichedProspectFields;
   try {
     const result = await generateObject({
       model: 'openai/gpt-4o',
@@ -184,11 +204,27 @@ export async function createEnrichedProspect(
         researchBlock,
       ].join('\n'),
     });
-    fields = result.object;
+    return { ok: true, fields: result.object, researchBrief };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Enrichment failed';
     return { ok: false, error: message };
   }
+}
+
+/**
+ * Infer CRM fields for a BC retailer via AI Gateway (+ optional web research), then INSERT under JWT/RLS.
+ * Address/phone only when research cites them. Encodes fit score + notes into `fit`.
+ */
+export async function createEnrichedProspect(
+  supabase: AgentSupabase,
+  input: CreateEnrichedProspectInput,
+): Promise<CreateEnrichedProspectResult> {
+  const inferred = await inferEnrichedProspectFields(input);
+  if (!inferred.ok) {
+    return inferred;
+  }
+
+  const { fields, researchBrief } = inferred;
 
   const firstId = await allocateNextId(supabase);
   if (typeof firstId === 'object') {

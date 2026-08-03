@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AccountDetailDrawer } from '@/components/AccountDetailDrawer';
 import { AccountOrderHistoryModal } from '@/components/AccountOrderHistoryModal';
+import { AiUpdateResearchModal } from '@/components/AiUpdateResearchModal';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
@@ -24,6 +25,7 @@ interface ActiveAccountsTabProps {
   accounts: Prospect[];
   onLogCall: (account: Prospect) => void;
   onNotesSaved?: (id: number, notes: string | null) => void;
+  onProspectUpdated?: (prospect: Prospect) => void;
 }
 
 function formatCad(amount: number): string {
@@ -44,10 +46,16 @@ function isContactDue(isoDate: string | null | undefined, todayIso: string): boo
   return isoDate <= todayIso;
 }
 
-export function ActiveAccountsTab({ accounts, onLogCall, onNotesSaved }: ActiveAccountsTabProps) {
+export function ActiveAccountsTab({
+  accounts,
+  onLogCall,
+  onNotesSaved,
+  onProspectUpdated,
+}: ActiveAccountsTabProps) {
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [aiUpdateAccount, setAiUpdateAccount] = useState<Prospect | null>(null);
   const [historyAccount, setHistoryAccount] = useState<Prospect | null>(null);
   const [detailAccount, setDetailAccount] = useState<Prospect | null>(null);
   const [ordersReloadToken, setOrdersReloadToken] = useState(0);
@@ -269,6 +277,13 @@ export function ActiveAccountsTab({ accounts, onLogCall, onNotesSaved }: ActiveA
               Details
             </Button>
             <Button
+              variant="secondary"
+              className="px-3 py-1 text-xs"
+              onClick={() => setAiUpdateAccount(account)}
+            >
+              AI Update
+            </Button>
+            <Button
               variant="primary"
               className="px-3 py-1 text-xs"
               onClick={() => setHistoryAccount(account)}
@@ -284,6 +299,18 @@ export function ActiveAccountsTab({ accounts, onLogCall, onNotesSaved }: ActiveA
             </Button>
           </>
         )}
+      />
+
+      <AiUpdateResearchModal
+        open={aiUpdateAccount != null}
+        prospect={aiUpdateAccount}
+        onClose={() => setAiUpdateAccount(null)}
+        onApplied={(prospect) => {
+          onProspectUpdated?.(prospect);
+          if (detailAccount?.id === prospect.id) {
+            setDetailAccount(prospect);
+          }
+        }}
       />
 
       <AccountDetailDrawer
