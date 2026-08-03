@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AccountDetailDrawer } from '@/components/AccountDetailDrawer';
 import { AccountOrderHistoryModal } from '@/components/AccountOrderHistoryModal';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
@@ -47,6 +48,7 @@ export function ActiveAccountsTab({ accounts, onLogCall }: ActiveAccountsTabProp
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [historyAccount, setHistoryAccount] = useState<Prospect | null>(null);
+  const [detailAccount, setDetailAccount] = useState<Prospect | null>(null);
   const [ordersReloadToken, setOrdersReloadToken] = useState(0);
   const [settingsByAccount, setSettingsByAccount] = useState<
     Map<number, AccountReorderSettingsRow>
@@ -259,6 +261,13 @@ export function ActiveAccountsTab({ accounts, onLogCall }: ActiveAccountsTabProp
           <>
             {renderAiReminder(account)}
             <Button
+              variant="secondary"
+              className="px-3 py-1 text-xs"
+              onClick={() => setDetailAccount(account)}
+            >
+              Details
+            </Button>
+            <Button
               variant="primary"
               className="px-3 py-1 text-xs"
               onClick={() => setHistoryAccount(account)}
@@ -274,6 +283,23 @@ export function ActiveAccountsTab({ accounts, onLogCall }: ActiveAccountsTabProp
             </Button>
           </>
         )}
+      />
+
+      <AccountDetailDrawer
+        account={detailAccount}
+        summary={
+          detailAccount
+            ? {
+                tlvCad: totalLifetimeValueCad(ordersByAccount.get(detailAccount.id) ?? []),
+                lastOrderDate: lastOrderDate(ordersByAccount.get(detailAccount.id) ?? []),
+                latestSeason: latestSeason(ordersByAccount.get(detailAccount.id) ?? []),
+              }
+            : null
+        }
+        reorderSettings={detailAccount ? (settingsByAccount.get(detailAccount.id) ?? null) : null}
+        onClose={() => setDetailAccount(null)}
+        onLogCall={onLogCall}
+        onLogOrder={(account) => setHistoryAccount(account)}
       />
 
       <AccountOrderHistoryModal

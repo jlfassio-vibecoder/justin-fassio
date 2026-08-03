@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
+import { AccountContactsSection } from '@/components/AccountContactsSection';
 import { ConvertAccountModal } from '@/components/ConvertAccountModal';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
@@ -81,6 +82,8 @@ export function ProspectDetailDrawer({
               <dd className="text-ink/80 m-0 mt-0.5 leading-relaxed">{prospect.fit || '—'}</dd>
             </div>
           </dl>
+
+          <AccountContactsSection accountId={prospect.id} />
         </div>
 
         <div className="border-ink/10 flex flex-col gap-2 border-t px-5 py-4">
