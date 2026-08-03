@@ -62,6 +62,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   }, []);
 
   function openModal(prospect?: Prospect) {
+    if (!prospect && prospects.length === 0) return;
     const store = prospect ?? prospects[0];
     setModalStoreId(store ? store.id : null);
     setModalOpen(true);

@@ -124,9 +124,9 @@ src/
     TabNav.tsx     pill tab bar
     LogCallModal.tsx
     RepCommandCenter.tsx
-  data/            catalog.ts, prospects.ts, landing.ts
+  data/            landing.ts (directories load from Supabase; seed sources in scripts/seed-source/)
   hooks/           useAuth.ts, useLandedCostCalculator.ts
-  lib/             supabase.ts, auth.ts, catalogFilters.ts, landedCost.ts
+  lib/             supabase.ts, auth.ts, catalog.ts, prospects.ts, calls.ts, callAggregates.ts, …
   layouts/Layout.astro
   pages/           index.astro, login.astro, rep-login.astro, app/index.astro
   styles/global.css

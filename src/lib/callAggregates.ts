@@ -30,6 +30,15 @@ const CHANNEL_TO_CATEGORY: Record<Exclude<ChannelFilter, 'All Retail Channels'>,
     'Resort Gift': 'Resort Gift',
   };
 
+/** UI filter labels → substrings that match persisted Log Call outcome strings. */
+const OUTCOME_FILTER_NEEDLE: Record<Exclude<OutcomeFilter, 'All Call Outcomes'>, string> = {
+  'Closed PO': 'closed po',
+  'Sample Requested': 'sample package',
+  'Follow-up Scheduled': 'follow-up scheduled',
+  Gatekeeper: 'gatekeeper',
+  'Not Interested': 'not interested',
+};
+
 function byId(prospects: Prospect[]): Map<number, Prospect> {
   return new Map(prospects.map((p) => [p.id, p]));
 }
@@ -52,7 +61,7 @@ export function filterCalls(
   const category =
     options.channel === 'All Retail Channels' ? null : CHANNEL_TO_CATEGORY[options.channel];
   const outcomeNeedle =
-    options.outcome === 'All Call Outcomes' ? null : options.outcome.toLowerCase();
+    options.outcome === 'All Call Outcomes' ? null : OUTCOME_FILTER_NEEDLE[options.outcome];
 
   return calls.filter((call) => {
     const prospect = index.get(call.prospect_id);

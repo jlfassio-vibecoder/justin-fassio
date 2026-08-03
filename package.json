@@ -17,7 +17,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "astro check",
-    "posttypecheck": "rm -rf node_modules/.vite/deps",
+    "posttypecheck": "node -e \"require('node:fs').rmSync('node_modules/.vite/deps',{recursive:true,force:true})\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run lint && npm run typecheck && npm run test",

@@ -122,6 +122,27 @@ describe('filterCalls', () => {
     expect(closed).toHaveLength(1);
     expect(closed[0]?.outcome).toContain('Closed PO');
   });
+
+  it('maps Sample Requested filter to Sample Package Requested outcomes', () => {
+    const withSample = [
+      ...rows,
+      call({
+        id: '3',
+        prospect_id: 1,
+        outcome: 'Sample Package Requested',
+      }),
+    ];
+    const matched = filterCalls(
+      withSample,
+      {
+        search: '',
+        channel: 'All Retail Channels',
+        outcome: 'Sample Requested',
+      },
+      FIXTURE_PROSPECTS,
+    );
+    expect(matched.map((c) => c.id)).toEqual(['3']);
+  });
 });
 
 describe('summarizeDashboard', () => {
