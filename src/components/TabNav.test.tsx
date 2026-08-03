@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { TabNav } from '@/components/TabNav';
 
 describe('TabNav', () => {
-  it('renders sku, prospect, and active account counts', () => {
+  it('renders sku, prospect, active account, and contact counts', () => {
     render(
       <TabNav
         activeTab="catalog"
@@ -12,13 +12,16 @@ describe('TabNav', () => {
         totalSkuCount={190}
         prospectTotalCount={240}
         accountTotalCount={9}
+        contactTotalCount={14}
       />,
     );
 
     expect(screen.getByText('190')).toBeInTheDocument();
     expect(screen.getByText('240')).toBeInTheDocument();
     expect(screen.getByText('9')).toBeInTheDocument();
+    expect(screen.getByText('14')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Active Accounts/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Contacts/i })).toBeInTheDocument();
   });
 
   it('notifies parent when a tab is clicked', async () => {
@@ -32,6 +35,7 @@ describe('TabNav', () => {
         totalSkuCount={190}
         prospectTotalCount={240}
         accountTotalCount={9}
+        contactTotalCount={14}
       />,
     );
 
@@ -40,5 +44,8 @@ describe('TabNav', () => {
 
     await user.click(screen.getByRole('button', { name: /Active Accounts/i }));
     expect(onChange).toHaveBeenCalledWith('accounts');
+
+    await user.click(screen.getByRole('button', { name: /Contacts/i }));
+    expect(onChange).toHaveBeenCalledWith('contacts');
   });
 });

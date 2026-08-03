@@ -7,8 +7,10 @@ import { DashboardTab } from '@/components/tabs/DashboardTab';
 import { CallsTab } from '@/components/tabs/CallsTab';
 import { ProspectsTab } from '@/components/tabs/ProspectsTab';
 import { ActiveAccountsTab } from '@/components/tabs/ActiveAccountsTab';
+import { ContactsTab } from '@/components/tabs/ContactsTab';
 import { InsightsTab } from '@/components/tabs/InsightsTab';
 import { useLandedCostCalculator } from '@/hooks/useLandedCostCalculator';
+import { fetchAllContacts, type ContactDirectoryRow } from '@/lib/accountContacts';
 import { fetchCatalogItems, type CatalogItem } from '@/lib/catalog';
 import { fetchProspects, type Prospect } from '@/lib/prospects';
 import type { TabKey } from '@/types';
@@ -23,8 +25,10 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   const [modalStoreId, setModalStoreId] = useState<number | null>(null);
   const [callsReloadToken, setCallsReloadToken] = useState(0);
   const [directoryReloadToken, setDirectoryReloadToken] = useState(0);
+  const [contactsReloadToken, setContactsReloadToken] = useState(0);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [contacts, setContacts] = useState<ContactDirectoryRow[]>([]);
   const [directoryLoading, setDirectoryLoading] = useState(true);
   const [directoryError, setDirectoryError] = useState<string | null>(null);
 
@@ -43,6 +47,10 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
     setDirectoryReloadToken((n) => n + 1);
   }, []);
 
+  const reloadContacts = useCallback(() => {
+    setContactsReloadToken((n) => n + 1);
+  }, []);
+
   useEffect(() => {
     let active = true;
     const isInitial = directoryReloadToken === 0;
@@ -52,18 +60,22 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
         setDirectoryLoading(true);
       }
       setDirectoryError(null);
-      const [catalogResult, prospectsResult] = await Promise.all([
+      const [catalogResult, prospectsResult, contactsResult] = await Promise.all([
         fetchCatalogItems(),
         fetchProspects(),
+        fetchAllContacts(),
       ]);
 
       if (!active) return;
 
-      const errors = [catalogResult.error, prospectsResult.error].filter(Boolean);
+      const errors = [catalogResult.error, prospectsResult.error, contactsResult.error].filter(
+        Boolean,
+      );
       if (errors.length) {
         if (isInitial) {
           setCatalog([]);
           setProspects([]);
+          setContacts([]);
         }
         setDirectoryError(errors.join(' · '));
         setDirectoryLoading(false);
@@ -72,6 +84,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
 
       setCatalog(catalogResult.data);
       setProspects(prospectsResult.data);
+      setContacts(contactsResult.data);
       setDirectoryLoading(false);
     }
 
@@ -80,6 +93,19 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
       active = false;
     };
   }, [directoryReloadToken]);
+
+  useEffect(() => {
+    if (contactsReloadToken === 0) return;
+    let active = true;
+    void fetchAllContacts().then((result) => {
+      if (!active) return;
+      if (result.error) return;
+      setContacts(result.data);
+    });
+    return () => {
+      active = false;
+    };
+  }, [contactsReloadToken]);
 
   function openModal(prospect?: Prospect) {
     if (!prospect && prospects.length === 0) return;
@@ -99,6 +125,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
             totalSkuCount={catalog.length}
             prospectTotalCount={pipelineProspects.length}
             accountTotalCount={activeAccounts.length}
+            contactTotalCount={contacts.length}
           />
         </div>
       </header>
@@ -163,6 +190,17 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                 onNotesSaved={(id, notes) => {
                   setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
                 }}
+              />
+            )}
+            {activeTab === 'contacts' && (
+              <ContactsTab
+                contacts={contacts}
+                prospects={prospects}
+                onLogCall={(store) => openModal(store)}
+                onNotesSaved={(id, notes) => {
+                  setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
+                }}
+                onReloadContacts={reloadContacts}
               />
             )}
             {activeTab === 'insights' && (

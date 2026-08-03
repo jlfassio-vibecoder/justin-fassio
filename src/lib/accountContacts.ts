@@ -46,6 +46,48 @@ export interface AccountContactSearchHit extends AccountContact {
   accountStatus: AccountStatus;
 }
 
+/** Contact row enriched with store fields for the Contacts directory tab. */
+export interface ContactDirectoryRow extends AccountContact {
+  accountName: string;
+  accountCity: string;
+  accountRegion: string;
+  accountCategory: string;
+  accountAddress: string;
+  accountPhone: string;
+  accountStatus: AccountStatus;
+}
+
+export type ProspectContactJoin = {
+  id: number;
+  name: string;
+  city: string;
+  region: string;
+  category: string;
+  address: string;
+  phone: string;
+  account_status: AccountStatus;
+};
+
+export function enrichContactsForDirectory(
+  contacts: AccountContact[],
+  prospects: ProspectContactJoin[],
+): ContactDirectoryRow[] {
+  const byId = new Map(prospects.map((p) => [p.id, p]));
+  return contacts.map((contact) => {
+    const prospect = byId.get(contact.accountId);
+    return {
+      ...contact,
+      accountName: prospect?.name ?? '—',
+      accountCity: prospect?.city ?? '—',
+      accountRegion: prospect?.region ?? '—',
+      accountCategory: prospect?.category ?? '—',
+      accountAddress: prospect?.address ?? '',
+      accountPhone: prospect?.phone ?? '',
+      accountStatus: prospect?.account_status ?? 'prospect',
+    };
+  });
+}
+
 export function mapAccountContactRow(row: AccountContactRow): AccountContact {
   return {
     id: row.id,
@@ -78,6 +120,41 @@ export async function fetchContactsForAccount(
 
   return {
     data: ((data ?? []) as AccountContactRow[]).map(mapAccountContactRow),
+    error: null,
+  };
+}
+
+/** All contacts joined with store fields for the Contacts directory. */
+export async function fetchAllContacts(): Promise<{
+  data: ContactDirectoryRow[];
+  error: string | null;
+}> {
+  const { data, error } = await supabase
+    .from('account_contacts')
+    .select(ACCOUNT_CONTACT_SELECT)
+    .order('full_name', { ascending: true });
+
+  if (error) {
+    return { data: [], error: error.message };
+  }
+
+  const contacts = ((data ?? []) as AccountContactRow[]).map(mapAccountContactRow);
+  const accountIds = [...new Set(contacts.map((c) => c.accountId))];
+  if (accountIds.length === 0) {
+    return { data: [], error: null };
+  }
+
+  const { data: prospects, error: prospectError } = await supabase
+    .from('prospects')
+    .select('id, name, city, region, category, address, phone, account_status')
+    .in('id', accountIds);
+
+  if (prospectError) {
+    return { data: [], error: prospectError.message };
+  }
+
+  return {
+    data: enrichContactsForDirectory(contacts, (prospects ?? []) as ProspectContactJoin[]),
     error: null,
   };
 }
