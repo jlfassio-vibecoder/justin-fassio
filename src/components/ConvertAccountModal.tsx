@@ -1,6 +1,6 @@
 import { useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
-import { ProductMentionTextarea } from '@/components/ProductMentionTextarea';
+import { MentionTextarea } from '@/components/MentionTextarea';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
@@ -149,12 +149,13 @@ function ConvertAccountForm({
 
         <Field>
           <FieldLabel>Order notes</FieldLabel>
-          <ProductMentionTextarea
+          <MentionTextarea
             rows={3}
-            placeholder="Line focus, ship window, buyer notes… Use # for products"
+            placeholder="Line focus, ship window, buyer notes… Use # for products, @ for contacts"
             value={notes}
             onChange={setNotes}
             items={catalog}
+            accountId={prospect.id}
             disabled={busy}
           />
         </Field>

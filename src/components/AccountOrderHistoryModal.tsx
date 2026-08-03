@@ -1,8 +1,9 @@
 import { useMemo, useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
+import { MentionTextarea } from '@/components/MentionTextarea';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
-import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
+import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { APPAREL_SEASON_LABELS, APPAREL_SEASONS, apparelSeasonLabel } from '@/lib/apparelSeasons';
 import {
@@ -284,11 +285,12 @@ function OrderHistoryForm({
 
             <Field>
               <FieldLabel>Notes</FieldLabel>
-              <Textarea
+              <MentionTextarea
                 rows={2}
-                placeholder="Ship window, buyer notes…"
+                placeholder="Ship window, buyer notes… Use # for products, @ for contacts"
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={setNotes}
+                accountId={account.id}
                 disabled={busy}
               />
             </Field>

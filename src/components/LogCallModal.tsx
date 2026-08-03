@@ -2,7 +2,7 @@
 import { useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
 import { ConvertAccountModal } from '@/components/ConvertAccountModal';
-import { ProductMentionTextarea } from '@/components/ProductMentionTextarea';
+import { MentionTextarea } from '@/components/MentionTextarea';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
@@ -306,12 +306,13 @@ export function LogCallModal({
                   </label>
                 ))}
               </div>
-              <ProductMentionTextarea
+              <MentionTextarea
                 rows={3}
-                placeholder="Call summary, buyer reaction… Use # for products"
+                placeholder="Call summary, buyer reaction… Use # for products, @ for contacts"
                 value={notes}
                 onChange={setNotes}
                 items={catalog}
+                accountId={storeId}
               />
             </Field>
 
