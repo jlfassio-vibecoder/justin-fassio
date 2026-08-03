@@ -18,21 +18,17 @@ Do **not** combine phases in one plan unless a later phase explicitly lists a de
 
 ---
 
-
-
 ## Locked architecture
 
 **Streaming chat UX → Vercel AI SDK + AI Gateway.**  
 **CRM-bound reads/tools → Supabase Edge (or JWT + RLS from the Vercel route).**  
 **Never** put provider keys in `PUBLIC_`* or React islands.
 
-
 | Layer                                                     | Responsibility                                                                                            |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `[src/pages/api/agent.ts](src/pages/api/agent.ts)` + `ai` | Streaming assist + CRM read tools under JWT + RLS; Gateway (`openai/gpt-4o`); OIDC / `AI_GATEWAY_API_KEY` |
 | Supabase Edge (`authorized-ping`, later non-LLM tools)    | Auth boundary / ops ping under user JWT + RLS                                                             |
 | Client islands                                            | Bearer to `/api/*` or `functions.invoke`; no LLM secrets                                                  |
-
 
 ```text
 React /app
@@ -43,8 +39,6 @@ React /app
 **Astro hosting:** `output: 'static'` + `@astrojs/vercel`; only selected routes set `export const prerender = false` (e.g. `/api/agent`). Do not SSR the whole site unless a later phase explicitly requires it.
 
 ---
-
-
 
 ## Phase 0 — AI SDK baseline (shipping)
 
@@ -59,15 +53,11 @@ React /app
 - [x] Docs: `.env.example` (`AI_GATEWAY_API_KEY`), README dual-runtime note; `.env.*` gitignore covers `.env.local`.
 - [x] ESLint/Prettier ignore `.vercel/**` (adapter build output).
 
-
-
 ### Exit criteria (met)
 
 - [x] `npm run check` + `npm run build` green.
 - [x] Unauthenticated `/api/agent` → 401; invalid JWT → 401.
 - [x] Edge `authorized-ping` left intact (LLM Suggest later retired in Phase III slice 4).
-
-
 
 ### Local Gateway auth
 
@@ -75,8 +65,6 @@ React /app
 - Or: set `AI_GATEWAY_API_KEY` in `.env.local`.
 
 ---
-
-
 
 ## Phase I — Agent tools on the Vercel route
 
@@ -94,21 +82,15 @@ React /app
 - [x] Guardrails: `stopWhen` / max steps; token caps; approved-staff only (keep existing gate).
 - [x] Prefer **not** duplicating OpenAI secrets on Vercel for CRM tools that already work on Edge until streaming-with-tools in one turn requires it.
 
-
-
 ### Out of scope
 
 - Multi-turn chat UX overhaul (Phase II); product-specific objection/call-draft UIs (Phase III).
-
-
 
 ### Exit criteria
 
 - [x] Approved staff can ask a question that triggers tools and gets a grounded reply from real prospect/call data.
 - [x] Non-approved / anon cannot invoke tools usefully (401/403).
 - [x] `npm run check` green; no `PUBLIC_*` LLM keys.
-
-
 
 ### Plan prompt
 
@@ -121,8 +103,6 @@ Do not rebuild the chat UI (Phase II) or ship objection/call-draft product slice
 ```
 
 ---
-
-
 
 ## Phase II — Chat UX upgrade
 
@@ -137,21 +117,15 @@ Do not rebuild the chat UI (Phase II) or ship objection/call-draft product slice
 - [x] Context chips / prefills from Prospects row and/or Log Call outcome (pass into initial message or system context).
 - [x] Persist optional chat threads later — **not** required for this phase.
 
-
-
 ### Out of scope
 
 - Full conversation history product; embeddings; buyer portal AI.
-
-
 
 ### Exit criteria
 
 - [x] Approved staff can run a multi-turn assist session in `/app` with live streaming.
 - [x] Prefill from at least one CRM surface (Prospects or Log Call) works.
 - [x] `npm run check` green.
-
-
 
 ### Plan prompt
 
@@ -164,8 +138,6 @@ Do not ship new product agent slices (Phase III). Exit when multi-turn streaming
 ```
 
 ---
-
-
 
 ## Phase III — Product agent slices
 
@@ -181,26 +153,12 @@ Do not ship new product agent slices (Phase III). Exit when multi-turn streaming
 3. **Prospect summarization streaming** — replace final-text Edge Prospects **Suggest** UI. **Done** (Prospects **Suggest** → streaming assist via `buildSuggestDraft`; Edge no longer invoked from UI).
 4. **Routing decision** — **Done: retire** Edge `suggest-follow-ups` (client wrapper + Edge function removed from repo). Streaming Suggest on `/api/agent` is the source of truth; wrapping as a tool would duplicate `getProspectSummary` + `listRecentCalls` + Gateway LLM.
 5. **Account Product Fit (APF) v1** — **Done** (`getAccountProductFit` + Prospects **APF Brief** via `buildApfDraft`). Tool returns prospect + capped catalog anchors under JWT/RLS; model streams fit score (1–10), background, and walk-in script (Opener / Product Anchor / CTA). Default line code `ogr`. Out of scope: historical-call feedback loops.
-6. **AI Prospect Onboarding & Enrichment**.
-  ## Technical Design & Scope
-  ### 1. Tool Logic (`createEnrichedProspect`)
-  - **Inputs:** `company_name` (string, required), `website_url` (string, optional).
-  - **AI Processing:** The agent uses its knowledge/search tools to infer:
-    - **Category:** (e.g., *Outdoor & Marine*, *Gift & Resort*, *Apparel Retail*, *Hardware/Automotive*)
-    - **Location:** City and BC Region (e.g., *Vancouver Island*, *Lower Mainland*, *Okanagan*, *Kootenays*)
-    - **Brand Fit / Vibe Summary:** A brief note on store positioning.
-    - **Estimated Fit Score:** (1–10) based on alignment with your active lines.
-  - **Database Action:** Executes a Supabase `INSERT` into the `prospects` table under the user's authenticated JWT (enforcing `is_approved_staff` RLS).
-  - **Return Value:** The newly inserted prospect record so the UI updates immediately in real time.
-
-
+6. **AI Prospect Onboarding & Enrichment** — **Done** (`createEnrichedProspect` via `POST /api/prospects/enrich` + Prospects **+ Add via AI**). `generateObject` infers app category/region/city + fit score/notes; score+notes encoded into `fit` (`"{n}/10 — …"`); INSERT under JWT + RLS with `max(id)+1` (retry on conflict). No schema migration; address/phone left empty.
 
 ### Out of scope
 
 - Building all four slices in one PR; silent CRM writes unless a slice explicitly includes them.
 - Undeploying the cloud Edge function (ops: `supabase functions delete suggest-follow-ups` if still deployed).
-
-
 
 ### Exit criteria (per slice PR)
 
@@ -208,8 +166,7 @@ Do not ship new product agent slices (Phase III). Exit when multi-turn streaming
 - [x] Secrets stay server-side; `npm run check` green.
 - [x] Edge Suggest routing decision documented and applied (**retire**).
 - [x] APF Brief streams fit score, background, and walk-in script from `getAccountProductFit`.
-
-
+- [x] Prospects **+ Add via AI** enriches and inserts under RLS (`/api/prospects/enrich`).
 
 ### Plan prompt (template)
 
@@ -222,8 +179,6 @@ Do not ship the other Phase III slices in this PR. Exit when the slice works on 
 ```
 
 ---
-
-
 
 ## Phase IV — Ops & hardening
 
@@ -239,21 +194,15 @@ Do not ship the other Phase III slices in this PR. Exit when the slice works on 
 - [ ] Vitest for agent route auth rejection (mock `streamText`).
 - [ ] Update `[docs/architecture-assessment.md](docs/architecture-assessment.md)` and cross-link from `[roadmap.md](roadmap.md)`: dual runtime (Edge + Vercel on-demand).
 
-
-
 ### Out of scope
 
 - New agent product features.
-
-
 
 ### Exit criteria
 
 - [ ] Unauthenticated agent calls fail in automated tests.
 - [ ] Rate/spend control documented and enforced at the route (or platform) layer.
 - [ ] Assessment reflects dual AI runtime; `npm run check` green.
-
-
 
 ### Plan prompt
 
@@ -266,8 +215,6 @@ No new agent product features. Exit when CI covers auth failure and docs match t
 ```
 
 ---
-
-
 
 ## Phase order (summary)
 
@@ -284,19 +231,15 @@ III Product slices (one PR each)              ← done (retire Edge Suggest)
 IV Ops & hardening
 ```
 
-
-| Phase | Plan-sized goal                                         |
-| ----- | ------------------------------------------------------- |
-| 0     | Streaming baseline + staff gate                         |
-| I     | Tool-grounded CRM reads                                 |
-| II    | Multi-turn chat UX                                      |
-| III   | Objection / draft / Suggest / APF; Edge Suggest retired |
-| IV    | Limits, tests, docs                                     |
-
+| Phase | Plan-sized goal                                              |
+| ----- | ------------------------------------------------------------ |
+| 0     | Streaming baseline + staff gate                              |
+| I     | Tool-grounded CRM reads                                      |
+| II    | Multi-turn chat UX                                           |
+| III   | Objection / draft / Suggest / APF / AI onboard; Edge retired |
+| IV    | Limits, tests, docs                                          |
 
 ---
-
-
 
 ## Explicit non-goals
 
@@ -307,8 +250,6 @@ IV Ops & hardening
 
 ---
 
-
-
 ## References
 
 - Product roadmap: `[roadmap.md](roadmap.md)` (Phases A–H)
@@ -316,4 +257,3 @@ IV Ops & hardening
 - Edge ping: `[supabase/functions/authorized-ping/index.ts](supabase/functions/authorized-ping/index.ts)`
 - Agent route: `[src/pages/api/agent.ts](src/pages/api/agent.ts)`
 - Assist UI: `[src/components/ui/AIAssistantModal.tsx](src/components/ui/AIAssistantModal.tsx)`
-

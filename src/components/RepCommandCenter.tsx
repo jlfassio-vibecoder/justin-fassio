@@ -119,7 +119,17 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
               />
             )}
             {activeTab === 'prospects' && (
-              <ProspectsTab prospects={prospects} onLogCall={(prospect) => openModal(prospect)} />
+              <ProspectsTab
+                prospects={prospects}
+                onLogCall={(prospect) => openModal(prospect)}
+                onProspectCreated={(prospect) => {
+                  setProspects((prev) =>
+                    [...prev.filter((p) => p.id !== prospect.id), prospect].sort(
+                      (a, b) => a.id - b.id,
+                    ),
+                  );
+                }}
+              />
             )}
             {activeTab === 'insights' && (
               <InsightsTab marginRangeDisplay={marginRangeDisplay} reloadToken={callsReloadToken} />

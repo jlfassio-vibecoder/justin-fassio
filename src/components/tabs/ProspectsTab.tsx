@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { AddProspectAiModal } from '@/components/AddProspectAiModal';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
@@ -39,25 +40,55 @@ const channelTagVariant: Record<
 interface ProspectsTabProps {
   prospects: Prospect[];
   onLogCall: (prospect: Prospect) => void;
+  onProspectCreated: (prospect: Prospect) => void;
 }
 
-export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
+export function ProspectsTab({ prospects, onLogCall, onProspectCreated }: ProspectsTabProps) {
   const { openAssist } = useAiAssist();
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
+  const [addOpen, setAddOpen] = useState(false);
+  const [highlightedProspectId, setHighlightedProspectId] = useState<number | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   const filteredProspects = useMemo(
     () => filterProspects(prospects, { search, region, channel }),
     [prospects, search, region, channel],
   );
 
+  useEffect(() => {
+    if (highlightedProspectId == null) return;
+    const row = document.querySelector(`[data-prospect-id="${highlightedProspectId}"]`);
+    row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const timer = window.setTimeout(() => {
+      setHighlightedProspectId(null);
+      setSuccessBanner(null);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [highlightedProspectId]);
+
+  function handleCreated(prospect: Prospect) {
+    onProspectCreated(prospect);
+    setRegion('ALL');
+    setChannel('ALL');
+    setSearch(prospect.name);
+    setHighlightedProspectId(prospect.id);
+    setSuccessBanner(`Added ${prospect.name} (#${prospect.id})`);
+  }
+
   return (
     <section className="flex flex-col gap-5" data-screen-label="prospects">
+      {successBanner && (
+        <p className="text-ink/80 m-0 text-sm" role="status">
+          {successBanner}
+        </p>
+      )}
+
       <Card row className="flex-wrap items-center gap-3">
         <Input
           className="min-w-[220px] flex-1"
-          placeholder="Search 249 BC prospects by name, city, address, or fit reason…"
+          placeholder="Search BC prospects by name, city, address, or fit reason…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -75,6 +106,13 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
             </option>
           ))}
         </Select>
+        <Button
+          variant="secondary"
+          className="text-xs whitespace-nowrap"
+          onClick={() => setAddOpen(true)}
+        >
+          + Add via AI
+        </Button>
         <span className="text-xs whitespace-nowrap opacity-65">
           Showing {filteredProspects.length} of {prospects.length}
         </span>
@@ -102,7 +140,15 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
             </thead>
             <tbody>
               {filteredProspects.map((p) => (
-                <tr key={p.id} className="hover:bg-ink/[0.04]">
+                <tr
+                  key={p.id}
+                  data-prospect-id={p.id}
+                  className={
+                    highlightedProspectId === p.id
+                      ? 'bg-ink/[0.08] ring-accent-800/40 ring-2 ring-inset'
+                      : 'hover:bg-ink/[0.04]'
+                  }
+                >
                   <td className="border-ink/[0.08] border-b p-2">{p.id}</td>
                   <td className="border-ink/[0.08] min-w-[160px] border-b p-2 font-semibold">
                     {p.name}
@@ -165,6 +211,12 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
           </table>
         </div>
       </Card>
+
+      <AddProspectAiModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCreated={handleCreated}
+      />
     </section>
   );
 }
