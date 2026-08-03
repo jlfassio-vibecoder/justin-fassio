@@ -84,7 +84,7 @@ describe('LoginForm', () => {
     signInWithPasswordMock.mockResolvedValue({ error: null });
     render(<LoginForm />);
 
-    await user.click(screen.getByRole('button', { name: 'Password' }));
+    await user.click(screen.getByRole('link', { name: 'Password' }));
     await user.type(emailInput(), 'rep@example.com');
     await user.type(passwordInput(), 'secret12');
     await user.click(document.querySelector('button[type="submit"]') as HTMLButtonElement);
@@ -99,7 +99,7 @@ describe('LoginForm', () => {
     signUpMock.mockResolvedValue({ data: { session: null }, error: null });
     render(<LoginForm />);
 
-    await user.click(screen.getByRole('button', { name: 'Register' }));
+    await user.click(screen.getByRole('link', { name: 'Register' }));
     await user.type(emailInput(), 'new@example.com');
     await user.type(passwordInput(), 'secret12');
     await user.click(screen.getByRole('button', { name: 'Create account' }));
@@ -112,8 +112,14 @@ describe('LoginForm', () => {
       ).toBeInTheDocument();
     });
   });
-});
 
+  it('honors initialView/initialMode from the URL for SSR', () => {
+    render(<LoginForm initialView="register" initialMode="password" />);
+    expect(screen.getByRole('heading', { name: 'Request access' })).toBeInTheDocument();
+    expect(passwordInput()).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Register' })).toHaveAttribute('aria-current', 'page');
+  });
+});
 describe('LoginForm unconfigured', () => {
   it('renders configuration guidance without throwing', async () => {
     vi.resetModules();

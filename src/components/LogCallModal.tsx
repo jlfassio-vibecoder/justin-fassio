@@ -1,29 +1,18 @@
+// Copilot suggestion ignored: React 19 types export SubmitEvent; FormEvent is deprecated for form onSubmit.
 import { useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
 import { ConvertAccountModal } from '@/components/ConvertAccountModal';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
+import { useAiAssist } from '@/hooks/useAiAssist';
+import { buildCallDraft, type CallDraftFormat } from '@/lib/aiAssistPrefill';
+import { CALL_OUTCOMES } from '@/lib/callOutcomes';
 import { isConversionOutcome } from '@/lib/convertToActiveAccount';
+import { OBJECTION_TAGS } from '@/lib/objectionCatalog';
 import type { Prospect } from '@/lib/prospects';
 import { supabase } from '@/lib/supabase';
 import type { CallInsert } from '@/types/database';
-
-const FEEDBACK_OPTIONS = [
-  'Loves display rack',
-  'Seasonal rush fit',
-  'Pre-booked budget',
-  'Wants higher margin',
-];
-
-const OUTCOME_OPTIONS = [
-  'Closed PO / Written Order',
-  'Account Converted',
-  'Sample Package Requested',
-  'Follow-up Scheduled',
-  'Left Message / Gatekeeper',
-  'Not Interested / Bad Fit',
-] as const;
 
 interface LogCallModalProps {
   open: boolean;
@@ -42,14 +31,16 @@ function resetFormState(setters: {
   setPmfScore: (v: string) => void;
   setOrderValue: (v: string) => void;
   setNotes: (v: string) => void;
+  setDraftFormat: (v: CallDraftFormat) => void;
   setError: (v: string | null) => void;
 }) {
   setters.setFeedback([]);
   setters.setContactName('');
-  setters.setOutcome(OUTCOME_OPTIONS[0]);
+  setters.setOutcome(CALL_OUTCOMES[0]);
   setters.setPmfScore('10');
   setters.setOrderValue('');
   setters.setNotes('');
+  setters.setDraftFormat('email');
   setters.setError(null);
 }
 
@@ -62,12 +53,14 @@ export function LogCallModal({
   onSaved,
   onConverted,
 }: LogCallModalProps) {
+  const { openAssist } = useAiAssist();
   const [feedback, setFeedback] = useState<string[]>([]);
   const [contactName, setContactName] = useState('');
-  const [outcome, setOutcome] = useState<string>(OUTCOME_OPTIONS[0]);
+  const [outcome, setOutcome] = useState<string>(CALL_OUTCOMES[0]);
   const [pmfScore, setPmfScore] = useState('10');
   const [orderValue, setOrderValue] = useState('');
   const [notes, setNotes] = useState('');
+  const [draftFormat, setDraftFormat] = useState<CallDraftFormat>('email');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [convertProspect, setConvertProspect] = useState<Prospect | null>(null);
@@ -93,6 +86,7 @@ export function LogCallModal({
       setPmfScore,
       setOrderValue,
       setNotes,
+      setDraftFormat,
       setError,
     });
   }
@@ -143,6 +137,13 @@ export function LogCallModal({
     const savedOutcome = outcome;
     const savedOrderValue = orderValue === '' ? 0 : Number(orderValue);
     const prospectForConvert = selected;
+    const chips = {
+      prospectId: storeId,
+      prospectName: selected?.name,
+      outcome: savedOutcome,
+      objectionTags: feedback.length > 0 ? feedback : undefined,
+    };
+    const draft = buildCallDraft(chips, draftFormat);
 
     clearForm();
 
@@ -157,6 +158,7 @@ export function LogCallModal({
       return;
     }
 
+    openAssist({ chips, draft });
     onClose();
   }
 
@@ -221,7 +223,7 @@ export function LogCallModal({
               <Field>
                 <FieldLabel>Call outcome</FieldLabel>
                 <Select value={outcome} onChange={(e) => setOutcome(e.target.value)}>
-                  {OUTCOME_OPTIONS.map((opt) => (
+                  {CALL_OUTCOMES.map((opt) => (
                     <option key={opt} value={opt}>
                       {opt}
                     </option>
@@ -229,6 +231,34 @@ export function LogCallModal({
                 </Select>
               </Field>
             </div>
+
+            <Field>
+              <FieldLabel>Draft as</FieldLabel>
+              <div
+                className="bg-bg flex gap-2 rounded-full p-1"
+                role="group"
+                aria-label="Assist draft format"
+              >
+                <button
+                  type="button"
+                  className={`font-heading flex-1 cursor-pointer rounded-full px-3 py-1.5 text-sm ${
+                    draftFormat === 'email' ? 'bg-accent text-bg' : 'text-ink/70'
+                  }`}
+                  onClick={() => setDraftFormat('email')}
+                >
+                  Email
+                </button>
+                <button
+                  type="button"
+                  className={`font-heading flex-1 cursor-pointer rounded-full px-3 py-1.5 text-sm ${
+                    draftFormat === 'script' ? 'bg-accent text-bg' : 'text-ink/70'
+                  }`}
+                  onClick={() => setDraftFormat('script')}
+                >
+                  Call script
+                </button>
+              </div>
+            </Field>
 
             <div className="grid grid-cols-2 gap-3">
               <Field>
@@ -256,7 +286,7 @@ export function LogCallModal({
             <Field>
               <FieldLabel>Primary buyer feedback</FieldLabel>
               <div className="mb-2 flex flex-wrap gap-2">
-                {FEEDBACK_OPTIONS.map((option) => (
+                {OBJECTION_TAGS.map((option) => (
                   <label
                     key={option}
                     className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-neutral-100 px-2.5 py-[3px] text-[11px] text-neutral-800"

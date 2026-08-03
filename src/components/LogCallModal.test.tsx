@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LogCallModal } from '@/components/LogCallModal';
+import { AiAssistProvider } from '@/lib/AiAssistProvider';
 import type { Prospect } from '@/lib/prospects';
 
 const insertMock = vi.fn();
@@ -73,23 +74,25 @@ function ModalHarness({
   const [storeId, setStoreId] = useState<number | null>(1);
 
   return (
-    <div>
-      <button type="button" onClick={() => setOpen(true)}>
-        Reopen
-      </button>
-      <LogCallModal
-        open={open}
-        prospects={prospects}
-        storeId={storeId}
-        onClose={() => {
-          onClose();
-          setOpen(false);
-        }}
-        onStoreChange={setStoreId}
-        onSaved={onSaved}
-        onConverted={onConverted}
-      />
-    </div>
+    <AiAssistProvider>
+      <div>
+        <button type="button" onClick={() => setOpen(true)}>
+          Reopen
+        </button>
+        <LogCallModal
+          open={open}
+          prospects={prospects}
+          storeId={storeId}
+          onClose={() => {
+            onClose();
+            setOpen(false);
+          }}
+          onStoreChange={setStoreId}
+          onSaved={onSaved}
+          onConverted={onConverted}
+        />
+      </div>
+    </AiAssistProvider>
   );
 }
 

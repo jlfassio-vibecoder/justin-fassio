@@ -11,16 +11,16 @@
 
 **Structurally sound for the phase completed.** The foundation is coherent: Astro 7 static site, React 19 islands, Tailwind 4 design tokens, Supabase Auth + profiles approval workflow, domain RLS gated to approved staff, CI + Dependabot, and a clear public vs internal portal split.
 
-**Not yet “product-complete.”** CRM persistence and directory confidentiality (Phases B–D) are implemented on `feature/ai-agent-integration`: calls write/read under RLS; catalog/prospects load via authenticated Supabase fetches. Server tool boundary (Phase E) and a single AI slice (Phase F: `suggest-follow-ups`) are in place — this is not a multi-agent platform.
+**Not yet “product-complete.”** CRM persistence and directory confidentiality (Phases B–D) are implemented on `feature/ai-agent-integration`: calls write/read under RLS; catalog/prospects load via authenticated Supabase fetches. Server tool boundary (Phase E) and streaming Suggest on Vercel `/api/agent` (Phase F → III; Edge LLM Suggest retired) are in place — this is not a multi-agent platform.
 
-| Dimension               | Rating   | One-line                                                                       |
-| ----------------------- | -------- | ------------------------------------------------------------------------------ |
-| Framework / build stack | Strong   | Astro 7 + React 19 + Tailwind 4 + Node 22.22.3, intentionally pinned           |
-| Auth / approval model   | Strong   | Client gate + DB trigger + RLS + owner Pending reps RPCs                       |
-| Domain persistence      | Strong   | Calls + catalog_items + prospects wired under approved-staff RLS               |
-| Data confidentiality    | Moderate | Directories not in `/app` bundle; residual = approved JWT / network capture    |
-| Test / CI confidence    | Strong   | LoginForm/AuthProvider/filters + format:check in CI; Playwright still deferred |
-| AI agent readiness      | Partial  | One Edge LLM slice (`suggest-follow-ups`); not multi-agent                     |
+| Dimension               | Rating   | One-line                                                                         |
+| ----------------------- | -------- | -------------------------------------------------------------------------------- |
+| Framework / build stack | Strong   | Astro 7 + React 19 + Tailwind 4 + Node 22.22.3, intentionally pinned             |
+| Auth / approval model   | Strong   | Client gate + DB trigger + RLS + owner Pending reps RPCs                         |
+| Domain persistence      | Strong   | Calls + catalog_items + prospects wired under approved-staff RLS                 |
+| Data confidentiality    | Moderate | Directories not in `/app` bundle; residual = approved JWT / network capture      |
+| Test / CI confidence    | Strong   | LoginForm/AuthProvider/filters + format:check in CI; Playwright still deferred   |
+| AI agent readiness      | Strong   | Dual runtime (Edge ping + Vercel `/api/agent`); rate/spend caps; not multi-agent |
 
 **Recommendation before `feature/ai-agent-integration` feature work:** treat the items in [§8 Prioritized backlog](#8-prioritized-backlog-before--during-ai-phase) as sequencing constraints. Do not assume RLS alone protects sensitive directory/pricing data.
 
@@ -212,30 +212,33 @@ flowchart TB
 
 ## 7. AI agent integration readiness
 
+### Dual runtime (Edge + Vercel on-demand)
+
+| Surface                         | Role                                                               |
+| ------------------------------- | ------------------------------------------------------------------ |
+| Supabase Edge `authorized-ping` | Auth/ops ping under user JWT + `is_approved_staff` RLS             |
+| Vercel `/api/agent`             | Streaming assist + CRM read tools via AI Gateway (`openai/gpt-4o`) |
+| Vercel `/api/prospects/enrich`  | `generateObject` then prospect INSERT under JWT + RLS              |
+
+Browser islands call same-origin `/api/*` only. AI Gateway traffic is server-side, so [`vercel.json`](../vercel.json) CSP `connect-src` does **not** need Gateway hosts unless a client later talks to the Gateway directly.
+
+**Spend / rate:** `/api/agent` enforces an in-memory sliding window (20 req / 10 min per approved user id; best-effort per serverless isolate) plus `stepCountIs(5)` and `maxOutputTokens: 1100`. Secrets stay server-side (`AI_GATEWAY_API_KEY` / OIDC; never `PUBLIC_*`).
+
 ### Ready inputs
 
 - Approved-staff auth model and typed `Database` / `Call` shapes.
 - Structured call fields already modeled in UI (outcome, PMF, tags, notes).
-- In-repo catalog/prospect corpora as potential retrieval sources (once access model is fixed).
+- Catalog/prospect corpora behind authenticated Supabase fetches (RLS).
 
-### Blockers
+### Residual gaps
 
-| Need                             | Current state                                                                                                      |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Server tool / agent runtime      | Edge `authorized-ping` + `suggest-follow-ups` (JWT + `is_approved_staff`); one LLM vertical slice, not multi-agent |
-| Trusted secrets for agents       | `OPENAI_API_KEY` + documented `SUPABASE_SERVICE_ROLE_KEY` server-only — never `PUBLIC_*`                           |
-| Writable CRM                     | Calls persist (Phase B); richer CRM still thin                                                                     |
-| Auth-backed data APIs            | Catalog/prospects fetched under RLS (Phase D)                                                                      |
-| Embeddings / search / agent docs | Absent                                                                                                             |
-
-**Suggested sequencing for this branch’s phase**
-
-1. Persist calls (and optionally prospect updates) under the user JWT + existing RLS.
-2. Read Dashboard / Calls / Insights from Supabase.
-3. Move sensitive directories behind authenticated queries (or accept residual risk formally).
-4. Add a **server** boundary (Supabase Edge Function and/or Astro hybrid/`@astrojs/vercel` endpoints) for agent tools.
-5. Expand tests around write paths and RLS assumptions.
-6. Only then wire AI agent orchestration.
+| Need                             | Current state                                                                                             |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Server tool / agent runtime      | Edge `authorized-ping` + Vercel `/api/agent` (JWT + CRM tools) + enrich route; Edge LLM Suggest retired   |
+| Trusted secrets for agents       | AI Gateway / `AI_GATEWAY_API_KEY` + documented `SUPABASE_SERVICE_ROLE_KEY` server-only — never `PUBLIC_*` |
+| Writable CRM                     | Calls + AI prospect enrich inserts; richer CRM still thin                                                 |
+| Cross-instance rate limit        | In-memory per isolate; upgrade to Upstash (or platform Firewall) if abuse spans instances                 |
+| Embeddings / search / agent docs | Absent                                                                                                    |
 
 ---
 
@@ -285,7 +288,7 @@ Use this before treating the repo as a clean base for AI work:
 - [ ] CI uses lockfile-reproducible install
 - [ ] README matches auth/persistence reality
 - [x] Server surface exists for any agent/tooling that needs secrets
-- [x] One vertical AI slice (`suggest-follow-ups`) — still not a multi-agent platform
+- [x] One vertical AI slice (streaming Suggest on `/api/agent`; Edge LLM Suggest retired) — still not a multi-agent platform
 
 **Phase-gate conclusion:** Phases A–H are on `feature/ai-agent-integration`. Residual: approved JWT / network capture on directories; shared domain CRUD without per-rep call ownership; no Playwright e2e.
 

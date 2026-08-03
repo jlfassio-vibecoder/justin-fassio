@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
@@ -28,6 +28,10 @@ export interface RetailerDirectoryProps {
   'data-screen-label'?: string;
   /** Optional content above the table (e.g. alerts). */
   banner?: ReactNode;
+  /** Extra controls in the filter toolbar (e.g. Add via AI). */
+  toolbarExtra?: ReactNode;
+  /** Briefly highlight a row (e.g. after AI add). */
+  highlightedId?: number | null;
 }
 
 export function RetailerDirectory({
@@ -39,10 +43,24 @@ export function RetailerDirectory({
   renderActions,
   'data-screen-label': dataScreenLabel,
   banner,
+  toolbarExtra,
+  highlightedId = null,
 }: RetailerDirectoryProps) {
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
+
+  useEffect(() => {
+    if (highlightedId == null) return;
+    const match = retailers.find((r) => r.id === highlightedId);
+    if (match) {
+      setSearch(match.name);
+      setRegion('ALL');
+      setChannel('ALL');
+    }
+    const row = document.querySelector(`[data-prospect-id="${highlightedId}"]`);
+    row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [highlightedId, retailers]);
 
   const filtered = useMemo(
     () => filterProspects(retailers, { search, region, channel }),
@@ -72,6 +90,7 @@ export function RetailerDirectory({
             </option>
           ))}
         </Select>
+        {toolbarExtra}
         <span className="text-xs whitespace-nowrap opacity-65">
           Showing {filtered.length} of {retailers.length}
         </span>
@@ -110,7 +129,15 @@ export function RetailerDirectory({
               </thead>
               <tbody>
                 {filtered.map((p) => (
-                  <tr key={p.id} className="hover:bg-ink/[0.04]">
+                  <tr
+                    key={p.id}
+                    data-prospect-id={p.id}
+                    className={
+                      highlightedId === p.id
+                        ? 'bg-ink/[0.08] ring-accent-800/40 ring-2 ring-inset'
+                        : 'hover:bg-ink/[0.04]'
+                    }
+                  >
                     <td className="border-ink/[0.08] border-b p-2">{p.id}</td>
                     <td className="border-ink/[0.08] min-w-[160px] border-b p-2 font-semibold">
                       {p.name}

@@ -10,7 +10,7 @@ node_modules/
 # logs
 npm-debug.log*
 
-# environment variables
+# environment variables (.env.local included via .env.*)
 .env
 .env.*
 !.env.example

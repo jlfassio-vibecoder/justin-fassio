@@ -144,6 +144,13 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                 prospects={pipelineProspects}
                 onLogCall={(prospect) => openModal(prospect)}
                 onConverted={reloadDirectory}
+                onProspectCreated={(prospect) => {
+                  setProspects((prev) =>
+                    [...prev.filter((p) => p.id !== prospect.id), prospect].sort(
+                      (a, b) => a.id - b.id,
+                    ),
+                  );
+                }}
               />
             )}
             {activeTab === 'accounts' && (

@@ -1,28 +1,29 @@
-import { useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AddProspectAiModal } from '@/components/AddProspectAiModal';
 import { ProspectDetailDrawer } from '@/components/ProspectDetailDrawer';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
-import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
+import { useAiAssist } from '@/hooks/useAiAssist';
+import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
 import type { Prospect } from '@/lib/prospects';
-import { suggestFollowUps } from '@/lib/suggestFollowUps';
 
 interface ProspectsTabProps {
   prospects: Prospect[];
   onLogCall: (prospect: Prospect) => void;
   onConverted?: () => void;
+  onProspectCreated?: (prospect: Prospect) => void;
 }
 
-type SuggestState = {
-  prospectName: string;
-  summary: string;
-  followUps: string[];
-} | null;
-
-export function ProspectsTab({ prospects, onLogCall, onConverted }: ProspectsTabProps) {
-  const [suggestBusyId, setSuggestBusyId] = useState<number | null>(null);
-  const [suggestError, setSuggestError] = useState<string | null>(null);
-  const [suggestResult, setSuggestResult] = useState<SuggestState>(null);
+export function ProspectsTab({
+  prospects,
+  onLogCall,
+  onConverted,
+  onProspectCreated,
+}: ProspectsTabProps) {
+  const { openAssist } = useAiAssist();
+  const [addOpen, setAddOpen] = useState(false);
+  const [highlightedProspectId, setHighlightedProspectId] = useState<number | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [detailProspect, setDetailProspect] = useState<Prospect | null>(null);
 
   const pipelineProspects = useMemo(
@@ -30,20 +31,19 @@ export function ProspectsTab({ prospects, onLogCall, onConverted }: ProspectsTab
     [prospects],
   );
 
-  async function handleSuggest(prospect: Prospect) {
-    setSuggestError(null);
-    setSuggestBusyId(prospect.id);
-    const result = await suggestFollowUps(prospect.id);
-    setSuggestBusyId(null);
-    if (!result.ok) {
-      setSuggestError(`${prospect.name}: ${result.error}`);
-      return;
-    }
-    setSuggestResult({
-      prospectName: prospect.name,
-      summary: result.summary,
-      followUps: result.followUps,
-    });
+  useEffect(() => {
+    if (highlightedProspectId == null) return;
+    const timer = window.setTimeout(() => {
+      setHighlightedProspectId(null);
+      setSuccessBanner(null);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [highlightedProspectId]);
+
+  function handleCreated(prospect: Prospect) {
+    onProspectCreated?.(prospect);
+    setHighlightedProspectId(prospect.id);
+    setSuccessBanner(`Added ${prospect.name} (#${prospect.id})`);
   }
 
   return (
@@ -53,12 +53,22 @@ export function ProspectsTab({ prospects, onLogCall, onConverted }: ProspectsTab
         retailers={pipelineProspects}
         searchPlaceholder="Search BC prospects by name, city, address, or fit reason…"
         emptyMessage="No prospects match these filters. Converted accounts live under Active Accounts."
+        highlightedId={highlightedProspectId}
         banner={
-          suggestError ? (
-            <p className="text-sm text-red-700" role="alert">
-              {suggestError}
+          successBanner ? (
+            <p className="text-ink/80 m-0 text-sm" role="status">
+              {successBanner}
             </p>
           ) : null
+        }
+        toolbarExtra={
+          <Button
+            variant="secondary"
+            className="text-xs whitespace-nowrap"
+            onClick={() => setAddOpen(true)}
+          >
+            + Add via AI
+          </Button>
         }
         renderActions={(p) => (
           <>
@@ -72,10 +82,32 @@ export function ProspectsTab({ prospects, onLogCall, onConverted }: ProspectsTab
             <Button
               variant="secondary"
               className="px-3 py-1 text-xs"
-              disabled={suggestBusyId === p.id}
-              onClick={() => void handleSuggest(p)}
+              onClick={() => {
+                const chips = { prospectId: p.id, prospectName: p.name };
+                openAssist({ chips, draft: buildSuggestDraft(chips) });
+              }}
             >
-              {suggestBusyId === p.id ? 'Suggest…' : 'Suggest'}
+              Suggest
+            </Button>
+            <Button
+              variant="secondary"
+              className="px-3 py-1 text-xs"
+              onClick={() => {
+                const chips = { prospectId: p.id, prospectName: p.name };
+                openAssist({ chips, draft: buildApfDraft(chips) });
+              }}
+            >
+              APF Brief
+            </Button>
+            <Button
+              variant="secondary"
+              className="px-3 py-1 text-xs"
+              onClick={() => {
+                const chips = { prospectId: p.id, prospectName: p.name };
+                openAssist({ chips, draft: buildAssistDraft(chips) });
+              }}
+            >
+              Ask AI
             </Button>
             <Button variant="secondary" className="px-3 py-1 text-xs" onClick={() => onLogCall(p)}>
               Log Call
@@ -84,36 +116,11 @@ export function ProspectsTab({ prospects, onLogCall, onConverted }: ProspectsTab
         )}
       />
 
-      <DialogBackdrop open={suggestResult != null} onClose={() => setSuggestResult(null)}>
-        {suggestResult ? (
-          <div className="bg-surface p-4.1 flex max-w-[560px] flex-col gap-3 rounded-xl shadow-lg">
-            <div className="flex items-center justify-between gap-3">
-              <DialogTitle>Follow-ups · {suggestResult.prospectName}</DialogTitle>
-              <button
-                type="button"
-                onClick={() => setSuggestResult(null)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent"
-                aria-label="Close"
-              >
-                <X size={18} strokeWidth={2.75} />
-              </button>
-            </div>
-            <p className="text-ink/85 text-sm leading-relaxed">{suggestResult.summary}</p>
-            {suggestResult.followUps.length > 0 ? (
-              <ol className="text-ink/85 list-decimal space-y-1.5 pl-5 text-sm">
-                {suggestResult.followUps.map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
-              </ol>
-            ) : null}
-            <div className="flex justify-end">
-              <Button variant="secondary" onClick={() => setSuggestResult(null)}>
-                Close
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </DialogBackdrop>
+      <AddProspectAiModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCreated={handleCreated}
+      />
 
       <ProspectDetailDrawer
         prospect={detailProspect}

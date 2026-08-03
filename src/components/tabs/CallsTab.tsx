@@ -3,6 +3,8 @@ import { ListChecks, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
+import { useAiAssist } from '@/hooks/useAiAssist';
+import { buildCallDraft, buildObjectionDraft } from '@/lib/aiAssistPrefill';
 import {
   filterCalls,
   prospectForCall,
@@ -20,6 +22,7 @@ interface CallsTabProps {
 }
 
 export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProps) {
+  const { openAssist } = useAiAssist();
   const [calls, setCalls] = useState<CallRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -129,20 +132,23 @@ export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProp
           <ul className="divide-ink/10 m-0 list-none divide-y p-0">
             {filtered.map((call) => {
               const channelLabel = prospectForCall(call, prospects)?.category;
+              const tags = (call.objection_tags ?? []).filter(Boolean);
+              const name = storeName(call.prospect_id, prospects);
               return (
                 <li
                   key={call.id}
                   className="px-4.1 py-3.1 flex flex-wrap items-baseline justify-between gap-2"
                 >
                   <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="font-heading text-ink text-[15px]">
-                      {storeName(call.prospect_id, prospects)}
-                    </span>
+                    <span className="font-heading text-ink text-[15px]">{name}</span>
                     <span className="text-ink/70 text-[13px]">
                       {call.outcome}
                       {channelLabel ? ` · ${channelLabel}` : ''}
                       {call.contact_name ? ` · ${call.contact_name}` : ''}
                     </span>
+                    {tags.length > 0 ? (
+                      <span className="text-ink/55 text-[12px]">{tags.join(' · ')}</span>
+                    ) : null}
                   </div>
                   <div className="text-ink/65 flex flex-wrap items-center gap-3 text-[12px]">
                     <span>PMF {call.pmf_score ?? '—'}</span>
@@ -154,6 +160,35 @@ export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProp
                       CAD
                     </span>
                     <span>{call.call_date}</span>
+                    <Button
+                      variant="secondary"
+                      className="px-3 py-1 text-xs"
+                      onClick={() => {
+                        const chips = {
+                          prospectId: call.prospect_id,
+                          prospectName: name,
+                          outcome: call.outcome,
+                          objectionTags: tags.length > 0 ? tags : undefined,
+                        };
+                        openAssist({ chips, draft: buildCallDraft(chips, 'email') });
+                      }}
+                    >
+                      Draft
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="px-3 py-1 text-xs"
+                      onClick={() => {
+                        const chips = {
+                          prospectId: call.prospect_id,
+                          prospectName: name,
+                          objectionTags: tags.length > 0 ? tags : undefined,
+                        };
+                        openAssist({ chips, draft: buildObjectionDraft(chips) });
+                      }}
+                    >
+                      Coach
+                    </Button>
                   </div>
                 </li>
               );

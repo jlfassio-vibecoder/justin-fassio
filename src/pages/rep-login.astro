@@ -1,8 +1,25 @@
 ---
 import Layout from '@/layouts/Layout.astro';
 import { LoginForm } from '@/components/auth/LoginForm';
+
+// On-demand so ?view= / ?mode= query params can SSR the correct toggle state
+// (static prerender would always bake login + magic).
+export const prerender = false;
+
+const view = Astro.url.searchParams.get('view') === 'register' ? 'register' : 'login';
+const mode =
+  view === 'register' || Astro.url.searchParams.get('mode') === 'password' ? 'password' : 'magic';
 ---
 
 <Layout title="Rep / Owner sign in — Justin Fassio">
-  <LoginForm client:load />
+  {/* Block island avoids display:contents hit-testing quirks with decorative layers. */}
+  <div class="contents-fix-island">
+    <LoginForm client:load initialView={view} initialMode={mode} />
+  </div>
 </Layout>
+
+<style>
+  .contents-fix-island :global(astro-island) {
+    display: block;
+  }
+</style>

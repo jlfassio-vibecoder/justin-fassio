@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Card, CardBody, CardTitle } from '@/components/ui/Card';
+import { useAiAssist } from '@/hooks/useAiAssist';
+import { buildObjectionDraft } from '@/lib/aiAssistPrefill';
 import { PLAYBOOK_TAG_MATCH, tagCloud, type TagCloudItem } from '@/lib/callAggregates';
 import { fetchCalls } from '@/lib/calls';
 
@@ -16,6 +18,7 @@ function tagStyle(item: TagCloudItem, max: number): CSSProperties {
 }
 
 export function InsightsTab({ marginRangeDisplay, reloadToken = 0 }: InsightsTabProps) {
+  const { openAssist } = useAiAssist();
   const [tags, setTags] = useState<TagCloudItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -71,14 +74,19 @@ export function InsightsTab({ marginRangeDisplay, reloadToken = 0 }: InsightsTab
         ) : (
           <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-2">
             {tags.map((item) => (
-              <span
+              <button
                 key={item.tag}
-                className="font-heading text-ink"
+                type="button"
+                className="font-heading text-ink cursor-pointer border-0 bg-transparent p-0 text-left underline-offset-2 hover:underline"
                 style={tagStyle(item, maxCount)}
-                title={`${item.count} call${item.count === 1 ? '' : 's'}`}
+                title={`${item.count} call${item.count === 1 ? '' : 's'} — open AI coach`}
+                onClick={() => {
+                  const chips = { objectionTags: [item.tag] };
+                  openAssist({ chips, draft: buildObjectionDraft(chips) });
+                }}
               >
                 {item.tag}
-              </span>
+              </button>
             ))}
           </div>
         )}
