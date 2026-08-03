@@ -95,3 +95,15 @@ export function buildObjectionDraft(chip: AiAssistContextChip): string {
 
   return `Help me handle ${tagPhrase}${scope}. Give 2-3 short talk tracks for a BC wholesale apparel rep.${ground}`;
 }
+
+/**
+ * Prospects Suggest draft: CRM-grounded summary + numbered follow-ups.
+ * Prefer prospect id; falls back to a generic prompt if missing.
+ */
+export function buildSuggestDraft(chip: AiAssistContextChip): string {
+  const label = prospectLabel(chip);
+  if (!label) {
+    return 'Summarize a prospect call history and give 3–5 concrete next follow-up actions as a numbered list for a BC wholesale apparel rep. Use CRM tools when a prospect id is available; do not invent store facts.';
+  }
+  return `For ${label}, use CRM tools to load the store and recent calls. Write a short call-history summary, then give 3–5 concrete next follow-up actions as a numbered list for a BC wholesale apparel rep (Old Guys Rule). Do not invent store facts.`;
+}

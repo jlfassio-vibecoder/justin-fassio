@@ -3,6 +3,7 @@ import {
   buildAssistDraft,
   buildCallDraft,
   buildObjectionDraft,
+  buildSuggestDraft,
   formatAssistChipLabel,
 } from '@/lib/aiAssistPrefill';
 import { CALL_OUTCOMES } from '@/lib/callOutcomes';
@@ -125,6 +126,18 @@ describe('buildObjectionDraft', () => {
     ).toBe(
       'Help me handle buyer feedback "Pre-booked budget" for prospect 12 (Coastal Golf). Give 2-3 short talk tracks for a BC wholesale apparel rep. Ground in recent call tags if available via tools; do not invent store facts.',
     );
+  });
+});
+
+describe('buildSuggestDraft', () => {
+  it('asks for summary plus numbered follow-ups for a prospect', () => {
+    expect(buildSuggestDraft({ prospectId: 12, prospectName: 'Coastal Golf' })).toBe(
+      'For prospect 12 (Coastal Golf), use CRM tools to load the store and recent calls. Write a short call-history summary, then give 3–5 concrete next follow-up actions as a numbered list for a BC wholesale apparel rep (Old Guys Rule). Do not invent store facts.',
+    );
+  });
+
+  it('falls back when prospect id is missing', () => {
+    expect(buildSuggestDraft({})).toContain('3–5 concrete next follow-up actions');
   });
 });
 

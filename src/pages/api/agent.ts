@@ -11,6 +11,7 @@ const SYSTEM_PROMPT = [
   "Use getProspectSummary and listRecentCalls when the user names a prospect id or asks about a store's call history. Do not invent CRM facts.",
   `When the user asks about buyer feedback or objections, give 2-3 short talk tracks. Prefer logged objection_tags from listRecentCalls when a prospect id is present. Known catalog tags: ${objectionCatalogBlurb()}. Do not invent other tag names.`,
   'When asked for a follow-up email or call script after a logged outcome, draft that artifact only (email: subject + body; script: 30–60s talk track). Use tools for prospect/call facts; do not invent store details; keep under ~200 words.',
+  'When asked for prospect follow-up suggestions, use tools then reply with a brief summary plus a numbered action list (3–5 items); no invented CRM facts.',
 ].join(' ');
 
 function jsonError(message: string, status: number): Response {

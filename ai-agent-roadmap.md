@@ -1,7 +1,7 @@
 # AI agent roadmap
 
 Phased plan for sales-rep AI after product Phases A–H.  
-Companion to [`roadmap.md`](roadmap.md). Derived from the dual-architecture plan (Vercel AI SDK + Supabase Edge tools).
+Companion to `[roadmap.md](roadmap.md)`. Derived from the dual-architecture plan (Vercel AI SDK + Supabase Edge tools).
 
 **Branch context:** continue from `feature/ai-agent-integration` (or `main` after that work merges).
 
@@ -22,19 +22,20 @@ Do **not** combine phases in one plan unless a later phase explicitly lists a de
 
 **Streaming chat UX → Vercel AI SDK + AI Gateway.**  
 **CRM-bound reads/tools → Supabase Edge (or JWT + RLS from the Vercel route).**  
-**Never** put provider keys in `PUBLIC_*` or React islands.
+**Never** put provider keys in `PUBLIC_`* or React islands.
 
-| Layer                                                                | Responsibility                                                                                               |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [`src/pages/api/agent.ts`](src/pages/api/agent.ts) + `ai`            | Streaming assist; model strings via Gateway (`openai/gpt-4o`); OIDC on Vercel / `AI_GATEWAY_API_KEY` locally |
-| Supabase Edge (`suggest-follow-ups`, `authorized-ping`, later tools) | Auth boundary + CRM under user JWT + RLS; Edge may keep `OPENAI_API_KEY` for final-text slices               |
-| Client islands                                                       | Bearer to `/api/*` or `functions.invoke`; no LLM secrets                                                     |
+
+| Layer                                                     | Responsibility                                                                                            |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `[src/pages/api/agent.ts](src/pages/api/agent.ts)` + `ai` | Streaming assist + CRM read tools under JWT + RLS; Gateway (`openai/gpt-4o`); OIDC / `AI_GATEWAY_API_KEY` |
+| Supabase Edge (`authorized-ping`, later non-LLM tools)    | Auth boundary / ops ping under user JWT + RLS                                                             |
+| Client islands                                            | Bearer to `/api/*` or `functions.invoke`; no LLM secrets                                                  |
+
 
 ```text
 React /app
-  ├─ Bearer JWT ─► Astro /api/agent (streamText → AI Gateway)
-  └─ JWT invoke ─► Supabase Edge tools ─► Postgres RLS
-                      └─ (optional) OpenAI Chat Completions
+  ├─ Bearer JWT ─► Astro /api/agent (streamText + CRM tools → AI Gateway)
+  └─ JWT invoke ─► Supabase Edge (authorized-ping; no LLM Suggest)
 ```
 
 **Astro hosting:** `output: 'static'` + `@astrojs/vercel`; only selected routes set `export const prerender = false` (e.g. `/api/agent`). Do not SSR the whole site unless a later phase explicitly requires it.
@@ -48,9 +49,9 @@ React /app
 
 ### Delivered
 
-- [x] Dependencies: `ai`, `@astrojs/vercel`; adapter in [`astro.config.mjs`](astro.config.mjs).
-- [x] [`src/pages/api/agent.ts`](src/pages/api/agent.ts): `prerender = false`; approved-staff JWT gate; `prompt` or `messages`; `streamText` + `toTextStreamResponse` (AI SDK 5; replaces older `toDataStreamResponse`).
-- [x] [`AIAssistantModal`](src/components/ui/AIAssistantModal.tsx) + **AI assist** in [`AuthGate`](src/components/auth/AuthGate.tsx).
+- [x] Dependencies: `ai`, `@astrojs/vercel`; adapter in `[astro.config.mjs](astro.config.mjs)`.
+- [x] `[src/pages/api/agent.ts](src/pages/api/agent.ts)`: `prerender = false`; approved-staff JWT gate; `prompt` or `messages`; `streamText` + `toTextStreamResponse` (AI SDK 5; replaces older `toDataStreamResponse`).
+- [x] `[AIAssistantModal](src/components/ui/AIAssistantModal.tsx)` + **AI assist** in `[AuthGate](src/components/auth/AuthGate.tsx)`.
 - [x] Docs: `.env.example` (`AI_GATEWAY_API_KEY`), README dual-runtime note; `.env.*` gitignore covers `.env.local`.
 - [x] ESLint/Prettier ignore `.vercel/**` (adapter build output).
 
@@ -58,7 +59,7 @@ React /app
 
 - [x] `npm run check` + `npm run build` green.
 - [x] Unauthenticated `/api/agent` → 401; invalid JWT → 401.
-- [x] Edge `suggest-follow-ups` / Prospects **Suggest** left intact.
+- [x] Edge `authorized-ping` left intact (LLM Suggest later retired in Phase III slice 4).
 
 ### Local Gateway auth
 
@@ -77,7 +78,7 @@ React /app
 ### In scope
 
 - [x] AI SDK `tools` on `/api/agent` that create a user-scoped Supabase client from the request Bearer token and read under RLS — **or** thin HTTP wrappers that invoke existing Edge functions with the same JWT.
-- [x] First tools (reuse shapes from [`suggest-follow-ups`](supabase/functions/suggest-follow-ups/index.ts)):
+- [x] First tools (prospect/call select shapes matching the former Edge Suggest reads):
   - `getProspectSummary` — prospect `id,name,category,region,city,fit`
   - `listRecentCalls` — recent calls for a `prospect_id` (date, outcome, contact, PMF, notes truncated, tags, follow_up)
 - [x] Guardrails: `stopWhen` / max steps; token caps; approved-staff only (keep existing gate).
@@ -98,7 +99,7 @@ React /app
 ```text
 Implement AI agent roadmap Phase I (Agent tools on the Vercel route) from ai-agent-roadmap.md.
 
-Add AI SDK tools on /api/agent that read prospects and recent calls with the user JWT under RLS (or wrap existing Edge functions). First tools: getProspectSummary and listRecentCalls matching suggest-follow-ups shapes. Keep max steps/token caps and approved-staff auth. Do not move OpenAI secrets to Vercel unless required for streaming-with-tools.
+Add AI SDK tools on /api/agent that read prospects and recent calls with the user JWT under RLS (or wrap existing Edge functions). First tools: getProspectSummary and listRecentCalls matching prior CRM select shapes. Keep max steps/token caps and approved-staff auth. Do not move OpenAI secrets to Vercel unless required for streaming-with-tools.
 
 Do not rebuild the chat UI (Phase II) or ship objection/call-draft product slices. Exit when an approved session can get tool-grounded answers from real CRM data.
 ```
@@ -142,34 +143,45 @@ Do not ship new product agent slices (Phase III). Exit when multi-turn streaming
 
 ## Phase III — Product agent slices
 
-**Status:** In progress  
+**Status:** Done  
 **Goal:** Ship roadmap-aligned verticals one PR at a time.  
 **Depends on:** Phases 0–I (II recommended for streaming UX)  
 **Estimate:** 1 PR per slice
 
 ### Slices (separate PRs)
 
-1. **Objection handling** — prompt + catalog / `objection_tags` context. **Done** (shared [`objectionCatalog`](src/lib/objectionCatalog.ts); Insights tag click + Calls **Coach** → assist drafts).
-2. **Call draft generation** — outcome → email/script draft. **Done** (shared [`callOutcomes`](src/lib/callOutcomes.ts) + `buildCallDraft`; Log Call **Draft as** + Calls **Draft**).
-3. **Prospect summarization streaming** — complement or gradually replace final-text Edge Prospects **Suggest** UI.
-4. **Routing decision** — document whether Edge `suggest-follow-ups` stays as the Prospects **Suggest** action, becomes a tool invoked from `/api/agent`, or is retired after streaming parity.
+1. **Objection handling** — prompt + catalog / `objection_tags` context. **Done** (shared `[objectionCatalog](src/lib/objectionCatalog.ts)`; Insights tag click + Calls **Coach** → assist drafts).
+2. **Call draft generation** — outcome → email/script draft. **Done** (shared `[callOutcomes](src/lib/callOutcomes.ts)` + `buildCallDraft`; Log Call **Draft as** + Calls **Draft**).
+3. **Prospect summarization streaming** — replace final-text Edge Prospects **Suggest** UI. **Done** (Prospects **Suggest** → streaming assist via `buildSuggestDraft`; Edge no longer invoked from UI).
+4. **Routing decision** — **Done: retire** Edge `suggest-follow-ups` (client wrapper + Edge function removed from repo). Streaming Suggest on `/api/agent` is the source of truth; wrapping as a tool would duplicate `getProspectSummary` + `listRecentCalls` + Gateway LLM.
+5. **Account Product Fit (APF) v1** — AI tool + prompt evaluating prospect category, region, and catalog mapping to return an initial fit score and rationale.
+    - *In Scope:* Heuristic/prompt-based scoring tool `getAccountProductFit`) using current prospect record and catalog context.
+    - *Out of Scope:* Dynamic feedback loops using historical successful call data (deferred to future iteration). 
+  1.  T**ool Name:** `getAccountProductFit`**Inputs:** `prospect_id` (fetches prospect category, region, city, and fit tags via JWT/RLS) + target `line_id` (e.g., *Old Guys Rule*).**Outputs:**
+    1. **Fit Score & Rationale:** Score (1–10) based on category alignment and regional fit.
+    2. **Background Summary:** A 2–3 sentence executive briefing on the retailer's vibe, customer base, and market position.
+    3. **Initial Call / Walk-In Script:** A conversational, human pitch script formatted with:
+      - **The Opener/Hook:** Friendly introduction tailored to their region/store style.
+      - **Featured Product Anchor:** 1–2 specific catalog items that best fit their store.
+      - **Call to Action / Next Step:** Requesting a 5-minute meeting, leave-behind sheet, or sample review.
 
 ### Out of scope
 
 - Building all four slices in one PR; silent CRM writes unless a slice explicitly includes them.
+- Undeploying the cloud Edge function (ops: `supabase functions delete suggest-follow-ups` if still deployed).
 
 ### Exit criteria (per slice PR)
 
-- [x] Approved staff can run the slice end-to-end on real data. _(slices 1–2)_
-- [x] Secrets stay server-side; `npm run check` green. _(slices 1–2)_
-- [ ] Slice decision for Edge Suggest documented when summarization streaming lands.
+- [x] Approved staff can run the slice end-to-end on real data.
+- [x] Secrets stay server-side; `npm run check` green.
+- [x] Edge Suggest routing decision documented and applied (**retire**).
 
 ### Plan prompt (template)
 
 ```text
-Implement AI agent roadmap Phase III slice: <Objection handling | Call draft | Prospect summarization streaming> from ai-agent-roadmap.md.
+Implement AI agent roadmap Phase III slice: <Objection handling | Call draft | Prospect summarization streaming | Edge Suggest retire> from ai-agent-roadmap.md.
 
-Use the Phase 0/I/II dual runtime (Vercel /api/agent + Edge/RLS tools as needed). Approved-staff only. One vertical only.
+Use the Phase 0/I/II dual runtime (Vercel /api/agent + Edge authorized-ping as needed). Approved-staff only. One vertical only.
 
 Do not ship the other Phase III slices in this PR. Exit when the slice works on real CRM context with secrets server-side.
 ```
@@ -186,9 +198,9 @@ Do not ship the other Phase III slices in this PR. Exit when the slice works on 
 ### In scope
 
 - [ ] Rate limits / spend caps on `/api/agent`.
-- [ ] CSP review if AI Gateway (or other) origins expand beyond current [`vercel.json`](vercel.json).
+- [ ] CSP review if AI Gateway (or other) origins expand beyond current `[vercel.json](vercel.json)`.
 - [ ] Vitest for agent route auth rejection (mock `streamText`).
-- [ ] Update [`docs/architecture-assessment.md`](docs/architecture-assessment.md) and cross-link from [`roadmap.md`](roadmap.md): dual runtime (Edge + Vercel on-demand).
+- [ ] Update `[docs/architecture-assessment.md](docs/architecture-assessment.md)` and cross-link from `[roadmap.md](roadmap.md)`: dual runtime (Edge + Vercel on-demand).
 
 ### Out of scope
 
@@ -221,18 +233,21 @@ I  Tools on /api/agent (JWT + RLS CRM reads)   ← done
     ↓
 II Chat UX (useChat + prefills)               ← done
     ↓
-III Product slices (one PR each)              ← in progress (objection + call draft done)
+III Product slices (one PR each)              ← done (retire Edge Suggest)
+
     ↓
 IV Ops & hardening
 ```
 
-| Phase | Plan-sized goal                                         |
-| ----- | ------------------------------------------------------- |
-| 0     | Streaming baseline + staff gate                         |
-| I     | Tool-grounded CRM reads                                 |
-| II    | Multi-turn chat UX                                      |
-| III   | Objection / draft / summarize (+ Edge Suggest decision) |
-| IV    | Limits, tests, docs                                     |
+
+| Phase | Plan-sized goal                                             |
+| ----- | ----------------------------------------------------------- |
+| 0     | Streaming baseline + staff gate                             |
+| I     | Tool-grounded CRM reads                                     |
+| II    | Multi-turn chat UX                                          |
+| III   | Objection / draft / streaming Suggest; Edge Suggest retired |
+| IV    | Limits, tests, docs                                         |
+
 
 ---
 
@@ -247,8 +262,9 @@ IV Ops & hardening
 
 ## References
 
-- Product roadmap: [`roadmap.md`](roadmap.md) (Phases A–H)
-- Assessment: [`docs/architecture-assessment.md`](docs/architecture-assessment.md)
-- Edge suggest: [`supabase/functions/suggest-follow-ups/index.ts`](supabase/functions/suggest-follow-ups/index.ts)
-- Agent route: [`src/pages/api/agent.ts`](src/pages/api/agent.ts)
-- Assist UI: [`src/components/ui/AIAssistantModal.tsx`](src/components/ui/AIAssistantModal.tsx)
+- Product roadmap: `[roadmap.md](roadmap.md)` (Phases A–H)
+- Assessment: `[docs/architecture-assessment.md](docs/architecture-assessment.md)`
+- Edge ping: `[supabase/functions/authorized-ping/index.ts](supabase/functions/authorized-ping/index.ts)`
+- Agent route: `[src/pages/api/agent.ts](src/pages/api/agent.ts)`
+- Assist UI: `[src/components/ui/AIAssistantModal.tsx](src/components/ui/AIAssistantModal.tsx)`
+

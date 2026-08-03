@@ -16,7 +16,7 @@ export function clampCallLimit(limit?: number): number {
   return Math.min(MAX_CALL_LIMIT, Math.max(MIN_CALL_LIMIT, Math.floor(limit)));
 }
 
-/** Truncate call notes for model context (same as Edge suggest-follow-ups). */
+/** Truncate call notes for model context (CRM tool reads). */
 export function truncateNotes(notes: string | null | undefined, max = NOTES_MAX): string {
   const s = notes ?? '';
   return s.length <= max ? s : s.slice(0, max);

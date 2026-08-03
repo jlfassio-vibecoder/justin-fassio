@@ -1,15 +1,12 @@
 import { useMemo, useState } from 'react';
-import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import type { Prospect } from '@/lib/prospects';
 import { filterProspects } from '@/lib/prospectFilters';
 import { useAiAssist } from '@/hooks/useAiAssist';
-import { buildAssistDraft } from '@/lib/aiAssistPrefill';
-import { suggestFollowUps } from '@/lib/suggestFollowUps';
+import { buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
 
 const REGION_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Regions (6 corridors)' },
@@ -44,41 +41,16 @@ interface ProspectsTabProps {
   onLogCall: (prospect: Prospect) => void;
 }
 
-type SuggestState = {
-  prospectName: string;
-  summary: string;
-  followUps: string[];
-} | null;
-
 export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
   const { openAssist } = useAiAssist();
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
-  const [suggestBusyId, setSuggestBusyId] = useState<number | null>(null);
-  const [suggestError, setSuggestError] = useState<string | null>(null);
-  const [suggestResult, setSuggestResult] = useState<SuggestState>(null);
 
   const filteredProspects = useMemo(
     () => filterProspects(prospects, { search, region, channel }),
     [prospects, search, region, channel],
   );
-
-  async function handleSuggest(prospect: Prospect) {
-    setSuggestError(null);
-    setSuggestBusyId(prospect.id);
-    const result = await suggestFollowUps(prospect.id);
-    setSuggestBusyId(null);
-    if (!result.ok) {
-      setSuggestError(`${prospect.name}: ${result.error}`);
-      return;
-    }
-    setSuggestResult({
-      prospectName: prospect.name,
-      summary: result.summary,
-      followUps: result.followUps,
-    });
-  }
 
   return (
     <section className="flex flex-col gap-5" data-screen-label="prospects">
@@ -107,12 +79,6 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
           Showing {filteredProspects.length} of {prospects.length}
         </span>
       </Card>
-
-      {suggestError ? (
-        <p className="text-sm text-red-700" role="alert">
-          {suggestError}
-        </p>
-      ) : null}
 
       <Card elevation="md" className="overflow-hidden p-0">
         <div className="max-h-[640px] overflow-auto">
@@ -157,10 +123,12 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
                       <Button
                         variant="secondary"
                         className="px-3 py-1 text-xs"
-                        disabled={suggestBusyId === p.id}
-                        onClick={() => void handleSuggest(p)}
+                        onClick={() => {
+                          const chips = { prospectId: p.id, prospectName: p.name };
+                          openAssist({ chips, draft: buildSuggestDraft(chips) });
+                        }}
                       >
-                        {suggestBusyId === p.id ? 'Suggest…' : 'Suggest'}
+                        Suggest
                       </Button>
                       <Button
                         variant="secondary"
@@ -187,37 +155,6 @@ export function ProspectsTab({ prospects, onLogCall }: ProspectsTabProps) {
           </table>
         </div>
       </Card>
-
-      <DialogBackdrop open={suggestResult != null} onClose={() => setSuggestResult(null)}>
-        {suggestResult ? (
-          <div className="bg-surface p-4.1 flex max-w-[560px] flex-col gap-3 rounded-xl shadow-lg">
-            <div className="flex items-center justify-between gap-3">
-              <DialogTitle>Follow-ups · {suggestResult.prospectName}</DialogTitle>
-              <button
-                type="button"
-                onClick={() => setSuggestResult(null)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent"
-                aria-label="Close"
-              >
-                <X size={18} strokeWidth={2.75} />
-              </button>
-            </div>
-            <p className="text-ink/85 text-sm leading-relaxed">{suggestResult.summary}</p>
-            {suggestResult.followUps.length > 0 ? (
-              <ol className="text-ink/85 list-decimal space-y-1.5 pl-5 text-sm">
-                {suggestResult.followUps.map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
-              </ol>
-            ) : null}
-            <div className="flex justify-end">
-              <Button variant="secondary" onClick={() => setSuggestResult(null)}>
-                Close
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </DialogBackdrop>
     </section>
   );
 }

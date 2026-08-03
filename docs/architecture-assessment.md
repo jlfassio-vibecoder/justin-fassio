@@ -11,7 +11,7 @@
 
 **Structurally sound for the phase completed.** The foundation is coherent: Astro 7 static site, React 19 islands, Tailwind 4 design tokens, Supabase Auth + profiles approval workflow, domain RLS gated to approved staff, CI + Dependabot, and a clear public vs internal portal split.
 
-**Not yet “product-complete.”** CRM persistence and directory confidentiality (Phases B–D) are implemented on `feature/ai-agent-integration`: calls write/read under RLS; catalog/prospects load via authenticated Supabase fetches. Server tool boundary (Phase E) and a single AI slice (Phase F: `suggest-follow-ups`) are in place — this is not a multi-agent platform.
+**Not yet “product-complete.”** CRM persistence and directory confidentiality (Phases B–D) are implemented on `feature/ai-agent-integration`: calls write/read under RLS; catalog/prospects load via authenticated Supabase fetches. Server tool boundary (Phase E) and streaming Suggest on Vercel `/api/agent` (Phase F → III; Edge LLM Suggest retired) are in place — this is not a multi-agent platform.
 
 | Dimension               | Rating   | One-line                                                                       |
 | ----------------------- | -------- | ------------------------------------------------------------------------------ |
@@ -20,7 +20,7 @@
 | Domain persistence      | Strong   | Calls + catalog_items + prospects wired under approved-staff RLS               |
 | Data confidentiality    | Moderate | Directories not in `/app` bundle; residual = approved JWT / network capture    |
 | Test / CI confidence    | Strong   | LoginForm/AuthProvider/filters + format:check in CI; Playwright still deferred |
-| AI agent readiness      | Partial  | One Edge LLM slice (`suggest-follow-ups`); not multi-agent                     |
+| AI agent readiness      | Partial  | Streaming Suggest + CRM tools on `/api/agent`; not multi-agent                 |
 
 **Recommendation before `feature/ai-agent-integration` feature work:** treat the items in [§8 Prioritized backlog](#8-prioritized-backlog-before--during-ai-phase) as sequencing constraints. Do not assume RLS alone protects sensitive directory/pricing data.
 
@@ -220,13 +220,13 @@ flowchart TB
 
 ### Blockers
 
-| Need                             | Current state                                                                                                      |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Server tool / agent runtime      | Edge `authorized-ping` + `suggest-follow-ups` (JWT + `is_approved_staff`); one LLM vertical slice, not multi-agent |
-| Trusted secrets for agents       | `OPENAI_API_KEY` + documented `SUPABASE_SERVICE_ROLE_KEY` server-only — never `PUBLIC_*`                           |
-| Writable CRM                     | Calls persist (Phase B); richer CRM still thin                                                                     |
-| Auth-backed data APIs            | Catalog/prospects fetched under RLS (Phase D)                                                                      |
-| Embeddings / search / agent docs | Absent                                                                                                             |
+| Need                             | Current state                                                                                                  |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Server tool / agent runtime      | Edge `authorized-ping` + Vercel `/api/agent` (JWT + `is_approved_staff` + CRM tools); Edge LLM Suggest retired |
+| Trusted secrets for agents       | AI Gateway / `AI_GATEWAY_API_KEY` + documented `SUPABASE_SERVICE_ROLE_KEY` server-only — never `PUBLIC_*`      |
+| Writable CRM                     | Calls persist (Phase B); richer CRM still thin                                                                 |
+| Auth-backed data APIs            | Catalog/prospects fetched under RLS (Phase D)                                                                  |
+| Embeddings / search / agent docs | Absent                                                                                                         |
 
 **Suggested sequencing for this branch’s phase**
 
@@ -285,7 +285,7 @@ Use this before treating the repo as a clean base for AI work:
 - [ ] CI uses lockfile-reproducible install
 - [ ] README matches auth/persistence reality
 - [x] Server surface exists for any agent/tooling that needs secrets
-- [x] One vertical AI slice (`suggest-follow-ups`) — still not a multi-agent platform
+- [x] One vertical AI slice (streaming Suggest on `/api/agent`; Edge LLM Suggest retired) — still not a multi-agent platform
 
 **Phase-gate conclusion:** Phases A–H are on `feature/ai-agent-integration`. Residual: approved JWT / network capture on directories; shared domain CRUD without per-rep call ownership; no Playwright e2e.
 
