@@ -1,6 +1,8 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import type { AgentSupabase } from '@/lib/agentAuth';
+import { researchCompany } from '@/lib/companyWebResearch';
+import { CATEGORY_MAPPING_GUIDANCE } from '@/lib/enrichGuidance';
 import {
   mapProspectRow,
   type Prospect,
@@ -26,11 +28,27 @@ export const PROSPECT_REGIONS = [
 
 const enrichedProspectSchema = z.object({
   name: z.string().min(1).describe('Cleaned business / store name'),
-  category: z.enum(PROSPECT_CATEGORIES),
+  category: z
+    .enum(PROSPECT_CATEGORIES)
+    .describe(
+      'CRM channel from actual merchandise: hunting/fishing/shooting specialty → Hardware; golf → Golf; marine → Marina; resort gift → Resort Gift. Never map hunting/fishing to Golf.',
+    ),
   region: z.enum(PROSPECT_REGIONS),
   city: z.string().min(1).describe('BC city or town'),
   fitScore: z.number().int().min(1).max(10),
   notes: z.string().min(1).describe('Two short sentences on store positioning and customer vibe'),
+  address: z
+    .string()
+    .nullable()
+    .describe(
+      'Street address only if explicitly present in the research brief or official website; otherwise null. Do not guess.',
+    ),
+  phone: z
+    .string()
+    .nullable()
+    .describe(
+      'Store phone only if explicitly present in the research brief or official website; otherwise null. Do not guess.',
+    ),
 });
 
 export type EnrichedProspectFields = z.infer<typeof enrichedProspectSchema>;
@@ -38,10 +56,13 @@ export type EnrichedProspectFields = z.infer<typeof enrichedProspectSchema>;
 export type CreateEnrichedProspectInput = {
   companyName: string;
   websiteUrl?: string;
+  contactName?: string;
+  /** When provided (e.g. by contact enrich), skip a second web search. */
+  researchBrief?: string | null;
 };
 
 export type CreateEnrichedProspectResult =
-  { ok: true; prospect: Prospect } | { ok: false; error: string };
+  { ok: true; prospect: Prospect; researchBrief: string | null } | { ok: false; error: string };
 
 /** Encode fit score + positioning notes into the prospects.fit column. */
 export function formatProspectFit(fitScore: number, notes: string): string {
@@ -87,8 +108,8 @@ async function insertProspect(
       category: fields.category,
       region: fields.region,
       city: fields.city.trim(),
-      address: '',
-      phone: '',
+      address: fields.address?.trim() || '',
+      phone: fields.phone?.trim() || '',
       fit,
     })
     .select(
@@ -102,12 +123,12 @@ async function insertProspect(
   if (!data) {
     return { ok: false, error: 'Insert returned no row' };
   }
-  return { ok: true, prospect: mapProspectRow(data) };
+  return { ok: true, prospect: mapProspectRow(data), researchBrief: null };
 }
 
 /**
- * Infer CRM fields for a BC retailer via AI Gateway, then INSERT under the caller's JWT + RLS.
- * Does not invent address/phone. Encodes fit score + notes into `fit`.
+ * Infer CRM fields for a BC retailer via AI Gateway (+ optional web research), then INSERT under JWT/RLS.
+ * Address/phone only when research cites them. Encodes fit score + notes into `fit`.
  */
 export async function createEnrichedProspect(
   supabase: AgentSupabase,
@@ -119,9 +140,29 @@ export async function createEnrichedProspect(
   }
 
   const websiteUrl = input.websiteUrl?.trim() || undefined;
+  const contactName = input.contactName?.trim() || undefined;
   const websiteHint = websiteUrl
-    ? `Website URL hint (may be outdated; do not invent contact details from it): ${websiteUrl}`
+    ? `Official website (authoritative; prefer facts from this site over name heuristics): ${websiteUrl}`
     : 'No website URL provided.';
+
+  let researchBrief: string | null =
+    typeof input.researchBrief === 'string' && input.researchBrief.trim()
+      ? input.researchBrief.trim()
+      : null;
+
+  if (researchBrief == null && input.researchBrief === undefined) {
+    const research = await researchCompany({ companyName, websiteUrl, contactName });
+    researchBrief = research.brief;
+  }
+
+  const researchBlock = researchBrief
+    ? [
+        'Web research brief (ground truth when present; do not invent beyond it):',
+        researchBrief,
+        'Use address/phone only if the brief explicitly includes them; otherwise set those fields to null.',
+        'If the brief describes hunting, fishing, firearms, or shooting specialty, category MUST be Hardware — not Golf.',
+      ].join('\n')
+    : 'No web research brief available; infer carefully from the company name and website hint only. Set address and phone to null. Do not assume Golf from "Sports" in the name.';
 
   let fields: EnrichedProspectFields;
   try {
@@ -131,15 +172,16 @@ export async function createEnrichedProspect(
       schemaName: 'EnrichedProspect',
       prompt: [
         'You help a BC wholesale apparel sales rep (Old Guys Rule) onboard a new retailer prospect.',
-        'Infer structured CRM fields from the company name (and optional website hint).',
-        'Category must be exactly one of: Golf, Marina, Hardware, Resort Gift.',
+        'Infer structured CRM fields from the company name, optional official website, and web research brief.',
+        CATEGORY_MAPPING_GUIDANCE,
         'Region must be exactly one of: Okanagan, Shuswap, Vancouver Island, Sea-to-Sky, Kootenays, Fraser Valley.',
-        'City must be a plausible BC city/town for that region.',
-        'fitScore is 1–10 for likely fit with casual lifestyle apparel wholesale.',
-        'notes must be exactly two short sentences on positioning / customer vibe.',
+        'City must match the researched store location when known.',
+        'fitScore is 1–10 for likely fit with casual lifestyle apparel wholesale (outdoor specialty that sells apparel can score mid–high).',
+        'notes must be exactly two short sentences on positioning / customer vibe based on real merchandise.',
         'Clean up the business name; do not invent phone numbers or street addresses.',
         `Company name: ${companyName}`,
         websiteHint,
+        researchBlock,
       ].join('\n'),
     });
     fields = result.object;
@@ -154,7 +196,10 @@ export async function createEnrichedProspect(
   }
 
   const first = await insertProspect(supabase, firstId, fields);
-  if (first.ok || !isUniqueViolation(first.error)) {
+  if (first.ok) {
+    return { ok: true, prospect: first.prospect, researchBrief };
+  }
+  if (!isUniqueViolation(first.error)) {
     return first;
   }
 
@@ -162,5 +207,9 @@ export async function createEnrichedProspect(
   if (typeof retryId === 'object') {
     return { ok: false, error: retryId.error };
   }
-  return insertProspect(supabase, retryId, fields);
+  const retry = await insertProspect(supabase, retryId, fields);
+  if (retry.ok) {
+    return { ok: true, prospect: retry.prospect, researchBrief };
+  }
+  return retry;
 }

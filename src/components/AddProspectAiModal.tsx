@@ -109,7 +109,7 @@ export function AddProspectAiModal({ open, onClose, onCreated }: AddProspectAiMo
 
         {busy && (
           <p className="text-ink/70 m-0 text-sm" role="status">
-            Enriching prospect details…
+            Searching the web and enriching…
           </p>
         )}
         {error && (
@@ -123,7 +123,7 @@ export function AddProspectAiModal({ open, onClose, onCreated }: AddProspectAiMo
             Cancel
           </Button>
           <Button type="submit" disabled={busy || !companyName.trim()}>
-            {busy ? 'Enriching…' : 'Add via AI'}
+            {busy ? 'Searching…' : 'Add via AI'}
           </Button>
         </div>
       </form>

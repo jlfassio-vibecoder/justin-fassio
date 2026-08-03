@@ -1,12 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createEnrichedContact } from '@/lib/createEnrichedContact';
 import type { AgentSupabase } from '@/lib/agentAuth';
 
 const createEnrichedProspectMock = vi.fn();
+const researchCompanyMock = vi.fn();
+const generateObjectMock = vi.fn();
 
 vi.mock('@/lib/createEnrichedProspect', () => ({
   createEnrichedProspect: (...args: unknown[]) => createEnrichedProspectMock(...args),
 }));
+
+vi.mock('@/lib/companyWebResearch', () => ({
+  researchCompany: (...args: unknown[]) => researchCompanyMock(...args),
+}));
+
+vi.mock('ai', () => ({
+  generateObject: (...args: unknown[]) => generateObjectMock(...args),
+}));
+
+import { createEnrichedContact, fillContactGapsFromBrief } from '@/lib/createEnrichedContact';
 
 function mockSupabase(handlers: {
   prospectSingle?: unknown;
@@ -50,7 +61,7 @@ const contactRow = {
   account_id: 12,
   role: 'buyer' as const,
   full_name: 'Sarah Jenkins',
-  title: null,
+  title: 'Buyer',
   phone: '250-555-0100',
   email: 'sarah@example.com',
   is_primary: true,
@@ -76,9 +87,44 @@ const prospectRow = {
   updated_at: '2026-08-01T00:00:00Z',
 };
 
+describe('fillContactGapsFromBrief', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('prefers form phone/email over research', async () => {
+    const result = await fillContactGapsFromBrief({
+      contactName: 'Sarah',
+      brief: 'anything',
+      phone: '250-111-1111',
+      email: 'a@b.com',
+    });
+    expect(result).toEqual({ title: null, phone: '250-111-1111', email: 'a@b.com' });
+    expect(generateObjectMock).not.toHaveBeenCalled();
+  });
+
+  it('fills blank phone from brief', async () => {
+    generateObjectMock.mockResolvedValue({
+      object: { title: 'Buyer', phone: '250-555-9999', email: null },
+    });
+    const result = await fillContactGapsFromBrief({
+      contactName: 'Sarah',
+      brief: 'Sarah Jenkins, Buyer, 250-555-9999',
+      phone: null,
+      email: null,
+    });
+    expect(result.phone).toBe('250-555-9999');
+    expect(result.title).toBe('Buyer');
+  });
+});
+
 describe('createEnrichedContact', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    researchCompanyMock.mockResolvedValue({ brief: 'Research brief', error: null });
+    generateObjectMock.mockResolvedValue({
+      object: { title: null, phone: null, email: null },
+    });
   });
 
   it('requires contact and company name', async () => {
@@ -109,6 +155,7 @@ describe('createEnrichedContact', () => {
         initialOrderDate: null,
         notes: null,
       },
+      researchBrief: 'Research brief',
     });
 
     const supabase = mockSupabase({ contactInsert: contactRow });
@@ -120,7 +167,15 @@ describe('createEnrichedContact', () => {
       mode: 'create_prospect',
     });
 
-    expect(createEnrichedProspectMock).toHaveBeenCalled();
+    expect(researchCompanyMock).toHaveBeenCalled();
+    expect(createEnrichedProspectMock).toHaveBeenCalledWith(
+      supabase,
+      expect.objectContaining({
+        companyName: 'Kelowna Golf',
+        contactName: 'Sarah Jenkins',
+        researchBrief: 'Research brief',
+      }),
+    );
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.contact.fullName).toBe('Sarah Jenkins');
@@ -143,6 +198,7 @@ describe('createEnrichedContact', () => {
     });
 
     expect(createEnrichedProspectMock).not.toHaveBeenCalled();
+    expect(researchCompanyMock).toHaveBeenCalled();
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.prospect.id).toBe(12);

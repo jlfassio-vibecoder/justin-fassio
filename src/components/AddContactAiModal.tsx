@@ -239,7 +239,7 @@ export function AddContactAiModal({ open, prospects, onClose, onCreated }: AddCo
 
         {busy && (
           <p className="text-ink/70 m-0 text-sm" role="status">
-            {step === 'confirm' ? 'Saving contact…' : 'Enriching store and contact…'}
+            {step === 'confirm' ? 'Saving contact…' : 'Searching the web and enriching…'}
           </p>
         )}
         {error && (
@@ -290,7 +290,7 @@ export function AddContactAiModal({ open, prospects, onClose, onCreated }: AddCo
                 Cancel
               </Button>
               <Button type="submit" disabled={busy || !contactName.trim() || !companyName.trim()}>
-                {busy ? 'Enriching…' : 'Add via AI'}
+                {busy ? 'Searching…' : 'Add via AI'}
               </Button>
             </>
           )}

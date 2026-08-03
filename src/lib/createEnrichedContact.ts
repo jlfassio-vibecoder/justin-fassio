@@ -1,15 +1,33 @@
+import { generateObject } from 'ai';
+import { z } from 'zod';
 import type { AgentSupabase } from '@/lib/agentAuth';
 import {
   ACCOUNT_CONTACT_SELECT,
   mapAccountContactRow,
   type AccountContact,
 } from '@/lib/accountContacts';
+import { researchCompany } from '@/lib/companyWebResearch';
 import { createEnrichedProspect } from '@/lib/createEnrichedProspect';
 import { mapProspectRow, type Prospect } from '@/lib/prospects';
 import type { AccountContact as AccountContactRow, ProspectRow } from '@/types/database';
 
 const PROSPECT_SELECT =
   'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, created_at, updated_at' as const;
+
+const contactGapsSchema = z.object({
+  title: z
+    .string()
+    .nullable()
+    .describe('Job title only if explicitly present in the brief for this person; otherwise null'),
+  phone: z
+    .string()
+    .nullable()
+    .describe('Phone only if explicitly present in the brief for this person; otherwise null'),
+  email: z
+    .string()
+    .nullable()
+    .describe('Email only if explicitly present in the brief for this person; otherwise null'),
+});
 
 export type CreateEnrichedContactMode = 'create_prospect' | 'attach';
 
@@ -63,6 +81,7 @@ async function insertContactForAccount(
   input: {
     accountId: number;
     contactName: string;
+    title: string | null;
     phone: string | null;
     email: string | null;
     isPrimary: boolean;
@@ -74,6 +93,7 @@ async function insertContactForAccount(
       account_id: input.accountId,
       role: 'buyer',
       full_name: input.contactName,
+      title: input.title,
       phone: input.phone,
       email: input.email,
       is_primary: input.isPrimary,
@@ -88,9 +108,50 @@ async function insertContactForAccount(
   return { data: mapAccountContactRow(data as AccountContactRow), error: null };
 }
 
+/** Fill blank contact fields from a research brief; form values always win. */
+export async function fillContactGapsFromBrief(input: {
+  contactName: string;
+  brief: string | null;
+  phone: string | null;
+  email: string | null;
+  title?: string | null;
+}): Promise<{ title: string | null; phone: string | null; email: string | null }> {
+  const formPhone = input.phone;
+  const formEmail = input.email;
+  const formTitle = input.title?.trim() || null;
+
+  if (!input.brief || (formPhone && formEmail)) {
+    return { title: formTitle, phone: formPhone, email: formEmail };
+  }
+
+  try {
+    const result = await generateObject({
+      model: 'openai/gpt-4o',
+      schema: contactGapsSchema,
+      schemaName: 'ContactGapsFromBrief',
+      prompt: [
+        'Extract public contact details for one person from the research brief only.',
+        'If a field is not explicitly present for this person, return null for that field.',
+        'Do not invent phone numbers or emails.',
+        `Contact name: ${input.contactName}`,
+        'Research brief:',
+        input.brief,
+      ].join('\n'),
+    });
+
+    return {
+      title: formTitle ?? (result.object.title?.trim() || null),
+      phone: formPhone ?? (result.object.phone?.trim() || null),
+      email: formEmail ?? (result.object.email?.trim() || null),
+    };
+  } catch {
+    return { title: formTitle, phone: formPhone, email: formEmail };
+  }
+}
+
 /**
  * Create a contact and optionally an AI-enriched prospect under the caller's JWT + RLS.
- * Known phone/email from the form are stored as-is (not invented).
+ * Known phone/email from the form are preferred; blank gaps may be filled from web research.
  */
 export async function createEnrichedContact(
   supabase: AgentSupabase,
@@ -106,9 +167,23 @@ export async function createEnrichedContact(
     return { ok: false, error: 'Company name is required' };
   }
 
-  const phone = input.phone?.trim() || null;
-  const email = input.email?.trim() || null;
+  const formPhone = input.phone?.trim() || null;
+  const formEmail = input.email?.trim() || null;
   const websiteUrl = input.websiteUrl?.trim() || undefined;
+
+  const research = await researchCompany({
+    companyName,
+    websiteUrl,
+    contactName,
+  });
+  const researchBrief = research.brief;
+
+  const gaps = await fillContactGapsFromBrief({
+    contactName,
+    brief: researchBrief,
+    phone: formPhone,
+    email: formEmail,
+  });
 
   let prospect: Prospect;
 
@@ -132,8 +207,9 @@ export async function createEnrichedContact(
     const contactResult = await insertContactForAccount(supabase, {
       accountId,
       contactName,
-      phone,
-      email,
+      title: gaps.title,
+      phone: gaps.phone,
+      email: gaps.email,
       isPrimary: counted.count === 0,
     });
     if (contactResult.error || !contactResult.data) {
@@ -143,7 +219,12 @@ export async function createEnrichedContact(
     return { ok: true, prospect, contact: contactResult.data };
   }
 
-  const prospectResult = await createEnrichedProspect(supabase, { companyName, websiteUrl });
+  const prospectResult = await createEnrichedProspect(supabase, {
+    companyName,
+    websiteUrl,
+    contactName,
+    researchBrief,
+  });
   if (!prospectResult.ok) {
     return prospectResult;
   }
@@ -152,8 +233,9 @@ export async function createEnrichedContact(
   const contactResult = await insertContactForAccount(supabase, {
     accountId: prospect.id,
     contactName,
-    phone,
-    email,
+    title: gaps.title,
+    phone: gaps.phone,
+    email: gaps.email,
     isPrimary: true,
   });
   if (contactResult.error || !contactResult.data) {
