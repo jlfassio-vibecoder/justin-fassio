@@ -170,6 +170,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
         open={modalOpen}
         prospects={prospects}
         storeId={modalStoreId}
+        catalog={catalog}
         onClose={() => setModalOpen(false)}
         onStoreChange={(id) => setModalStoreId(id)}
         onSaved={() => setCallsReloadToken((n) => n + 1)}

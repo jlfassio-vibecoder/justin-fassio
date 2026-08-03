@@ -1,8 +1,9 @@
-import type {
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
+import {
+  forwardRef,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
 } from 'react';
 import { cn } from '@/lib/cn';
 
@@ -21,9 +22,14 @@ export function Select({ className, children, ...props }: SelectHTMLAttributes<H
   );
 }
 
-export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn(inputBase, 'min-h-[90px] resize-y', className)} {...props} />;
-}
+export const Textarea = forwardRef<
+  HTMLTextAreaElement,
+  TextareaHTMLAttributes<HTMLTextAreaElement>
+>(function Textarea({ className, ...props }, ref) {
+  return (
+    <textarea ref={ref} className={cn(inputBase, 'min-h-[90px] resize-y', className)} {...props} />
+  );
+});
 
 export function FieldLabel({ children }: { children: ReactNode }) {
   return <label className="text-ink/70 mb-1 block text-xs">{children}</label>;

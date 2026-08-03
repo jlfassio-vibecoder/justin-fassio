@@ -1,9 +1,11 @@
 import { useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
+import { ProductMentionTextarea } from '@/components/ProductMentionTextarea';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
-import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
+import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { APPAREL_SEASON_LABELS, APPAREL_SEASONS } from '@/lib/apparelSeasons';
+import type { CatalogItem } from '@/lib/catalog';
 import { convertToActiveAccount } from '@/lib/convertToActiveAccount';
 import { resolveOgrLineId } from '@/lib/lines';
 import type { Prospect } from '@/lib/prospects';
@@ -14,6 +16,7 @@ interface ConvertAccountModalProps {
   prospect: Prospect | null;
   /** Prefill estimated CAD (e.g. from Log Call order value). */
   prefillAmountCad?: number | null;
+  catalog?: CatalogItem[];
   onClose: () => void;
   onConverted?: () => void;
 }
@@ -21,11 +24,13 @@ interface ConvertAccountModalProps {
 function ConvertAccountForm({
   prospect,
   prefillAmountCad,
+  catalog,
   onClose,
   onConverted,
 }: {
   prospect: Prospect;
   prefillAmountCad: number | null;
+  catalog?: CatalogItem[];
   onClose: () => void;
   onConverted?: () => void;
 }) {
@@ -144,11 +149,12 @@ function ConvertAccountForm({
 
         <Field>
           <FieldLabel>Order notes</FieldLabel>
-          <Textarea
+          <ProductMentionTextarea
             rows={3}
-            placeholder="Line focus, ship window, buyer notes…"
+            placeholder="Line focus, ship window, buyer notes… Use # for products"
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={setNotes}
+            items={catalog}
             disabled={busy}
           />
         </Field>
@@ -184,6 +190,7 @@ export function ConvertAccountModal({
   open,
   prospect,
   prefillAmountCad = null,
+  catalog,
   onClose,
   onConverted,
 }: ConvertAccountModalProps) {
@@ -194,6 +201,7 @@ export function ConvertAccountModal({
       key={`${prospect.id}-${prefillAmountCad ?? 'none'}`}
       prospect={prospect}
       prefillAmountCad={prefillAmountCad}
+      catalog={catalog}
       onClose={onClose}
       onConverted={onConverted}
     />
