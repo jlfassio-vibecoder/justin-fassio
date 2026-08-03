@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildAssistDraft,
+  buildCallDraft,
   buildObjectionDraft,
   formatAssistChipLabel,
 } from '@/lib/aiAssistPrefill';
+import { CALL_OUTCOMES } from '@/lib/callOutcomes';
 import { OBJECTION_TAGS, objectionCatalogBlurb } from '@/lib/objectionCatalog';
 
 describe('formatAssistChipLabel', () => {
@@ -51,16 +53,58 @@ describe('buildAssistDraft', () => {
     );
   });
 
-  it('builds follow-up draft when outcome is present', () => {
+  it('delegates outcome drafts to buildCallDraft email', () => {
+    const chip = {
+      prospectId: 12,
+      prospectName: 'Coastal Golf',
+      outcome: 'Sample Package Requested',
+    };
+    expect(buildAssistDraft(chip)).toBe(buildCallDraft(chip, 'email'));
+  });
+});
+
+describe('buildCallDraft', () => {
+  it('builds email draft matched to outcome', () => {
     expect(
-      buildAssistDraft({
-        prospectId: 12,
-        prospectName: 'Coastal Golf',
-        outcome: 'Sample Package Requested',
-      }),
+      buildCallDraft(
+        {
+          prospectId: 12,
+          prospectName: 'Coastal Golf',
+          outcome: 'Sample Package Requested',
+        },
+        'email',
+      ),
     ).toBe(
-      'I just logged outcome "Sample Package Requested" for prospect 12 (Coastal Golf). Draft a short follow-up email.',
+      'I just logged outcome "Sample Package Requested" for prospect 12 (Coastal Golf). Draft a short follow-up email (subject + body) for a BC wholesale apparel rep (Old Guys Rule). Match tone to the outcome. Use CRM tools for store/call facts; do not invent store details.',
     );
+  });
+
+  it('builds script draft matched to outcome', () => {
+    expect(
+      buildCallDraft(
+        {
+          prospectId: 12,
+          prospectName: 'Coastal Golf',
+          outcome: 'Left Message / Gatekeeper',
+        },
+        'script',
+      ),
+    ).toBe(
+      'I just logged outcome "Left Message / Gatekeeper" for prospect 12 (Coastal Golf). Draft a 30–60 second phone or in-person talk track for a BC wholesale apparel rep (Old Guys Rule). Match tone to the outcome. Use CRM tools for store/call facts; do not invent store details.',
+    );
+  });
+
+  it('includes objection tags when present', () => {
+    const draft = buildCallDraft(
+      {
+        prospectId: 3,
+        prospectName: 'Marina Co',
+        outcome: 'Follow-up Scheduled',
+        objectionTags: ['Wants higher margin'],
+      },
+      'email',
+    );
+    expect(draft).toContain('Account for buyer feedback: "Wants higher margin".');
   });
 });
 
@@ -97,5 +141,17 @@ describe('objectionCatalog', () => {
   it('blurbs catalog for the system prompt', () => {
     expect(objectionCatalogBlurb()).toContain('"Pre-booked budget"');
     expect(objectionCatalogBlurb()).toContain('"Wants higher margin"');
+  });
+});
+
+describe('callOutcomes', () => {
+  it('lists the five Log Call outcomes', () => {
+    expect(CALL_OUTCOMES).toEqual([
+      'Closed PO / Written Order',
+      'Sample Package Requested',
+      'Follow-up Scheduled',
+      'Left Message / Gatekeeper',
+      'Not Interested / Bad Fit',
+    ]);
   });
 });

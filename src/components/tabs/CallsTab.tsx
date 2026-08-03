@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { useAiAssist } from '@/hooks/useAiAssist';
-import { buildObjectionDraft } from '@/lib/aiAssistPrefill';
+import { buildCallDraft, buildObjectionDraft } from '@/lib/aiAssistPrefill';
 import {
   filterCalls,
   prospectForCall,
@@ -160,6 +160,21 @@ export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProp
                       CAD
                     </span>
                     <span>{call.call_date}</span>
+                    <Button
+                      variant="secondary"
+                      className="px-3 py-1 text-xs"
+                      onClick={() => {
+                        const chips = {
+                          prospectId: call.prospect_id,
+                          prospectName: name,
+                          outcome: call.outcome,
+                          objectionTags: tags.length > 0 ? tags : undefined,
+                        };
+                        openAssist({ chips, draft: buildCallDraft(chips, 'email') });
+                      }}
+                    >
+                      Draft
+                    </Button>
                     <Button
                       variant="secondary"
                       className="px-3 py-1 text-xs"

@@ -5,18 +5,11 @@ import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
 import type { Prospect } from '@/lib/prospects';
 import { useAiAssist } from '@/hooks/useAiAssist';
-import { buildAssistDraft } from '@/lib/aiAssistPrefill';
+import { buildCallDraft, type CallDraftFormat } from '@/lib/aiAssistPrefill';
+import { CALL_OUTCOMES } from '@/lib/callOutcomes';
 import { OBJECTION_TAGS } from '@/lib/objectionCatalog';
 import { supabase } from '@/lib/supabase';
 import type { CallInsert } from '@/types/database';
-
-const OUTCOME_OPTIONS = [
-  'Closed PO / Written Order',
-  'Sample Package Requested',
-  'Follow-up Scheduled',
-  'Left Message / Gatekeeper',
-  'Not Interested / Bad Fit',
-] as const;
 
 interface LogCallModalProps {
   open: boolean;
@@ -34,14 +27,16 @@ function resetFormState(setters: {
   setPmfScore: (v: string) => void;
   setOrderValue: (v: string) => void;
   setNotes: (v: string) => void;
+  setDraftFormat: (v: CallDraftFormat) => void;
   setError: (v: string | null) => void;
 }) {
   setters.setFeedback([]);
   setters.setContactName('');
-  setters.setOutcome(OUTCOME_OPTIONS[0]);
+  setters.setOutcome(CALL_OUTCOMES[0]);
   setters.setPmfScore('10');
   setters.setOrderValue('');
   setters.setNotes('');
+  setters.setDraftFormat('email');
   setters.setError(null);
 }
 
@@ -56,10 +51,11 @@ export function LogCallModal({
   const { openAssist } = useAiAssist();
   const [feedback, setFeedback] = useState<string[]>([]);
   const [contactName, setContactName] = useState('');
-  const [outcome, setOutcome] = useState<string>(OUTCOME_OPTIONS[0]);
+  const [outcome, setOutcome] = useState<string>(CALL_OUTCOMES[0]);
   const [pmfScore, setPmfScore] = useState('10');
   const [orderValue, setOrderValue] = useState('');
   const [notes, setNotes] = useState('');
+  const [draftFormat, setDraftFormat] = useState<CallDraftFormat>('email');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,6 +79,7 @@ export function LogCallModal({
       setPmfScore,
       setOrderValue,
       setNotes,
+      setDraftFormat,
       setError,
     });
     onClose();
@@ -126,8 +123,9 @@ export function LogCallModal({
       prospectId: storeId,
       prospectName: selected?.name,
       outcome,
+      objectionTags: feedback.length > 0 ? feedback : undefined,
     };
-    openAssist({ chips, draft: buildAssistDraft(chips) });
+    openAssist({ chips, draft: buildCallDraft(chips, draftFormat) });
 
     resetFormState({
       setFeedback,
@@ -136,6 +134,7 @@ export function LogCallModal({
       setPmfScore,
       setOrderValue,
       setNotes,
+      setDraftFormat,
       setError,
     });
     onSaved?.();
@@ -199,7 +198,7 @@ export function LogCallModal({
           <Field>
             <FieldLabel>Call outcome</FieldLabel>
             <Select value={outcome} onChange={(e) => setOutcome(e.target.value)}>
-              {OUTCOME_OPTIONS.map((opt) => (
+              {CALL_OUTCOMES.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt}
                 </option>
@@ -207,6 +206,34 @@ export function LogCallModal({
             </Select>
           </Field>
         </div>
+
+        <Field>
+          <FieldLabel>Draft as</FieldLabel>
+          <div
+            className="bg-bg flex gap-2 rounded-full p-1"
+            role="group"
+            aria-label="Assist draft format"
+          >
+            <button
+              type="button"
+              className={`font-heading flex-1 cursor-pointer rounded-full px-3 py-1.5 text-sm ${
+                draftFormat === 'email' ? 'bg-accent text-bg' : 'text-ink/70'
+              }`}
+              onClick={() => setDraftFormat('email')}
+            >
+              Email
+            </button>
+            <button
+              type="button"
+              className={`font-heading flex-1 cursor-pointer rounded-full px-3 py-1.5 text-sm ${
+                draftFormat === 'script' ? 'bg-accent text-bg' : 'text-ink/70'
+              }`}
+              onClick={() => setDraftFormat('script')}
+            >
+              Call script
+            </button>
+          </div>
+        </Field>
 
         <div className="grid grid-cols-2 gap-3">
           <Field>
