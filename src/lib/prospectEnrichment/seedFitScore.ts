@@ -26,10 +26,7 @@ function clamp(n: number, min: number, max: number): number {
  * Provisional seed fit from category baseline + geo + optional strategic reference (doc §4).
  */
 export function calculateSeedFitScore(input: SeedFitInput): SeedFitResult {
-  const category =
-    normalizeRetailCategory(
-      typeof input.retailCategory === 'string' ? input.retailCategory : input.retailCategory,
-    ) ?? 'Other / needs review';
+  const category = normalizeRetailCategory(input.retailCategory) ?? 'Other / needs review';
   const baseline = getRetailCategoryBaseline(category);
   const categoryBaseFit = baseline.baseFit;
 

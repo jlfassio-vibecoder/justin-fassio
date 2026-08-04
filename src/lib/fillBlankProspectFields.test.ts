@@ -210,4 +210,23 @@ describe('buildFillBlankProposal', () => {
     expect(fields.subterritory).toBe('Sea-to-Sky');
     expect(fields.primaryDistrict).toBe('Lower Mainland');
   });
+
+  it('does not label Website confirmed without an official site', () => {
+    const blank: Prospect = {
+      ...base,
+      website: null,
+      verificationStatus: null,
+      fitScore: null,
+      priority: null,
+      idealOpeningUnits: null,
+      provisionalGrade: null,
+    };
+    const fields = buildFillBlankProposal(blank, {
+      ...evidence,
+      officialWebsite: null,
+      operatingConfirmed: true,
+      directoryOnly: true,
+    });
+    expect(fields.verificationStatus).toBe('Directory lead');
+  });
 });

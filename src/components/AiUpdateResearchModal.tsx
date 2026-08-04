@@ -5,7 +5,7 @@ import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input } from '@/components/ui/Input';
 import type { EnrichedProspectFields } from '@/lib/createEnrichedProspect';
 import type { FillBlankProspectFields, ProspectResearchMode } from '@/lib/fillBlankProspectFields';
-import { isBlankProspectValue } from '@/lib/fillBlankProspectFields';
+import { FILL_BLANK_ALLOWLIST, isBlankProspectValue } from '@/lib/fillBlankProspectFields';
 import type { Prospect } from '@/lib/prospects';
 import { buildResearchUpdateDiffs } from '@/lib/researchUpdateDiffs';
 import {
@@ -238,12 +238,34 @@ function AiUpdateResearchModalInner({
 }
 
 function fillBlanksEmptyMessage(current: Prospect): string {
-  const researchedBlank = (['address', 'phone', 'website', 'apparelCapability'] as const).filter(
-    (key) => isBlankProspectValue(key, current[key]),
-  );
-  const calculatedBlank = (
-    ['fitScore', 'idealOpeningUnits', 'priority', 'provisionalGrade'] as const
-  ).filter((key) => isBlankProspectValue(key, current[key]));
+  const blankKeys = FILL_BLANK_ALLOWLIST.filter((key) => isBlankProspectValue(key, current[key]));
+  if (blankKeys.length === 0) {
+    return 'No blank allowlisted fields to fill on this row.';
+  }
+
+  const researchedKeys = new Set([
+    'address',
+    'phone',
+    'website',
+    'apparelCapability',
+    'verificationStatus',
+  ]);
+  const calculatedKeys = new Set([
+    'fitScore',
+    'idealOpeningUnits',
+    'priority',
+    'provisionalGrade',
+    'fit',
+    'nextAction',
+    'subterritory',
+    'primaryDistrict',
+    'category',
+    'region',
+    'retailCategory',
+  ]);
+
+  const researchedBlank = blankKeys.filter((key) => researchedKeys.has(key));
+  const calculatedBlank = blankKeys.filter((key) => calculatedKeys.has(key));
 
   if (researchedBlank.length > 0 && calculatedBlank.length === 0) {
     return 'Only address, phone, website, or apparel were blank; research found no public values to fill.';
@@ -251,8 +273,5 @@ function fillBlanksEmptyMessage(current: Prospect): string {
   if (calculatedBlank.length > 0 && researchedBlank.length === 0) {
     return 'Calculated planning fields were blank but could not be scored from the current category/territory.';
   }
-  if (researchedBlank.length > 0 || calculatedBlank.length > 0) {
-    return 'Blank fields could not be filled — research found no public address/phone, and calculated fields needed more category/territory data.';
-  }
-  return 'No blank allowlisted fields to fill on this row.';
+  return 'Blank fields could not be filled — research found no public address/phone, and calculated fields needed more category/territory data.';
 }

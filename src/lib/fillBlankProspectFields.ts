@@ -295,7 +295,7 @@ export function buildFillBlankProposal(
 
   const verification = evidence.operatingConfirmed
     ? verificationStatusFromEvidence({
-        hasOfficialWebsite: Boolean(website || evidence.operatingConfirmed),
+        hasOfficialWebsite: Boolean(website),
         directoryOnly: evidence.directoryOnly,
       })
     : evidence.directoryOnly

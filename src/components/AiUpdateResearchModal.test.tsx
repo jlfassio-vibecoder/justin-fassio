@@ -186,6 +186,12 @@ describe('AiUpdateResearchModal', () => {
       priority: 'Tier 2',
       provisionalGrade: 'B (provisional)',
       idealOpeningUnits: 48,
+      fit: '8/10 — Existing fit.',
+      nextAction: 'Call buyer',
+      subterritory: 'Vancouver Island Central',
+      primaryDistrict: 'Vancouver Island',
+      retailCategory: 'Marina / resort store',
+      verificationStatus: 'Directory lead',
     };
     previewMock.mockResolvedValue({
       ok: true,

@@ -13,6 +13,8 @@ export function crmChannelFromRetailCategory(
   if (!cat || cat === 'Other / needs review') return null;
   if (cat === 'Golf pro shop') return 'Golf';
   if (cat === 'Marine dealer / supply' || cat === 'Marina / resort store') return 'Marina';
-  if (cat === 'Hardware / farm store with apparel') return 'Hardware';
+  if (cat === 'Hardware / farm store with apparel' || cat === 'Fishing / outdoor retailer') {
+    return 'Hardware';
+  }
   return 'Resort Gift';
 }

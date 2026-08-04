@@ -115,6 +115,7 @@ describe('crmChannelFromRetailCategory', () => {
     expect(crmChannelFromRetailCategory('Golf pro shop')).toBe('Golf');
     expect(crmChannelFromRetailCategory('Marine dealer / supply')).toBe('Marina');
     expect(crmChannelFromRetailCategory('Hardware / farm store with apparel')).toBe('Hardware');
+    expect(crmChannelFromRetailCategory('Fishing / outdoor retailer')).toBe('Hardware');
     expect(crmChannelFromRetailCategory('Independent gift / tourist store')).toBe('Resort Gift');
   });
 });
