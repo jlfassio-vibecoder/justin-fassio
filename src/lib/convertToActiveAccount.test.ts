@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { convertToActiveAccount, isConversionOutcome } from '@/lib/convertToActiveAccount';
+import {
+  convertToActiveAccount,
+  demoteToProspect,
+  isConversionOutcome,
+} from '@/lib/convertToActiveAccount';
 
 const updateMock = vi.fn();
 const eqMock = vi.fn();
@@ -140,5 +144,47 @@ describe('convertToActiveAccount', () => {
 
     expect(result).toEqual({ ok: false, error: 'orders insert failed' });
     expect(upsertSettingsMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('demoteToProspect', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    eqMock.mockResolvedValue({ error: null });
+  });
+
+  it('short-circuits when not an active account', async () => {
+    const result = await demoteToProspect({
+      accountId: 1,
+      currentStatus: 'prospect',
+    });
+
+    expect(result).toEqual({ ok: true, alreadyProspect: true });
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it('sets status to prospect and clears converted_at', async () => {
+    const result = await demoteToProspect({
+      accountId: 42,
+      currentStatus: 'active_account',
+    });
+
+    expect(result).toEqual({ ok: true, alreadyProspect: false });
+    expect(updateMock).toHaveBeenCalledWith({
+      account_status: 'prospect',
+      converted_at: null,
+    });
+    expect(eqMock).toHaveBeenCalledWith('id', 42);
+  });
+
+  it('returns an error when the update fails', async () => {
+    eqMock.mockResolvedValue({ error: { message: 'rls blocked' } });
+
+    const result = await demoteToProspect({
+      accountId: 1,
+      currentStatus: 'active_account',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'rls blocked' });
   });
 });

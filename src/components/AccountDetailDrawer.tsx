@@ -12,6 +12,7 @@ import {
 } from '@/lib/accountContacts';
 import { apparelSeasonLabel } from '@/lib/apparelSeasons';
 import type { AccountReorderSettingsRow } from '@/lib/accountReorderSettings';
+import { demoteToProspect } from '@/lib/convertToActiveAccount';
 import type { Prospect } from '@/lib/prospects';
 import type { ApparelSeason } from '@/types/database';
 
@@ -29,6 +30,7 @@ interface AccountDetailDrawerProps {
   onLogCall: (account: Prospect) => void;
   onLogOrder: (account: Prospect) => void;
   onNotesSaved?: (notes: string | null) => void;
+  onDemoted?: (prospect: Prospect) => void;
 }
 
 function formatCad(amount: number): string {
@@ -134,8 +136,39 @@ export function AccountDetailDrawer({
   onLogCall,
   onLogOrder,
   onNotesSaved,
+  onDemoted,
 }: AccountDetailDrawerProps) {
+  const [demoteBusy, setDemoteBusy] = useState(false);
+  const [demoteError, setDemoteError] = useState<string | null>(null);
+
   if (!account) return null;
+
+  async function handleDemote() {
+    const confirmed = window.confirm(
+      `Move ${account!.name} back to Prospects?\n\nOrder history and contacts stay on this account (ID ${account!.id}). It will leave Active Accounts.`,
+    );
+    if (!confirmed) return;
+
+    setDemoteBusy(true);
+    setDemoteError(null);
+    const result = await demoteToProspect({
+      accountId: account!.id,
+      currentStatus: account!.accountStatus,
+    });
+    setDemoteBusy(false);
+
+    if (!result.ok) {
+      setDemoteError(result.error);
+      return;
+    }
+
+    onDemoted?.({
+      ...account!,
+      accountStatus: 'prospect',
+      convertedAt: null,
+    });
+    onClose();
+  }
 
   return (
     <>
@@ -152,7 +185,7 @@ export function AccountDetailDrawer({
               {account.name}
             </p>
             <p className="text-ink/60 m-0 mt-1 text-xs tracking-wide uppercase">
-              #{account.id} · Active account
+              ID {account.id} · Active account
             </p>
           </div>
           <button
@@ -245,6 +278,11 @@ export function AccountDetailDrawer({
         </div>
 
         <div className="border-ink/10 flex flex-col gap-2 border-t px-5 py-4">
+          {demoteError ? (
+            <p className="text-accent-800 m-0 text-xs" role="alert">
+              {demoteError}
+            </p>
+          ) : null}
           <Button
             variant="primary"
             onClick={() => {
@@ -262,6 +300,9 @@ export function AccountDetailDrawer({
             }}
           >
             Log Call
+          </Button>
+          <Button variant="secondary" disabled={demoteBusy} onClick={() => void handleDemote()}>
+            {demoteBusy ? 'Moving…' : 'Move to Prospects'}
           </Button>
         </div>
       </aside>

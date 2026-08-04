@@ -4,6 +4,7 @@ import { AiUpdateResearchModal } from '@/components/AiUpdateResearchModal';
 import { ProspectDetailDrawer } from '@/components/ProspectDetailDrawer';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
+import { RowActionsMenu, type RowActionSection } from '@/components/ui/RowActionsMenu';
 import { useAiAssist } from '@/hooks/useAiAssist';
 import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
 import type { Prospect } from '@/lib/prospects';
@@ -143,57 +144,71 @@ export function ProspectsTab({
             + Add via AI
           </Button>
         }
-        renderActions={(p) => (
-          <>
-            <Button
-              variant="secondary"
-              className="px-3 py-1 text-xs"
-              onClick={() => setDetailProspect(p)}
-            >
-              Details
-            </Button>
-            <Button
-              variant="secondary"
-              className="px-3 py-1 text-xs"
-              onClick={() => setAiUpdateProspect(p)}
-            >
-              AI Update
-            </Button>
-            <Button
-              variant="secondary"
-              className="px-3 py-1 text-xs"
-              onClick={() => {
-                const chips = { prospectId: p.id, prospectName: p.name };
-                openAssist({ chips, draft: buildSuggestDraft(chips) });
-              }}
-            >
-              Suggest
-            </Button>
-            <Button
-              variant="secondary"
-              className="px-3 py-1 text-xs"
-              onClick={() => {
-                const chips = { prospectId: p.id, prospectName: p.name };
-                openAssist({ chips, draft: buildApfDraft(chips) });
-              }}
-            >
-              APF Brief
-            </Button>
-            <Button
-              variant="secondary"
-              className="px-3 py-1 text-xs"
-              onClick={() => {
-                const chips = { prospectId: p.id, prospectName: p.name };
-                openAssist({ chips, draft: buildAssistDraft(chips) });
-              }}
-            >
-              Ask AI
-            </Button>
-            <Button variant="secondary" className="px-3 py-1 text-xs" onClick={() => onLogCall(p)}>
-              Log Call
-            </Button>
-          </>
-        )}
+        onRowActivate={(p) => setDetailProspect(p)}
+        renderActions={(p) => {
+          const chips = { prospectId: p.id, prospectName: p.name };
+          const sections: RowActionSection[] = [
+            {
+              id: 'account',
+              label: 'Account',
+              items: [
+                {
+                  id: 'open',
+                  label: 'Open details',
+                  onSelect: () => setDetailProspect(p),
+                },
+                {
+                  id: 'log-call',
+                  label: 'Log call',
+                  onSelect: () => onLogCall(p),
+                },
+              ],
+            },
+            {
+              id: 'ai',
+              label: 'AI tools',
+              items: [
+                {
+                  id: 'verify',
+                  label: 'Verify & Update',
+                  onSelect: () => setAiUpdateProspect(p),
+                },
+                {
+                  id: 'suggest',
+                  label: 'Recommend Next Action',
+                  onSelect: () => openAssist({ chips, draft: buildSuggestDraft(chips) }),
+                },
+                {
+                  id: 'brief',
+                  label: 'Generate Account Brief',
+                  onSelect: () => openAssist({ chips, draft: buildApfDraft(chips) }),
+                },
+                {
+                  id: 'ask',
+                  label: 'Ask AI About Account',
+                  onSelect: () => openAssist({ chips, draft: buildAssistDraft(chips) }),
+                },
+              ],
+            },
+          ];
+          return (
+            <>
+              <div className="flex items-center justify-end gap-1.5">
+                <Button
+                  variant="secondary"
+                  className="px-3 py-1 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDetailProspect(p);
+                  }}
+                >
+                  Open
+                </Button>
+                <RowActionsMenu label={`Actions for ${p.name}`} sections={sections} />
+              </div>
+            </>
+          );
+        }}
       />
 
       <AddProspectAiModal
