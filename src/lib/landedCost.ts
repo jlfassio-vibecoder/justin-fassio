@@ -23,13 +23,14 @@ export function formatRatePct(rate: number): string {
   return `${(rate * 100).toFixed(0)}%`;
 }
 
-export function landedCad(priceUsd: number, factors: LandedCostFactors): number {
+export function landedCad(
+  priceUsd: number,
+  factors: LandedCostFactors,
+  options?: { includeGst?: boolean },
+): number {
+  const gstRate = options?.includeGst === false ? 0 : factors.gstRate;
   return (
-    priceUsd *
-    factors.fx *
-    (1 + factors.freightRate) *
-    (1 + factors.gstRate) *
-    (1 + factors.otherTaxRate)
+    priceUsd * factors.fx * (1 + factors.freightRate) * (1 + gstRate) * (1 + factors.otherTaxRate)
   );
 }
 

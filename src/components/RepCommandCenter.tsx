@@ -46,6 +46,8 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
     setResearchBrief,
     ratesAsOf,
     setRatesAsOf,
+    keystoneMarginRate,
+    setKeystoneMarginRate,
     marginRangeDisplay,
   } = useLandedCostCalculator(catalog);
 
@@ -173,6 +175,8 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                 setResearchBrief={setResearchBrief}
                 ratesAsOf={ratesAsOf}
                 setRatesAsOf={setRatesAsOf}
+                keystoneMarginRate={keystoneMarginRate}
+                setKeystoneMarginRate={setKeystoneMarginRate}
                 marginRangeDisplay={marginRangeDisplay}
               />
             )}

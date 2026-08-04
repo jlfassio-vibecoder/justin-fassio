@@ -1,10 +1,12 @@
 import { DEFAULT_LANDED_COST_FACTORS, type LandedCostFactors } from '@/lib/landedCost';
+import { DEFAULT_KEYSTONE_MARGIN_RATE } from '@/lib/retailPricing';
 
 export const LANDED_RATES_STORAGE_KEY = 'rcc.landedCostFactors';
 
 export type LandedRatesPersistence = LandedCostFactors & {
   asOf: string | null;
   brief: string | null;
+  keystoneMarginRate: number;
 };
 
 function clampFx(value: number): number {
@@ -13,6 +15,17 @@ function clampFx(value: number): number {
 
 function clampRate(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+/** Gross margin in (0, 1); default if missing/invalid. */
+function clampKeystoneMargin(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return DEFAULT_KEYSTONE_MARGIN_RATE;
+  }
+  if (!(value > 0 && value < 1)) {
+    return DEFAULT_KEYSTONE_MARGIN_RATE;
+  }
+  return value;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -44,6 +57,7 @@ export function parseLandedRatesPersistence(raw: unknown): LandedRatesPersistenc
     otherTaxRate: clampRate(o.otherTaxRate),
     asOf,
     brief,
+    keystoneMarginRate: clampKeystoneMargin(o.keystoneMarginRate),
   };
 }
 
@@ -52,6 +66,7 @@ export function defaultLandedRatesPersistence(): LandedRatesPersistence {
     ...DEFAULT_LANDED_COST_FACTORS,
     asOf: null,
     brief: null,
+    keystoneMarginRate: DEFAULT_KEYSTONE_MARGIN_RATE,
   };
 }
 

@@ -8,15 +8,22 @@ import {
 import { cn } from '@/lib/cn';
 
 const inputBase =
-  'w-full min-h-9 px-3.5 py-1.5 font-body text-sm text-ink bg-surface border border-ink/15 rounded-md hover:border-ink/45 focus-visible:outline-none focus-visible:border-accent transition-colors';
+  'min-h-9 px-3.5 py-1.5 font-body text-sm text-ink bg-surface border border-ink/15 rounded-md hover:border-ink/45 focus-visible:outline-none focus-visible:border-accent transition-colors';
+
+/** `cn` does not merge Tailwind utilities; skip default `w-full` when a width class is passed. */
+function withDefaultFullWidth(className?: string): string {
+  return /\bw-/.test(className ?? '') ? '' : 'w-full';
+}
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(inputBase, 'rounded-full', className)} {...props} />;
+  return (
+    <input className={cn(inputBase, withDefaultFullWidth(className), 'rounded-full', className)} {...props} />
+  );
 }
 
 export function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select className={cn(inputBase, 'rounded-full', className)} {...props}>
+    <select className={cn(inputBase, withDefaultFullWidth(className), 'rounded-full', className)} {...props}>
       {children}
     </select>
   );

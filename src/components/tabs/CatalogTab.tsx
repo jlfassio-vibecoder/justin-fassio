@@ -13,6 +13,12 @@ import {
   type LandedCostFactors,
 } from '@/lib/landedCost';
 import { fetchLandedRates, type LandedRatesPayload } from '@/lib/landedRatesClient';
+import {
+  DEFAULT_KEYSTONE_MARGIN_RATE,
+  MIN_ORDER_PIECES,
+  minOrderTotalBreakdown,
+  retailKeystoneBreakdown,
+} from '@/lib/retailPricing';
 
 const CATEGORY_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Categories' },
@@ -68,6 +74,8 @@ interface CatalogTabProps {
   setResearchBrief: (brief: string | null) => void;
   ratesAsOf: string | null;
   setRatesAsOf: (asOf: string | null) => void;
+  keystoneMarginRate: number;
+  setKeystoneMarginRate: (rate: number) => void;
   marginRangeDisplay: string;
 }
 
@@ -86,6 +94,8 @@ export function CatalogTab({
   setResearchBrief,
   ratesAsOf,
   setRatesAsOf,
+  keystoneMarginRate,
+  setKeystoneMarginRate,
   marginRangeDisplay,
 }: CatalogTabProps) {
   const [search, setSearch] = useState('');
@@ -93,6 +103,10 @@ export function CatalogTab({
   const [flag, setFlag] = useState<CatalogFlagFilter>('ALL');
   const [ratesBusy, setRatesBusy] = useState(false);
   const [ratesError, setRatesError] = useState<string | null>(null);
+  const [landedIncludeGst, setLandedIncludeGst] = useState(true);
+  const [consumerIncludeSalesTax, setConsumerIncludeSalesTax] = useState(true);
+  const [orderPieces, setOrderPieces] = useState(MIN_ORDER_PIECES);
+  const [shippingCadOverride, setShippingCadOverride] = useState<number | null>(null);
 
   const filteredCatalog = useMemo(() => {
     return filterCatalogItems(catalog, { search, category, flag }).map((item) => {
@@ -118,13 +132,29 @@ export function CatalogTab({
     [catalog],
   );
   const sampleTeeLanded = sampleTee
-    ? `$${landedCad(sampleTee.priceUsd, factors).toFixed(2)} CAD`
+    ? `$${landedCad(sampleTee.priceUsd, factors, { includeGst: landedIncludeGst }).toFixed(2)} CAD`
     : '—';
+
+  const keystoneBreakdown = sampleTee
+    ? retailKeystoneBreakdown(sampleTee.priceUsd, factors, keystoneMarginRate)
+    : null;
+
+  const orderBreakdown = useMemo(() => {
+    if (!sampleTee) return null;
+    return minOrderTotalBreakdown(sampleTee.priceUsd, factors, orderPieces);
+  }, [sampleTee, factors, orderPieces]);
+
+  const shippingCad =
+    shippingCadOverride != null ? shippingCadOverride : (orderBreakdown?.shippingCad ?? null);
+  const orderTotalCad =
+    orderBreakdown != null && shippingCad != null
+      ? orderBreakdown.wholesaleCad + shippingCad
+      : null;
 
   const landedMetaParts = [
     `FX ${fx}`,
     `freight +${formatRatePct(freightRate)}`,
-    `GST +${formatRatePct(gstRate)}`,
+    landedIncludeGst ? `GST +${formatRatePct(gstRate)}` : 'GST excluded',
   ];
   if (otherTaxRate > 0) {
     landedMetaParts.push(`other +${formatRatePct(otherTaxRate)}`);
@@ -167,12 +197,132 @@ export function CatalogTab({
         <Card>
           <CardKicker>Est. Landed CAD Cost</CardKicker>
           <CardTitle className="text-sage-800 text-[28px]">{sampleTeeLanded}</CardTitle>
-          <CardMeta>{landedMetaParts.join(' · ')}</CardMeta>
+          <CardMeta className="!flex-col !items-start gap-1.5">
+            <span className="flex gap-1">
+              <Button
+                type="button"
+                variant={landedIncludeGst ? 'primary' : 'secondary'}
+                className="px-2 py-0.5 text-[11px]"
+                aria-pressed={landedIncludeGst}
+                onClick={() => setLandedIncludeGst(true)}
+              >
+                +GST
+              </Button>
+              <Button
+                type="button"
+                variant={!landedIncludeGst ? 'primary' : 'secondary'}
+                className="px-2 py-0.5 text-[11px]"
+                aria-pressed={!landedIncludeGst}
+                onClick={() => setLandedIncludeGst(false)}
+              >
+                −GST
+              </Button>
+            </span>
+            <span>{landedMetaParts.join(' · ')}</span>
+          </CardMeta>
         </Card>
         <Card>
           <CardKicker>Retailer Keystone Margin</CardKicker>
-          <CardTitle className="text-[28px]">{marginRangeDisplay}</CardTitle>
-          <CardMeta>At suggested CAD MSRP across the line</CardMeta>
+          <CardTitle className="text-[28px]">{formatRatePct(keystoneMarginRate)}</CardTitle>
+          <CardMeta className="!flex-col !items-start gap-1.5">
+            <span className="flex items-center gap-1.5">
+              <label className="text-xs whitespace-nowrap">Margin %</label>
+              <Input
+                type="number"
+                step="0.1"
+                min="1"
+                max="99"
+                value={Number((keystoneMarginRate * 100).toFixed(2))}
+                onChange={(e) => {
+                  const parsed = parseFloat(e.target.value);
+                  if (!Number.isFinite(parsed)) {
+                    setKeystoneMarginRate(DEFAULT_KEYSTONE_MARGIN_RATE);
+                    return;
+                  }
+                  setKeystoneMarginRate(Math.min(0.99, Math.max(0.01, parsed / 100)));
+                }}
+                className="w-24 shrink-0"
+              />
+            </span>
+            <span className="opacity-70">Catalog line range: {marginRangeDisplay}</span>
+          </CardMeta>
+        </Card>
+        <Card>
+          <CardKicker>Suggested Retail (MSRP CAD)</CardKicker>
+          <CardTitle className="text-[28px]">
+            {keystoneBreakdown ? `$${keystoneBreakdown.suggestedMsrpCad.toFixed(2)}` : '—'}
+          </CardTitle>
+          <CardMeta>Ticket price · CAD wholesale × keystone (ex-GST)</CardMeta>
+        </Card>
+        <Card>
+          <CardKicker>Retailer Gross Profit</CardKicker>
+          <CardTitle className="text-sage-800 text-[28px]">
+            {keystoneBreakdown ? `$${keystoneBreakdown.retailerGrossProfitCad.toFixed(2)}` : '—'}
+          </CardTitle>
+          <CardMeta>Per unit · MSRP − CAD wholesale (ex-GST)</CardMeta>
+        </Card>
+        <Card>
+          <CardKicker>Final Consumer Price (BC)</CardKicker>
+          <CardTitle className="text-[28px]">
+            {keystoneBreakdown
+              ? `$${(consumerIncludeSalesTax
+                  ? keystoneBreakdown.consumerPostTaxCad
+                  : keystoneBreakdown.consumerPreTaxCad
+                ).toFixed(2)}`
+              : '—'}
+          </CardTitle>
+          <CardMeta className="!flex-col !items-start gap-1.5">
+            <span className="flex gap-1">
+              <Button
+                type="button"
+                variant={consumerIncludeSalesTax ? 'primary' : 'secondary'}
+                className="px-2 py-0.5 text-[11px]"
+                aria-pressed={consumerIncludeSalesTax}
+                onClick={() => setConsumerIncludeSalesTax(true)}
+              >
+                +GST/PST
+              </Button>
+              <Button
+                type="button"
+                variant={!consumerIncludeSalesTax ? 'primary' : 'secondary'}
+                className="px-2 py-0.5 text-[11px]"
+                aria-pressed={!consumerIncludeSalesTax}
+                onClick={() => setConsumerIncludeSalesTax(false)}
+              >
+                −GST/PST
+              </Button>
+            </span>
+            <span>
+              {keystoneBreakdown
+                ? consumerIncludeSalesTax
+                  ? `Pre-tax $${keystoneBreakdown.consumerPreTaxCad.toFixed(2)} · GST 5% + PST 7%`
+                  : `Post-tax $${keystoneBreakdown.consumerPostTaxCad.toFixed(2)} · GST 5% + PST 7%`
+                : 'Ticket MSRP · GST 5% + PST 7%'}
+            </span>
+          </CardMeta>
+        </Card>
+        <Card>
+          <CardKicker>Estimated Order Total ({orderPieces} pcs)</CardKicker>
+          <CardTitle className="text-[28px]">
+            {orderTotalCad != null ? `$${orderTotalCad.toFixed(2)} CAD` : '—'}
+          </CardTitle>
+          <CardMeta className="!flex-col !items-start gap-0.5">
+            {orderBreakdown && shippingCad != null ? (
+              <>
+                <span>
+                  Wholesale ${orderBreakdown.wholesaleCad.toFixed(2)} CAD ($
+                  {orderBreakdown.wholesaleUsd.toFixed(2)} USD)
+                </span>
+                <span>
+                  Shipping ${shippingCad.toFixed(2)} CAD
+                  {shippingCadOverride != null ? ' · carrier quote' : ' · freight estimate'} · no
+                  GST/PST
+                </span>
+              </>
+            ) : (
+              <span>Wholesale + shipping · no GST/PST</span>
+            )}
+          </CardMeta>
         </Card>
       </div>
 
@@ -258,10 +408,68 @@ export function CatalogTab({
             </p>
           ) : null}
         </div>
-        <div className="gap-4.1 flex flex-wrap text-[13px]">
-          <span>
-            Minimum: <strong>24 pcs</strong> (6/style)
-          </span>
+        <div className="flex flex-wrap items-center gap-3.5 text-[13px]">
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs whitespace-nowrap" htmlFor="order-pieces">
+              Pieces
+            </label>
+            <Input
+              id="order-pieces"
+              type="number"
+              inputMode="numeric"
+              step="1"
+              min={1}
+              value={orderPieces}
+              onChange={(e) => {
+                const parsed = parseInt(e.target.value, 10);
+                if (!Number.isFinite(parsed) || parsed < 1) {
+                  setOrderPieces(MIN_ORDER_PIECES);
+                  return;
+                }
+                setOrderPieces(parsed);
+              }}
+              className="w-20 shrink-0"
+              title={`Minimum order ${MIN_ORDER_PIECES} pcs (6/style)`}
+            />
+            <span className="text-xs opacity-60">min {MIN_ORDER_PIECES}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs whitespace-nowrap" htmlFor="order-shipping-cad">
+              Est. shipping CAD
+            </label>
+            <Input
+              id="order-shipping-cad"
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              value={shippingCad != null ? Number(shippingCad.toFixed(2)) : ''}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '') {
+                  setShippingCadOverride(null);
+                  return;
+                }
+                const parsed = parseFloat(raw);
+                if (!Number.isFinite(parsed) || parsed < 0) {
+                  setShippingCadOverride(null);
+                  return;
+                }
+                setShippingCadOverride(parsed);
+              }}
+              className="w-24 shrink-0"
+              title="Freight estimate by default — enter carrier quote to override"
+            />
+            {shippingCadOverride != null ? (
+              <button
+                type="button"
+                className="text-accent text-xs underline-offset-2 hover:underline"
+                onClick={() => setShippingCadOverride(null)}
+              >
+                Reset estimate
+              </button>
+            ) : null}
+          </div>
           <span>
             Ships from: <strong>Vista, CA (UPS)</strong>
           </span>

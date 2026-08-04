@@ -36,6 +36,10 @@ describe('landedCad', () => {
   it('applies GST on top of FX and freight', () => {
     expect(landedCad(13, withGst)).toBeCloseTo(20.735 * 1.05, 3);
   });
+
+  it('can exclude GST via includeGst option', () => {
+    expect(landedCad(13, withGst, { includeGst: false })).toBeCloseTo(20.735, 3);
+  });
 });
 
 describe('marginPct', () => {

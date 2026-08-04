@@ -30,6 +30,7 @@ describe('parseLandedRatesPersistence', () => {
       otherTaxRate: 0,
       asOf: '2026-08-03T12:00:00.000Z',
       brief: 'USD/CAD 1.38',
+      keystoneMarginRate: 0.5,
     });
   });
 });
@@ -58,6 +59,7 @@ describe('load/saveLandedRatesPersistence', () => {
       otherTaxRate: 0.07,
       asOf: '2026-08-03T15:00:00.000Z',
       brief: 'Test brief',
+      keystoneMarginRate: 0.55,
     });
     expect(store.get(LANDED_RATES_STORAGE_KEY)).toBeTruthy();
     expect(loadLandedRatesPersistence()).toEqual({
@@ -67,6 +69,7 @@ describe('load/saveLandedRatesPersistence', () => {
       otherTaxRate: 0.07,
       asOf: '2026-08-03T15:00:00.000Z',
       brief: 'Test brief',
+      keystoneMarginRate: 0.55,
     });
   });
 
@@ -76,6 +79,7 @@ describe('load/saveLandedRatesPersistence', () => {
       ...DEFAULT_LANDED_COST_FACTORS,
       asOf: null,
       brief: null,
+      keystoneMarginRate: 0.5,
     });
   });
 });

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CatalogItem } from '@/lib/catalog';
 import { formatMarginRange, type LandedCostFactors } from '@/lib/landedCost';
 import { loadLandedRatesPersistence, saveLandedRatesPersistence } from '@/lib/landedRatesStorage';
+import { DEFAULT_KEYSTONE_MARGIN_RATE } from '@/lib/retailPricing';
 
 export function useLandedCostCalculator(catalog: CatalogItem[]) {
   const [initial] = useState(() => loadLandedRatesPersistence());
@@ -11,6 +12,9 @@ export function useLandedCostCalculator(catalog: CatalogItem[]) {
   const [otherTaxRate, setOtherTaxRate] = useState(initial.otherTaxRate);
   const [researchBrief, setResearchBrief] = useState<string | null>(initial.brief);
   const [ratesAsOf, setRatesAsOf] = useState<string | null>(initial.asOf);
+  const [keystoneMarginRate, setKeystoneMarginRate] = useState(
+    initial.keystoneMarginRate ?? DEFAULT_KEYSTONE_MARGIN_RATE,
+  );
 
   const factors: LandedCostFactors = useMemo(
     () => ({ fx, freightRate, gstRate, otherTaxRate }),
@@ -24,8 +28,9 @@ export function useLandedCostCalculator(catalog: CatalogItem[]) {
       ...factors,
       asOf: ratesAsOf,
       brief: researchBrief,
+      keystoneMarginRate,
     });
-  }, [factors, ratesAsOf, researchBrief]);
+  }, [factors, ratesAsOf, researchBrief, keystoneMarginRate]);
 
   return {
     fx,
@@ -41,6 +46,8 @@ export function useLandedCostCalculator(catalog: CatalogItem[]) {
     setResearchBrief,
     ratesAsOf,
     setRatesAsOf,
+    keystoneMarginRate,
+    setKeystoneMarginRate,
     marginRangeDisplay,
   };
 }
