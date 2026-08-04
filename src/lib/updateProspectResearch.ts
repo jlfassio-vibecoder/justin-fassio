@@ -6,11 +6,8 @@ import {
   proposedProspectFromFields,
   type EnrichedProspectFields,
 } from '@/lib/createEnrichedProspect';
-import { mapProspectRow, type Prospect } from '@/lib/prospects';
+import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
 import type { ProspectRow } from '@/types/database';
-
-const PROSPECT_SELECT =
-  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, created_at, updated_at' as const;
 
 export type ProspectResearchPreview = {
   current: Prospect;

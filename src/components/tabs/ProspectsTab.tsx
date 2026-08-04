@@ -8,6 +8,42 @@ import { useAiAssist } from '@/hooks/useAiAssist';
 import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
 import type { Prospect } from '@/lib/prospects';
 
+const PLANNING_COLUMN_HEADERS = [
+  'External ID',
+  'Subterritory',
+  'Primary district',
+  'Retail category',
+  'Website',
+  'Fit score',
+  'Ideal opening units',
+  'Priority',
+  'Grade',
+  'Verification',
+  'Buyer verified',
+  'Apparel',
+  'Existing OGR',
+  'Qualification',
+  'Next action',
+  'Source note',
+] as const;
+
+function cellText(value: string | number | null | undefined): string {
+  if (value == null || value === '') return '—';
+  return String(value);
+}
+
+function TruncatedCell({ value, className = '' }: { value: string; className?: string }) {
+  const display = value || '—';
+  return (
+    <td
+      className={`border-ink/[0.08] max-w-[180px] truncate border-b p-2 opacity-75 ${className}`}
+      title={display === '—' ? undefined : display}
+    >
+      {display}
+    </td>
+  );
+}
+
 interface ProspectsTabProps {
   prospects: Prospect[];
   onLogCall: (prospect: Prospect) => void;
@@ -57,9 +93,40 @@ export function ProspectsTab({
       <RetailerDirectory
         data-screen-label="prospects"
         retailers={pipelineProspects}
-        searchPlaceholder="Search BC prospects by name, city, address, or fit reason…"
+        searchPlaceholder="Search BC prospects by name, city, address, fit, ID, website…"
         emptyMessage="No prospects match these filters. Converted accounts live under Active Accounts."
         highlightedId={highlightedProspectId}
+        extraColumnHeaders={[...PLANNING_COLUMN_HEADERS]}
+        renderExtraCells={(p) => (
+          <>
+            <td className="border-ink/[0.08] border-b p-2 whitespace-nowrap">
+              {cellText(p.externalId)}
+            </td>
+            <td className="border-ink/[0.08] border-b p-2">{cellText(p.subterritory)}</td>
+            <td className="border-ink/[0.08] border-b p-2">{cellText(p.primaryDistrict)}</td>
+            <td className="border-ink/[0.08] border-b p-2">{cellText(p.retailCategory)}</td>
+            <TruncatedCell value={cellText(p.website)} />
+            <td className="border-ink/[0.08] border-b p-2 text-center">
+              {p.fitScore != null ? p.fitScore : '—'}
+            </td>
+            <td className="border-ink/[0.08] border-b p-2 text-center">
+              {cellText(p.idealOpeningUnits)}
+            </td>
+            <td className="border-ink/[0.08] border-b p-2 whitespace-nowrap">
+              {cellText(p.priority)}
+            </td>
+            <td className="border-ink/[0.08] border-b p-2 whitespace-nowrap">
+              {cellText(p.provisionalGrade)}
+            </td>
+            <TruncatedCell value={cellText(p.verificationStatus)} />
+            <td className="border-ink/[0.08] border-b p-2">{p.buyerVerified ? 'Yes' : 'No'}</td>
+            <td className="border-ink/[0.08] border-b p-2">{cellText(p.apparelCapability)}</td>
+            <td className="border-ink/[0.08] border-b p-2">{cellText(p.existingOgr)}</td>
+            <TruncatedCell value={cellText(p.qualificationStatus)} />
+            <TruncatedCell value={cellText(p.nextAction)} />
+            <TruncatedCell value={cellText(p.sourceNote)} />
+          </>
+        )}
         banner={
           successBanner ? (
             <p className="text-ink/80 m-0 text-sm" role="status">

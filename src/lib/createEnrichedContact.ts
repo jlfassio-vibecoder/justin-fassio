@@ -8,11 +8,8 @@ import {
 } from '@/lib/accountContacts';
 import { researchCompany } from '@/lib/companyWebResearch';
 import { createEnrichedProspect } from '@/lib/createEnrichedProspect';
-import { mapProspectRow, type Prospect } from '@/lib/prospects';
+import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
 import type { AccountContact as AccountContactRow, ProspectRow } from '@/types/database';
-
-const PROSPECT_SELECT =
-  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, created_at, updated_at' as const;
 
 const contactGapsSchema = z.object({
   title: z

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { findCompanyMatches } from '@/lib/companyMatch';
-import type { Prospect } from '@/lib/prospects';
+import { EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
 
 const SAMPLE: Prospect[] = [
   {
@@ -16,6 +16,7 @@ const SAMPLE: Prospect[] = [
     convertedAt: null,
     initialOrderDate: null,
     notes: null,
+    ...EMPTY_PROSPECT_PLANNING,
   },
   {
     id: 2,
@@ -30,6 +31,7 @@ const SAMPLE: Prospect[] = [
     convertedAt: null,
     initialOrderDate: null,
     notes: null,
+    ...EMPTY_PROSPECT_PLANNING,
   },
   {
     id: 3,
@@ -44,6 +46,7 @@ const SAMPLE: Prospect[] = [
     convertedAt: null,
     initialOrderDate: null,
     notes: null,
+    ...EMPTY_PROSPECT_PLANNING,
   },
 ];
 

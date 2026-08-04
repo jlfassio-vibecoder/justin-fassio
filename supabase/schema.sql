@@ -90,6 +90,22 @@ create table if not exists prospects (
   converted_at timestamptz,
   initial_order_date timestamptz,
   notes text,
+  external_id text,
+  subterritory text,
+  primary_district text,
+  retail_category text,
+  website text,
+  fit_score smallint check (fit_score is null or (fit_score >= 1 and fit_score <= 10)),
+  ideal_opening_units integer,
+  priority text,
+  provisional_grade text,
+  verification_status text,
+  buyer_verified boolean not null default false,
+  apparel_capability text,
+  existing_ogr text,
+  qualification_status text,
+  next_action text,
+  source_note text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -97,6 +113,9 @@ create table if not exists prospects (
 create index if not exists prospects_category_idx on prospects (category);
 create index if not exists prospects_region_idx on prospects (region);
 create index if not exists prospects_account_status_idx on prospects (account_status);
+create unique index if not exists prospects_external_id_uidx
+  on prospects (external_id)
+  where external_id is not null;
 
 drop trigger if exists prospects_set_updated_at on prospects;
 create trigger prospects_set_updated_at

@@ -16,7 +16,7 @@ import {
   previewProspectResearchUpdate,
 } from '@/lib/updateProspectResearch';
 import { buildResearchUpdateDiffs } from '@/lib/researchUpdateDiffs';
-import type { Prospect } from '@/lib/prospects';
+import { EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
 
 const currentRow = {
   id: 42,
@@ -31,6 +31,22 @@ const currentRow = {
   converted_at: null,
   initial_order_date: null,
   notes: 'Keep these account notes',
+  external_id: null,
+  subterritory: null,
+  primary_district: null,
+  retail_category: null,
+  website: null,
+  fit_score: null,
+  ideal_opening_units: null,
+  priority: null,
+  provisional_grade: null,
+  verification_status: null,
+  buyer_verified: false,
+  apparel_capability: null,
+  existing_ogr: null,
+  qualification_status: null,
+  next_action: null,
+  source_note: null,
   created_at: '2026-08-01T00:00:00Z',
   updated_at: '2026-08-01T00:00:00Z',
 };
@@ -92,6 +108,7 @@ describe('buildResearchUpdateDiffs', () => {
       convertedAt: null,
       initialOrderDate: null,
       notes: null,
+      ...EMPTY_PROSPECT_PLANNING,
     };
     const proposed: Prospect = {
       ...current,

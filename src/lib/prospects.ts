@@ -5,7 +5,46 @@ export type ProspectCategory = 'Golf' | 'Marina' | 'Hardware' | 'Resort Gift';
 export type ProspectRegion =
   'Okanagan' | 'Shuswap' | 'Vancouver Island' | 'Sea-to-Sky' | 'Kootenays' | 'Fraser Valley';
 
-export interface Prospect {
+/** Nullable planning fields from the BC named prospect list sheet. */
+export type ProspectPlanningFields = {
+  externalId: string | null;
+  subterritory: string | null;
+  primaryDistrict: string | null;
+  retailCategory: string | null;
+  website: string | null;
+  fitScore: number | null;
+  idealOpeningUnits: number | null;
+  priority: string | null;
+  provisionalGrade: string | null;
+  verificationStatus: string | null;
+  buyerVerified: boolean;
+  apparelCapability: string | null;
+  existingOgr: string | null;
+  qualificationStatus: string | null;
+  nextAction: string | null;
+  sourceNote: string | null;
+};
+
+export const EMPTY_PROSPECT_PLANNING: ProspectPlanningFields = {
+  externalId: null,
+  subterritory: null,
+  primaryDistrict: null,
+  retailCategory: null,
+  website: null,
+  fitScore: null,
+  idealOpeningUnits: null,
+  priority: null,
+  provisionalGrade: null,
+  verificationStatus: null,
+  buyerVerified: false,
+  apparelCapability: null,
+  existingOgr: null,
+  qualificationStatus: null,
+  nextAction: null,
+  sourceNote: null,
+};
+
+export interface Prospect extends ProspectPlanningFields {
   id: number;
   name: string;
   category: ProspectCategory;
@@ -25,8 +64,29 @@ export interface FetchProspectsOptions {
   accountStatus?: AccountStatus;
 }
 
-const PROSPECT_SELECT =
-  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, created_at, updated_at' as const;
+export const PROSPECT_SELECT =
+  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, external_id, subterritory, primary_district, retail_category, website, fit_score, ideal_opening_units, priority, provisional_grade, verification_status, buyer_verified, apparel_capability, existing_ogr, qualification_status, next_action, source_note, created_at, updated_at' as const;
+
+function mapPlanningFields(row: ProspectRow): ProspectPlanningFields {
+  return {
+    externalId: row.external_id,
+    subterritory: row.subterritory,
+    primaryDistrict: row.primary_district,
+    retailCategory: row.retail_category,
+    website: row.website,
+    fitScore: row.fit_score,
+    idealOpeningUnits: row.ideal_opening_units,
+    priority: row.priority,
+    provisionalGrade: row.provisional_grade,
+    verificationStatus: row.verification_status,
+    buyerVerified: row.buyer_verified,
+    apparelCapability: row.apparel_capability,
+    existingOgr: row.existing_ogr,
+    qualificationStatus: row.qualification_status,
+    nextAction: row.next_action,
+    sourceNote: row.source_note,
+  };
+}
 
 export function mapProspectRow(row: ProspectRow): Prospect {
   return {
@@ -42,6 +102,7 @@ export function mapProspectRow(row: ProspectRow): Prospect {
     convertedAt: row.converted_at,
     initialOrderDate: row.initial_order_date,
     notes: row.notes,
+    ...mapPlanningFields(row),
   };
 }
 
