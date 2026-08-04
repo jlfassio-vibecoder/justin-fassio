@@ -18,6 +18,8 @@ const channelTagVariant: Record<
 
 const BASE_HEADERS = ['#', 'Store', 'Channel', 'City (Region)', 'Address', 'Phone', 'Fit Reason'];
 
+const HEADER_CELL_CLASS =
+  'sticky top-0 z-10 bg-surface border-ink/15 text-ink/60 border-b p-2 text-left text-[11px] tracking-wider uppercase';
 const ACTION_CELL_CLASS =
   'sticky right-0 z-20 min-w-[7.5rem] w-[7.5rem] bg-surface border-l border-ink/15 shadow-[-4px_0_8px_rgba(0,0,0,0.06)]';
 const ACTION_HEADER_CLASS =
@@ -119,20 +121,14 @@ export function RetailerDirectory({
           <div className="max-h-[640px] overflow-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="bg-surface sticky top-0">
+                <tr>
                   {BASE_HEADERS.map((h) => (
-                    <th
-                      key={h}
-                      className="border-ink/15 text-ink/60 border-b p-2 text-left text-[11px] tracking-wider uppercase"
-                    >
+                    <th key={h} className={HEADER_CELL_CLASS}>
                       {h}
                     </th>
                   ))}
                   {extraColumnHeaders.map((h) => (
-                    <th
-                      key={h}
-                      className="border-ink/15 text-ink/60 border-b p-2 text-left text-[11px] tracking-wider uppercase"
-                    >
+                    <th key={h} className={HEADER_CELL_CLASS}>
                       {h}
                     </th>
                   ))}
