@@ -17,13 +17,19 @@ function withDefaultFullWidth(className?: string): string {
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <input className={cn(inputBase, withDefaultFullWidth(className), 'rounded-full', className)} {...props} />
+    <input
+      className={cn(inputBase, withDefaultFullWidth(className), 'rounded-full', className)}
+      {...props}
+    />
   );
 }
 
 export function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select className={cn(inputBase, withDefaultFullWidth(className), 'rounded-full', className)} {...props}>
+    <select
+      className={cn(inputBase, withDefaultFullWidth(className), 'rounded-full', className)}
+      {...props}
+    >
       {children}
     </select>
   );
