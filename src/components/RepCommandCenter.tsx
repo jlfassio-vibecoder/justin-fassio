@@ -32,7 +32,24 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   const [directoryLoading, setDirectoryLoading] = useState(true);
   const [directoryError, setDirectoryError] = useState<string | null>(null);
 
-  const { fx, setFx, freight, setFreight, marginRangeDisplay } = useLandedCostCalculator(catalog);
+  const {
+    fx,
+    setFx,
+    freightRate,
+    setFreightRate,
+    gstRate,
+    setGstRate,
+    otherTaxRate,
+    setOtherTaxRate,
+    factors,
+    researchBrief,
+    setResearchBrief,
+    ratesAsOf,
+    setRatesAsOf,
+    keystoneMarginRate,
+    setKeystoneMarginRate,
+    marginRangeDisplay,
+  } = useLandedCostCalculator(catalog);
 
   const pipelineProspects = useMemo(
     () => prospects.filter((p) => p.accountStatus !== 'active_account'),
@@ -147,8 +164,19 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                 catalog={catalog}
                 fx={fx}
                 setFx={setFx}
-                freight={freight}
-                setFreight={setFreight}
+                freightRate={freightRate}
+                setFreightRate={setFreightRate}
+                gstRate={gstRate}
+                setGstRate={setGstRate}
+                otherTaxRate={otherTaxRate}
+                setOtherTaxRate={setOtherTaxRate}
+                factors={factors}
+                researchBrief={researchBrief}
+                setResearchBrief={setResearchBrief}
+                ratesAsOf={ratesAsOf}
+                setRatesAsOf={setRatesAsOf}
+                keystoneMarginRate={keystoneMarginRate}
+                setKeystoneMarginRate={setKeystoneMarginRate}
                 marginRangeDisplay={marginRangeDisplay}
               />
             )}
