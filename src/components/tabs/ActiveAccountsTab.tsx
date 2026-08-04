@@ -14,6 +14,7 @@ import {
 } from '@/lib/accountReorderSettings';
 import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
 import { apparelSeasonLabel } from '@/lib/apparelSeasons';
+import type { ProspectResearchMode } from '@/lib/fillBlankProspectFields';
 import {
   groupOrdersByAccountId,
   lastOrderDate,
@@ -59,7 +60,10 @@ export function ActiveAccountsTab({
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
-  const [aiUpdateAccount, setAiUpdateAccount] = useState<Prospect | null>(null);
+  const [aiResearch, setAiResearch] = useState<{
+    account: Prospect;
+    mode: ProspectResearchMode;
+  } | null>(null);
   const [historyAccount, setHistoryAccount] = useState<Prospect | null>(null);
   const [detailAccount, setDetailAccount] = useState<Prospect | null>(null);
   const [ordersReloadToken, setOrdersReloadToken] = useState(0);
@@ -306,7 +310,12 @@ export function ActiveAccountsTab({
                 {
                   id: 'verify',
                   label: 'Verify & Update',
-                  onSelect: () => setAiUpdateAccount(account),
+                  onSelect: () => setAiResearch({ account, mode: 'update' }),
+                },
+                {
+                  id: 'fill-blanks',
+                  label: 'Fill Blank Fields',
+                  onSelect: () => setAiResearch({ account, mode: 'fill-blanks' }),
                 },
                 {
                   id: 'suggest',
@@ -348,9 +357,10 @@ export function ActiveAccountsTab({
       />
 
       <AiUpdateResearchModal
-        open={aiUpdateAccount != null}
-        prospect={aiUpdateAccount}
-        onClose={() => setAiUpdateAccount(null)}
+        open={aiResearch != null}
+        prospect={aiResearch?.account ?? null}
+        mode={aiResearch?.mode ?? 'update'}
+        onClose={() => setAiResearch(null)}
         onApplied={(prospect) => {
           onProspectUpdated?.(prospect);
           if (detailAccount?.id === prospect.id) {

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { EnrichedProspectFields } from '@/lib/createEnrichedProspect';
+import type { FillBlankProspectFields, ProspectResearchMode } from '@/lib/fillBlankProspectFields';
 import type { Prospect } from '@/lib/prospects';
 import type { ProspectResearchPreview } from '@/lib/updateProspectResearch';
 
@@ -14,10 +15,11 @@ async function bearerToken(): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
-/** Client call for AI Update Research preview. */
+/** Client call for AI Update Research / Fill Blank Fields preview. */
 export async function previewProspectResearchUpdate(input: {
   prospectId: number;
   websiteUrl?: string;
+  mode?: ProspectResearchMode;
 }): Promise<PreviewProspectResearchClientResult> {
   const token = await bearerToken();
   if (!token) {
@@ -33,6 +35,7 @@ export async function previewProspectResearchUpdate(input: {
     body: JSON.stringify({
       prospectId: input.prospectId,
       websiteUrl: input.websiteUrl,
+      mode: input.mode ?? 'update',
     }),
   });
 
@@ -50,10 +53,11 @@ export async function previewProspectResearchUpdate(input: {
   return { ok: true, preview: payload.preview };
 }
 
-/** Client call to apply AI Update Research after confirm. */
+/** Client call to apply AI Update Research / Fill Blank Fields after confirm. */
 export async function applyProspectResearchUpdate(input: {
   prospectId: number;
-  fields: EnrichedProspectFields;
+  fields: EnrichedProspectFields | FillBlankProspectFields;
+  mode?: ProspectResearchMode;
 }): Promise<ApplyProspectResearchClientResult> {
   const token = await bearerToken();
   if (!token) {
@@ -69,6 +73,7 @@ export async function applyProspectResearchUpdate(input: {
     body: JSON.stringify({
       prospectId: input.prospectId,
       fields: input.fields,
+      mode: input.mode ?? 'update',
     }),
   });
 

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { RowActionsMenu, type RowActionSection } from '@/components/ui/RowActionsMenu';
 import { useAiAssist } from '@/hooks/useAiAssist';
 import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
+import type { ProspectResearchMode } from '@/lib/fillBlankProspectFields';
 import type { Prospect } from '@/lib/prospects';
 
 const PLANNING_COLUMN_HEADERS = [
@@ -67,7 +68,10 @@ export function ProspectsTab({
   const [highlightedProspectId, setHighlightedProspectId] = useState<number | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [detailProspect, setDetailProspect] = useState<Prospect | null>(null);
-  const [aiUpdateProspect, setAiUpdateProspect] = useState<Prospect | null>(null);
+  const [aiResearch, setAiResearch] = useState<{
+    prospect: Prospect;
+    mode: ProspectResearchMode;
+  } | null>(null);
 
   const pipelineProspects = useMemo(
     () => prospects.filter((p) => p.accountStatus !== 'active_account'),
@@ -171,7 +175,12 @@ export function ProspectsTab({
                 {
                   id: 'verify',
                   label: 'Verify & Update',
-                  onSelect: () => setAiUpdateProspect(p),
+                  onSelect: () => setAiResearch({ prospect: p, mode: 'update' }),
+                },
+                {
+                  id: 'fill-blanks',
+                  label: 'Fill Blank Fields',
+                  onSelect: () => setAiResearch({ prospect: p, mode: 'fill-blanks' }),
                 },
                 {
                   id: 'suggest',
@@ -218,9 +227,10 @@ export function ProspectsTab({
       />
 
       <AiUpdateResearchModal
-        open={aiUpdateProspect != null}
-        prospect={aiUpdateProspect}
-        onClose={() => setAiUpdateProspect(null)}
+        open={aiResearch != null}
+        prospect={aiResearch?.prospect ?? null}
+        mode={aiResearch?.mode ?? 'update'}
+        onClose={() => setAiResearch(null)}
         onApplied={(prospect) => {
           onProspectUpdated?.(prospect);
           if (detailProspect?.id === prospect.id) {

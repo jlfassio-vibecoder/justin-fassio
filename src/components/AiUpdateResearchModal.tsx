@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input } from '@/components/ui/Input';
 import type { EnrichedProspectFields } from '@/lib/createEnrichedProspect';
+import type { FillBlankProspectFields, ProspectResearchMode } from '@/lib/fillBlankProspectFields';
+import { FILL_BLANK_ALLOWLIST, isBlankProspectValue } from '@/lib/fillBlankProspectFields';
 import type { Prospect } from '@/lib/prospects';
 import { buildResearchUpdateDiffs } from '@/lib/researchUpdateDiffs';
 import {
@@ -16,6 +18,8 @@ interface AiUpdateResearchModalProps {
   prospect: Prospect | null;
   onClose: () => void;
   onApplied: (prospect: Prospect) => void;
+  /** `update` overwrites core fields; `fill-blanks` only fills empty web-fillable columns. */
+  mode?: ProspectResearchMode;
 }
 
 export function AiUpdateResearchModal({
@@ -23,14 +27,16 @@ export function AiUpdateResearchModal({
   prospect,
   onClose,
   onApplied,
+  mode = 'update',
 }: AiUpdateResearchModalProps) {
   if (!open || !prospect) return null;
   return (
     <AiUpdateResearchModalInner
-      key={prospect.id}
+      key={`${prospect.id}-${mode}`}
       prospect={prospect}
       onClose={onClose}
       onApplied={onApplied}
+      mode={mode}
     />
   );
 }
@@ -39,23 +45,32 @@ function AiUpdateResearchModalInner({
   prospect,
   onClose,
   onApplied,
+  mode,
 }: {
   prospect: Prospect;
   onClose: () => void;
   onApplied: (prospect: Prospect) => void;
+  mode: ProspectResearchMode;
 }) {
-  const [websiteUrl, setWebsiteUrl] = useState('');
+  const fillBlanks = mode === 'fill-blanks';
+  const [websiteUrl, setWebsiteUrl] = useState(prospect.website?.trim() ?? '');
   const [busyPreview, setBusyPreview] = useState(true);
   const [busyApply, setBusyApply] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fields, setFields] = useState<EnrichedProspectFields | null>(null);
+  const [fields, setFields] = useState<EnrichedProspectFields | FillBlankProspectFields | null>(
+    null,
+  );
   const [current, setCurrent] = useState<Prospect | null>(null);
   const [proposed, setProposed] = useState<Prospect | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    void previewProspectResearchUpdate({ prospectId: prospect.id }).then((result) => {
+    void previewProspectResearchUpdate({
+      prospectId: prospect.id,
+      websiteUrl: prospect.website?.trim() || undefined,
+      mode,
+    }).then((result) => {
       if (!active) return;
       setBusyPreview(false);
       if (!result.ok) {
@@ -70,9 +85,9 @@ function AiUpdateResearchModalInner({
     return () => {
       active = false;
     };
-  }, [prospect.id]);
+  }, [prospect.id, prospect.website, mode]);
 
-  const diffs = current && proposed ? buildResearchUpdateDiffs(current, proposed) : [];
+  const diffs = current && proposed ? buildResearchUpdateDiffs(current, proposed, mode) : [];
   const busy = busyPreview || busyApply;
 
   function handleClose() {
@@ -88,6 +103,7 @@ function AiUpdateResearchModalInner({
     const result = await previewProspectResearchUpdate({
       prospectId: prospect.id,
       websiteUrl: websiteUrl.trim() || undefined,
+      mode,
     });
     setBusyPreview(false);
     if (!result.ok) {
@@ -106,6 +122,7 @@ function AiUpdateResearchModalInner({
     const result = await applyProspectResearchUpdate({
       prospectId: prospect.id,
       fields,
+      mode,
     });
     setBusyApply(false);
     if (!result.ok) {
@@ -120,7 +137,7 @@ function AiUpdateResearchModalInner({
     <DialogBackdrop open onClose={handleClose}>
       <div className="gap-3.1 bg-surface p-4.1 flex max-w-[620px] flex-col rounded-xl shadow-lg">
         <div className="flex items-center justify-between">
-          <DialogTitle>AI Update</DialogTitle>
+          <DialogTitle>{fillBlanks ? 'Fill Blank Fields' : 'AI Update'}</DialogTitle>
           <button
             type="button"
             onClick={handleClose}
@@ -133,8 +150,19 @@ function AiUpdateResearchModalInner({
         </div>
 
         <p className="text-ink/65 m-0 text-sm">
-          Re-research <strong>{prospect.name}</strong> (#{prospect.id}) from the web, review
-          proposed changes, then confirm to update the directory row.
+          {fillBlanks ? (
+            <>
+              Research <strong>{prospect.name}</strong> (ID {prospect.id}) for public address,
+              phone, website, and apparel evidence. Empty fit score, priority, grade, and opening
+              units are calculated by the app — not invented by the model. Buyer verified, Existing
+              OGR, and External ID are never changed.
+            </>
+          ) : (
+            <>
+              Re-research <strong>{prospect.name}</strong> (ID {prospect.id}) from the web, review
+              proposed changes, then confirm to update the directory row.
+            </>
+          )}
         </p>
 
         <Field>
@@ -168,7 +196,9 @@ function AiUpdateResearchModalInner({
 
         {!busyPreview && fields && diffs.length === 0 ? (
           <p className="text-ink/70 m-0 text-sm" role="status">
-            No field changes proposed — research matches the current row.
+            {fillBlanks && current
+              ? fillBlanksEmptyMessage(current)
+              : 'No field changes proposed — research matches the current row.'}
           </p>
         ) : null}
 
@@ -199,10 +229,49 @@ function AiUpdateResearchModalInner({
             disabled={busy || !fields || diffs.length === 0}
             onClick={() => void handleConfirm()}
           >
-            {busyApply ? 'Updating…' : 'Confirm update'}
+            {busyApply ? 'Updating…' : fillBlanks ? 'Confirm fills' : 'Confirm update'}
           </Button>
         </div>
       </div>
     </DialogBackdrop>
   );
+}
+
+function fillBlanksEmptyMessage(current: Prospect): string {
+  const blankKeys = FILL_BLANK_ALLOWLIST.filter((key) => isBlankProspectValue(key, current[key]));
+  if (blankKeys.length === 0) {
+    return 'No blank allowlisted fields to fill on this row.';
+  }
+
+  const researchedKeys = new Set([
+    'address',
+    'phone',
+    'website',
+    'apparelCapability',
+    'verificationStatus',
+  ]);
+  const calculatedKeys = new Set([
+    'fitScore',
+    'idealOpeningUnits',
+    'priority',
+    'provisionalGrade',
+    'fit',
+    'nextAction',
+    'subterritory',
+    'primaryDistrict',
+    'category',
+    'region',
+    'retailCategory',
+  ]);
+
+  const researchedBlank = blankKeys.filter((key) => researchedKeys.has(key));
+  const calculatedBlank = blankKeys.filter((key) => calculatedKeys.has(key));
+
+  if (researchedBlank.length > 0 && calculatedBlank.length === 0) {
+    return 'Only address, phone, website, or apparel were blank; research found no public values to fill.';
+  }
+  if (calculatedBlank.length > 0 && researchedBlank.length === 0) {
+    return 'Calculated planning fields were blank but could not be scored from the current category/territory.';
+  }
+  return 'Blank fields could not be filled — research found no public address/phone, and calculated fields needed more category/territory data.';
 }

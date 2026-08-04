@@ -1,12 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const inferMock = vi.fn();
+const inferFillBlankMock = vi.fn();
 
 vi.mock('@/lib/createEnrichedProspect', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/createEnrichedProspect')>();
   return {
     ...actual,
     inferEnrichedProspectFields: (...args: unknown[]) => inferMock(...args),
+  };
+});
+
+vi.mock('@/lib/fillBlankProspectFields', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/fillBlankProspectFields')>();
+  return {
+    ...actual,
+    inferFillBlankProspectFields: (...args: unknown[]) => inferFillBlankMock(...args),
   };
 });
 
@@ -148,6 +157,7 @@ describe('previewProspectResearchUpdate', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
+    expect(result.preview.mode).toBe('update');
     expect(result.preview.current.name).toBe('Old Store');
     expect(result.preview.proposed.name).toBe('New Store');
     expect(result.preview.proposed.notes).toBe('Keep these account notes');
@@ -158,6 +168,48 @@ describe('previewProspectResearchUpdate', () => {
     };
     expect(chain.update).toBeDefined();
     expect(vi.mocked(chain.update as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
+  });
+
+  it('fill-blanks mode only proposes empty allowlisted fields', async () => {
+    inferFillBlankMock.mockResolvedValue({
+      ok: true,
+      fields: {
+        name: 'Should Not Overwrite',
+        category: 'Hardware',
+        region: 'Shuswap',
+        city: 'Salmon Arm',
+        address: '9 Lake Ave',
+        phone: '250-222-2222',
+        fitScore: 9,
+        fit: '9/10 — x',
+        website: 'https://example.com',
+        subterritory: 'Central Okanagan',
+        primaryDistrict: 'Okanagan',
+        retailCategory: 'Golf pro shop',
+        apparelCapability: 'Confirmed',
+        verificationStatus: 'Website confirmed',
+        idealOpeningUnits: 60,
+        priority: 'Tier 1',
+        provisionalGrade: 'A (provisional)',
+        nextAction: 'Call',
+      },
+      researchBrief: 'brief',
+    });
+
+    const supabase = mockSupabasePreview();
+    const result = await previewProspectResearchUpdate(supabase, {
+      id: 42,
+      mode: 'fill-blanks',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.preview.mode).toBe('fill-blanks');
+    expect(result.preview.proposed.name).toBe('Old Store');
+    expect(result.preview.proposed.address).toBe('1 Main St');
+    expect(result.preview.proposed.website).toBe('https://example.com');
+    expect(result.preview.proposed.buyerVerified).toBe(false);
+    expect(inferMock).not.toHaveBeenCalled();
   });
 });
 
@@ -195,5 +247,89 @@ describe('applyProspectResearchUpdate', () => {
       phone: '250-222-2222',
       fit: '8/10 — Strong hardware traffic.',
     });
+  });
+
+  it('fill-blanks apply patches only blank columns from a fresh merge', async () => {
+    const blankRow = {
+      ...currentRow,
+      address: '',
+      phone: '',
+      website: null,
+      apparel_capability: 'Unknown',
+      fit_score: null,
+      ideal_opening_units: null,
+      priority: null,
+      provisional_grade: null,
+    };
+    const patchedRow = {
+      ...blankRow,
+      address: '9 Lake Ave',
+      phone: '250-222-2222',
+      website: 'https://example.com',
+      apparel_capability: 'Confirmed',
+      fit_score: 9,
+      ideal_opening_units: 60,
+      priority: 'Tier 1',
+      provisional_grade: 'A (provisional)',
+    };
+    const update = vi.fn(() => ({
+      eq: () => ({
+        select: () => ({
+          single: async () => ({ data: patchedRow, error: null }),
+        }),
+      }),
+    }));
+    const from = vi.fn(() => ({
+      select: () => ({
+        eq: () => ({
+          single: async () => ({ data: blankRow, error: null }),
+        }),
+      }),
+      update,
+    }));
+    const supabase = { from, update } as unknown as AgentSupabase & { update: typeof update };
+
+    const result = await applyProspectResearchUpdate(supabase, {
+      id: 42,
+      mode: 'fill-blanks',
+      fields: {
+        name: null,
+        category: 'Hardware',
+        region: null,
+        city: null,
+        address: '9 Lake Ave',
+        phone: '250-222-2222',
+        fitScore: 9,
+        fit: '9/10 — Strong hardware traffic.',
+        website: 'https://example.com',
+        subterritory: null,
+        primaryDistrict: null,
+        retailCategory: null,
+        apparelCapability: 'Confirmed',
+        verificationStatus: null,
+        idealOpeningUnits: 60,
+        priority: 'Tier 1',
+        provisionalGrade: 'A (provisional)',
+        nextAction: null,
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        address: '9 Lake Ave',
+        phone: '250-222-2222',
+        website: 'https://example.com',
+        apparel_capability: 'Confirmed',
+        fit_score: 9,
+        ideal_opening_units: 60,
+        priority: 'Tier 1',
+        provisional_grade: 'A (provisional)',
+      }),
+    );
+    const firstCall = update.mock.calls.at(0) as unknown as [Record<string, unknown>] | undefined;
+    expect(firstCall?.[0]).not.toHaveProperty('name');
+    expect(firstCall?.[0]).not.toHaveProperty('buyer_verified');
+    expect(firstCall?.[0]).not.toHaveProperty('existing_ogr');
   });
 });

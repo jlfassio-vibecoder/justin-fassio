@@ -62,6 +62,7 @@ describe('AiUpdateResearchModal', () => {
         },
         fields,
         researchBrief: 'brief',
+        mode: 'update',
       },
     });
     applyMock.mockResolvedValue({
@@ -89,15 +90,155 @@ describe('AiUpdateResearchModal', () => {
     await waitFor(() => {
       expect(screen.getByText('New Marina')).toBeInTheDocument();
     });
-    expect(previewMock).toHaveBeenCalledWith({ prospectId: 7 });
+    expect(previewMock).toHaveBeenCalledWith({
+      prospectId: 7,
+      websiteUrl: undefined,
+      mode: 'update',
+    });
 
     await user.click(screen.getByRole('button', { name: 'Confirm update' }));
 
     await waitFor(() => {
-      expect(applyMock).toHaveBeenCalledWith({ prospectId: 7, fields });
+      expect(applyMock).toHaveBeenCalledWith({ prospectId: 7, fields, mode: 'update' });
       expect(onApplied).toHaveBeenCalled();
       expect(onClose).toHaveBeenCalled();
     });
+  });
+
+  it('fill-blanks mode requests fill-blanks and confirms fills', async () => {
+    const user = userEvent.setup();
+    const blankProspect: Prospect = {
+      ...baseProspect,
+      address: '',
+      phone: '',
+      website: null,
+    };
+    previewMock.mockResolvedValue({
+      ok: true,
+      preview: {
+        current: blankProspect,
+        proposed: { ...blankProspect, address: '2 Dock', phone: '250-111-1111' },
+        fields: {
+          name: null,
+          category: null,
+          region: null,
+          city: null,
+          address: '2 Dock',
+          phone: '250-111-1111',
+          fitScore: null,
+          fit: null,
+          website: null,
+          subterritory: null,
+          primaryDistrict: null,
+          retailCategory: null,
+          apparelCapability: null,
+          verificationStatus: null,
+          idealOpeningUnits: null,
+          priority: null,
+          provisionalGrade: null,
+          nextAction: null,
+        },
+        researchBrief: 'brief',
+        mode: 'fill-blanks',
+      },
+    });
+    applyMock.mockResolvedValue({
+      ok: true,
+      prospect: { ...blankProspect, address: '2 Dock', phone: '250-111-1111' },
+    });
+
+    render(
+      <AiUpdateResearchModal
+        open
+        mode="fill-blanks"
+        prospect={blankProspect}
+        onClose={vi.fn()}
+        onApplied={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Fill Blank Fields')).toBeInTheDocument();
+      expect(screen.getByText('2 Dock')).toBeInTheDocument();
+    });
+    expect(previewMock).toHaveBeenCalledWith({
+      prospectId: 7,
+      websiteUrl: undefined,
+      mode: 'fill-blanks',
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Confirm fills' }));
+    await waitFor(() => {
+      expect(applyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ prospectId: 7, mode: 'fill-blanks' }),
+      );
+    });
+  });
+
+  it('fill-blanks empty state explains researched blanks when nothing fills', async () => {
+    const blankProspect: Prospect = {
+      ...baseProspect,
+      address: '',
+      phone: '',
+      website: null,
+      apparelCapability: 'Unknown',
+      fitScore: 8,
+      priority: 'Tier 2',
+      provisionalGrade: 'B (provisional)',
+      idealOpeningUnits: 48,
+      fit: '8/10 — Existing fit.',
+      nextAction: 'Call buyer',
+      subterritory: 'Vancouver Island Central',
+      primaryDistrict: 'Vancouver Island',
+      retailCategory: 'Marina / resort store',
+      verificationStatus: 'Directory lead',
+    };
+    previewMock.mockResolvedValue({
+      ok: true,
+      preview: {
+        current: blankProspect,
+        proposed: blankProspect,
+        fields: {
+          name: null,
+          category: null,
+          region: null,
+          city: null,
+          address: null,
+          phone: null,
+          fitScore: 8,
+          fit: null,
+          website: null,
+          subterritory: null,
+          primaryDistrict: null,
+          retailCategory: null,
+          apparelCapability: null,
+          verificationStatus: null,
+          idealOpeningUnits: 48,
+          priority: 'Tier 2',
+          provisionalGrade: 'B (provisional)',
+          nextAction: null,
+        },
+        researchBrief: 'brief',
+        mode: 'fill-blanks',
+      },
+    });
+
+    render(
+      <AiUpdateResearchModal
+        open
+        mode="fill-blanks"
+        prospect={blankProspect}
+        onClose={vi.fn()}
+        onApplied={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Only address, phone, website, or apparel were blank/i),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Confirm fills' })).toBeDisabled();
   });
 
   it('does not write when cancel is clicked', async () => {
@@ -109,6 +250,7 @@ describe('AiUpdateResearchModal', () => {
         proposed: { ...baseProspect, name: 'Changed' },
         fields: { ...fields, name: 'Changed' },
         researchBrief: null,
+        mode: 'update',
       },
     });
 

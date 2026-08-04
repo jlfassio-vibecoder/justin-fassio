@@ -11,12 +11,12 @@ function jsonError(message: string, status: number): Response {
   });
 }
 
-/** AI Update Research — apply confirmed fields after preview. */
+/** AI Update Research / Fill Blank Fields — apply confirmed fields after preview. */
 export const POST: APIRoute = async ({ request }) => {
   const gate = await requireApprovedStaffClient(request);
   if (!gate.ok) return gate.response;
 
-  let body: { prospectId?: unknown; fields?: unknown };
+  let body: { prospectId?: unknown; fields?: unknown; mode?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -38,9 +38,12 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonError('Fields are required', 400);
   }
 
+  const mode = body.mode === 'fill-blanks' ? 'fill-blanks' : 'update';
+
   const result = await applyProspectResearchUpdate(gate.supabase, {
     id: prospectId,
     fields: body.fields as Parameters<typeof applyProspectResearchUpdate>[1]['fields'],
+    mode,
   });
   if (!result.ok) {
     return jsonError(result.error, 502);
