@@ -18,6 +18,7 @@ vi.mock('ai', () => ({
 }));
 
 import { createEnrichedContact, fillContactGapsFromBrief } from '@/lib/createEnrichedContact';
+import { EMPTY_PROSPECT_PLANNING } from '@/lib/prospects';
 
 function mockSupabase(handlers: {
   prospectSingle?: unknown;
@@ -83,6 +84,22 @@ const prospectRow = {
   converted_at: null,
   initial_order_date: null,
   notes: null,
+  external_id: null,
+  subterritory: null,
+  primary_district: null,
+  retail_category: null,
+  website: null,
+  fit_score: null,
+  ideal_opening_units: null,
+  priority: null,
+  provisional_grade: null,
+  verification_status: null,
+  buyer_verified: false,
+  apparel_capability: null,
+  existing_ogr: null,
+  qualification_status: null,
+  next_action: null,
+  source_note: null,
   created_at: '2026-08-01T00:00:00Z',
   updated_at: '2026-08-01T00:00:00Z',
 };
@@ -154,6 +171,7 @@ describe('createEnrichedContact', () => {
         convertedAt: null,
         initialOrderDate: null,
         notes: null,
+        ...EMPTY_PROSPECT_PLANNING,
       },
       researchBrief: 'Research brief',
     });

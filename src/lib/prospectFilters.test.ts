@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Prospect } from '@/lib/prospects';
+import { EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
 import { filterProspects } from '@/lib/prospectFilters';
 
 const SAMPLE: Prospect[] = [
@@ -16,6 +16,7 @@ const SAMPLE: Prospect[] = [
     convertedAt: null,
     initialOrderDate: null,
     notes: null,
+    ...EMPTY_PROSPECT_PLANNING,
   },
   {
     id: 2,
@@ -30,6 +31,7 @@ const SAMPLE: Prospect[] = [
     convertedAt: null,
     initialOrderDate: null,
     notes: null,
+    ...EMPTY_PROSPECT_PLANNING,
   },
   {
     id: 3,
@@ -44,6 +46,7 @@ const SAMPLE: Prospect[] = [
     convertedAt: null,
     initialOrderDate: null,
     notes: null,
+    ...EMPTY_PROSPECT_PLANNING,
   },
 ];
 
@@ -64,7 +67,7 @@ describe('filterProspects', () => {
     ).toEqual([2]);
   });
 
-  it('matches search across name, city, address, and fit', () => {
+  it('matches search across name, city, address, fit, and planning fields', () => {
     expect(
       filterProspects(SAMPLE, { search: 'baker', region: 'ALL', channel: 'ALL' }).map((p) => p.id),
     ).toEqual([3]);
@@ -73,6 +76,13 @@ describe('filterProspects', () => {
         (p) => p.id,
       ),
     ).toEqual([2]);
+    expect(
+      filterProspects([{ ...SAMPLE[0], externalId: 'BC-001', website: 'https://example.com' }], {
+        search: 'bc-001',
+        region: 'ALL',
+        channel: 'ALL',
+      }).map((p) => p.id),
+    ).toEqual([1]);
   });
 
   it('applies region, channel, and search together (AND)', () => {

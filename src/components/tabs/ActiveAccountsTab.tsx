@@ -4,12 +4,15 @@ import { AccountOrderHistoryModal } from '@/components/AccountOrderHistoryModal'
 import { AiUpdateResearchModal } from '@/components/AiUpdateResearchModal';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
+import { RowActionsMenu, type RowActionSection } from '@/components/ui/RowActionsMenu';
 import { Tag } from '@/components/ui/Tag';
+import { useAiAssist } from '@/hooks/useAiAssist';
 import {
   fetchAccountReorderSettingsForAccounts,
   upsertAccountReorderSettings,
   type AccountReorderSettingsRow,
 } from '@/lib/accountReorderSettings';
+import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
 import { apparelSeasonLabel } from '@/lib/apparelSeasons';
 import {
   groupOrdersByAccountId,
@@ -52,6 +55,7 @@ export function ActiveAccountsTab({
   onNotesSaved,
   onProspectUpdated,
 }: ActiveAccountsTabProps) {
+  const { openAssist } = useAiAssist();
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -197,8 +201,13 @@ export function ActiveAccountsTab({
     }
     const notes = settings?.ai_reorder_notes?.trim() || undefined;
     return (
-      <Tag variant="accent" title={notes} aria-label={notes ?? 'AI Suggested Reorder Contact'}>
-        AI Suggested Reorder Contact
+      <Tag
+        variant="accent"
+        title={notes ?? 'AI Suggested Reorder Contact'}
+        aria-label={notes ?? 'AI Suggested Reorder Contact'}
+        className="max-w-full truncate text-[10px]"
+      >
+        Reorder due
       </Tag>
     );
   }
@@ -266,39 +275,76 @@ export function ActiveAccountsTab({
             </>
           );
         }}
-        renderActions={(account) => (
-          <>
-            {renderAiReminder(account)}
-            <Button
-              variant="secondary"
-              className="px-3 py-1 text-xs"
-              onClick={() => setDetailAccount(account)}
-            >
-              Details
-            </Button>
-            <Button
-              variant="secondary"
-              className="px-3 py-1 text-xs"
-              onClick={() => setAiUpdateAccount(account)}
-            >
-              AI Update
-            </Button>
-            <Button
-              variant="primary"
-              className="px-3 py-1 text-xs"
-              onClick={() => setHistoryAccount(account)}
-            >
-              + Log Order / Reorder
-            </Button>
-            <Button
-              variant="secondary"
-              className="px-3 py-1 text-xs"
-              onClick={() => onLogCall(account)}
-            >
-              Log Call
-            </Button>
-          </>
-        )}
+        renderActions={(account) => {
+          const chips = { prospectId: account.id, prospectName: account.name };
+          const sections: RowActionSection[] = [
+            {
+              id: 'account',
+              label: 'Account',
+              items: [
+                {
+                  id: 'open',
+                  label: 'Open account',
+                  onSelect: () => setDetailAccount(account),
+                },
+                {
+                  id: 'log-call',
+                  label: 'Log call',
+                  onSelect: () => onLogCall(account),
+                },
+                {
+                  id: 'log-order',
+                  label: 'Log order / reorder',
+                  onSelect: () => setHistoryAccount(account),
+                },
+              ],
+            },
+            {
+              id: 'ai',
+              label: 'AI tools',
+              items: [
+                {
+                  id: 'verify',
+                  label: 'Verify & Update',
+                  onSelect: () => setAiUpdateAccount(account),
+                },
+                {
+                  id: 'suggest',
+                  label: 'Recommend Next Action',
+                  onSelect: () => openAssist({ chips, draft: buildSuggestDraft(chips) }),
+                },
+                {
+                  id: 'brief',
+                  label: 'Generate Account Brief',
+                  onSelect: () => openAssist({ chips, draft: buildApfDraft(chips) }),
+                },
+                {
+                  id: 'ask',
+                  label: 'Ask AI About Account',
+                  onSelect: () => openAssist({ chips, draft: buildAssistDraft(chips) }),
+                },
+              ],
+            },
+          ];
+          return (
+            <>
+              {renderAiReminder(account)}
+              <div className="flex items-center justify-end gap-1.5">
+                <Button
+                  variant="secondary"
+                  className="px-3 py-1 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onLogCall(account);
+                  }}
+                >
+                  Log Call
+                </Button>
+                <RowActionsMenu label={`Actions for ${account.name}`} sections={sections} />
+              </div>
+            </>
+          );
+        }}
       />
 
       <AiUpdateResearchModal
@@ -332,6 +378,10 @@ export function ActiveAccountsTab({
           if (!detailAccount) return;
           setDetailAccount({ ...detailAccount, notes });
           onNotesSaved?.(detailAccount.id, notes);
+        }}
+        onDemoted={(prospect) => {
+          onProspectUpdated?.(prospect);
+          setDetailAccount(null);
         }}
       />
 

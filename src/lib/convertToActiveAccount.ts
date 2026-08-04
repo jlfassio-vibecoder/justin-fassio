@@ -92,3 +92,37 @@ export async function convertToActiveAccount(
 
   return { ok: true, alreadyActive: false };
 }
+
+export interface DemoteToProspectInput {
+  accountId: number;
+  currentStatus: AccountStatus;
+}
+
+export type DemoteToProspectResult =
+  { ok: true; alreadyProspect: boolean } | { ok: false; error: string };
+
+/**
+ * Move an active account back to prospect status.
+ * Keeps orders, contacts, and reorder settings on the same id; clears converted_at.
+ */
+export async function demoteToProspect(
+  input: DemoteToProspectInput,
+): Promise<DemoteToProspectResult> {
+  if (input.currentStatus !== 'active_account') {
+    return { ok: true, alreadyProspect: true };
+  }
+
+  const { error: updateError } = await supabase
+    .from('prospects')
+    .update({
+      account_status: 'prospect',
+      converted_at: null,
+    })
+    .eq('id', input.accountId);
+
+  if (updateError) {
+    return { ok: false, error: updateError.message };
+  }
+
+  return { ok: true, alreadyProspect: false };
+}

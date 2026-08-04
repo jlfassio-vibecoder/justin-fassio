@@ -5,6 +5,7 @@ import { researchCompany } from '@/lib/companyWebResearch';
 import { CATEGORY_MAPPING_GUIDANCE } from '@/lib/enrichGuidance';
 import {
   mapProspectRow,
+  PROSPECT_SELECT,
   type Prospect,
   type ProspectCategory,
   type ProspectRegion,
@@ -68,9 +69,6 @@ export type CreateEnrichedProspectResult =
 export type InferEnrichedProspectFieldsResult =
   | { ok: true; fields: EnrichedProspectFields; researchBrief: string | null }
   | { ok: false; error: string };
-
-const PROSPECT_SELECT =
-  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, created_at, updated_at' as const;
 
 /** Encode fit score + positioning notes into the prospects.fit column. */
 export function formatProspectFit(fitScore: number, notes: string): string {

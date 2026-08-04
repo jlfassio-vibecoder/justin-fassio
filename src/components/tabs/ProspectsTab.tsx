@@ -4,9 +4,46 @@ import { AiUpdateResearchModal } from '@/components/AiUpdateResearchModal';
 import { ProspectDetailDrawer } from '@/components/ProspectDetailDrawer';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
+import { RowActionsMenu, type RowActionSection } from '@/components/ui/RowActionsMenu';
 import { useAiAssist } from '@/hooks/useAiAssist';
 import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
 import type { Prospect } from '@/lib/prospects';
+
+const PLANNING_COLUMN_HEADERS = [
+  'External ID',
+  'Subterritory',
+  'Primary district',
+  'Retail category',
+  'Website',
+  'Fit score',
+  'Ideal opening units',
+  'Priority',
+  'Grade',
+  'Verification',
+  'Buyer verified',
+  'Apparel',
+  'Existing OGR',
+  'Qualification',
+  'Next action',
+  'Source note',
+] as const;
+
+function cellText(value: string | number | null | undefined): string {
+  if (value == null || value === '') return '—';
+  return String(value);
+}
+
+function TruncatedCell({ value, className = '' }: { value: string; className?: string }) {
+  const display = value || '—';
+  return (
+    <td
+      className={`border-ink/[0.08] max-w-[180px] truncate border-b p-2 opacity-75 ${className}`}
+      title={display === '—' ? undefined : display}
+    >
+      {display}
+    </td>
+  );
+}
 
 interface ProspectsTabProps {
   prospects: Prospect[];
@@ -57,9 +94,40 @@ export function ProspectsTab({
       <RetailerDirectory
         data-screen-label="prospects"
         retailers={pipelineProspects}
-        searchPlaceholder="Search BC prospects by name, city, address, or fit reason…"
+        searchPlaceholder="Search BC prospects by name, city, address, fit, ID, website…"
         emptyMessage="No prospects match these filters. Converted accounts live under Active Accounts."
         highlightedId={highlightedProspectId}
+        extraColumnHeaders={[...PLANNING_COLUMN_HEADERS]}
+        renderExtraCells={(p) => (
+          <>
+            <td className="border-ink/[0.08] border-b p-2 whitespace-nowrap">
+              {cellText(p.externalId)}
+            </td>
+            <td className="border-ink/[0.08] border-b p-2">{cellText(p.subterritory)}</td>
+            <td className="border-ink/[0.08] border-b p-2">{cellText(p.primaryDistrict)}</td>
+            <td className="border-ink/[0.08] border-b p-2">{cellText(p.retailCategory)}</td>
+            <TruncatedCell value={cellText(p.website)} />
+            <td className="border-ink/[0.08] border-b p-2 text-center">
+              {p.fitScore != null ? p.fitScore : '—'}
+            </td>
+            <td className="border-ink/[0.08] border-b p-2 text-center">
+              {cellText(p.idealOpeningUnits)}
+            </td>
+            <td className="border-ink/[0.08] border-b p-2 whitespace-nowrap">
+              {cellText(p.priority)}
+            </td>
+            <td className="border-ink/[0.08] border-b p-2 whitespace-nowrap">
+              {cellText(p.provisionalGrade)}
+            </td>
+            <TruncatedCell value={cellText(p.verificationStatus)} />
+            <td className="border-ink/[0.08] border-b p-2">{p.buyerVerified ? 'Yes' : 'No'}</td>
+            <td className="border-ink/[0.08] border-b p-2">{cellText(p.apparelCapability)}</td>
+            <td className="border-ink/[0.08] border-b p-2">{cellText(p.existingOgr)}</td>
+            <TruncatedCell value={cellText(p.qualificationStatus)} />
+            <TruncatedCell value={cellText(p.nextAction)} />
+            <TruncatedCell value={cellText(p.sourceNote)} />
+          </>
+        )}
         banner={
           successBanner ? (
             <p className="text-ink/80 m-0 text-sm" role="status">
@@ -76,57 +144,71 @@ export function ProspectsTab({
             + Add via AI
           </Button>
         }
-        renderActions={(p) => (
-          <>
-            <Button
-              variant="secondary"
-              className="px-3 py-1 text-xs"
-              onClick={() => setDetailProspect(p)}
-            >
-              Details
-            </Button>
-            <Button
-              variant="secondary"
-              className="px-3 py-1 text-xs"
-              onClick={() => setAiUpdateProspect(p)}
-            >
-              AI Update
-            </Button>
-            <Button
-              variant="secondary"
-              className="px-3 py-1 text-xs"
-              onClick={() => {
-                const chips = { prospectId: p.id, prospectName: p.name };
-                openAssist({ chips, draft: buildSuggestDraft(chips) });
-              }}
-            >
-              Suggest
-            </Button>
-            <Button
-              variant="secondary"
-              className="px-3 py-1 text-xs"
-              onClick={() => {
-                const chips = { prospectId: p.id, prospectName: p.name };
-                openAssist({ chips, draft: buildApfDraft(chips) });
-              }}
-            >
-              APF Brief
-            </Button>
-            <Button
-              variant="secondary"
-              className="px-3 py-1 text-xs"
-              onClick={() => {
-                const chips = { prospectId: p.id, prospectName: p.name };
-                openAssist({ chips, draft: buildAssistDraft(chips) });
-              }}
-            >
-              Ask AI
-            </Button>
-            <Button variant="secondary" className="px-3 py-1 text-xs" onClick={() => onLogCall(p)}>
-              Log Call
-            </Button>
-          </>
-        )}
+        onRowActivate={(p) => setDetailProspect(p)}
+        renderActions={(p) => {
+          const chips = { prospectId: p.id, prospectName: p.name };
+          const sections: RowActionSection[] = [
+            {
+              id: 'account',
+              label: 'Account',
+              items: [
+                {
+                  id: 'open',
+                  label: 'Open details',
+                  onSelect: () => setDetailProspect(p),
+                },
+                {
+                  id: 'log-call',
+                  label: 'Log call',
+                  onSelect: () => onLogCall(p),
+                },
+              ],
+            },
+            {
+              id: 'ai',
+              label: 'AI tools',
+              items: [
+                {
+                  id: 'verify',
+                  label: 'Verify & Update',
+                  onSelect: () => setAiUpdateProspect(p),
+                },
+                {
+                  id: 'suggest',
+                  label: 'Recommend Next Action',
+                  onSelect: () => openAssist({ chips, draft: buildSuggestDraft(chips) }),
+                },
+                {
+                  id: 'brief',
+                  label: 'Generate Account Brief',
+                  onSelect: () => openAssist({ chips, draft: buildApfDraft(chips) }),
+                },
+                {
+                  id: 'ask',
+                  label: 'Ask AI About Account',
+                  onSelect: () => openAssist({ chips, draft: buildAssistDraft(chips) }),
+                },
+              ],
+            },
+          ];
+          return (
+            <>
+              <div className="flex items-center justify-end gap-1.5">
+                <Button
+                  variant="secondary"
+                  className="px-3 py-1 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDetailProspect(p);
+                  }}
+                >
+                  Open
+                </Button>
+                <RowActionsMenu label={`Actions for ${p.name}`} sections={sections} />
+              </div>
+            </>
+          );
+        }}
       />
 
       <AddProspectAiModal

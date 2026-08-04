@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LogCallModal } from '@/components/LogCallModal';
 import { AiAssistProvider } from '@/lib/AiAssistProvider';
-import type { Prospect } from '@/lib/prospects';
+import { EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
 
 const insertMock = vi.fn();
 const convertMock = vi.fn();
@@ -23,6 +23,7 @@ const TEST_PROSPECTS: Prospect[] = [
     convertedAt: null,
     initialOrderDate: null,
     notes: null,
+    ...EMPTY_PROSPECT_PLANNING,
   },
 ];
 

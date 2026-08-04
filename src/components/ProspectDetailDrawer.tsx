@@ -50,7 +50,7 @@ export function ProspectDetailDrawer({
               {prospect.name}
             </p>
             <p className="text-ink/60 m-0 mt-1 text-xs tracking-wide uppercase">
-              #{prospect.id} · {STATUS_LABEL[prospect.accountStatus]}
+              ID {prospect.id} · {STATUS_LABEL[prospect.accountStatus]}
             </p>
           </div>
           <button

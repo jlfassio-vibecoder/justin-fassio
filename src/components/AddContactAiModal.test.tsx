@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AddContactAiModal } from '@/components/AddContactAiModal';
-import type { Prospect } from '@/lib/prospects';
+import { EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
 
 const enrichContactMock = vi.fn();
 
@@ -23,6 +23,7 @@ const EXISTING: Prospect = {
   convertedAt: null,
   initialOrderDate: null,
   notes: null,
+  ...EMPTY_PROSPECT_PLANNING,
 };
 
 describe('AddContactAiModal', () => {

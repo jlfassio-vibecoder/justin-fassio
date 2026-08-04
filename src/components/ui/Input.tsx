@@ -40,7 +40,11 @@ export const Textarea = forwardRef<
   TextareaHTMLAttributes<HTMLTextAreaElement>
 >(function Textarea({ className, ...props }, ref) {
   return (
-    <textarea ref={ref} className={cn(inputBase, 'min-h-[90px] resize-y', className)} {...props} />
+    <textarea
+      ref={ref}
+      className={cn(inputBase, withDefaultFullWidth(className), 'min-h-[90px] resize-y', className)}
+      {...props}
+    />
   );
 });
 

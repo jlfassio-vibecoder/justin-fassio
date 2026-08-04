@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { APPAREL_SEASON_LABELS, APPAREL_SEASONS, apparelSeasonLabel } from '@/lib/apparelSeasons';
-import { mapProspectRow } from '@/lib/prospects';
+import { EMPTY_PROSPECT_PLANNING, mapProspectRow } from '@/lib/prospects';
 import type { ProspectRow } from '@/types/database';
 
 describe('apparelSeasons', () => {
@@ -28,6 +28,22 @@ describe('mapProspectRow', () => {
       converted_at: '2026-08-01T12:00:00Z',
       initial_order_date: '2026-08-01T12:00:00Z',
       notes: null,
+      external_id: null,
+      subterritory: null,
+      primary_district: null,
+      retail_category: null,
+      website: null,
+      fit_score: null,
+      ideal_opening_units: null,
+      priority: null,
+      provisional_grade: null,
+      verification_status: null,
+      buyer_verified: false,
+      apparel_capability: null,
+      existing_ogr: null,
+      qualification_status: null,
+      next_action: null,
+      source_note: null,
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-08-01T12:00:00Z',
     };
@@ -45,6 +61,7 @@ describe('mapProspectRow', () => {
       convertedAt: '2026-08-01T12:00:00Z',
       initialOrderDate: '2026-08-01T12:00:00Z',
       notes: null,
+      ...EMPTY_PROSPECT_PLANNING,
     });
   });
 });
