@@ -142,18 +142,19 @@ export function AccountDetailDrawer({
   const [demoteError, setDemoteError] = useState<string | null>(null);
 
   if (!account) return null;
+  const current = account;
 
   async function handleDemote() {
     const confirmed = window.confirm(
-      `Move ${account!.name} back to Prospects?\n\nOrder history and contacts stay on this account (ID ${account!.id}). It will leave Active Accounts.`,
+      `Move ${current.name} back to Prospects?\n\nOrder history and contacts stay on this account (ID ${current.id}). It will leave Active Accounts.`,
     );
     if (!confirmed) return;
 
     setDemoteBusy(true);
     setDemoteError(null);
     const result = await demoteToProspect({
-      accountId: account!.id,
-      currentStatus: account!.accountStatus,
+      accountId: current.id,
+      currentStatus: current.accountStatus,
     });
     setDemoteBusy(false);
 
@@ -163,7 +164,7 @@ export function AccountDetailDrawer({
     }
 
     onDemoted?.({
-      ...account!,
+      ...current,
       accountStatus: 'prospect',
       convertedAt: null,
     });

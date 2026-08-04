@@ -33,7 +33,7 @@ export interface RetailerDirectoryProps {
   renderExtraCells?: (retailer: Prospect) => ReactNode;
   /** Full sticky Action cell content (primary button + overflow menu). */
   renderActions: (retailer: Prospect) => ReactNode;
-  /** Row click / keyboard activate (ignores interactive descendants). */
+  /** Row click activate (ignores interactive descendants). */
   onRowActivate?: (retailer: Prospect) => void;
   'data-screen-label'?: string;
   /** Optional content above the table (e.g. alerts). */
