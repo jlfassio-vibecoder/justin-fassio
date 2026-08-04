@@ -35,7 +35,7 @@ const CATEGORY_OPTIONS: { value: string; label: string }[] = [
 function parseRatePctInput(raw: string, fallback: number): number {
   const n = parseFloat(raw);
   if (!Number.isFinite(n)) return fallback;
-  return Math.max(0, n) / 100;
+  return Math.min(100, Math.max(0, n)) / 100;
 }
 
 function applyLandedRatesPayload(
@@ -109,6 +109,7 @@ export function CatalogTab({
   const [shippingCadOverride, setShippingCadOverride] = useState<number | null>(null);
 
   const filteredCatalog = useMemo(() => {
+    // Copilot suggestion ignored: −GST toggle is sample-card-only by design; table landed/margin keep full factors.
     return filterCatalogItems(catalog, { search, category, flag }).map((item) => {
       const landed = landedCad(item.priceUsd, factors);
       const margin = marginPct(item.priceUsd, item.msrpCad, factors);
@@ -336,10 +337,16 @@ export function CatalogTab({
                 type="number"
                 step="0.01"
                 min="1"
+                max="2.5"
                 value={fx}
-                onChange={(e) =>
-                  setFx(parseFloat(e.target.value) || DEFAULT_LANDED_COST_FACTORS.fx)
-                }
+                onChange={(e) => {
+                  const parsed = parseFloat(e.target.value);
+                  if (!Number.isFinite(parsed)) {
+                    setFx(DEFAULT_LANDED_COST_FACTORS.fx);
+                    return;
+                  }
+                  setFx(Math.min(2.5, Math.max(1, parsed)));
+                }}
                 className="w-20"
               />
             </div>
@@ -349,6 +356,7 @@ export function CatalogTab({
                 type="number"
                 step="0.1"
                 min="0"
+                max="100"
                 value={Number((freightRate * 100).toFixed(2))}
                 onChange={(e) =>
                   setFreightRate(
@@ -364,6 +372,7 @@ export function CatalogTab({
                 type="number"
                 step="0.1"
                 min="0"
+                max="100"
                 value={Number((gstRate * 100).toFixed(2))}
                 onChange={(e) =>
                   setGstRate(parseRatePctInput(e.target.value, DEFAULT_LANDED_COST_FACTORS.gstRate))
@@ -378,6 +387,7 @@ export function CatalogTab({
                 type="number"
                 step="0.1"
                 min="0"
+                max="100"
                 value={Number((otherTaxRate * 100).toFixed(2))}
                 onChange={(e) =>
                   setOtherTaxRate(

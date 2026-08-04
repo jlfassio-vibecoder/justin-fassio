@@ -40,7 +40,7 @@ describe('load/saveLandedRatesPersistence', () => {
 
   beforeEach(() => {
     store.clear();
-    vi.stubGlobal('localStorage', {
+    const stub = {
       getItem: (key: string) => store.get(key) ?? null,
       setItem: (key: string, value: string) => {
         store.set(key, value);
@@ -48,6 +48,11 @@ describe('load/saveLandedRatesPersistence', () => {
       removeItem: (key: string) => {
         store.delete(key);
       },
+    };
+    vi.stubGlobal('localStorage', stub);
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: stub,
     });
   });
 

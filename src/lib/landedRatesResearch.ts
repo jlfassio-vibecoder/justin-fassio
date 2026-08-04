@@ -52,6 +52,7 @@ function normalizePayload(
     fx,
     brief: (object.brief.trim() || researchBrief).slice(0, BRIEF_MAX_CHARS),
     asOf:
+      // Copilot suggestion ignored: UI label is "Updated …"; fallback ISO now is update time when quote time is unknown.
       typeof object.asOf === 'string' && object.asOf.trim()
         ? object.asOf.trim()
         : new Date().toISOString(),
