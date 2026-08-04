@@ -71,4 +71,20 @@ describe('researchCompany', () => {
     const result = await researchCompany({ companyName: 'Kelowna Golf' });
     expect(result).toEqual({ brief: null, error: 'gateway down' });
   });
+
+  it('skips domain filter on shared directory hosts when fillBlanksFocus', async () => {
+    generateTextMock.mockResolvedValue({ text: 'Brief with address' });
+    await researchCompany({
+      companyName: 'Some Club',
+      websiteUrl: 'https://www.britishcolumbiagolf.org/course/123',
+      city: 'Kelowna',
+      fillBlanksFocus: true,
+    });
+    expect(perplexitySearchMock).toHaveBeenCalledWith({ maxResults: 5 });
+    expect(generateTextMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringMatching(/directory\/shared URL|Fill-blank focus/i),
+      }),
+    );
+  });
 });

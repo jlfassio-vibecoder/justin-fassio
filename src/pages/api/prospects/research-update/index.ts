@@ -11,12 +11,12 @@ function jsonError(message: string, status: number): Response {
   });
 }
 
-/** AI Update Research — preview proposed field changes (no write). */
+/** AI Update Research / Fill Blank Fields — preview proposed field changes (no write). */
 export const POST: APIRoute = async ({ request }) => {
   const gate = await requireApprovedStaffClient(request);
   if (!gate.ok) return gate.response;
 
-  let body: { prospectId?: unknown; websiteUrl?: unknown };
+  let body: { prospectId?: unknown; websiteUrl?: unknown; mode?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -39,9 +39,12 @@ export const POST: APIRoute = async ({ request }) => {
       ? body.websiteUrl.trim()
       : undefined;
 
+  const mode = body.mode === 'fill-blanks' ? 'fill-blanks' : 'update';
+
   const result = await previewProspectResearchUpdate(gate.supabase, {
     id: prospectId,
     websiteUrl,
+    mode,
   });
   if (!result.ok) {
     return jsonError(result.error, 502);
