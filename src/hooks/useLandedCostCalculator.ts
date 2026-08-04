@@ -1,16 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CatalogItem } from '@/lib/catalog';
-import {
-  DEFAULT_LANDED_COST_FACTORS,
-  formatMarginRange,
-  type LandedCostFactors,
-} from '@/lib/landedCost';
+import { formatMarginRange, type LandedCostFactors } from '@/lib/landedCost';
+import { loadLandedRatesPersistence, saveLandedRatesPersistence } from '@/lib/landedRatesStorage';
 
 export function useLandedCostCalculator(catalog: CatalogItem[]) {
-  const [fx, setFx] = useState(DEFAULT_LANDED_COST_FACTORS.fx);
-  const [freightRate, setFreightRate] = useState(DEFAULT_LANDED_COST_FACTORS.freightRate);
-  const [gstRate, setGstRate] = useState(DEFAULT_LANDED_COST_FACTORS.gstRate);
-  const [otherTaxRate, setOtherTaxRate] = useState(DEFAULT_LANDED_COST_FACTORS.otherTaxRate);
+  const [initial] = useState(() => loadLandedRatesPersistence());
+  const [fx, setFx] = useState(initial.fx);
+  const [freightRate, setFreightRate] = useState(initial.freightRate);
+  const [gstRate, setGstRate] = useState(initial.gstRate);
+  const [otherTaxRate, setOtherTaxRate] = useState(initial.otherTaxRate);
+  const [researchBrief, setResearchBrief] = useState<string | null>(initial.brief);
+  const [ratesAsOf, setRatesAsOf] = useState<string | null>(initial.asOf);
 
   const factors: LandedCostFactors = useMemo(
     () => ({ fx, freightRate, gstRate, otherTaxRate }),
@@ -18,6 +18,14 @@ export function useLandedCostCalculator(catalog: CatalogItem[]) {
   );
 
   const marginRangeDisplay = useMemo(() => formatMarginRange(catalog, factors), [catalog, factors]);
+
+  useEffect(() => {
+    saveLandedRatesPersistence({
+      ...factors,
+      asOf: ratesAsOf,
+      brief: researchBrief,
+    });
+  }, [factors, ratesAsOf, researchBrief]);
 
   return {
     fx,
@@ -29,6 +37,10 @@ export function useLandedCostCalculator(catalog: CatalogItem[]) {
     otherTaxRate,
     setOtherTaxRate,
     factors,
+    researchBrief,
+    setResearchBrief,
+    ratesAsOf,
+    setRatesAsOf,
     marginRangeDisplay,
   };
 }

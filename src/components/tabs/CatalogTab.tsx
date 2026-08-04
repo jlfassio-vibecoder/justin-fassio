@@ -64,6 +64,10 @@ interface CatalogTabProps {
   otherTaxRate: number;
   setOtherTaxRate: (rate: number) => void;
   factors: LandedCostFactors;
+  researchBrief: string | null;
+  setResearchBrief: (brief: string | null) => void;
+  ratesAsOf: string | null;
+  setRatesAsOf: (asOf: string | null) => void;
   marginRangeDisplay: string;
 }
 
@@ -78,6 +82,10 @@ export function CatalogTab({
   otherTaxRate,
   setOtherTaxRate,
   factors,
+  researchBrief,
+  setResearchBrief,
+  ratesAsOf,
+  setRatesAsOf,
   marginRangeDisplay,
 }: CatalogTabProps) {
   const [search, setSearch] = useState('');
@@ -85,7 +93,6 @@ export function CatalogTab({
   const [flag, setFlag] = useState<CatalogFlagFilter>('ALL');
   const [ratesBusy, setRatesBusy] = useState(false);
   const [ratesError, setRatesError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const filteredCatalog = useMemo(() => {
     return filterCatalogItems(catalog, { search, category, flag }).map((item) => {
@@ -138,7 +145,8 @@ export function CatalogTab({
       setGstRate,
       setOtherTaxRate,
     });
-    setLastUpdated(result.rates.asOf);
+    setResearchBrief(result.rates.brief);
+    setRatesAsOf(result.rates.asOf);
   }
 
   return (
@@ -240,11 +248,10 @@ export function CatalogTab({
               {ratesBusy ? 'Updating…' : 'Update'}
             </Button>
             <span className="text-xs opacity-60">
-              {lastUpdated
-                ? `Updated ${new Date(lastUpdated).toLocaleString()}`
-                : 'Not updated yet'}
+              {ratesAsOf ? `Updated ${new Date(ratesAsOf).toLocaleString()}` : 'Not updated yet'}
             </span>
           </div>
+          {researchBrief ? <p className="text-ink/70 m-0 text-sm">{researchBrief}</p> : null}
           {ratesError ? (
             <p className="text-accent-800 m-0 text-sm" role="alert">
               {ratesError}

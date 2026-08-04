@@ -161,17 +161,17 @@ Reuse AI Gateway + Perplexity patterns from companyWebResearch / enrich. Gate wi
 
 ## Phase IV — Persistence + polish
 
-**Status:** Not started  
+**Status:** Done  
 **Goal:** Remember last rates in the browser; surface source brief / as-of on the Line Sheet.  
 **Depends on:** Phase III  
 **Estimate:** 1 PR
 
 ### In scope
 
-- [ ] `localStorage` for last rates + `asOf` (hydrate hook on load; write after successful Update / manual save-if-needed)
-- [ ] Source brief / as-of meta under multiplier bar or landed card
-- [ ] Docs touch: `.env.example` / README only if Gateway usage for this route needs clarifying
-- [ ] Mark completed phase checkboxes in this file when merging
+- [x] `localStorage` for last rates + `asOf` (hydrate hook on load; write after successful Update / manual save-if-needed)
+- [x] Source brief / as-of meta under multiplier bar or landed card
+- [x] Docs touch: `.env.example` / README only if Gateway usage for this route needs clarifying
+- [x] Mark completed phase checkboxes in this file when merging
 
 ### Out of scope
 
@@ -180,9 +180,9 @@ Reuse AI Gateway + Perplexity patterns from companyWebResearch / enrich. Gate wi
 
 ### Exit criteria
 
-- [ ] Reload restores last Update (or last edited) rates
-- [ ] Brief/as-of visible after a successful Update
-- [ ] `npm run check` green
+- [x] Reload restores last Update (or last edited) rates
+- [x] Brief/as-of visible after a successful Update
+- [x] `npm run check` green
 
 ### Plan prompt
 

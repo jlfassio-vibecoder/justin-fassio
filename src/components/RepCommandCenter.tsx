@@ -42,6 +42,10 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
     otherTaxRate,
     setOtherTaxRate,
     factors,
+    researchBrief,
+    setResearchBrief,
+    ratesAsOf,
+    setRatesAsOf,
     marginRangeDisplay,
   } = useLandedCostCalculator(catalog);
 
@@ -165,6 +169,10 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                 otherTaxRate={otherTaxRate}
                 setOtherTaxRate={setOtherTaxRate}
                 factors={factors}
+                researchBrief={researchBrief}
+                setResearchBrief={setResearchBrief}
+                ratesAsOf={ratesAsOf}
+                setRatesAsOf={setRatesAsOf}
                 marginRangeDisplay={marginRangeDisplay}
               />
             )}
