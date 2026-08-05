@@ -274,7 +274,13 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
               />
             )}
             {activeTab === 'messages' && (
-              <MessagesTab onNeedsMappingCountChange={setMessagesNeedsMappingCount} />
+              <MessagesTab
+                onNeedsMappingCountChange={setMessagesNeedsMappingCount}
+                onLogCall={(store) => openModal(store)}
+                onNotesSaved={(id, notes) => {
+                  setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
+                }}
+              />
             )}{' '}
             {activeTab === 'insights' && (
               <InsightsTab marginRangeDisplay={marginRangeDisplay} reloadToken={callsReloadToken} />

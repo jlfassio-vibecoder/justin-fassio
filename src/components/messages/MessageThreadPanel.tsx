@@ -251,6 +251,7 @@ export function ConfirmMappingForm({
 interface MessageThreadPanelProps {
   thread: MessageThread;
   onThreadUpdated?: (thread: MessageThread) => void;
+  onOpenMapped?: (thread: MessageThread) => void;
   /** When true, hide mapping form (e.g. already scoped inside a mapped drawer). */
   hideMappingForm?: boolean;
 }
@@ -258,6 +259,7 @@ interface MessageThreadPanelProps {
 export function MessageThreadPanel({
   thread,
   onThreadUpdated,
+  onOpenMapped,
   hideMappingForm = false,
 }: MessageThreadPanelProps) {
   const [messages, setMessages] = useState<MessageRow[]>([]);
@@ -315,7 +317,20 @@ export function MessageThreadPanel({
             : ''}
         </p>
         {current.prospectName ? (
-          <p className="text-ink/55 m-0 mt-1 text-xs">Mapped to {current.prospectName}</p>
+          current.prospectId != null && onOpenMapped ? (
+            <p className="text-ink/55 m-0 mt-1 text-xs">
+              Mapped to{' '}
+              <button
+                type="button"
+                className="text-accent m-0 cursor-pointer border-0 bg-transparent p-0 underline-offset-2 hover:underline"
+                onClick={() => onOpenMapped(current)}
+              >
+                {current.prospectName}
+              </button>
+            </p>
+          ) : (
+            <p className="text-ink/55 m-0 mt-1 text-xs">Mapped to {current.prospectName}</p>
+          )
         ) : null}
       </div>
 
