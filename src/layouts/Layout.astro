@@ -3,9 +3,14 @@ import '@/styles/global.css';
 
 interface Props {
   title: string;
+  description?: string;
+  canonicalUrl?: string;
+  ogImage?: string | null;
+  noIndex?: boolean;
 }
 
-const { title } = Astro.props;
+const { title, description, canonicalUrl, ogImage, noIndex = false } = Astro.props;
+const resolvedCanonical = canonicalUrl ?? new URL(Astro.url.pathname, Astro.site ?? Astro.url).href;
 ---
 
 <!doctype html>
@@ -14,6 +19,15 @@ const { title } = Astro.props;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
+    {description ? <meta name="description" content={description} /> : null}
+    {noIndex ? <meta name="robots" content="noindex" /> : null}
+    <link rel="canonical" href={resolvedCanonical} />
+    <meta property="og:title" content={title} />
+    {description ? <meta property="og:description" content={description} /> : null}
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={resolvedCanonical} />
+    {ogImage ? <meta property="og:image" content={ogImage} /> : null}
+    <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
   </head>
   <body>
     <slot />

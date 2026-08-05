@@ -1,0 +1,44 @@
+---
+export const prerender = false;
+
+import Layout from '@/layouts/Layout.astro';
+import { WholesaleProductPage } from '@/components/wholesale/WholesaleProductPage';
+import {
+  fetchPublicOgrProductBySlug,
+  fetchPublicOgrSupplierTerms,
+  type PublicOgrSupplierTerms,
+} from '@/lib/publicCatalog';
+
+const slug = Astro.params.slug ?? '';
+const [{ data: product }, { data: terms }] = await Promise.all([
+  fetchPublicOgrProductBySlug(slug),
+  fetchPublicOgrSupplierTerms(),
+]);
+
+if (!product) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+
+const resolvedTerms: PublicOgrSupplierTerms = terms ?? {
+  minOrderPieces: 24,
+  minPiecesPerDesign: 6,
+  defaultShippingMethod: '',
+  pricesSubjectToChange: true,
+};
+
+const title = `${product.name} | Old Guys Rule Wholesale | Justin Fassio`;
+const description =
+  product.tagline ||
+  product.description ||
+  `${product.name} (${product.sku}) — wholesale for Canadian retailers via Justin Fassio.`;
+const canonicalUrl = new URL(`/old-guys-rule-wholesale/${product.publicSlug}`, Astro.url).href;
+---
+
+<Layout
+  title={title}
+  description={description}
+  canonicalUrl={canonicalUrl}
+  ogImage={product.primaryImageUrl}
+>
+  <WholesaleProductPage client:load product={product} terms={resolvedTerms} />
+</Layout>

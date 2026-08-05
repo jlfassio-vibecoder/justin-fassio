@@ -1,4 +1,7 @@
-/** Marketplace listing for Old Guys Rule — update when this moves onto justinfassio.com. */
+/** Public wholesale showroom path (on-site catalog). */
+export const OGR_WHOLESALE_PATH = '/old-guys-rule-wholesale';
+
+/** @deprecated Prefer OGR_WHOLESALE_PATH — kept for reference only. */
 export const OGR_MARKETPLACE_URL =
   'https://www.sellbyownerlocal.com/marketplace/clothing/old-guys-rule';
 
