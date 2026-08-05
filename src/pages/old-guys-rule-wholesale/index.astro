@@ -1,0 +1,50 @@
+---
+export const prerender = false;
+
+import Layout from '@/layouts/Layout.astro';
+import { WholesaleShowroom } from '@/components/wholesale/WholesaleShowroom';
+import {
+  fetchPublicOgrProducts,
+  fetchPublicOgrSupplierTerms,
+  type PublicOgrSupplierTerms,
+} from '@/lib/publicCatalog';
+
+const [{ data: products, error: productsError }, { data: terms }] = await Promise.all([
+  fetchPublicOgrProducts(),
+  fetchPublicOgrSupplierTerms(),
+]);
+
+const resolvedTerms: PublicOgrSupplierTerms = terms ?? {
+  minOrderPieces: 24,
+  minPiecesPerDesign: 6,
+  defaultShippingMethod: '',
+  pricesSubjectToChange: true,
+};
+
+const title = 'Old Guys Rule Wholesale Canada | Justin Fassio';
+const description =
+  'Browse the Old Guys Rule wholesale collection for Canadian retailers. Men’s lifestyle apparel—request pricing and availability through Justin Fassio.';
+---
+
+<Layout
+  title={title}
+  description={description}
+  canonicalUrl={new URL('/old-guys-rule-wholesale', Astro.url).href}
+>
+  {
+    productsError ? (
+      <main class="bg-bg text-ink px-8.1 mx-auto max-w-[720px] py-16">
+        <h1 class="font-heading text-3xl">Wholesale collection unavailable</h1>
+        <p class="text-ink/70 mt-3">
+          We couldn’t load the public catalog right now. Please try again shortly or email
+          office@justinfassio.com.
+        </p>
+        <a href="/" class="text-accent-700 mt-6 inline-block">
+          ← Home
+        </a>
+      </main>
+    ) : (
+      <WholesaleShowroom client:load products={products} terms={resolvedTerms} />
+    )
+  }
+</Layout>

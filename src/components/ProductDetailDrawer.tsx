@@ -25,6 +25,7 @@ import {
 } from '@/lib/landedCost';
 import { patchCatalogItem } from '@/lib/updateCatalogItemClient';
 import type { CatalogItemPatch } from '@/lib/updateCatalogItem';
+import { OGR_WHOLESALE_PATH } from '@/data/landing';
 
 const STATUS_OPTIONS = ['active', 'inactive', 'discontinued', 'unavailable', 'unknown'];
 const DEPARTMENT_OPTIONS = [
@@ -99,6 +100,13 @@ type Draft = {
   seasonality: string;
   sampleStatus: string;
   buyerFeedback: string;
+  isPubliclyPublished: boolean;
+  featured: boolean;
+  publicSortOrder: string;
+  publicSlug: string;
+  liveSku: string;
+  liveSkuNote: string;
+  alternateImageUrls: string;
   variants: DraftVariant[];
   attributes: DraftAttribute[];
 };
@@ -142,6 +150,13 @@ function itemToDraft(item: CatalogItem): Draft {
     seasonality: item.seasonality,
     sampleStatus: item.sampleStatus,
     buyerFeedback: item.buyerFeedback,
+    isPubliclyPublished: item.isPubliclyPublished,
+    featured: item.featured,
+    publicSortOrder: String(item.publicSortOrder ?? 0),
+    publicSlug: item.publicSlug ?? '',
+    liveSku: item.liveSku ?? '',
+    liveSkuNote: item.liveSkuNote ?? '',
+    alternateImageUrls: item.alternateImageUrls.join('\n'),
     variants: item.variants.map((v, i) => ({
       id: v.id,
       size: v.size,
@@ -178,6 +193,20 @@ function parseCommaList(raw: string): string[] {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+function parseNewlineList(raw: string): string[] {
+  return raw
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function publicWholesaleUrl(slug: string): string {
+  const trimmed = slug.trim();
+  if (!trimmed) return '';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return `${origin}${OGR_WHOLESALE_PATH}/${trimmed}`;
 }
 
 function formatHistoryValue(value: unknown): string {
@@ -268,9 +297,11 @@ function ProductDetailDrawerInner({
     attributes: false,
     specs: false,
     ordering: false,
+    publicWholesale: false,
     crm: false,
     source: false,
   });
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -298,7 +329,11 @@ function ProductDetailDrawerInner({
 
   const nameError = !draft.name.trim() ? 'Product name is required' : null;
   const catError = !draft.cat.trim() ? 'Category is required' : null;
-  const canSave = !nameError && !catError;
+  const slugError =
+    draft.isPubliclyPublished && !draft.publicSlug.trim()
+      ? 'Public slug is required when published'
+      : null;
+  const canSave = !nameError && !catError && !slugError;
 
   const displayWholesale = parseOptionalNumber(draft.priceUsd) ?? item.catalogPriceUsd;
   const displayMsrp = parseOptionalNumber(draft.msrpCad) ?? item.catalogMsrpCad;
@@ -418,6 +453,13 @@ function ProductDetailDrawerInner({
       seasonality: draft.seasonality.trim() || null,
       sampleStatus: draft.sampleStatus.trim() || null,
       buyerFeedback: draft.buyerFeedback.trim() || null,
+      isPubliclyPublished: draft.isPubliclyPublished,
+      featured: draft.featured,
+      publicSortOrder: parseOptionalNumber(draft.publicSortOrder) ?? 0,
+      publicSlug: draft.publicSlug.trim() || null,
+      liveSku: draft.liveSku.trim() || null,
+      liveSkuNote: draft.liveSkuNote.trim() || null,
+      alternateImageUrls: parseNewlineList(draft.alternateImageUrls),
     };
 
     if (priceNum != null && priceNum !== item.catalogPriceUsd) {
@@ -1463,6 +1505,114 @@ function ProductDetailDrawerInner({
                   onChange={(e) => setDraft((d) => ({ ...d, packQuantity: e.target.value }))}
                 />
               </Field>
+            </div>
+          </Section>
+
+          <Section
+            title="Public wholesale"
+            open={openSections.publicWholesale}
+            onToggle={() => toggleSection('publicWholesale')}
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={draft.isPubliclyPublished}
+                  disabled={readOnly || busy}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, isPubliclyPublished: e.target.checked }))
+                  }
+                />
+                Published on public showroom
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={draft.featured}
+                  disabled={readOnly || busy}
+                  onChange={(e) => setDraft((d) => ({ ...d, featured: e.target.checked }))}
+                />
+                Featured
+              </label>
+              <Field>
+                <FieldLabel>Public sort order</FieldLabel>
+                <Input
+                  type="number"
+                  value={draft.publicSortOrder}
+                  disabled={readOnly || busy}
+                  onChange={(e) => setDraft((d) => ({ ...d, publicSortOrder: e.target.value }))}
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Public slug{draft.isPubliclyPublished ? ' *' : ''}</FieldLabel>
+                <Input
+                  value={draft.publicSlug}
+                  disabled={readOnly || busy}
+                  onChange={(e) => setDraft((d) => ({ ...d, publicSlug: e.target.value }))}
+                />
+                {slugError ? <p className="text-accent-800 mt-1 text-xs">{slugError}</p> : null}
+              </Field>
+              <Field>
+                <FieldLabel>Live store SKU</FieldLabel>
+                <Input
+                  value={draft.liveSku}
+                  disabled={readOnly || busy}
+                  onChange={(e) => setDraft((d) => ({ ...d, liveSku: e.target.value }))}
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Live SKU note</FieldLabel>
+                <Input
+                  value={draft.liveSkuNote}
+                  disabled={readOnly || busy}
+                  onChange={(e) => setDraft((d) => ({ ...d, liveSkuNote: e.target.value }))}
+                />
+              </Field>
+              <Field className="sm:col-span-2">
+                <FieldLabel>Alternate image URLs (one per line)</FieldLabel>
+                <Textarea
+                  value={draft.alternateImageUrls}
+                  disabled={readOnly || busy}
+                  onChange={(e) => setDraft((d) => ({ ...d, alternateImageUrls: e.target.value }))}
+                  rows={3}
+                />
+              </Field>
+              <div className="flex flex-wrap gap-2 sm:col-span-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!draft.publicSlug.trim()}
+                  onClick={() => {
+                    const url = publicWholesaleUrl(draft.publicSlug);
+                    if (!url) return;
+                    void navigator.clipboard.writeText(url).then(() => {
+                      setLinkCopied(true);
+                      window.setTimeout(() => setLinkCopied(false), 2000);
+                    });
+                  }}
+                >
+                  {linkCopied ? 'Copied' : 'Copy public link'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!draft.isPubliclyPublished || !draft.publicSlug.trim()}
+                  title={
+                    !draft.isPubliclyPublished ? 'Publish to preview on the public site' : undefined
+                  }
+                  onClick={() => {
+                    const url = publicWholesaleUrl(draft.publicSlug);
+                    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                  }}
+                >
+                  Preview public page
+                </Button>
+              </div>
+              {!draft.isPubliclyPublished ? (
+                <p className="text-ink/55 text-xs sm:col-span-2">
+                  Publish to preview on the public site. Copy link still works from the slug.
+                </p>
+              ) : null}
             </div>
           </Section>
 

@@ -63,12 +63,19 @@ export interface CatalogItem {
   seasonality: string;
   sampleStatus: string;
   buyerFeedback: string;
+  isPubliclyPublished: boolean;
+  featured: boolean;
+  publicSortOrder: number;
+  publicSlug: string | null;
+  liveSku: string | null;
+  liveSkuNote: string | null;
+  alternateImageUrls: string[];
   variants: CatalogVariant[];
   attributes: CatalogAttribute[];
 }
 
 export const CATALOG_ITEM_SELECT =
-  'id, line_id, page, cat, sku, name, color, tagline, price_usd, msrp_cad, catalog_price_usd, price_usd_override, catalog_msrp_cad, msrp_cad_override, landed_cad_override, field_meta, status, is_new, is_name_drop, is_bestseller, pdf_page, catalog_year, brand, product_family, collection, product_type, accent_color, sales_description, material, special_notes, sales_priority, sales_notes, primary_image_path, department, normalized_sku, unit_of_measure, minimum_quantity, order_multiple, pack_quantity, made_in_usa_claim, country_of_blank_manufacture, country_of_decoration, country_of_origin, primary_image_url, source_image_url, catalog_verified, verification_notes, lifestyle_themes, recommended_channels, seasonality, sample_status, buyer_feedback, created_at, updated_at';
+  'id, line_id, page, cat, sku, name, color, tagline, price_usd, msrp_cad, catalog_price_usd, price_usd_override, catalog_msrp_cad, msrp_cad_override, landed_cad_override, field_meta, status, is_new, is_name_drop, is_bestseller, pdf_page, catalog_year, brand, product_family, collection, product_type, accent_color, sales_description, material, special_notes, sales_priority, sales_notes, primary_image_path, department, normalized_sku, unit_of_measure, minimum_quantity, order_multiple, pack_quantity, made_in_usa_claim, country_of_blank_manufacture, country_of_decoration, country_of_origin, primary_image_url, source_image_url, catalog_verified, verification_notes, lifestyle_themes, recommended_channels, seasonality, sample_status, buyer_feedback, is_publicly_published, featured, public_sort_order, public_slug, live_sku, live_sku_note, alternate_image_urls, created_at, updated_at';
 
 export const CATALOG_VARIANT_SELECT =
   'id, catalog_item_id, size, size_group, color, style, variant_sku, wholesale_usd, wholesale_usd_override, unit_of_measure, pack_quantity, pack_price_usd, availability, sort_order, notes, created_at, updated_at';
@@ -164,6 +171,13 @@ export function mapCatalogRow(
     seasonality: row.seasonality ?? '',
     sampleStatus: row.sample_status ?? '',
     buyerFeedback: row.buyer_feedback ?? '',
+    isPubliclyPublished: row.is_publicly_published ?? false,
+    featured: row.featured ?? false,
+    publicSortOrder: row.public_sort_order ?? 0,
+    publicSlug: row.public_slug,
+    liveSku: row.live_sku,
+    liveSkuNote: row.live_sku_note,
+    alternateImageUrls: asStringArray(row.alternate_image_urls),
     variants,
     attributes,
   };
@@ -224,6 +238,13 @@ export function catalogItemStub(
     seasonality: partial.seasonality ?? '',
     sampleStatus: partial.sampleStatus ?? '',
     buyerFeedback: partial.buyerFeedback ?? '',
+    isPubliclyPublished: partial.isPubliclyPublished ?? false,
+    featured: partial.featured ?? false,
+    publicSortOrder: partial.publicSortOrder ?? 0,
+    publicSlug: partial.publicSlug ?? null,
+    liveSku: partial.liveSku ?? null,
+    liveSkuNote: partial.liveSkuNote ?? null,
+    alternateImageUrls: partial.alternateImageUrls ?? [],
     variants: partial.variants ?? [],
     attributes: partial.attributes ?? [],
   };

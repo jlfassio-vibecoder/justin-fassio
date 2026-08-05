@@ -5,7 +5,7 @@ import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { RowActionsMenu } from '@/components/ui/RowActionsMenu';
 import { Tag } from '@/components/ui/Tag';
-import type { CatalogItem } from '@/lib/catalog';
+import { resolvePrimaryImageSrc, type CatalogItem } from '@/lib/catalog';
 import { filterCatalogItems, type CatalogFlagFilter } from '@/lib/catalogFilters';
 import { factorsWithSettings, type CatalogSupplierTerms } from '@/lib/catalogSettings';
 import {
@@ -22,6 +22,13 @@ import {
   minOrderTotalBreakdown,
   retailKeystoneBreakdown,
 } from '@/lib/retailPricing';
+
+function catalogThumbSrc(item: CatalogItem): string | null {
+  const src = resolvePrimaryImageSrc(item);
+  if (!src) return null;
+  if (/^https?:\/\//i.test(src) || src.startsWith('/')) return src;
+  return null;
+}
 
 const CATEGORY_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Categories' },
@@ -544,6 +551,7 @@ export function CatalogTab({
                 {[
                   'Pg',
                   'SKU',
+                  'Image',
                   'Product',
                   'Category',
                   'Color',
@@ -568,67 +576,80 @@ export function CatalogTab({
               </tr>
             </thead>
             <tbody>
-              {filteredCatalog.map((item) => (
-                <tr
-                  key={item.sku}
-                  className="hover:bg-ink/[0.04] cursor-pointer"
-                  tabIndex={0}
-                  role="button"
-                  aria-label={`Open details for ${item.sku}`}
-                  onClick={() => setSelectedSku(item.sku)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setSelectedSku(item.sku);
-                    }
-                  }}
-                >
-                  <td className="border-ink/[0.08] border-b p-2">{item.page}</td>
-                  <td className="border-ink/[0.08] font-heading border-b p-2 text-[13px]">
-                    {item.sku}
-                  </td>
-                  <td className="border-ink/[0.08] min-w-[180px] border-b p-2">
-                    <div className="font-semibold">{item.name}</div>
-                    <div className="mt-0.5 flex gap-1">
-                      {item.isNew && <Tag variant="accent">New</Tag>}
-                      {item.isNameDrop && <Tag variant="accent-2">Name Drop</Tag>}
-                    </div>
-                  </td>
-                  <td className="border-ink/[0.08] border-b p-2">{item.cat}</td>
-                  <td className="border-ink/[0.08] border-b p-2">{item.color}</td>
-                  <td className="border-ink/[0.08] min-w-[220px] border-b p-2 opacity-75">
-                    {item.tagline}
-                  </td>
-                  <td className="border-ink/[0.08] border-b p-2">{item.priceDisplay}</td>
-                  <td className="border-ink/[0.08] border-b p-2">{item.landedDisplay}</td>
-                  <td className="border-ink/[0.08] border-b p-2">{item.msrpDisplay}</td>
-                  <td className="border-ink/[0.08] border-b p-2 text-right font-semibold">
-                    {item.marginDisplay}
-                  </td>
-                  <td
-                    className="border-ink/[0.08] bg-surface sticky right-0 border-b p-2 text-right"
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.stopPropagation()}
+              {filteredCatalog.map((item) => {
+                const thumb = catalogThumbSrc(item);
+                return (
+                  <tr
+                    key={item.sku}
+                    className="hover:bg-ink/[0.04] cursor-pointer"
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Open details for ${item.sku}`}
+                    onClick={() => setSelectedSku(item.sku)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedSku(item.sku);
+                      }
+                    }}
                   >
-                    <RowActionsMenu
-                      label={`Actions for ${item.sku}`}
-                      sections={[
-                        {
-                          id: 'product',
-                          label: 'Product',
-                          items: [
-                            {
-                              id: 'details',
-                              label: 'Details',
-                              onSelect: () => setSelectedSku(item.sku),
-                            },
-                          ],
-                        },
-                      ]}
-                    />
-                  </td>
-                </tr>
-              ))}
+                    <td className="border-ink/[0.08] border-b p-2">{item.page}</td>
+                    <td className="border-ink/[0.08] font-heading border-b p-2 text-[13px]">
+                      {item.sku}
+                    </td>
+                    <td className="border-ink/[0.08] border-b p-2">
+                      {thumb ? (
+                        <img
+                          src={thumb}
+                          alt=""
+                          className="border-ink/10 h-10 w-10 rounded-sm border object-cover"
+                          loading="lazy"
+                        />
+                      ) : null}
+                    </td>
+                    <td className="border-ink/[0.08] min-w-[180px] border-b p-2">
+                      <div className="font-semibold">{item.name}</div>
+                      <div className="mt-0.5 flex gap-1">
+                        {item.isNew && <Tag variant="accent">New</Tag>}
+                        {item.isNameDrop && <Tag variant="accent-2">Name Drop</Tag>}
+                      </div>
+                    </td>
+                    <td className="border-ink/[0.08] border-b p-2">{item.cat}</td>
+                    <td className="border-ink/[0.08] border-b p-2">{item.color}</td>
+                    <td className="border-ink/[0.08] min-w-[220px] border-b p-2 opacity-75">
+                      {item.tagline}
+                    </td>
+                    <td className="border-ink/[0.08] border-b p-2">{item.priceDisplay}</td>
+                    <td className="border-ink/[0.08] border-b p-2">{item.landedDisplay}</td>
+                    <td className="border-ink/[0.08] border-b p-2">{item.msrpDisplay}</td>
+                    <td className="border-ink/[0.08] border-b p-2 text-right font-semibold">
+                      {item.marginDisplay}
+                    </td>
+                    <td
+                      className="border-ink/[0.08] bg-surface sticky right-0 border-b p-2 text-right"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <RowActionsMenu
+                        label={`Actions for ${item.sku}`}
+                        sections={[
+                          {
+                            id: 'product',
+                            label: 'Product',
+                            items: [
+                              {
+                                id: 'details',
+                                label: 'Details',
+                                onSelect: () => setSelectedSku(item.sku),
+                              },
+                            ],
+                          },
+                        ]}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

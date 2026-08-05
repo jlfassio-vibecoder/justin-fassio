@@ -19,9 +19,11 @@ Always verify before marking `verified_catalog`:
 - Terms page language (minimum order, pieces per design)
 - Made-in-USA or country-of-origin claims
 
-## Images (P4)
+## Images
 
-Product images should be cropped from rendered pages, optimized (WebP), and stored in the Supabase Storage bucket `catalog-assets` at:
+Preferred source for line-sheet thumbnails: live Shopify CDN URLs indexed in [`OGR_2026_Catalog_Live_Image_URLs/`](./OGR_2026_Catalog_Live_Image_URLs/) (see `Catalog Products.html` → Primary Image URL). Matched URLs are stored on `catalog_items.primary_image_url` / `source_image_url` (migration `20260805040000_catalog_live_image_urls.sql`). Unmatched SKUs stay blank — do not invent CDN filenames.
+
+Optional later: crop from rendered PDF pages into Supabase Storage bucket `catalog-assets` at:
 
 `{line_code}/{catalog_year}/{sku}/primary.webp`
 
