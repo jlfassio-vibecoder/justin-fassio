@@ -76,6 +76,13 @@ export type CatalogItemPatch = {
   resetPriceToCatalog?: boolean;
   resetMsrpToCatalog?: boolean;
   resetLandedToCatalog?: boolean;
+  isPubliclyPublished?: boolean;
+  featured?: boolean;
+  publicSortOrder?: number;
+  publicSlug?: string | null;
+  liveSku?: string | null;
+  liveSkuNote?: string | null;
+  alternateImageUrls?: string[];
   variants?: Array<{
     id?: string;
     size?: string | null;
@@ -305,6 +312,34 @@ export async function updateCatalogItem(
   if (p.buyerFeedback !== undefined) {
     touch('buyerFeedback', current.buyerFeedback, p.buyerFeedback ?? '');
     dbPatch.buyer_feedback = p.buyerFeedback;
+  }
+  if (p.isPubliclyPublished !== undefined) {
+    touch('isPubliclyPublished', current.isPubliclyPublished, p.isPubliclyPublished);
+    dbPatch.is_publicly_published = p.isPubliclyPublished;
+  }
+  if (p.featured !== undefined) {
+    touch('featured', current.featured, p.featured);
+    dbPatch.featured = p.featured;
+  }
+  if (p.publicSortOrder !== undefined) {
+    touch('publicSortOrder', current.publicSortOrder, p.publicSortOrder);
+    dbPatch.public_sort_order = p.publicSortOrder;
+  }
+  if (p.publicSlug !== undefined) {
+    touch('publicSlug', current.publicSlug, p.publicSlug);
+    dbPatch.public_slug = p.publicSlug;
+  }
+  if (p.liveSku !== undefined) {
+    touch('liveSku', current.liveSku, p.liveSku);
+    dbPatch.live_sku = p.liveSku;
+  }
+  if (p.liveSkuNote !== undefined) {
+    touch('liveSkuNote', current.liveSkuNote, p.liveSkuNote);
+    dbPatch.live_sku_note = p.liveSkuNote;
+  }
+  if (p.alternateImageUrls !== undefined) {
+    touch('alternateImageUrls', current.alternateImageUrls, p.alternateImageUrls);
+    dbPatch.alternate_image_urls = p.alternateImageUrls;
   }
 
   if (p.resetPriceToCatalog) {

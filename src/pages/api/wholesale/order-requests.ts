@@ -3,6 +3,11 @@ import { getServiceRoleClient } from '@/lib/supabaseAdmin';
 import { wholesaleOrderRequestBodySchema } from '@/lib/wholesaleOrderRequestSchema';
 import { checkWholesaleOrderRateLimit } from '@/lib/wholesaleOrderRateLimit';
 import { orderTotals, type WholesaleOrderLine } from '@/lib/wholesaleOrderDraft';
+import {
+  buildWholesaleActivityNote,
+  matchOrCreateWholesaleProspect,
+} from '@/lib/wholesaleProspectMatch';
+import { sendWholesaleOrderConfirmation } from '@/lib/wholesaleOrderEmail';
 
 export const prerender = false;
 
@@ -58,7 +63,7 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
-  // Idempotent replay
+  // Idempotent replay — skip CRM / email side effects
   const { data: existing } = await admin
     .from('wholesale_order_requests')
     .select('request_number')
@@ -104,7 +109,6 @@ export const POST: APIRoute = async ({ request }) => {
     .single();
 
   if (insertError || !inserted) {
-    // Unique conflict on idempotency — re-fetch
     if (insertError?.code === '23505') {
       const { data: again } = await admin
         .from('wholesale_order_requests')
@@ -137,6 +141,63 @@ export const POST: APIRoute = async ({ request }) => {
     await admin.from('wholesale_order_requests').delete().eq('id', inserted.id);
     return json({ ok: false, error: itemsError.message }, 500);
   }
+
+  // CRM: match/create prospect (never activate) + activity note
+  const match = await matchOrCreateWholesaleProspect(admin, {
+    businessName: body.businessName,
+    buyerName: body.buyerName,
+    email: body.email,
+    phone: body.phone,
+    city: body.city,
+    province: body.province,
+    website: body.website,
+    retailChannel: body.retailChannel,
+    isExistingCustomer: body.isExistingCustomer,
+  });
+
+  if (match.ok) {
+    const { error: linkError } = await admin
+      .from('wholesale_order_requests')
+      .update({ prospect_id: match.prospectId })
+      .eq('id', inserted.id);
+    if (linkError) {
+      console.error('[wholesale-order-requests] prospect link failed', linkError.message);
+    } else {
+      const note = buildWholesaleActivityNote({
+        requestNumber: inserted.request_number,
+        totalUnits,
+        merchandiseSubtotalUsd,
+        skus: body.lines.map((l) => l.sku),
+      });
+      const { error: activityError } = await admin.from('prospect_updates').insert({
+        prospect_id: match.prospectId,
+        status: 'submitted',
+        note,
+      });
+      if (activityError) {
+        console.error('[wholesale-order-requests] activity failed', activityError.message);
+      }
+    }
+  } else {
+    console.error('[wholesale-order-requests] prospect match failed', match.error);
+  }
+
+  // Email is best-effort; CRM activity remains system of record when Resend is unset.
+  void sendWholesaleOrderConfirmation({
+    requestNumber: inserted.request_number,
+    buyerName: body.buyerName,
+    buyerEmail: body.email,
+    businessName: body.businessName,
+    totalUnits,
+    merchandiseSubtotalUsd,
+    lines: body.lines.map((l) => ({
+      sku: l.sku,
+      name: l.name,
+      size: l.size,
+      quantity: l.quantity,
+      wholesaleUsd: l.wholesaleUsd,
+    })),
+  });
 
   return json({ ok: true, requestNumber: inserted.request_number });
 };
