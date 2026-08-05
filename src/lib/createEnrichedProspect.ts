@@ -69,6 +69,11 @@ export type CreateEnrichedProspectInput = {
   retailChannelHint?: string;
   /** When provided (e.g. by contact enrich), skip a second web search. */
   researchBrief?: string | null;
+  /**
+   * Insert the buyer as the account's primary contact. Callers that create their own
+   * primary contact must pass false; only one primary per account is allowed.
+   */
+  createBuyerContact?: boolean;
 };
 
 export type CreateEnrichedProspectResult =
@@ -180,6 +185,8 @@ async function insertBuyerContact(
   prospectId: number,
   input: CreateEnrichedProspectInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (input.createBuyerContact === false) return { ok: true };
+
   const fullName = input.contactName?.trim();
   if (!fullName) return { ok: true };
 

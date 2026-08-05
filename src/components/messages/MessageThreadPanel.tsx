@@ -38,11 +38,12 @@ export function ConfirmMappingForm({
   const visibleHits = trimmedQuery.length >= 2 ? hits : [];
 
   useEffect(() => {
-    if (thread.prospectId == null || thread.mappingStatus === 'confirmed') return;
+    const suggestedId = thread.prospectId;
+    if (suggestedId == null || thread.mappingStatus === 'confirmed') return;
 
     let active = true;
     void (async () => {
-      const result = await fetchProspectById(thread.prospectId!);
+      const result = await fetchProspectById(suggestedId);
       if (!active || result.error || !result.data) return;
       setSuggested(result.data);
       setSelected(result.data);

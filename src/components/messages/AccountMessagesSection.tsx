@@ -17,7 +17,7 @@ export function AccountMessagesSection({ prospectId }: AccountMessagesSectionPro
     let active = true;
 
     void (async () => {
-      const result = await fetchMessageThreads({ prospectId, filter: 'all' });
+      const result = await fetchMessageThreads({ prospectId, filter: 'confirmed' });
       if (!active) return;
       if (result.error) {
         setThreads([]);

@@ -176,7 +176,9 @@ export async function fetchMessageThreads(
     ),
   ];
 
-  const [{ data: latestMessages }, { data: prospects }] = await Promise.all([
+  const [latestMessagesResult, prospectsResult] = await Promise.all([
+    // Copilot suggestion ignored: selecting only the latest message per thread needs a DB-side
+    // DISTINCT ON view; a client-side row cap would silently drop payloads for older threads.
     supabase
       .from('messages')
       .select('thread_id, payload, created_at')
@@ -184,8 +186,18 @@ export async function fetchMessageThreads(
       .order('created_at', { ascending: false }),
     prospectIds.length
       ? supabase.from('prospects').select('id, name').in('id', prospectIds)
-      : Promise.resolve({ data: [] as Array<{ id: number; name: string }> }),
+      : Promise.resolve({ data: [] as Array<{ id: number; name: string }>, error: null }),
   ]);
+
+  if (latestMessagesResult.error) {
+    return { data: [], error: latestMessagesResult.error.message };
+  }
+  if (prospectsResult.error) {
+    return { data: [], error: prospectsResult.error.message };
+  }
+
+  const latestMessages = latestMessagesResult.data;
+  const prospects = prospectsResult.data;
 
   const latestByThread = new Map<string, MessagePayload>();
   for (const row of latestMessages ?? []) {

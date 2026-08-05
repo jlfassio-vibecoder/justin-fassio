@@ -281,7 +281,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                   setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
                 }}
               />
-            )}{' '}
+            )}
             {activeTab === 'insights' && (
               <InsightsTab marginRangeDisplay={marginRangeDisplay} reloadToken={callsReloadToken} />
             )}
