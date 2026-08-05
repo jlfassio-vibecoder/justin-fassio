@@ -8,10 +8,13 @@
 import { buildImportReport } from '../../src/lib/catalogIngest';
 
 async function main() {
-  const pdfArg =
-    process.argv.find((a) => a.startsWith('--pdf='))?.slice(6) ??
-    process.argv[process.argv.indexOf('--pdf') + 1] ??
-    'docs/catalog/OGR_2026_Catalog-FINAL.pdf';
+  const eqFlag = process.argv.find((a) => a.startsWith('--pdf='));
+  const flagIndex = process.argv.indexOf('--pdf');
+  const flagValue =
+    flagIndex >= 0 && process.argv[flagIndex + 1] && !process.argv[flagIndex + 1]!.startsWith('-')
+      ? process.argv[flagIndex + 1]
+      : undefined;
+  const pdfArg = eqFlag?.slice(6) || flagValue || 'docs/catalog/OGR_2026_Catalog-FINAL.pdf';
 
   console.log(
     JSON.stringify(

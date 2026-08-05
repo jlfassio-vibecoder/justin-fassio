@@ -107,7 +107,7 @@ export async function updateCatalogItem(
   const p = input.patch;
 
   if (p.page !== undefined) {
-    touch('page', current.page, p.page ?? 0);
+    touch('page', current.page, p.page);
     dbPatch.page = p.page;
   }
   if (p.cat !== undefined) {
@@ -241,11 +241,13 @@ export async function updateCatalogItem(
         if (v.size !== undefined) variantPatch.size = v.size;
         if (v.color !== undefined) variantPatch.color = v.color;
         if (v.style !== undefined) variantPatch.style = v.style;
-        if (v.wholesaleUsd !== undefined) {
-          variantPatch.wholesale_usd = v.wholesaleUsd;
-        }
+        // Existing rows: never overwrite catalog wholesale_usd from a bare wholesaleUsd edit.
+        // Prefer explicit override; if only wholesaleUsd is sent, map it to override.
         if (v.wholesaleUsdOverride !== undefined) {
           variantPatch.wholesale_usd_override = v.wholesaleUsdOverride;
+        } else if (v.wholesaleUsd !== undefined && existing) {
+          const catalog = existing.catalogWholesaleUsd;
+          variantPatch.wholesale_usd_override = v.wholesaleUsd === catalog ? null : v.wholesaleUsd;
         }
         if (v.sortOrder !== undefined) variantPatch.sort_order = v.sortOrder;
         if (v.availability !== undefined) variantPatch.availability = v.availability;

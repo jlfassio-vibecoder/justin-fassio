@@ -79,6 +79,17 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     return jsonError('patch is required', 400);
   }
 
+  const { data: owned, error: ownedError } = await gate.supabase
+    .from('catalog_items')
+    .select('id, sku')
+    .eq('id', id)
+    .maybeSingle();
+  if (ownedError) return jsonError(ownedError.message, 502);
+  if (!owned) return jsonError('Catalog item not found', 404);
+  if (owned.sku !== sku) {
+    return jsonError('Catalog item id does not match SKU in URL', 400);
+  }
+
   const result = await updateCatalogItem(gate.supabase, {
     id,
     patch: body.patch,

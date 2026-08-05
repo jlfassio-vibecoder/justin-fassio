@@ -199,7 +199,7 @@ function ProductDetailDrawerInner({
     const priceNum = parseOptionalNumber(draft.priceUsd);
     const msrpNum = parseOptionalNumber(draft.msrpCad);
     const patch: CatalogItemPatch = {
-      page: draft.page.trim() ? Number(draft.page) : null,
+      page: parseOptionalNumber(draft.page),
       cat: draft.cat.trim(),
       name: draft.name.trim(),
       color: draft.color.trim() || null,
@@ -243,14 +243,28 @@ function ProductDetailDrawerInner({
         .map((v) => ({ id: v.id, _delete: true as const })),
       ...draft.variants
         .filter((v) => !v._delete)
-        .map((v, i) => ({
-          id: v.id,
-          size: v.size.trim() || null,
-          color: v.color.trim() || null,
-          style: v.style.trim() || null,
-          wholesaleUsd: parseOptionalNumber(v.wholesaleUsd) ?? 0,
-          sortOrder: v.sortOrder ?? i,
-        })),
+        .map((v, i) => {
+          const price = parseOptionalNumber(v.wholesaleUsd) ?? 0;
+          const existing = v.id ? item.variants.find((x) => x.id === v.id) : undefined;
+          if (existing) {
+            // Preserve catalog wholesale_usd; user edits go to override only.
+            return {
+              id: v.id,
+              size: v.size.trim() || null,
+              color: v.color.trim() || null,
+              style: v.style.trim() || null,
+              wholesaleUsdOverride: price === existing.catalogWholesaleUsd ? null : price,
+              sortOrder: v.sortOrder ?? i,
+            };
+          }
+          return {
+            size: v.size.trim() || null,
+            color: v.color.trim() || null,
+            style: v.style.trim() || null,
+            wholesaleUsd: price,
+            sortOrder: v.sortOrder ?? i,
+          };
+        }),
     ];
 
     const result = await patchCatalogItem({ sku: item.sku, id: item.id, patch });

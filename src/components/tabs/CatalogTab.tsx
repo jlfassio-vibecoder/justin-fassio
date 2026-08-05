@@ -114,12 +114,16 @@ export function CatalogTab({
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
 
   const filteredCatalog = useMemo(() => {
-    // Copilot suggestion ignored: −GST toggle is sample-card-only by design; table landed/margin keep full factors.
+    // Table Landed + Margin both use landed-before-recoverable-GST so columns reconcile.
+    // Sample-card GST toggle remains independent and does not affect the table.
     return filterCatalogItems(catalog, { search, category, flag }).map((item) => {
       const landed =
-        item.landedCadOverride != null ? item.landedCadOverride : landedCad(item.priceUsd, factors);
+        item.landedCadOverride != null
+          ? item.landedCadOverride
+          : landedCad(item.priceUsd, factors, { includeGst: false });
       const margin = marginPct(item.priceUsd, item.msrpCad, factors, {
         landedOverrideCad: item.landedCadOverride,
+        importGstRecoverable: true,
       });
       const sellable = margin != null;
       return {
