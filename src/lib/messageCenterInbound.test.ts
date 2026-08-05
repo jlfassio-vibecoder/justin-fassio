@@ -149,11 +149,26 @@ describe('upsertWholesaleInboundMessage', () => {
     const threadInsert = admin.inserts.find((i) => i.table === 'message_threads');
     expect(threadInsert?.payload).toMatchObject({
       mapping_status: 'unmapped',
+      prospect_id: null,
       identity_fingerprint: identityFingerprint({
         email: baseInput.email,
         businessName: baseInput.businessName,
         buyerName: baseInput.buyerName,
       }),
+    });
+  });
+
+  it('creates a suggested thread when CRM prospect id is provided', async () => {
+    const admin = createAdminMock({ createThreadId: 'thread-suggested', messageId: 'msg-s' });
+    const result = await upsertWholesaleInboundMessage(admin as never, {
+      ...baseInput,
+      suggestedProspectId: 55,
+    });
+    expect(result.ok).toBe(true);
+    const threadInsert = admin.inserts.find((i) => i.table === 'message_threads');
+    expect(threadInsert?.payload).toMatchObject({
+      mapping_status: 'suggested',
+      prospect_id: 55,
     });
   });
 

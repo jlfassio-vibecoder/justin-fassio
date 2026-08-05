@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { identityFingerprint, type MappingStatus } from '@/lib/messageFingerprint';
-import { mapProspectRow, type Prospect } from '@/lib/prospects';
+import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
 import type { ProspectRow } from '@/types/database';
 
 export type { MappingStatus } from '@/lib/messageFingerprint';
@@ -259,6 +259,20 @@ export async function confirmThreadMapping(args: {
   return { ok: true };
 }
 
+export async function fetchProspectById(
+  id: number,
+): Promise<{ data: Prospect | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('prospects')
+    .select(PROSPECT_SELECT)
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) return { data: null, error: error.message };
+  if (!data) return { data: null, error: null };
+  return { data: mapProspectRow(data as ProspectRow), error: null };
+}
+
 export async function searchProspectsForMapping(
   query: string,
   limit = 12,
@@ -268,9 +282,7 @@ export async function searchProspectsForMapping(
 
   const { data, error } = await supabase
     .from('prospects')
-    .select(
-      'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, external_id, subterritory, primary_district, retail_category, website, fit_score, ideal_opening_units, priority, provisional_grade, verification_status, buyer_verified, apparel_capability, existing_ogr, qualification_status, next_action, source_note, created_at, updated_at',
-    )
+    .select(PROSPECT_SELECT)
     .or(`name.ilike.%${q}%,city.ilike.%${q}%`)
     .order('name', { ascending: true })
     .limit(limit);

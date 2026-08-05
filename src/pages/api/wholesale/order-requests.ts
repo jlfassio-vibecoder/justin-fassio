@@ -209,6 +209,7 @@ export const POST: APIRoute = async ({ request }) => {
     preferredContactMethod: body.preferredContactMethod,
     totalUnits,
     merchandiseSubtotalUsd,
+    suggestedProspectId: match.ok ? match.prospectId : null,
     lines: body.lines.map((l) => ({
       sku: l.sku,
       name: l.name,

@@ -224,6 +224,7 @@ describe('POST /api/wholesale/order-requests', () => {
         requestNumber: 'W-2026-000100',
         businessName: 'Kelowna Outfitters',
         email: 'sam@example.com',
+        suggestedProspectId: 55,
       }),
     );
   });

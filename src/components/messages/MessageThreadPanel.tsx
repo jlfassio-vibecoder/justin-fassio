@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { AddProspectAiModal } from '@/components/AddProspectAiModal';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
 import type { MessagePayload, MessageRow, MessageThread } from '@/lib/messages';
 import {
   confirmThreadMapping,
   fetchMessagesForThread,
+  fetchProspectById,
   fingerprintFromPayload,
   searchProspectsForMapping,
 } from '@/lib/messages';
@@ -26,12 +28,30 @@ export function ConfirmMappingForm({
   );
   const [hits, setHits] = useState<Prospect[]>([]);
   const [selected, setSelected] = useState<Prospect | null>(null);
+  const [suggested, setSuggested] = useState<Prospect | null>(null);
   const [busy, setBusy] = useState(false);
   const [searchBusy, setSearchBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addAiOpen, setAddAiOpen] = useState(false);
 
   const trimmedQuery = query.trim();
   const visibleHits = trimmedQuery.length >= 2 ? hits : [];
+
+  useEffect(() => {
+    if (thread.prospectId == null || thread.mappingStatus === 'confirmed') return;
+
+    let active = true;
+    void (async () => {
+      const result = await fetchProspectById(thread.prospectId!);
+      if (!active || result.error || !result.data) return;
+      setSuggested(result.data);
+      setSelected(result.data);
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [thread.prospectId, thread.mappingStatus]);
 
   useEffect(() => {
     if (trimmedQuery.length < 2) return;
@@ -49,10 +69,13 @@ export function ConfirmMappingForm({
         }
         setError(null);
         setHits(result.data);
+        if (thread.prospectId != null) {
+          const match = result.data.find((p) => p.id === thread.prospectId);
+          if (match) setSelected(match);
+        }
       })();
     }, 220);
 
-    // Mark busy after scheduling (async boundary via timeout).
     const busyTimer = window.setTimeout(() => {
       if (active) setSearchBusy(true);
     }, 0);
@@ -62,13 +85,9 @@ export function ConfirmMappingForm({
       window.clearTimeout(timer);
       window.clearTimeout(busyTimer);
     };
-  }, [trimmedQuery]);
+  }, [trimmedQuery, thread.prospectId]);
 
-  async function handleConfirm() {
-    if (!selected) {
-      setError('Select a prospect or active account first.');
-      return;
-    }
+  async function confirmWithProspect(prospect: Prospect) {
     const fingerprint =
       fingerprintFromPayload(latestPayload ?? {}) || thread.identityFingerprint || null;
     if (!fingerprint) {
@@ -80,7 +99,7 @@ export function ConfirmMappingForm({
     setError(null);
     const result = await confirmThreadMapping({
       threadId: thread.id,
-      prospectId: selected.id,
+      prospectId: prospect.id,
       confirmedFingerprint: fingerprint,
     });
     setBusy(false);
@@ -92,11 +111,19 @@ export function ConfirmMappingForm({
 
     onConfirmed({
       ...thread,
-      prospectId: selected.id,
+      prospectId: prospect.id,
       mappingStatus: 'confirmed',
       confirmedFingerprint: fingerprint,
-      prospectName: selected.name,
+      prospectName: prospect.name,
     });
+  }
+
+  async function handleConfirm() {
+    if (!selected) {
+      setError('Select a prospect or active account first.');
+      return;
+    }
+    await confirmWithProspect(selected);
   }
 
   return (
@@ -104,8 +131,34 @@ export function ConfirmMappingForm({
       <p className="font-heading m-0 text-sm">Confirm account mapping</p>
       <p className="text-ink/65 m-0 text-xs">
         Link this thread to a prospect or active account. Mapping is required before the thread
-        appears on their detail drawer.
+        appears on their detail drawer. Prefer an existing match when one is suggested; only use Add
+        via AI when there is no destination.
       </p>
+
+      {suggested ? (
+        <div className="border-ink/10 bg-surface rounded-md border px-3 py-2 text-xs">
+          <p className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Suggested match</p>
+          <p className="m-0 mt-0.5 font-semibold">
+            {suggested.name}{' '}
+            <span className="text-ink/60 font-normal">
+              · {suggested.city} ·{' '}
+              {suggested.accountStatus === 'active_account' ? 'Account' : 'Prospect'}
+            </span>
+          </p>
+          <Button
+            variant="secondary"
+            className="mt-2 px-3 py-1 text-xs"
+            disabled={busy}
+            onClick={() => {
+              setSelected(suggested);
+              void confirmWithProspect(suggested);
+            }}
+          >
+            Confirm suggested
+          </Button>
+        </div>
+      ) : null}
+
       <label className="text-ink/70 text-xs" htmlFor={`map-search-${thread.id}`}>
         Search prospects / accounts
       </label>
@@ -127,6 +180,7 @@ export function ConfirmMappingForm({
         <ul className="border-ink/10 m-0 max-h-40 list-none overflow-auto rounded-md border p-0">
           {visibleHits.map((hit) => {
             const active = selected?.id === hit.id;
+            const isSuggested = suggested?.id === hit.id;
             return (
               <li key={hit.id}>
                 <button
@@ -142,6 +196,7 @@ export function ConfirmMappingForm({
                   <span className="text-ink/60">
                     {' '}
                     · {hit.city} · {hit.accountStatus === 'active_account' ? 'Account' : 'Prospect'}
+                    {isSuggested ? ' · suggested' : ''}
                   </span>
                 </button>
               </li>
@@ -154,9 +209,41 @@ export function ConfirmMappingForm({
           {error}
         </p>
       ) : null}
-      <Button variant="primary" disabled={busy || !selected} onClick={() => void handleConfirm()}>
-        {busy ? 'Saving…' : 'Confirm mapping'}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="primary" disabled={busy || !selected} onClick={() => void handleConfirm()}>
+          {busy ? 'Saving…' : 'Confirm mapping'}
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={busy}
+          onClick={() => {
+            setError(null);
+            setAddAiOpen(true);
+          }}
+        >
+          Add via AI from this message
+        </Button>
+      </div>
+
+      <AddProspectAiModal
+        key={addAiOpen ? `open-${thread.id}` : 'closed'}
+        open={addAiOpen}
+        onClose={() => setAddAiOpen(false)}
+        initialValues={{
+          companyName: latestPayload?.businessName || thread.businessName || undefined,
+          websiteUrl: latestPayload?.website || undefined,
+        }}
+        enrichSeeds={{
+          contactName: latestPayload?.buyerName || undefined,
+          phone: latestPayload?.phone || undefined,
+          email: latestPayload?.email || undefined,
+          city: latestPayload?.city || undefined,
+          retailChannelHint: latestPayload?.retailChannel || undefined,
+        }}
+        onCreated={(prospect) => {
+          void confirmWithProspect(prospect);
+        }}
+      />
     </div>
   );
 }

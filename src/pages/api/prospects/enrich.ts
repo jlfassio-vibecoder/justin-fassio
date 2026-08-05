@@ -12,6 +12,10 @@ function jsonError(message: string, status: number): Response {
   });
 }
 
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
 export const POST: APIRoute = async ({ request }) => {
   const gate = await requireApprovedStaffClient(request);
   if (!gate.ok) return gate.response;
@@ -24,24 +28,27 @@ export const POST: APIRoute = async ({ request }) => {
     return rateLimitResponse(limited.retryAfterSec);
   }
 
-  let body: { companyName?: unknown; websiteUrl?: unknown };
+  let body: Record<string, unknown>;
   try {
-    body = (await request.json()) as { companyName?: unknown; websiteUrl?: unknown };
+    body = (await request.json()) as Record<string, unknown>;
   } catch {
     return jsonError('Invalid JSON body', 400);
   }
 
-  const companyName = typeof body.companyName === 'string' ? body.companyName.trim() : '';
+  const companyName = optionalString(body.companyName) ?? '';
   if (!companyName) {
     return jsonError('Company name is required', 400);
   }
 
-  const websiteUrl =
-    typeof body.websiteUrl === 'string' && body.websiteUrl.trim()
-      ? body.websiteUrl.trim()
-      : undefined;
-
-  const result = await createEnrichedProspect(gate.supabase, { companyName, websiteUrl });
+  const result = await createEnrichedProspect(gate.supabase, {
+    companyName,
+    websiteUrl: optionalString(body.websiteUrl),
+    contactName: optionalString(body.contactName),
+    phone: optionalString(body.phone),
+    email: optionalString(body.email),
+    city: optionalString(body.city),
+    retailChannelHint: optionalString(body.retailChannelHint),
+  });
   if (!result.ok) {
     return jsonError(result.error, 502);
   }
