@@ -87,6 +87,11 @@ describe('matchOrCreateWholesaleProspect', () => {
 
   it('creates inbound prospect when no confident match', async () => {
     let prospectSelectCalls = 0;
+    const prospectInsert = vi.fn(() => ({
+      select: () => ({
+        single: async () => ({ data: { id: 100 }, error: null }),
+      }),
+    }));
     const from = vi.fn((table: string) => {
       if (table === 'account_contacts') {
         // First call: email search (empty). Later: contact insert.
@@ -102,11 +107,7 @@ describe('matchOrCreateWholesaleProspect', () => {
         }
         // allocate max id
         const q = query({ data: { id: 99 }, error: null });
-        q.insert = vi.fn(() => ({
-          select: () => ({
-            single: async () => ({ data: { id: 100 }, error: null }),
-          }),
-        }));
+        q.insert = prospectInsert;
         return q;
       }
       throw new Error(`unexpected table ${table}`);
@@ -114,6 +115,15 @@ describe('matchOrCreateWholesaleProspect', () => {
 
     const result = await matchOrCreateWholesaleProspect({ from } as unknown as Admin, input);
     expect(result).toEqual({ ok: true, prospectId: 100, matched: 'created' });
+    expect(prospectInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Kelowna Outfitters',
+        source_note: 'Inbound wholesale (old-guys-rule-wholesale)',
+      }),
+    );
+    expect(prospectInsert).toHaveBeenCalledWith(
+      expect.not.objectContaining({ account_status: 'active_account' }),
+    );
   });
 
   it('creates when email match is ambiguous', async () => {

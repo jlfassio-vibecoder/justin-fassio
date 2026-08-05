@@ -142,4 +142,30 @@ describe('wholesale order draft helpers', () => {
     expect(meetsMoq(draft, 24, 6).ok).toBe(true);
     expect(meetsMoq(draft, 30, 6).ok).toBe(false);
   });
+
+  it('fails per-style MOQ when a style is under the minimum', () => {
+    let draft = emptyWholesaleOrderDraft();
+    draft = upsertOrderLine(draft, {
+      productId: '11111111-1111-1111-1111-111111111111',
+      sku: 'OG1',
+      name: 'Tee',
+      size: 'L',
+      wholesaleUsd: 10,
+      quantity: 3,
+      primaryImageUrl: null,
+    });
+    draft = upsertOrderLine(draft, {
+      productId: '22222222-2222-2222-2222-222222222222',
+      sku: 'OG2',
+      name: 'Hat',
+      size: 'OS',
+      wholesaleUsd: 12,
+      quantity: 21,
+      primaryImageUrl: null,
+    });
+    const moq = meetsMoq(draft, 24, 6);
+    expect(moq.totalOk).toBe(true);
+    expect(moq.stylesOk).toBe(false);
+    expect(moq.ok).toBe(false);
+  });
 });
