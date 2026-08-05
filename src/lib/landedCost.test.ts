@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cashCostIncludingImportGst,
   formatMarginRange,
   formatRatePct,
   landedCad,
+  landedCadBeforeRecoverableGst,
   marginPct,
+  variantLandedCad,
   type LandedCostFactors,
 } from '@/lib/landedCost';
 
@@ -42,6 +45,13 @@ describe('landedCad', () => {
   });
 });
 
+describe('landedCadBeforeRecoverableGst / cashCost', () => {
+  it('splits recoverable GST from product cost', () => {
+    expect(landedCadBeforeRecoverableGst(13, withGst)).toBeCloseTo(20.735, 3);
+    expect(cashCostIncludingImportGst(13, withGst)).toBeCloseTo(20.735 * 1.05, 3);
+  });
+});
+
 describe('marginPct', () => {
   it('returns retailer margin for sellable items', () => {
     const pct = marginPct(13, 39.99, parityFactors);
@@ -49,8 +59,31 @@ describe('marginPct', () => {
     expect(pct!).toBeCloseTo(((39.99 - 20.735) / 39.99) * 100, 3);
   });
 
+  it('uses landed before recoverable GST by default', () => {
+    const pct = marginPct(13, 39.99, withGst);
+    expect(pct!).toBeCloseTo(((39.99 - 20.735) / 39.99) * 100, 3);
+  });
+
+  it('can treat GST as non-recoverable cost', () => {
+    const pct = marginPct(13, 39.99, withGst, { importGstRecoverable: false });
+    expect(pct!).toBeCloseTo(((39.99 - 20.735 * 1.05) / 39.99) * 100, 3);
+  });
+
+  it('honors manual landed override', () => {
+    const pct = marginPct(13, 40, withGst, { landedOverrideCad: 20 });
+    expect(pct!).toBeCloseTo(50, 3);
+  });
+
   it('returns null for non-resale items', () => {
     expect(marginPct(50, 0, parityFactors)).toBeNull();
+  });
+});
+
+describe('variantLandedCad', () => {
+  it('computes independently per wholesale so size bands differ', () => {
+    const mxl = variantLandedCad(13, withGst, { includeGst: false });
+    const twox = variantLandedCad(14, withGst, { includeGst: false });
+    expect(twox).toBeGreaterThan(mxl);
   });
 });
 

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { CatalogItem } from '@/lib/catalog';
+import { catalogItemStub } from '@/lib/catalog';
 import { filterCatalogItems } from '@/lib/catalogFilters';
 
-const SAMPLE: CatalogItem[] = [
-  {
+const SAMPLE = [
+  catalogItemStub({
     page: 4,
     cat: 'Short Sleeve Tees',
     sku: 'OG2511',
@@ -13,9 +13,8 @@ const SAMPLE: CatalogItem[] = [
     priceUsd: 13,
     msrpCad: 39.99,
     isNew: true,
-    isNameDrop: false,
-  },
-  {
+  }),
+  catalogItemStub({
     page: 5,
     cat: 'Headwear',
     sku: 'OG9001',
@@ -24,10 +23,9 @@ const SAMPLE: CatalogItem[] = [
     tagline: 'Everyday Cap',
     priceUsd: 10,
     msrpCad: 29.99,
-    isNew: false,
     isNameDrop: true,
-  },
-  {
+  }),
+  catalogItemStub({
     page: 6,
     cat: 'Short Sleeve Tees',
     sku: 'OG1000',
@@ -36,9 +34,7 @@ const SAMPLE: CatalogItem[] = [
     tagline: 'Catch the Wave',
     priceUsd: 13,
     msrpCad: 39.99,
-    isNew: false,
-    isNameDrop: false,
-  },
+  }),
 ];
 
 describe('filterCatalogItems', () => {
