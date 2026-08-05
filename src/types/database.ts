@@ -873,6 +873,7 @@ export interface Database {
           preferred_contact_method: string | null;
           source: string;
           status: string;
+          request_type: string;
           prospect_id: number | null;
           idempotency_key: string | null;
           merchandise_subtotal_usd: number;
@@ -899,6 +900,7 @@ export interface Database {
           preferred_contact_method?: string | null;
           source?: string;
           status?: string;
+          request_type?: string;
           prospect_id?: number | null;
           idempotency_key?: string | null;
           merchandise_subtotal_usd?: number;
@@ -925,6 +927,7 @@ export interface Database {
           preferred_contact_method?: string | null;
           source?: string;
           status?: string;
+          request_type?: string;
           prospect_id?: number | null;
           idempotency_key?: string | null;
           merchandise_subtotal_usd?: number;

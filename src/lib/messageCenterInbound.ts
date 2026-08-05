@@ -20,6 +20,7 @@ type ThreadRow = {
 export type WholesaleInboundMessageInput = {
   orderRequestId: string;
   requestNumber: string;
+  requestType?: 'order' | 'inquiry';
   businessName: string;
   buyerName: string;
   email: string;
@@ -52,6 +53,11 @@ export type UpsertWholesaleMessageResult =
   | { ok: false; error: string };
 
 function buildBody(input: WholesaleInboundMessageInput): string {
+  if (input.requestType === 'inquiry') {
+    const notes = input.notes?.trim();
+    const preface = `Wholesale inquiry ${input.requestNumber} — ${input.businessName} (${input.buyerName})`;
+    return notes ? `${preface}\n\n${notes}` : preface;
+  }
   return (
     `Wholesale order request ${input.requestNumber}: ${input.totalUnits} units, ` +
     `US$${input.merchandiseSubtotalUsd.toFixed(2)} — ${input.businessName} (${input.buyerName})`
@@ -61,6 +67,7 @@ function buildBody(input: WholesaleInboundMessageInput): string {
 function buildPayload(input: WholesaleInboundMessageInput): Record<string, unknown> {
   return {
     requestNumber: input.requestNumber,
+    requestType: input.requestType ?? 'order',
     businessName: input.businessName,
     buyerName: input.buyerName,
     email: input.email,
@@ -117,7 +124,7 @@ async function findThreadByEmail(
     .select(
       'thread_id, created_at, message_threads!inner(id, prospect_id, mapping_status, identity_fingerprint, confirmed_fingerprint, source)',
     )
-    .eq('kind', 'wholesale_order_request')
+    .in('kind', ['wholesale_order_request', 'wholesale_inquiry'])
     .filter('payload->>email', 'ilike', normalized)
     .order('created_at', { ascending: false })
     .limit(5);
@@ -233,7 +240,7 @@ export async function upsertWholesaleInboundMessage(
     .from('messages')
     .insert({
       thread_id: threadId,
-      kind: 'wholesale_order_request',
+      kind: input.requestType === 'inquiry' ? 'wholesale_inquiry' : 'wholesale_order_request',
       wholesale_order_request_id: input.orderRequestId,
       body,
       payload,

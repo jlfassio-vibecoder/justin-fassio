@@ -31,6 +31,7 @@ function createAdminMock(opts: {
       api.__eq = { col, val };
       return api;
     });
+    api.in = vi.fn(self);
     api.filter = vi.fn(self);
     api.order = vi.fn(self);
     api.limit = vi.fn(self);
@@ -170,6 +171,27 @@ describe('upsertWholesaleInboundMessage', () => {
       mapping_status: 'suggested',
       prospect_id: 55,
     });
+  });
+
+  it('inserts wholesale_inquiry kind for inquiry submissions', async () => {
+    const admin = createAdminMock({ createThreadId: 'thread-inq', messageId: 'msg-inq' });
+    const result = await upsertWholesaleInboundMessage(admin as never, {
+      ...baseInput,
+      requestType: 'inquiry',
+      totalUnits: 0,
+      merchandiseSubtotalUsd: 0,
+      notes: 'Looking for opening assortment advice.',
+      lines: [],
+    });
+    expect(result.ok).toBe(true);
+    const messageInsert = admin.inserts.find((i) => i.table === 'messages');
+    expect(messageInsert?.payload).toMatchObject({
+      kind: 'wholesale_inquiry',
+    });
+    expect((messageInsert?.payload as { body?: string }).body).toContain('Wholesale inquiry');
+    expect((messageInsert?.payload as { body?: string }).body).toContain(
+      'Looking for opening assortment advice.',
+    );
   });
 
   it('appends to an existing confirmed thread with matching fingerprint', async () => {

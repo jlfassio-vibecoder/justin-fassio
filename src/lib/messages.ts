@@ -45,6 +45,7 @@ export type MessagePayloadLine = {
 
 export type MessagePayload = {
   requestNumber?: string;
+  requestType?: 'order' | 'inquiry';
   businessName?: string;
   buyerName?: string;
   email?: string;

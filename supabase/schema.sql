@@ -503,6 +503,8 @@ create table if not exists wholesale_order_requests (
       'submitted', 'reviewing', 'buyer_contacted', 'quoted', 'approved',
       'sent_to_ogr', 'accepted_by_ogr', 'declined', 'cancelled'
     )),
+  request_type text not null default 'order'
+    check (request_type in ('order', 'inquiry')),
   prospect_id integer references prospects(id) on delete set null,
   idempotency_key text unique,
   merchandise_subtotal_usd numeric(12, 2) not null default 0,
@@ -517,6 +519,8 @@ create index if not exists wholesale_order_requests_status_idx
   on wholesale_order_requests (status);
 create index if not exists wholesale_order_requests_email_idx
   on wholesale_order_requests (email);
+create index if not exists wholesale_order_requests_request_type_idx
+  on wholesale_order_requests (request_type);
 
 drop trigger if exists wholesale_order_requests_set_updated_at on wholesale_order_requests;
 create trigger wholesale_order_requests_set_updated_at
@@ -577,7 +581,7 @@ create table if not exists messages (
   id uuid primary key default gen_random_uuid(),
   thread_id uuid not null references message_threads(id) on delete cascade,
   kind text not null default 'wholesale_order_request'
-    check (kind in ('wholesale_order_request')),
+    check (kind in ('wholesale_order_request', 'wholesale_inquiry')),
   wholesale_order_request_id uuid references wholesale_order_requests(id) on delete set null,
   body text not null default '',
   payload jsonb not null default '{}'::jsonb,

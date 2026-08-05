@@ -73,11 +73,15 @@ export const POST: APIRoute = async ({ request }) => {
   // Idempotent replay — skip CRM / email side effects
   const { data: existing } = await admin
     .from('wholesale_order_requests')
-    .select('request_number')
+    .select('request_number, request_type')
     .eq('idempotency_key', body.idempotencyKey)
     .maybeSingle();
   if (existing?.request_number) {
-    return json({ ok: true, requestNumber: existing.request_number });
+    return json({
+      ok: true,
+      requestNumber: existing.request_number,
+      requestType: existing.request_type === 'inquiry' ? 'inquiry' : 'order',
+    });
   }
 
   const draftLines: WholesaleOrderLine[] = body.lines.map((l) => ({
@@ -108,6 +112,7 @@ export const POST: APIRoute = async ({ request }) => {
       preferred_contact_method: body.preferredContactMethod || null,
       source: 'old-guys-rule-wholesale',
       status: 'submitted',
+      request_type: body.requestType,
       idempotency_key: body.idempotencyKey,
       merchandise_subtotal_usd: merchandiseSubtotalUsd,
       total_units: totalUnits,
@@ -119,11 +124,15 @@ export const POST: APIRoute = async ({ request }) => {
     if (insertError?.code === '23505') {
       const { data: again } = await admin
         .from('wholesale_order_requests')
-        .select('request_number')
+        .select('request_number, request_type')
         .eq('idempotency_key', body.idempotencyKey)
         .maybeSingle();
       if (again?.request_number) {
-        return json({ ok: true, requestNumber: again.request_number });
+        return json({
+          ok: true,
+          requestNumber: again.request_number,
+          requestType: again.request_type === 'inquiry' ? 'inquiry' : 'order',
+        });
       }
     }
     return json(
@@ -132,21 +141,25 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
-  const itemRows = body.lines.map((line, index) => ({
-    order_request_id: inserted.id,
-    catalog_item_id: line.productId,
-    sku: line.sku,
-    name: line.name,
-    size: line.size,
-    wholesale_usd: line.wholesaleUsd,
-    quantity: line.quantity,
-    sort_order: index,
-  }));
+  if (body.lines.length > 0) {
+    const itemRows = body.lines.map((line, index) => ({
+      order_request_id: inserted.id,
+      catalog_item_id: line.productId,
+      sku: line.sku,
+      name: line.name,
+      size: line.size,
+      wholesale_usd: line.wholesaleUsd,
+      quantity: line.quantity,
+      sort_order: index,
+    }));
 
-  const { error: itemsError } = await admin.from('wholesale_order_request_items').insert(itemRows);
-  if (itemsError) {
-    await admin.from('wholesale_order_requests').delete().eq('id', inserted.id);
-    return json({ ok: false, error: itemsError.message }, 500);
+    const { error: itemsError } = await admin
+      .from('wholesale_order_request_items')
+      .insert(itemRows);
+    if (itemsError) {
+      await admin.from('wholesale_order_requests').delete().eq('id', inserted.id);
+      return json({ ok: false, error: itemsError.message }, 500);
+    }
   }
 
   // CRM: match/create prospect (never activate) + activity note
@@ -175,6 +188,7 @@ export const POST: APIRoute = async ({ request }) => {
         totalUnits,
         merchandiseSubtotalUsd,
         skus: body.lines.map((l) => l.sku),
+        requestType: body.requestType,
       });
       const { error: activityError } = await admin.from('prospect_updates').insert({
         prospect_id: match.prospectId,
@@ -193,6 +207,7 @@ export const POST: APIRoute = async ({ request }) => {
   const messageResult = await upsertWholesaleInboundMessage(admin, {
     orderRequestId: inserted.id,
     requestNumber: inserted.request_number,
+    requestType: body.requestType,
     businessName: body.businessName,
     buyerName: body.buyerName,
     email: body.email,
@@ -230,6 +245,8 @@ export const POST: APIRoute = async ({ request }) => {
     businessName: body.businessName,
     totalUnits,
     merchandiseSubtotalUsd,
+    requestType: body.requestType,
+    notes: body.notes,
     lines: body.lines.map((l) => ({
       sku: l.sku,
       name: l.name,
@@ -239,5 +256,5 @@ export const POST: APIRoute = async ({ request }) => {
     })),
   });
 
-  return json({ ok: true, requestNumber: inserted.request_number });
+  return json({ ok: true, requestNumber: inserted.request_number, requestType: body.requestType });
 };

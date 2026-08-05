@@ -39,7 +39,11 @@ export function buildWholesaleActivityNote(args: {
   totalUnits: number;
   merchandiseSubtotalUsd: number;
   skus: string[];
+  requestType?: 'order' | 'inquiry';
 }): string {
+  if (args.requestType === 'inquiry') {
+    return `Wholesale inquiry ${args.requestNumber}: no products selected.`;
+  }
   const skuList = args.skus.slice(0, 20).join(', ') + (args.skus.length > 20 ? '…' : '');
   return (
     `Wholesale order request ${args.requestNumber}: ${args.totalUnits} units, ` +

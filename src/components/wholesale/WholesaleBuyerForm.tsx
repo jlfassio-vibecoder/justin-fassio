@@ -1,10 +1,11 @@
 import { useId, useRef, useState } from 'react';
 import type { WholesaleOrderDraft } from '@/lib/wholesaleOrderDraft';
 import { orderTotals } from '@/lib/wholesaleOrderDraft';
+import type { WholesaleRequestType } from '@/lib/wholesaleOrderRequestSchema';
 
 type Props = {
   draft: WholesaleOrderDraft;
-  onSuccess: (requestNumber: string) => void;
+  onSuccess: (requestNumber: string, requestType: WholesaleRequestType) => void;
 };
 
 const RETAIL_CHANNELS = [
@@ -66,28 +67,27 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Stable across retries for the same draft; refreshed when the draft changes (event-handler only).
-  const idempotencyRef = useRef<{ draftAt: string; key: string } | null>(null);
+  // Stable across retries for the same draft+mode; refreshed when either changes.
+  const idempotencyRef = useRef<{ draftKey: string; key: string } | null>(null);
   const { totalUnits } = orderTotals(draft);
+  const isInquiry = draft.lines.length === 0;
+  const requestType: WholesaleRequestType = isInquiry ? 'inquiry' : 'order';
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function idempotencyKeyForDraft(): string {
+    const draftKey = `${requestType}:${draft.updatedAt}`;
     const current = idempotencyRef.current;
-    if (current && current.draftAt === draft.updatedAt) return current.key;
+    if (current && current.draftKey === draftKey) return current.key;
     const key = newIdempotencyKey();
-    idempotencyRef.current = { draftAt: draft.updatedAt, key };
+    idempotencyRef.current = { draftKey, key };
     return key;
   }
 
   async function handleSubmit() {
     setError(null);
-    if (draft.lines.length === 0) {
-      setError('Add at least one product before submitting.');
-      return;
-    }
     setSubmitting(true);
     try {
       const res = await fetch('/api/wholesale/order-requests', {
@@ -95,6 +95,7 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           idempotencyKey: idempotencyKeyForDraft(),
+          requestType,
           businessName: form.businessName,
           buyerName: form.buyerName,
           email: form.email,
@@ -124,13 +125,23 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
         ok?: boolean;
         error?: string;
         requestNumber?: string;
+        requestType?: WholesaleRequestType;
       };
       if (!res.ok || !payload.ok || !payload.requestNumber) {
-        throw new Error(payload.error ?? 'Could not submit order request.');
+        throw new Error(
+          payload.error ??
+            (isInquiry ? 'Could not send your message.' : 'Could not submit order request.'),
+        );
       }
-      onSuccess(payload.requestNumber);
+      onSuccess(payload.requestNumber, payload.requestType ?? requestType);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not submit order request.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : isInquiry
+            ? 'Could not send your message.'
+            : 'Could not submit order request.',
+      );
     } finally {
       setSubmitting(false);
     }
@@ -146,12 +157,13 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
     >
       <div>
         <span className="bg-accent-100 text-accent-800 inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] tracking-wide">
-          Contact
+          {isInquiry ? 'Inquiry' : 'Order request'}
         </span>
         <h2 className="font-heading mt-2.1 m-0 text-2xl">Buyer information</h2>
         <p className="text-ink/65 m-0 mt-1 text-sm">
-          Tell us who to confirm this request with. {totalUnits} unit
-          {totalUnits === 1 ? '' : 's'} in your draft.
+          {isInquiry
+            ? 'Send Justin a question — no products selected.'
+            : `Tell us who to confirm this request with. ${totalUnits} unit${totalUnits === 1 ? '' : 's'} in your draft.`}
         </p>
       </div>
 
@@ -194,9 +206,9 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span>Phone *</span>
+          <span>Phone{isInquiry ? '' : ' *'}</span>
           <input
-            required
+            required={!isInquiry}
             type="tel"
             className={fieldClass}
             value={form.phone}
@@ -205,9 +217,9 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span>City *</span>
+          <span>City{isInquiry ? '' : ' *'}</span>
           <input
-            required
+            required={!isInquiry}
             className={fieldClass}
             value={form.city}
             onChange={(e) => setField('city', e.target.value)}
@@ -215,9 +227,9 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span>Province *</span>
+          <span>Province{isInquiry ? '' : ' *'}</span>
           <select
-            required
+            required={!isInquiry}
             className={fieldClass}
             value={form.province}
             onChange={(e) => setField('province', e.target.value)}
@@ -231,9 +243,9 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span>Postal code *</span>
+          <span>Postal code{isInquiry ? '' : ' *'}</span>
           <input
-            required
+            required={!isInquiry}
             className={fieldClass}
             value={form.postalCode}
             onChange={(e) => setField('postalCode', e.target.value)}
@@ -241,9 +253,9 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span>Retail channel *</span>
+          <span>Retail channel{isInquiry ? '' : ' *'}</span>
           <select
-            required
+            required={!isInquiry}
             className={fieldClass}
             value={form.retailChannel}
             onChange={(e) => setField('retailChannel', e.target.value)}
@@ -257,7 +269,7 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
           </select>
         </label>
         <fieldset className="m-0 border-0 p-0 sm:col-span-2">
-          <legend className="mb-1 text-sm">Existing Old Guys Rule customer? *</legend>
+          <legend className="mb-1 text-sm">Existing Old Guys Rule customer?</legend>
           <div className="gap-3.1 flex">
             {(['no', 'yes'] as const).map((v) => (
               <label key={v} className="flex items-center gap-1.5 text-sm">
@@ -307,12 +319,16 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-          <span>Notes</span>
+          <span>{isInquiry ? 'How can Justin help? *' : 'Notes'}</span>
           <textarea
+            required={isInquiry}
             className={`${fieldClass} min-h-[88px]`}
             value={form.notes}
             onChange={(e) => setField('notes', e.target.value)}
             maxLength={4000}
+            placeholder={
+              isInquiry ? 'Ask about wholesale terms, opening assortments, samples…' : undefined
+            }
           />
         </label>
 
@@ -336,10 +352,16 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
         <div className="sm:col-span-2">
           <button
             type="submit"
-            disabled={submitting || draft.lines.length === 0}
+            disabled={submitting}
             className="bg-accent-700 px-6.1 py-2.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm disabled:opacity-40"
           >
-            {submitting ? 'Submitting…' : 'Submit order request'}
+            {submitting
+              ? isInquiry
+                ? 'Sending…'
+                : 'Submitting…'
+              : isInquiry
+                ? 'Contact Justin'
+                : 'Submit order request'}
           </button>
         </div>
       </form>
