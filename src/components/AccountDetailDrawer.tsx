@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { AccountContactsSection } from '@/components/AccountContactsSection';
 import { AccountNotesEditor } from '@/components/AccountNotesEditor';
+import { AccountMessagesSection } from '@/components/messages/AccountMessagesSection';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
@@ -276,6 +277,8 @@ export function AccountDetailDrawer({
           <ContactNameSearch key={account.id} currentAccountId={account.id} />
 
           <AccountContactsSection key={account.id} accountId={account.id} />
+
+          <AccountMessagesSection key={`messages-${account.id}`} prospectId={account.id} />
         </div>
 
         <div className="border-ink/10 flex flex-col gap-2 border-t px-5 py-4">

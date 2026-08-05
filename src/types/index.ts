@@ -1,5 +1,12 @@
 export type TabKey =
-  'catalog' | 'dashboard' | 'calls' | 'prospects' | 'accounts' | 'contacts' | 'insights';
+  | 'catalog'
+  | 'dashboard'
+  | 'calls'
+  | 'prospects'
+  | 'accounts'
+  | 'contacts'
+  | 'insights'
+  | 'messages';
 
 export type LineKey = 'ogr' | 'bkg';
 

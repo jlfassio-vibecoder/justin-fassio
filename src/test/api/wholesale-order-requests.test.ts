@@ -5,6 +5,7 @@ const matchOrCreateWholesaleProspectMock = vi.fn();
 const sendWholesaleOrderConfirmationMock = vi.fn();
 const checkWholesaleOrderRateLimitMock = vi.fn();
 const resetWholesaleOrderRateLimitForTestsMock = vi.fn();
+const upsertWholesaleInboundMessageMock = vi.fn();
 
 vi.mock('@/lib/supabaseAdmin', () => ({
   getServiceRoleClient: (...args: unknown[]) => getServiceRoleClientMock(...args),
@@ -28,6 +29,10 @@ vi.mock('@/lib/wholesaleOrderRateLimit', () => ({
   checkWholesaleOrderRateLimit: (...args: unknown[]) => checkWholesaleOrderRateLimitMock(...args),
   resetWholesaleOrderRateLimitForTests: (...args: unknown[]) =>
     resetWholesaleOrderRateLimitForTestsMock(...args),
+}));
+
+vi.mock('@/lib/messageCenterInbound', () => ({
+  upsertWholesaleInboundMessage: (...args: unknown[]) => upsertWholesaleInboundMessageMock(...args),
 }));
 
 import { POST } from '@/pages/api/wholesale/order-requests';
@@ -136,6 +141,12 @@ describe('POST /api/wholesale/order-requests', () => {
     vi.clearAllMocks();
     checkWholesaleOrderRateLimitMock.mockReturnValue({ ok: true });
     sendWholesaleOrderConfirmationMock.mockResolvedValue({ sent: false, reason: 'not_configured' });
+    upsertWholesaleInboundMessageMock.mockResolvedValue({
+      ok: true,
+      threadId: 'thread-1',
+      messageId: 'msg-1',
+      createdThread: true,
+    });
   });
 
   it('honeypot returns fake success without touching the DB', async () => {
@@ -205,5 +216,15 @@ describe('POST /api/wholesale/order-requests', () => {
     });
     expect(admin.insertCalls.some((c) => c.table === 'prospect_updates')).toBe(true);
     expect(sendWholesaleOrderConfirmationMock).toHaveBeenCalledOnce();
+    expect(upsertWholesaleInboundMessageMock).toHaveBeenCalledOnce();
+    expect(upsertWholesaleInboundMessageMock).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({
+        orderRequestId: 'req-1',
+        requestNumber: 'W-2026-000100',
+        businessName: 'Kelowna Outfitters',
+        email: 'sam@example.com',
+      }),
+    );
   });
 });

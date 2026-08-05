@@ -8,6 +8,7 @@ import {
   matchOrCreateWholesaleProspect,
 } from '@/lib/wholesaleProspectMatch';
 import { sendWholesaleOrderConfirmation } from '@/lib/wholesaleOrderEmail';
+import { upsertWholesaleInboundMessage } from '@/lib/messageCenterInbound';
 
 export const prerender = false;
 
@@ -186,6 +187,38 @@ export const POST: APIRoute = async ({ request }) => {
     }
   } else {
     console.error('[wholesale-order-requests] prospect match failed', match.error);
+  }
+
+  // Message Center: create/append thread (best-effort; does not fail the submission)
+  const messageResult = await upsertWholesaleInboundMessage(admin, {
+    orderRequestId: inserted.id,
+    requestNumber: inserted.request_number,
+    businessName: body.businessName,
+    buyerName: body.buyerName,
+    email: body.email,
+    phone: body.phone,
+    city: body.city,
+    province: body.province,
+    postalCode: body.postalCode,
+    retailChannel: body.retailChannel,
+    isExistingCustomer: body.isExistingCustomer,
+    website: body.website,
+    gstHstNumber: body.gstHstNumber,
+    poNumber: body.poNumber,
+    notes: body.notes,
+    preferredContactMethod: body.preferredContactMethod,
+    totalUnits,
+    merchandiseSubtotalUsd,
+    lines: body.lines.map((l) => ({
+      sku: l.sku,
+      name: l.name,
+      size: l.size,
+      wholesaleUsd: l.wholesaleUsd,
+      quantity: l.quantity,
+    })),
+  });
+  if (!messageResult.ok) {
+    console.error('[wholesale-order-requests] message center failed', messageResult.error);
   }
 
   // Email is best-effort; CRM activity remains system of record when Resend is unset.
