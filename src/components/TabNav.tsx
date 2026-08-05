@@ -1,4 +1,13 @@
-import { Building2, Gauge, Home, Lightbulb, ListChecks, Package, Users } from 'lucide-react';
+import {
+  Building2,
+  Gauge,
+  Home,
+  Lightbulb,
+  ListChecks,
+  MessageSquare,
+  Package,
+  Users,
+} from 'lucide-react';
 import { Tag } from '@/components/ui/Tag';
 import { cn } from '@/lib/cn';
 import type { TabKey } from '@/types';
@@ -10,6 +19,7 @@ interface TabNavProps {
   prospectTotalCount: number;
   accountTotalCount: number;
   contactTotalCount: number;
+  messagesNeedsMappingCount?: number;
 }
 
 const tabs: { key: TabKey; label: string; icon: typeof Package }[] = [
@@ -19,6 +29,7 @@ const tabs: { key: TabKey; label: string; icon: typeof Package }[] = [
   { key: 'prospects', label: 'BC Prospect Directory', icon: Home },
   { key: 'accounts', label: 'Active Accounts', icon: Building2 },
   { key: 'contacts', label: 'Contacts', icon: Users },
+  { key: 'messages', label: 'Messages', icon: MessageSquare },
   { key: 'insights', label: 'Buyer Insights', icon: Lightbulb },
 ];
 
@@ -29,6 +40,7 @@ export function TabNav({
   prospectTotalCount,
   accountTotalCount,
   contactTotalCount,
+  messagesNeedsMappingCount = 0,
 }: TabNavProps) {
   return (
     <nav className="mx-auto flex max-w-[1400px] flex-wrap gap-2 px-7 pb-3.5">
@@ -50,6 +62,9 @@ export function TabNav({
             {key === 'prospects' && <Tag variant="accent-2">{prospectTotalCount}</Tag>}
             {key === 'accounts' && <Tag variant="accent">{accountTotalCount}</Tag>}
             {key === 'contacts' && <Tag variant="accent-2">{contactTotalCount}</Tag>}
+            {key === 'messages' && messagesNeedsMappingCount > 0 && (
+              <Tag variant="accent">{messagesNeedsMappingCount}</Tag>
+            )}
           </button>
         );
       })}

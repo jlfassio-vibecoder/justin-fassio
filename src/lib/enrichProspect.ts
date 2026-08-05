@@ -1,15 +1,22 @@
 import { supabase } from '@/lib/supabase';
 import type { Prospect } from '@/lib/prospects';
 
+export type EnrichProspectInput = {
+  companyName: string;
+  websiteUrl?: string;
+  contactName?: string;
+  phone?: string;
+  email?: string;
+  city?: string;
+  retailChannelHint?: string;
+};
+
 export type EnrichProspectResult = { ok: true; prospect: Prospect } | { ok: false; error: string };
 
 /**
  * Client call to POST /api/prospects/enrich with the current session Bearer token.
  */
-export async function enrichProspect(input: {
-  companyName: string;
-  websiteUrl?: string;
-}): Promise<EnrichProspectResult> {
+export async function enrichProspect(input: EnrichProspectInput): Promise<EnrichProspectResult> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) {
@@ -25,6 +32,11 @@ export async function enrichProspect(input: {
     body: JSON.stringify({
       companyName: input.companyName,
       websiteUrl: input.websiteUrl,
+      contactName: input.contactName,
+      phone: input.phone,
+      email: input.email,
+      city: input.city,
+      retailChannelHint: input.retailChannelHint,
     }),
   });
 

@@ -973,6 +973,75 @@ export interface Database {
         };
         Relationships: [];
       };
+      message_threads: {
+        Row: {
+          id: string;
+          prospect_id: number | null;
+          mapping_status: string;
+          identity_fingerprint: string;
+          confirmed_fingerprint: string | null;
+          source: string;
+          subject: string;
+          last_message_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          prospect_id?: number | null;
+          mapping_status?: string;
+          identity_fingerprint: string;
+          confirmed_fingerprint?: string | null;
+          source?: string;
+          subject?: string;
+          last_message_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          prospect_id?: number | null;
+          mapping_status?: string;
+          identity_fingerprint?: string;
+          confirmed_fingerprint?: string | null;
+          source?: string;
+          subject?: string;
+          last_message_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      messages: {
+        Row: {
+          id: string;
+          thread_id: string;
+          kind: string;
+          wholesale_order_request_id: string | null;
+          body: string;
+          payload: Record<string, unknown>;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          thread_id: string;
+          kind?: string;
+          wholesale_order_request_id?: string | null;
+          body?: string;
+          payload?: Record<string, unknown>;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          thread_id?: string;
+          kind?: string;
+          wholesale_order_request_id?: string | null;
+          body?: string;
+          payload?: Record<string, unknown>;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;

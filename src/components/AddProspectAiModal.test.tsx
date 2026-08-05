@@ -21,6 +21,23 @@ describe('AddProspectAiModal', () => {
     expect(screen.getByRole('button', { name: 'Add via AI' })).toBeDisabled();
   });
 
+  it('initializes from initialValues', () => {
+    render(
+      <AddProspectAiModal
+        open
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+        initialValues={{
+          companyName: 'Smoke Test Outfitters',
+          websiteUrl: 'https://smoke.example',
+        }}
+      />,
+    );
+    expect(screen.getByDisplayValue('Smoke Test Outfitters')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('https://smoke.example')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add via AI' })).toBeEnabled();
+  });
+
   it('submits enrich request when name is present', async () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
@@ -48,10 +65,59 @@ describe('AddProspectAiModal', () => {
     expect(enrichProspectMock).toHaveBeenCalledWith({
       companyName: 'Coastal Outfitters',
       websiteUrl: undefined,
+      contactName: undefined,
+      phone: undefined,
+      email: undefined,
+      city: undefined,
+      retailChannelHint: undefined,
     });
     expect(onCreated).toHaveBeenCalledWith(
       expect.objectContaining({ id: 250, name: 'Coastal Outfitters' }),
     );
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('passes enrichSeeds through to enrichProspect', async () => {
+    const user = userEvent.setup();
+    enrichProspectMock.mockResolvedValue({
+      ok: true,
+      prospect: {
+        id: 251,
+        name: 'Smoke Test Outfitters',
+        category: 'Hardware',
+        region: 'Okanagan',
+        city: 'Kelowna',
+        address: '',
+        phone: '250-555-0100',
+        fit: '7/10 — Outdoor. Apparel.',
+      },
+    });
+
+    render(
+      <AddProspectAiModal
+        open
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+        initialValues={{ companyName: 'Smoke Test Outfitters' }}
+        enrichSeeds={{
+          contactName: 'Alex Buyer',
+          phone: '250-555-0100',
+          email: 'alex@example.com',
+          city: 'Kelowna',
+          retailChannelHint: 'Outdoor / sporting goods',
+        }}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Add via AI' }));
+    await screen.findByRole('button', { name: 'Add via AI' });
+    expect(enrichProspectMock).toHaveBeenCalledWith({
+      companyName: 'Smoke Test Outfitters',
+      websiteUrl: undefined,
+      contactName: 'Alex Buyer',
+      phone: '250-555-0100',
+      email: 'alex@example.com',
+      city: 'Kelowna',
+      retailChannelHint: 'Outdoor / sporting goods',
+    });
   });
 });

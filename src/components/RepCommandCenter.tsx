@@ -9,10 +9,12 @@ import { ProspectsTab } from '@/components/tabs/ProspectsTab';
 import { ActiveAccountsTab } from '@/components/tabs/ActiveAccountsTab';
 import { ContactsTab } from '@/components/tabs/ContactsTab';
 import { InsightsTab } from '@/components/tabs/InsightsTab';
+import { MessagesTab } from '@/components/tabs/MessagesTab';
 import { useLandedCostCalculator } from '@/hooks/useLandedCostCalculator';
 import { fetchAllContacts, type ContactDirectoryRow } from '@/lib/accountContacts';
 import { fetchCatalogItems, type CatalogItem } from '@/lib/catalog';
 import { fetchOgrCatalogSettings, type CatalogSupplierTerms } from '@/lib/catalogSettings';
+import { fetchNeedsMappingCount } from '@/lib/messages';
 import { fetchProspects, type Prospect } from '@/lib/prospects';
 import type { TabKey } from '@/types';
 
@@ -33,6 +35,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   const [contacts, setContacts] = useState<ContactDirectoryRow[]>([]);
   const [directoryLoading, setDirectoryLoading] = useState(true);
   const [directoryError, setDirectoryError] = useState<string | null>(null);
+  const [messagesNeedsMappingCount, setMessagesNeedsMappingCount] = useState(0);
 
   const {
     fx,
@@ -130,6 +133,17 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
     };
   }, [contactsReloadToken]);
 
+  useEffect(() => {
+    let active = true;
+    void fetchNeedsMappingCount().then((result) => {
+      if (!active || result.error) return;
+      setMessagesNeedsMappingCount(result.count);
+    });
+    return () => {
+      active = false;
+    };
+  }, [activeTab]);
+
   function openModal(prospect?: Prospect) {
     if (!prospect && prospects.length === 0) return;
     const store = prospect ?? prospects[0];
@@ -141,7 +155,13 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
     <div className="bg-bg font-body text-ink min-h-screen">
       <header className="border-ink/15 bg-bg/95 sticky top-0 z-30 border-b backdrop-blur">
         <div className="mx-auto max-w-[1400px]">
-          <Header activeLine="ogr" onSelectOgr={() => {}} onLogCall={() => openModal()} />
+          <Header
+            activeLine="ogr"
+            onSelectOgr={() => {}}
+            onLogCall={() => openModal()}
+            onOpenMessages={() => setActiveTab('messages')}
+            messagesNeedsMappingCount={messagesNeedsMappingCount}
+          />
           <TabNav
             activeTab={activeTab}
             onChange={setActiveTab}
@@ -149,6 +169,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
             prospectTotalCount={pipelineProspects.length}
             accountTotalCount={activeAccounts.length}
             contactTotalCount={contacts.length}
+            messagesNeedsMappingCount={messagesNeedsMappingCount}
           />
         </div>
       </header>
@@ -249,6 +270,15 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                       (a, b) => a.id - b.id,
                     ),
                   );
+                }}
+              />
+            )}
+            {activeTab === 'messages' && (
+              <MessagesTab
+                onNeedsMappingCountChange={setMessagesNeedsMappingCount}
+                onLogCall={(store) => openModal(store)}
+                onNotesSaved={(id, notes) => {
+                  setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
                 }}
               />
             )}

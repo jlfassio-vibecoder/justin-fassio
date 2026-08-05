@@ -221,6 +221,7 @@ export async function createEnrichedContact(
     websiteUrl,
     contactName,
     researchBrief,
+    createBuyerContact: false,
   });
   if (!prospectResult.ok) {
     return prospectResult;

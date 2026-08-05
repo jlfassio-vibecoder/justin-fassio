@@ -23,11 +23,16 @@ function mockSupabaseInsert(row: unknown) {
         }),
       }),
     }),
-    insert: () => ({
-      select: () => ({
-        single: async () => ({ data: row, error: null }),
-      }),
-    }),
+    insert: () => {
+      const result = { data: null, error: null };
+      return {
+        select: () => ({
+          single: async () => ({ data: row, error: null }),
+        }),
+        then: (onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
+          Promise.resolve(result).then(onFulfilled, onRejected),
+      };
+    },
   }));
   return { from } as unknown as AgentSupabase;
 }
@@ -175,5 +180,179 @@ describe('formatProspectFit still works', () => {
     expect(formatProspectFit(8, 'Nice notes')).toBe('8/10 — Nice notes');
     expect(nextProspectId(null)).toBe(1);
     expect(nextProspectId(249)).toBe(250);
+  });
+});
+
+describe('applyInboundSeedOverrides', () => {
+  it('prefers seeded phone and city over AI fields', async () => {
+    const { applyInboundSeedOverrides } = await import('@/lib/createEnrichedProspect');
+    const next = applyInboundSeedOverrides(
+      {
+        name: 'Store',
+        category: 'Hardware',
+        region: 'Okanagan',
+        city: 'AI City',
+        fitScore: 7,
+        notes: 'A. B.',
+        address: null,
+        phone: 'AI-phone',
+      },
+      { phone: '250-555-0100', city: 'Kelowna' },
+    );
+    expect(next.phone).toBe('250-555-0100');
+    expect(next.city).toBe('Kelowna');
+  });
+
+  it('keeps AI values when seeds are empty', async () => {
+    const { applyInboundSeedOverrides } = await import('@/lib/createEnrichedProspect');
+    const next = applyInboundSeedOverrides(
+      {
+        name: 'Store',
+        category: 'Hardware',
+        region: 'Okanagan',
+        city: 'AI City',
+        fitScore: 7,
+        notes: 'A. B.',
+        address: null,
+        phone: 'AI-phone',
+      },
+      {},
+    );
+    expect(next.phone).toBe('AI-phone');
+    expect(next.city).toBe('AI City');
+  });
+});
+
+describe('createEnrichedProspect inbound seeds', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('passes city/channel seeds to research and prefers seeded phone', async () => {
+    researchCompanyMock.mockResolvedValue({
+      brief: 'Some outdoor store',
+      error: null,
+    });
+    generateObjectMock.mockResolvedValue({
+      object: {
+        name: 'Smoke Test Outfitters',
+        category: 'Hardware',
+        region: 'Okanagan',
+        city: 'Wrong City',
+        fitScore: 7,
+        notes: 'Outdoor specialty. Apparel likely.',
+        address: null,
+        phone: null,
+      },
+    });
+
+    const supabase = mockSupabaseInsert({
+      ...insertedRow,
+      name: 'Smoke Test Outfitters',
+      category: 'Hardware',
+      city: 'Kelowna',
+      phone: '250-555-0100',
+      address: '',
+      fit: '7/10 — Outdoor specialty. Apparel likely.',
+    });
+
+    const result = await createEnrichedProspect(supabase, {
+      companyName: 'Smoke Test Outfitters',
+      contactName: 'Alex Buyer',
+      phone: '250-555-0100',
+      email: 'alex@example.com',
+      city: 'Kelowna',
+      retailChannelHint: 'Outdoor / sporting goods',
+      websiteUrl: 'https://example.com',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(researchCompanyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyName: 'Smoke Test Outfitters',
+        city: 'Kelowna',
+        retailCategoryHint: 'Outdoor / sporting goods',
+        contactName: 'Alex Buyer',
+        websiteUrl: 'https://example.com',
+      }),
+    );
+    if (result.ok) {
+      expect(result.prospect.phone).toBe('250-555-0100');
+      expect(result.prospect.city).toBe('Kelowna');
+    }
+  });
+});
+
+describe('createEnrichedProspect buyer contact', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    researchCompanyMock.mockResolvedValue({ brief: 'Some outdoor store', error: null });
+    generateObjectMock.mockResolvedValue({
+      object: {
+        name: 'Smoke Test Outfitters',
+        category: 'Hardware',
+        region: 'Okanagan',
+        city: 'Kelowna',
+        fitScore: 7,
+        notes: 'Outdoor specialty. Apparel likely.',
+        address: null,
+        phone: null,
+      },
+    });
+  });
+
+  function mockRecordingSupabase(row: unknown) {
+    const inserts: Array<{ table: string; payload: unknown }> = [];
+    const from = vi.fn((table: string) => ({
+      select: () => ({
+        order: () => ({
+          limit: () => ({
+            maybeSingle: async () => ({ data: { id: 10 }, error: null }),
+          }),
+        }),
+      }),
+      insert: (payload: unknown) => {
+        inserts.push({ table, payload });
+        const result = { data: null, error: null };
+        return {
+          select: () => ({
+            single: async () => ({ data: row, error: null }),
+          }),
+          then: (onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
+            Promise.resolve(result).then(onFulfilled, onRejected),
+        };
+      },
+    }));
+    return { supabase: { from } as unknown as AgentSupabase, inserts };
+  }
+
+  it('inserts the buyer as primary contact by default', async () => {
+    const { supabase, inserts } = mockRecordingSupabase(insertedRow);
+
+    await createEnrichedProspect(supabase, {
+      companyName: 'Smoke Test Outfitters',
+      contactName: 'Alex Buyer',
+      email: 'alex@example.com',
+    });
+
+    const contactInsert = inserts.find((i) => i.table === 'account_contacts');
+    expect(contactInsert?.payload).toMatchObject({
+      full_name: 'Alex Buyer',
+      email: 'alex@example.com',
+      is_primary: true,
+    });
+  });
+
+  it('skips the buyer contact when the caller creates its own primary', async () => {
+    const { supabase, inserts } = mockRecordingSupabase(insertedRow);
+
+    await createEnrichedProspect(supabase, {
+      companyName: 'Smoke Test Outfitters',
+      contactName: 'Alex Buyer',
+      email: 'alex@example.com',
+      createBuyerContact: false,
+    });
+
+    expect(inserts.some((i) => i.table === 'account_contacts')).toBe(false);
   });
 });
