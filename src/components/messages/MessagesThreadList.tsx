@@ -31,6 +31,7 @@ interface MessagesThreadListProps {
   threads: MessageThread[];
   selectedId: string | null;
   onSelect: (thread: MessageThread) => void;
+  onOpenMapped?: (thread: MessageThread) => void;
   emptyMessage?: string;
 }
 
@@ -38,6 +39,7 @@ export function MessagesThreadList({
   threads,
   selectedId,
   onSelect,
+  onOpenMapped,
   emptyMessage = 'No messages yet.',
 }: MessagesThreadListProps) {
   if (threads.length === 0) {
@@ -48,13 +50,23 @@ export function MessagesThreadList({
     <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
       {threads.map((thread) => {
         const selected = thread.id === selectedId;
+        const title = thread.businessName || thread.subject || 'Wholesale request';
+        const canOpenMapped = thread.prospectId != null && onOpenMapped != null;
+
         return (
           <li key={thread.id}>
-            <button
-              type="button"
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => onSelect(thread)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelect(thread);
+                }
+              }}
               className={cn(
-                'w-full rounded-md border px-3.5 py-3 text-left transition-colors',
+                'w-full cursor-pointer rounded-md border px-3.5 py-3 text-left transition-colors',
                 selected
                   ? 'border-accent bg-accent/10'
                   : 'border-ink/10 bg-surface hover:border-ink/25',
@@ -62,9 +74,21 @@ export function MessagesThreadList({
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="font-heading m-0 text-sm leading-snug">
-                    {thread.businessName || thread.subject || 'Wholesale request'}
-                  </p>
+                  {canOpenMapped ? (
+                    <button
+                      type="button"
+                      className="font-heading text-accent m-0 cursor-pointer border-0 bg-transparent p-0 text-left text-sm leading-snug underline-offset-2 hover:underline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelect(thread);
+                        onOpenMapped(thread);
+                      }}
+                    >
+                      {title}
+                    </button>
+                  ) : (
+                    <p className="font-heading m-0 text-sm leading-snug">{title}</p>
+                  )}
                   <p className="text-ink/65 m-0 mt-0.5 text-xs">
                     {thread.buyerName || '—'}
                     {thread.email ? ` · ${thread.email}` : ''}
@@ -77,9 +101,25 @@ export function MessagesThreadList({
               <div className="text-ink/55 mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
                 {thread.requestNumber ? <span>{thread.requestNumber}</span> : null}
                 <span>{formatWhen(thread.lastMessageAt)}</span>
-                {thread.prospectName ? <span>→ {thread.prospectName}</span> : null}
+                {thread.prospectName ? (
+                  canOpenMapped ? (
+                    <button
+                      type="button"
+                      className="text-accent m-0 cursor-pointer border-0 bg-transparent p-0 underline-offset-2 hover:underline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelect(thread);
+                        onOpenMapped(thread);
+                      }}
+                    >
+                      → {thread.prospectName}
+                    </button>
+                  ) : (
+                    <span>→ {thread.prospectName}</span>
+                  )
+                ) : null}
               </div>
-            </button>
+            </div>
           </li>
         );
       })}
