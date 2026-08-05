@@ -4,21 +4,19 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { MentionTextarea } from '@/components/MentionTextarea';
 import type { AccountContact } from '@/lib/accountContacts';
-import type { CatalogItem } from '@/lib/catalog';
+import { catalogItemStub } from '@/lib/catalog';
 
-const ITEMS: CatalogItem[] = [
-  {
+const ITEMS = [
+  catalogItemStub({
     page: 1,
     cat: 'Tees',
     sku: 'OG2511',
     name: 'Old Guys Rule Classic Tee',
     color: 'Navy',
-    tagline: '',
     priceUsd: 12.5,
     msrpCad: 42,
-    isNew: false,
     isNameDrop: true,
-  },
+  }),
 ];
 
 const CONTACTS: AccountContact[] = [

@@ -8,3 +8,4 @@ design/landing-page/design-reference
 supabase/functions
 .cursor
 docs/prospect-list.html
+docs/catalog/*.pdf

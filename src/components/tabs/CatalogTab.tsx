@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
+import { ProductDetailDrawer } from '@/components/ProductDetailDrawer';
 import { Button } from '@/components/ui/Button';
 import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
+import { RowActionsMenu } from '@/components/ui/RowActionsMenu';
 import { Tag } from '@/components/ui/Tag';
 import type { CatalogItem } from '@/lib/catalog';
 import { filterCatalogItems, type CatalogFlagFilter } from '@/lib/catalogFilters';
@@ -61,6 +63,7 @@ function applyLandedRatesPayload(
 
 interface CatalogTabProps {
   catalog: CatalogItem[];
+  onCatalogChange?: (catalog: CatalogItem[]) => void;
   fx: number;
   setFx: (fx: number) => void;
   freightRate: number;
@@ -81,6 +84,7 @@ interface CatalogTabProps {
 
 export function CatalogTab({
   catalog,
+  onCatalogChange,
   fx,
   setFx,
   freightRate,
@@ -107,12 +111,20 @@ export function CatalogTab({
   const [consumerIncludeSalesTax, setConsumerIncludeSalesTax] = useState(true);
   const [orderPieces, setOrderPieces] = useState(MIN_ORDER_PIECES);
   const [shippingCadOverride, setShippingCadOverride] = useState<number | null>(null);
+  const [selectedSku, setSelectedSku] = useState<string | null>(null);
 
   const filteredCatalog = useMemo(() => {
-    // Copilot suggestion ignored: −GST toggle is sample-card-only by design; table landed/margin keep full factors.
+    // Table Landed + Margin both use landed-before-recoverable-GST so columns reconcile.
+    // Sample-card GST toggle remains independent and does not affect the table.
     return filterCatalogItems(catalog, { search, category, flag }).map((item) => {
-      const landed = landedCad(item.priceUsd, factors);
-      const margin = marginPct(item.priceUsd, item.msrpCad, factors);
+      const landed =
+        item.landedCadOverride != null
+          ? item.landedCadOverride
+          : landedCad(item.priceUsd, factors, { includeGst: false });
+      const margin = marginPct(item.priceUsd, item.msrpCad, factors, {
+        landedOverrideCad: item.landedCadOverride,
+        importGstRecoverable: true,
+      });
       const sellable = margin != null;
       return {
         ...item,
@@ -124,6 +136,8 @@ export function CatalogTab({
       };
     });
   }, [catalog, search, category, flag, factors]);
+
+  const selectedItem = selectedSku ? (catalog.find((i) => i.sku === selectedSku) ?? null) : null;
 
   const newCount = useMemo(() => catalog.filter((it) => it.isNew).length, [catalog]);
   const nameDropCount = useMemo(() => catalog.filter((it) => it.isNameDrop).length, [catalog]);
@@ -532,19 +546,35 @@ export function CatalogTab({
                 ].map((h) => (
                   <th
                     key={h}
-                    className="border-ink/15 text-ink/60 border-b p-2 text-left text-[11px] tracking-wider uppercase"
+                    className="border-ink/15 bg-surface text-ink/60 border-b p-2 text-left text-[11px] tracking-wider uppercase"
                   >
                     {h}
                   </th>
                 ))}
-                <th className="border-ink/15 text-ink/60 border-b p-2 text-right text-[11px] tracking-wider uppercase">
+                <th className="border-ink/15 bg-surface text-ink/60 border-b p-2 text-right text-[11px] tracking-wider uppercase">
                   Margin
+                </th>
+                <th className="border-ink/15 bg-surface text-ink/60 sticky right-0 border-b p-2 text-right text-[11px] tracking-wider uppercase">
+                  Action
                 </th>
               </tr>
             </thead>
             <tbody>
               {filteredCatalog.map((item) => (
-                <tr key={item.sku} className="hover:bg-ink/[0.04]">
+                <tr
+                  key={item.sku}
+                  className="hover:bg-ink/[0.04] cursor-pointer"
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Open details for ${item.sku}`}
+                  onClick={() => setSelectedSku(item.sku)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedSku(item.sku);
+                    }
+                  }}
+                >
                   <td className="border-ink/[0.08] border-b p-2">{item.page}</td>
                   <td className="border-ink/[0.08] font-heading border-b p-2 text-[13px]">
                     {item.sku}
@@ -567,12 +597,46 @@ export function CatalogTab({
                   <td className="border-ink/[0.08] border-b p-2 text-right font-semibold">
                     {item.marginDisplay}
                   </td>
+                  <td
+                    className="border-ink/[0.08] bg-surface sticky right-0 border-b p-2 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    <RowActionsMenu
+                      label={`Actions for ${item.sku}`}
+                      sections={[
+                        {
+                          id: 'product',
+                          label: 'Product',
+                          items: [
+                            {
+                              id: 'details',
+                              label: 'Details',
+                              onSelect: () => setSelectedSku(item.sku),
+                            },
+                          ],
+                        },
+                      ]}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </Card>
+
+      <ProductDetailDrawer
+        item={selectedItem}
+        items={filteredCatalog}
+        factors={factors}
+        onClose={() => setSelectedSku(null)}
+        onNavigate={(sku) => setSelectedSku(sku)}
+        onSaved={(updated) => {
+          onCatalogChange?.(catalog.map((row) => (row.id === updated.id ? updated : row)));
+          setSelectedSku(updated.sku);
+        }}
+      />
 
       <Card>
         <CardTitle className="text-[17px]">Wholesale Terms &amp; Ordering Guidelines</CardTitle>

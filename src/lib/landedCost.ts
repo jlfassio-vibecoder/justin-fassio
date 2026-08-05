@@ -23,24 +23,65 @@ export function formatRatePct(rate: number): string {
   return `${(rate * 100).toFixed(0)}%`;
 }
 
+/**
+ * Product cost before recoverable import GST (FX × freight × other).
+ * Use this for retailer margin when GST is recoverable.
+ */
+export function landedCadBeforeRecoverableGst(
+  priceUsd: number,
+  factors: LandedCostFactors,
+): number {
+  return priceUsd * factors.fx * (1 + factors.freightRate) * (1 + factors.otherTaxRate);
+}
+
+/** Cash outlay including import GST. */
+export function cashCostIncludingImportGst(priceUsd: number, factors: LandedCostFactors): number {
+  return landedCadBeforeRecoverableGst(priceUsd, factors) * (1 + factors.gstRate);
+}
+
+/**
+ * Full stack including GST (legacy table display).
+ * Pass `{ includeGst: false }` to match landedCadBeforeRecoverableGst.
+ */
 export function landedCad(
   priceUsd: number,
   factors: LandedCostFactors,
   options?: { includeGst?: boolean },
 ): number {
-  const gstRate = options?.includeGst === false ? 0 : factors.gstRate;
-  return (
-    priceUsd * factors.fx * (1 + factors.freightRate) * (1 + gstRate) * (1 + factors.otherTaxRate)
-  );
+  if (options?.includeGst === false) {
+    return landedCadBeforeRecoverableGst(priceUsd, factors);
+  }
+  return cashCostIncludingImportGst(priceUsd, factors);
 }
 
+/**
+ * Retailer margin % = (MSRP CAD − landed CAD) / MSRP CAD × 100.
+ * By default uses landed-before-recoverable-GST when `importGstRecoverable` is true (default).
+ */
 export function marginPct(
   priceUsd: number,
   msrpCad: number,
   factors: LandedCostFactors,
+  options?: { importGstRecoverable?: boolean; landedOverrideCad?: number | null },
 ): number | null {
   if (msrpCad <= 0) return null;
-  return ((msrpCad - landedCad(priceUsd, factors)) / msrpCad) * 100;
+  const recoverable = options?.importGstRecoverable !== false;
+  const landed =
+    options?.landedOverrideCad != null && Number.isFinite(options.landedOverrideCad)
+      ? options.landedOverrideCad
+      : recoverable
+        ? landedCadBeforeRecoverableGst(priceUsd, factors)
+        : cashCostIncludingImportGst(priceUsd, factors);
+  return ((msrpCad - landed) / msrpCad) * 100;
+}
+
+/** Per-variant landed CAD (never reuse another size’s wholesale). */
+export function variantLandedCad(
+  wholesaleUsd: number,
+  factors: LandedCostFactors,
+  options?: { includeGst?: boolean },
+): number {
+  return landedCad(wholesaleUsd, factors, options);
 }
 
 export function formatMarginRange(items: PriceableItem[], factors: LandedCostFactors): string {

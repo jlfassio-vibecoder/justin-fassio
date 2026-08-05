@@ -162,6 +162,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
             {activeTab === 'catalog' && (
               <CatalogTab
                 catalog={catalog}
+                onCatalogChange={setCatalog}
                 fx={fx}
                 setFx={setFx}
                 freightRate={freightRate}

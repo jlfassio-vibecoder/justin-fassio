@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CatalogItem } from '@/lib/catalog';
+import { catalogItemStub } from '@/lib/catalog';
 import type { AccountContact } from '@/lib/accountContacts';
 import {
   applyMentionReplacement,
@@ -10,31 +10,27 @@ import {
   parseActiveMention,
 } from '@/lib/mentions';
 
-const ITEMS: CatalogItem[] = [
-  {
+const ITEMS = [
+  catalogItemStub({
     page: 1,
     cat: 'Tees',
     sku: 'OG2511',
     name: 'Old Guys Rule Classic Tee',
     color: 'Navy',
-    tagline: '',
     priceUsd: 12.5,
     msrpCad: 42,
-    isNew: false,
     isNameDrop: true,
-  },
-  {
+  }),
+  catalogItemStub({
     page: 2,
     cat: 'Tees',
     sku: 'OG2599',
     name: 'Harbor Graphic Tee',
     color: 'White',
-    tagline: '',
     priceUsd: 14,
     msrpCad: 48,
     isNew: true,
-    isNameDrop: false,
-  },
+  }),
 ];
 
 const CONTACTS: AccountContact[] = [
