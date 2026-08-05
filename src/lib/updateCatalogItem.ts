@@ -1,11 +1,35 @@
 import type { AgentSupabase } from '@/lib/agentAuth';
+import type { CatalogAttribute } from '@/lib/catalogAttributes';
+import { mapAttributeRow } from '@/lib/catalogAttributes';
 import type { CatalogItem } from '@/lib/catalog';
-import { mapCatalogRow } from '@/lib/catalog';
+import {
+  CATALOG_ATTRIBUTE_SELECT,
+  CATALOG_ITEM_SELECT,
+  CATALOG_VARIANT_SELECT,
+  mapCatalogRow,
+} from '@/lib/catalog';
 import { markUserEdit, resetFieldToCatalog, type FieldMetaMap } from '@/lib/catalogProvenance';
 import { mapCatalogVariantRow, type CatalogVariant } from '@/lib/catalogVariants';
-import type { CatalogItemRow, CatalogVariantRow, Database } from '@/types/database';
+import type {
+  CatalogItemRow,
+  CatalogProductAttributeRow,
+  CatalogVariantRow,
+  Database,
+} from '@/types/database';
 
 type CatalogItemUpdate = Database['public']['Tables']['catalog_items']['Update'];
+
+export type CatalogAttributePatch = {
+  id?: string;
+  attributeKey: string;
+  label: string;
+  value?: string | null;
+  valueType?: string;
+  unit?: string | null;
+  attributeGroup?: string;
+  displayOrder?: number;
+  _delete?: boolean;
+};
 
 export type CatalogItemPatch = {
   page?: number | null;
@@ -25,6 +49,25 @@ export type CatalogItemPatch = {
   specialNotes?: string | null;
   salesPriority?: string | null;
   salesNotes?: string | null;
+  department?: string | null;
+  unitOfMeasure?: string | null;
+  minimumQuantity?: number | null;
+  orderMultiple?: number | null;
+  packQuantity?: number | null;
+  madeInUsaClaim?: boolean | null;
+  countryOfBlankManufacture?: string | null;
+  countryOfDecoration?: string | null;
+  countryOfOrigin?: string | null;
+  primaryImageUrl?: string | null;
+  sourceImageUrl?: string | null;
+  primaryImagePath?: string | null;
+  catalogVerified?: boolean;
+  verificationNotes?: string | null;
+  lifestyleThemes?: string[];
+  recommendedChannels?: string[];
+  seasonality?: string | null;
+  sampleStatus?: string | null;
+  buyerFeedback?: string | null;
   /** Set to null to clear override (reset to catalog). */
   priceUsdOverride?: number | null;
   msrpCadOverride?: number | null;
@@ -36,15 +79,20 @@ export type CatalogItemPatch = {
   variants?: Array<{
     id?: string;
     size?: string | null;
+    sizeGroup?: string | null;
     color?: string | null;
     style?: string | null;
+    variantSku?: string | null;
     wholesaleUsd?: number;
     wholesaleUsdOverride?: number | null;
+    packQuantity?: number | null;
+    packPriceUsd?: number | null;
     sortOrder?: number;
     availability?: string;
     notes?: string | null;
     _delete?: boolean;
   }>;
+  attributes?: CatalogAttributePatch[];
 };
 
 function jsonEqual(a: unknown, b: unknown): boolean {
@@ -57,9 +105,7 @@ async function loadItemWithVariants(
 ): Promise<{ item: CatalogItem; row: CatalogItemRow } | { error: string }> {
   const { data, error } = await supabase
     .from('catalog_items')
-    .select(
-      'id, line_id, page, cat, sku, name, color, tagline, price_usd, msrp_cad, catalog_price_usd, price_usd_override, catalog_msrp_cad, msrp_cad_override, landed_cad_override, field_meta, status, is_new, is_name_drop, is_bestseller, pdf_page, catalog_year, brand, product_family, collection, product_type, accent_color, sales_description, material, special_notes, sales_priority, sales_notes, primary_image_path, created_at, updated_at',
-    )
+    .select(CATALOG_ITEM_SELECT)
     .eq('id', id)
     .single();
 
@@ -70,14 +116,19 @@ async function loadItemWithVariants(
   const row = data as CatalogItemRow;
   const { data: variantRows } = await supabase
     .from('catalog_variants')
-    .select(
-      'id, catalog_item_id, size, color, style, wholesale_usd, wholesale_usd_override, unit_of_measure, pack_quantity, pack_price_usd, availability, sort_order, notes, created_at, updated_at',
-    )
+    .select(CATALOG_VARIANT_SELECT)
     .eq('catalog_item_id', id)
     .order('sort_order', { ascending: true });
 
+  const { data: attrRows } = await supabase
+    .from('catalog_product_attributes')
+    .select(CATALOG_ATTRIBUTE_SELECT)
+    .eq('catalog_item_id', id)
+    .order('display_order', { ascending: true });
+
   const variants = (variantRows ?? []).map((v) => mapCatalogVariantRow(v as CatalogVariantRow));
-  return { item: mapCatalogRow(row, variants), row };
+  const attributes = (attrRows ?? []).map((a) => mapAttributeRow(a as CatalogProductAttributeRow));
+  return { item: mapCatalogRow(row, variants, attributes), row };
 }
 
 export async function updateCatalogItem(
@@ -174,6 +225,86 @@ export async function updateCatalogItem(
     touch('salesNotes', current.salesNotes, p.salesNotes ?? '');
     dbPatch.sales_notes = p.salesNotes;
   }
+  if (p.department !== undefined) {
+    touch('department', current.department, p.department ?? '');
+    dbPatch.department = p.department;
+  }
+  if (p.unitOfMeasure !== undefined) {
+    touch('unitOfMeasure', current.unitOfMeasure, p.unitOfMeasure ?? 'each');
+    dbPatch.unit_of_measure = p.unitOfMeasure ?? 'each';
+  }
+  if (p.minimumQuantity !== undefined) {
+    touch('minimumQuantity', current.minimumQuantity, p.minimumQuantity);
+    dbPatch.minimum_quantity = p.minimumQuantity;
+  }
+  if (p.orderMultiple !== undefined) {
+    touch('orderMultiple', current.orderMultiple, p.orderMultiple);
+    dbPatch.order_multiple = p.orderMultiple;
+  }
+  if (p.packQuantity !== undefined) {
+    touch('packQuantity', current.packQuantity, p.packQuantity);
+    dbPatch.pack_quantity = p.packQuantity;
+  }
+  if (p.madeInUsaClaim !== undefined) {
+    touch('madeInUsaClaim', current.madeInUsaClaim, p.madeInUsaClaim);
+    dbPatch.made_in_usa_claim = p.madeInUsaClaim;
+  }
+  if (p.countryOfBlankManufacture !== undefined) {
+    touch(
+      'countryOfBlankManufacture',
+      current.countryOfBlankManufacture,
+      p.countryOfBlankManufacture ?? '',
+    );
+    dbPatch.country_of_blank_manufacture = p.countryOfBlankManufacture;
+  }
+  if (p.countryOfDecoration !== undefined) {
+    touch('countryOfDecoration', current.countryOfDecoration, p.countryOfDecoration ?? '');
+    dbPatch.country_of_decoration = p.countryOfDecoration;
+  }
+  if (p.countryOfOrigin !== undefined) {
+    touch('countryOfOrigin', current.countryOfOrigin, p.countryOfOrigin ?? '');
+    dbPatch.country_of_origin = p.countryOfOrigin;
+  }
+  if (p.primaryImageUrl !== undefined) {
+    touch('primaryImageUrl', current.primaryImageUrl, p.primaryImageUrl);
+    dbPatch.primary_image_url = p.primaryImageUrl;
+  }
+  if (p.sourceImageUrl !== undefined) {
+    touch('sourceImageUrl', current.sourceImageUrl, p.sourceImageUrl);
+    dbPatch.source_image_url = p.sourceImageUrl;
+  }
+  if (p.primaryImagePath !== undefined) {
+    touch('primaryImagePath', current.primaryImagePath, p.primaryImagePath);
+    dbPatch.primary_image_path = p.primaryImagePath;
+  }
+  if (p.catalogVerified !== undefined) {
+    touch('catalogVerified', current.catalogVerified, p.catalogVerified);
+    dbPatch.catalog_verified = p.catalogVerified;
+  }
+  if (p.verificationNotes !== undefined) {
+    touch('verificationNotes', current.verificationNotes, p.verificationNotes ?? '');
+    dbPatch.verification_notes = p.verificationNotes;
+  }
+  if (p.lifestyleThemes !== undefined) {
+    touch('lifestyleThemes', current.lifestyleThemes, p.lifestyleThemes);
+    dbPatch.lifestyle_themes = p.lifestyleThemes;
+  }
+  if (p.recommendedChannels !== undefined) {
+    touch('recommendedChannels', current.recommendedChannels, p.recommendedChannels);
+    dbPatch.recommended_channels = p.recommendedChannels;
+  }
+  if (p.seasonality !== undefined) {
+    touch('seasonality', current.seasonality, p.seasonality ?? '');
+    dbPatch.seasonality = p.seasonality;
+  }
+  if (p.sampleStatus !== undefined) {
+    touch('sampleStatus', current.sampleStatus, p.sampleStatus ?? '');
+    dbPatch.sample_status = p.sampleStatus;
+  }
+  if (p.buyerFeedback !== undefined) {
+    touch('buyerFeedback', current.buyerFeedback, p.buyerFeedback ?? '');
+    dbPatch.buyer_feedback = p.buyerFeedback;
+  }
 
   if (p.resetPriceToCatalog) {
     touch('priceUsd', current.priceUsdOverride, null, true);
@@ -239,10 +370,13 @@ export async function updateCatalogItem(
         const existing = current.variants.find((x) => x.id === v.id);
         const variantPatch: Database['public']['Tables']['catalog_variants']['Update'] = {};
         if (v.size !== undefined) variantPatch.size = v.size;
+        if (v.sizeGroup !== undefined) variantPatch.size_group = v.sizeGroup;
         if (v.color !== undefined) variantPatch.color = v.color;
         if (v.style !== undefined) variantPatch.style = v.style;
+        if (v.variantSku !== undefined) variantPatch.variant_sku = v.variantSku;
+        if (v.packQuantity !== undefined) variantPatch.pack_quantity = v.packQuantity;
+        if (v.packPriceUsd !== undefined) variantPatch.pack_price_usd = v.packPriceUsd;
         // Existing rows: never overwrite catalog wholesale_usd from a bare wholesaleUsd edit.
-        // Prefer explicit override; if only wholesaleUsd is sent, map it to override.
         if (v.wholesaleUsdOverride !== undefined) {
           variantPatch.wholesale_usd_override = v.wholesaleUsdOverride;
         } else if (v.wholesaleUsd !== undefined && existing) {
@@ -268,10 +402,14 @@ export async function updateCatalogItem(
         const { error } = await supabase.from('catalog_variants').insert({
           catalog_item_id: input.id,
           size: v.size ?? 'BASE',
+          size_group: v.sizeGroup ?? null,
           color: v.color ?? null,
           style: v.style ?? null,
+          variant_sku: v.variantSku ?? null,
           wholesale_usd: v.wholesaleUsd ?? current.catalogPriceUsd,
           wholesale_usd_override: v.wholesaleUsdOverride ?? null,
+          pack_quantity: v.packQuantity ?? null,
+          pack_price_usd: v.packPriceUsd ?? null,
           sort_order: v.sortOrder ?? current.variants.length,
           availability: v.availability ?? 'available',
           notes: v.notes ?? null,
@@ -281,6 +419,59 @@ export async function updateCatalogItem(
           field_path: 'variants.new',
           old_value: null,
           new_value: v,
+        });
+      }
+    }
+  }
+
+  if (p.attributes) {
+    for (const a of p.attributes) {
+      if (a._delete && a.id) {
+        const { error } = await supabase.from('catalog_product_attributes').delete().eq('id', a.id);
+        if (error) return { ok: false, error: error.message };
+        changes.push({
+          field_path: `attributes.${a.attributeKey}`,
+          old_value: a.id,
+          new_value: null,
+        });
+        continue;
+      }
+
+      if (a.id) {
+        const existing = current.attributes.find((x) => x.id === a.id);
+        const { error } = await supabase
+          .from('catalog_product_attributes')
+          .update({
+            label: a.label,
+            value: a.value ?? null,
+            value_type: a.valueType ?? 'text',
+            unit: a.unit ?? null,
+            attribute_group: a.attributeGroup ?? 'other',
+            display_order: a.displayOrder ?? 0,
+          })
+          .eq('id', a.id);
+        if (error) return { ok: false, error: error.message };
+        changes.push({
+          field_path: `attributes.${a.attributeKey}`,
+          old_value: existing ?? null,
+          new_value: a,
+        });
+      } else {
+        const { error } = await supabase.from('catalog_product_attributes').insert({
+          catalog_item_id: input.id,
+          attribute_key: a.attributeKey,
+          label: a.label,
+          value: a.value ?? null,
+          value_type: a.valueType ?? 'text',
+          unit: a.unit ?? null,
+          attribute_group: a.attributeGroup ?? 'other',
+          display_order: a.displayOrder ?? current.attributes.length,
+        });
+        if (error) return { ok: false, error: error.message };
+        changes.push({
+          field_path: `attributes.${a.attributeKey}`,
+          old_value: null,
+          new_value: a,
         });
       }
     }
@@ -309,4 +500,4 @@ export async function updateCatalogItem(
   return { ok: true, item: refreshed.item };
 }
 
-export type { CatalogVariant };
+export type { CatalogVariant, CatalogAttribute };

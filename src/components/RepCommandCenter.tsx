@@ -12,6 +12,7 @@ import { InsightsTab } from '@/components/tabs/InsightsTab';
 import { useLandedCostCalculator } from '@/hooks/useLandedCostCalculator';
 import { fetchAllContacts, type ContactDirectoryRow } from '@/lib/accountContacts';
 import { fetchCatalogItems, type CatalogItem } from '@/lib/catalog';
+import { fetchOgrCatalogSettings, type CatalogSupplierTerms } from '@/lib/catalogSettings';
 import { fetchProspects, type Prospect } from '@/lib/prospects';
 import type { TabKey } from '@/types';
 
@@ -27,6 +28,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   const [directoryReloadToken, setDirectoryReloadToken] = useState(0);
   const [contactsReloadToken, setContactsReloadToken] = useState(0);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [supplierTerms, setSupplierTerms] = useState<CatalogSupplierTerms | null>(null);
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [contacts, setContacts] = useState<ContactDirectoryRow[]>([]);
   const [directoryLoading, setDirectoryLoading] = useState(true);
@@ -77,11 +79,13 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
         setDirectoryLoading(true);
       }
       setDirectoryError(null);
-      const [catalogResult, prospectsResult, contactsResult] = await Promise.all([
-        fetchCatalogItems(),
-        fetchProspects(),
-        fetchAllContacts(),
-      ]);
+      const [catalogResult, supplierTermsResult, prospectsResult, contactsResult] =
+        await Promise.all([
+          fetchCatalogItems(),
+          fetchOgrCatalogSettings(),
+          fetchProspects(),
+          fetchAllContacts(),
+        ]);
 
       if (!active) return;
 
@@ -100,6 +104,8 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
       }
 
       setCatalog(catalogResult.data);
+      // Supplier terms are supplemental (Ordering section); don't block the directory on them.
+      setSupplierTerms(supplierTermsResult.error ? null : supplierTermsResult.data);
       setProspects(prospectsResult.data);
       setContacts(contactsResult.data);
       setDirectoryLoading(false);
@@ -163,6 +169,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
               <CatalogTab
                 catalog={catalog}
                 onCatalogChange={setCatalog}
+                supplierTerms={supplierTerms}
                 fx={fx}
                 setFx={setFx}
                 freightRate={freightRate}

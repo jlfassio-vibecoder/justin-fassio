@@ -9,7 +9,6 @@ import {
 } from '@/lib/catalog';
 import { mapAttributeRow } from '@/lib/catalogAttributes';
 import { mapCatalogVariantRow } from '@/lib/catalogVariants';
-import { updateCatalogItem, type CatalogItemPatch } from '@/lib/updateCatalogItem';
 import type {
   CatalogItemRow,
   CatalogProductAttributeRow,
@@ -17,6 +16,10 @@ import type {
 } from '@/types/database';
 
 export const prerender = false;
+
+const BUCKET = 'catalog-assets';
+const MAX_BYTES = 8 * 1024 * 1024;
+const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 function jsonError(message: string, status: number): Response {
   return new Response(JSON.stringify({ ok: false, error: message }), {
@@ -48,64 +51,41 @@ async function loadFullItem(supabase: AgentSupabase, id: string) {
   return { item: mapCatalogRow(row, variants, attributes) };
 }
 
-export const GET: APIRoute = async ({ params, request }) => {
+function extForMime(mime: string): string {
+  if (mime === 'image/png') return 'png';
+  if (mime === 'image/webp') return 'webp';
+  if (mime === 'image/gif') return 'gif';
+  return 'jpg';
+}
+
+export const POST: APIRoute = async ({ params, request }) => {
   const gate = await requireApprovedStaffClient(request);
   if (!gate.ok) return gate.response;
 
   const sku = params.sku?.trim();
   if (!sku) return jsonError('SKU is required', 400);
 
-  const { data: line, error: lineError } = await gate.supabase
-    .from('lines')
-    .select('id')
-    .eq('code', 'ogr')
-    .maybeSingle();
-  if (lineError || !line) {
-    return jsonError(lineError?.message ?? 'Line not found', 404);
-  }
-
-  const { data, error } = await gate.supabase
-    .from('catalog_items')
-    .select('id')
-    .eq('line_id', line.id)
-    .eq('sku', sku)
-    .maybeSingle();
-
-  if (error) return jsonError(error.message, 502);
-  if (!data) return jsonError('Catalog item not found', 404);
-
-  const loaded = await loadFullItem(gate.supabase, data.id);
-  if ('error' in loaded) return jsonError(loaded.error ?? 'Not found', 502);
-
-  return new Response(JSON.stringify({ ok: true, item: loaded.item }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
-};
-
-export const PATCH: APIRoute = async ({ params, request }) => {
-  const gate = await requireApprovedStaffClient(request);
-  if (!gate.ok) return gate.response;
-
-  const sku = params.sku?.trim();
-  if (!sku) return jsonError('SKU is required', 400);
-
-  let body: { id?: unknown; patch?: CatalogItemPatch };
+  let form: FormData;
   try {
-    body = (await request.json()) as typeof body;
+    form = await request.formData();
   } catch {
-    return jsonError('Invalid JSON body', 400);
+    return jsonError('Expected multipart form data', 400);
   }
 
-  const id = typeof body.id === 'string' ? body.id : '';
+  const id = String(form.get('id') ?? '').trim();
+  const file = form.get('file');
   if (!id) return jsonError('Catalog item id is required', 400);
-  if (!body.patch || typeof body.patch !== 'object') {
-    return jsonError('patch is required', 400);
+  if (!(file instanceof File)) return jsonError('file is required', 400);
+  if (!ALLOWED.has(file.type)) {
+    return jsonError('Unsupported image type (use jpeg, png, webp, or gif)', 400);
+  }
+  if (file.size > MAX_BYTES) {
+    return jsonError('Image must be 8MB or smaller', 400);
   }
 
   const { data: owned, error: ownedError } = await gate.supabase
     .from('catalog_items')
-    .select('id, sku')
+    .select('id, sku, line_id')
     .eq('id', id)
     .maybeSingle();
   if (ownedError) return jsonError(ownedError.message, 502);
@@ -114,17 +94,49 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     return jsonError('Catalog item id does not match SKU in URL', 400);
   }
 
-  const result = await updateCatalogItem(gate.supabase, {
-    id,
-    patch: body.patch,
-    actorId: gate.userId,
+  const ext = extForMime(file.type);
+  const path = `${owned.line_id}/${owned.sku}/${Date.now()}.${ext}`;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  const { error: uploadError } = await gate.supabase.storage.from(BUCKET).upload(path, bytes, {
+    contentType: file.type,
+    upsert: false,
+  });
+  if (uploadError) return jsonError(uploadError.message, 502);
+
+  const { data: publicData } = gate.supabase.storage.from(BUCKET).getPublicUrl(path);
+  const publicUrl = publicData.publicUrl;
+
+  const { error: updateError } = await gate.supabase
+    .from('catalog_items')
+    .update({
+      primary_image_path: path,
+      primary_image_url: publicUrl,
+    })
+    .eq('id', id);
+  if (updateError) return jsonError(updateError.message, 502);
+
+  await gate.supabase.from('catalog_assets').insert({
+    catalog_item_id: id,
+    line_id: owned.line_id,
+    storage_path: path,
+    asset_kind: 'primary',
+    extraction_method: 'staff_upload',
   });
 
-  if (!result.ok) {
-    return jsonError(result.error, 502);
-  }
+  await gate.supabase.from('catalog_field_changes').insert({
+    catalog_item_id: id,
+    field_path: 'primaryImagePath',
+    old_value: null,
+    new_value: path,
+    source: 'user',
+    actor_id: gate.userId,
+  });
 
-  return new Response(JSON.stringify({ ok: true, item: result.item }), {
+  const loaded = await loadFullItem(gate.supabase, id);
+  if ('error' in loaded) return jsonError(loaded.error ?? 'Not found', 502);
+
+  return new Response(JSON.stringify({ ok: true, item: loaded.item }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });

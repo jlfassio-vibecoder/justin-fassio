@@ -7,6 +7,7 @@ import { RowActionsMenu } from '@/components/ui/RowActionsMenu';
 import { Tag } from '@/components/ui/Tag';
 import type { CatalogItem } from '@/lib/catalog';
 import { filterCatalogItems, type CatalogFlagFilter } from '@/lib/catalogFilters';
+import { factorsWithSettings, type CatalogSupplierTerms } from '@/lib/catalogSettings';
 import {
   DEFAULT_LANDED_COST_FACTORS,
   formatRatePct,
@@ -64,6 +65,7 @@ function applyLandedRatesPayload(
 interface CatalogTabProps {
   catalog: CatalogItem[];
   onCatalogChange?: (catalog: CatalogItem[]) => void;
+  supplierTerms?: CatalogSupplierTerms | null;
   fx: number;
   setFx: (fx: number) => void;
   freightRate: number;
@@ -85,6 +87,7 @@ interface CatalogTabProps {
 export function CatalogTab({
   catalog,
   onCatalogChange,
+  supplierTerms = null,
   fx,
   setFx,
   freightRate,
@@ -113,6 +116,11 @@ export function CatalogTab({
   const [shippingCadOverride, setShippingCadOverride] = useState<number | null>(null);
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
 
+  const pricedFactors = useMemo(
+    () => factorsWithSettings(factors, supplierTerms),
+    [factors, supplierTerms],
+  );
+
   const filteredCatalog = useMemo(() => {
     // Table Landed + Margin both use landed-before-recoverable-GST so columns reconcile.
     // Sample-card GST toggle remains independent and does not affect the table.
@@ -120,10 +128,10 @@ export function CatalogTab({
       const landed =
         item.landedCadOverride != null
           ? item.landedCadOverride
-          : landedCad(item.priceUsd, factors, { includeGst: false });
-      const margin = marginPct(item.priceUsd, item.msrpCad, factors, {
+          : landedCad(item.priceUsd, pricedFactors, { includeGst: false });
+      const margin = marginPct(item.priceUsd, item.msrpCad, pricedFactors, {
         landedOverrideCad: item.landedCadOverride,
-        importGstRecoverable: true,
+        importGstRecoverable: pricedFactors.importGstRecoverable !== false,
       });
       const sellable = margin != null;
       return {
@@ -135,7 +143,7 @@ export function CatalogTab({
         marginDisplay: sellable ? `${margin.toFixed(1)}%` : '—',
       };
     });
-  }, [catalog, search, category, flag, factors]);
+  }, [catalog, search, category, flag, pricedFactors]);
 
   const selectedItem = selectedSku ? (catalog.find((i) => i.sku === selectedSku) ?? null) : null;
 
@@ -147,17 +155,17 @@ export function CatalogTab({
     [catalog],
   );
   const sampleTeeLanded = sampleTee
-    ? `$${landedCad(sampleTee.priceUsd, factors, { includeGst: landedIncludeGst }).toFixed(2)} CAD`
+    ? `$${landedCad(sampleTee.priceUsd, pricedFactors, { includeGst: landedIncludeGst }).toFixed(2)} CAD`
     : '—';
 
   const keystoneBreakdown = sampleTee
-    ? retailKeystoneBreakdown(sampleTee.priceUsd, factors, keystoneMarginRate)
+    ? retailKeystoneBreakdown(sampleTee.priceUsd, pricedFactors, keystoneMarginRate)
     : null;
 
   const orderBreakdown = useMemo(() => {
     if (!sampleTee) return null;
-    return minOrderTotalBreakdown(sampleTee.priceUsd, factors, orderPieces);
-  }, [sampleTee, factors, orderPieces]);
+    return minOrderTotalBreakdown(sampleTee.priceUsd, pricedFactors, orderPieces);
+  }, [sampleTee, pricedFactors, orderPieces]);
 
   const shippingCad =
     shippingCadOverride != null ? shippingCadOverride : (orderBreakdown?.shippingCad ?? null);
@@ -629,7 +637,8 @@ export function CatalogTab({
       <ProductDetailDrawer
         item={selectedItem}
         items={filteredCatalog}
-        factors={factors}
+        factors={pricedFactors}
+        supplierTerms={supplierTerms}
         onClose={() => setSelectedSku(null)}
         onNavigate={(sku) => setSelectedSku(sku)}
         onSaved={(updated) => {
