@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { WholesaleOrderDraft } from '@/lib/wholesaleOrderDraft';
 import { orderTotals } from '@/lib/wholesaleOrderDraft';
 
@@ -66,10 +66,20 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Stable across retries for the same draft; refreshed when the draft changes (event-handler only).
+  const idempotencyRef = useRef<{ draftAt: string; key: string } | null>(null);
   const { totalUnits } = orderTotals(draft);
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function idempotencyKeyForDraft(): string {
+    const current = idempotencyRef.current;
+    if (current && current.draftAt === draft.updatedAt) return current.key;
+    const key = newIdempotencyKey();
+    idempotencyRef.current = { draftAt: draft.updatedAt, key };
+    return key;
   }
 
   async function handleSubmit() {
@@ -84,7 +94,7 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          idempotencyKey: newIdempotencyKey(),
+          idempotencyKey: idempotencyKeyForDraft(),
           businessName: form.businessName,
           buyerName: form.buyerName,
           email: form.email,

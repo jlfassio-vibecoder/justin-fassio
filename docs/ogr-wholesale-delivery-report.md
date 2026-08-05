@@ -88,11 +88,11 @@ Phase 1 auto-published active OGR rows that already had an `http(s)` `primary_im
 
 ## Architecture completion criteria
 
-| Criterion | Status |
-|-----------|--------|
-| Homepage link works | Met (CTA → `/old-guys-rule-wholesale`) |
-| Public catalog usable without auth | Met (SSR + anon RPCs) |
-| Private CRM data protected | Met (no anon table SELECT; RPCs strip staff fields) |
-| Buyer can build and submit a valid order request | Met |
-| Submission appears in authenticated CRM tables | Met (`wholesale_order_requests`, `prospect_id`, `prospect_updates`) |
-| Desktop and mobile layouts visually tested | Met (screenshots above) |
+| Criterion                                        | Status                                                              |
+| ------------------------------------------------ | ------------------------------------------------------------------- |
+| Homepage link works                              | Met (CTA → `/old-guys-rule-wholesale`)                              |
+| Public catalog usable without auth               | Met (SSR + anon RPCs)                                               |
+| Private CRM data protected                       | Met (no anon table SELECT; RPCs strip staff fields)                 |
+| Buyer can build and submit a valid order request | Met                                                                 |
+| Submission appears in authenticated CRM tables   | Met (`wholesale_order_requests`, `prospect_id`, `prospect_updates`) |
+| Desktop and mobile layouts visually tested       | Met (screenshots above)                                             |

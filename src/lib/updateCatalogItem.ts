@@ -326,8 +326,10 @@ export async function updateCatalogItem(
     dbPatch.public_sort_order = p.publicSortOrder;
   }
   if (p.publicSlug !== undefined) {
-    touch('publicSlug', current.publicSlug, p.publicSlug);
-    dbPatch.public_slug = p.publicSlug;
+    // Normalize to match public RPC lookup: lower(trim(p_slug))
+    const normalizedSlug = p.publicSlug == null ? null : p.publicSlug.trim().toLowerCase() || null;
+    touch('publicSlug', current.publicSlug, normalizedSlug);
+    dbPatch.public_slug = normalizedSlug;
   }
   if (p.liveSku !== undefined) {
     touch('liveSku', current.liveSku, p.liveSku);

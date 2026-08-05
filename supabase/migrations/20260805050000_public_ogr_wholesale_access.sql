@@ -12,6 +12,7 @@ alter table catalog_items
   add column if not exists alternate_image_urls jsonb not null default '[]'::jsonb;
 
 create unique index if not exists catalog_items_line_id_public_slug_uidx
+  -- Copilot suggestion ignored: this migration is already applied; rewriting index/backfill order would be unsafe on existing environments.
   on catalog_items (line_id, public_slug)
   where public_slug is not null;
 

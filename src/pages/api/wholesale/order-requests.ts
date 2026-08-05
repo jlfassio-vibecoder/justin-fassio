@@ -29,7 +29,13 @@ function clientKey(request: Request): string {
 export const POST: APIRoute = async ({ request }) => {
   const limited = checkWholesaleOrderRateLimit(`wholesale-order:${clientKey(request)}`);
   if (!limited.ok) {
-    return json({ ok: false, error: 'Rate limit exceeded' }, 429);
+    return new Response(JSON.stringify({ ok: false, error: 'Rate limit exceeded' }), {
+      status: 429,
+      headers: {
+        'Content-Type': 'application/json',
+        'Retry-After': String(limited.retryAfterSec),
+      },
+    });
   }
 
   let raw: unknown;

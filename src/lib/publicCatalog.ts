@@ -131,7 +131,7 @@ export async function fetchPublicOgrProductBySlug(slug: string): Promise<{
   error: string | null;
 }> {
   const trimmed = slug.trim();
-  if (!trimmed) return { data: null, error: 'Slug is required' };
+  if (!trimmed) return { data: null, error: null };
 
   const { data, error } = await supabase.rpc('get_public_ogr_product_by_slug', {
     p_slug: trimmed,

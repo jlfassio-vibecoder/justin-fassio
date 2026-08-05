@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { missingPublicOgrProductResponse } from '@/lib/wholesaleRoutes';
+import { resolvePublicOgrProductPageResponse } from '@/lib/wholesaleRoutes';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
 
 const product = {
@@ -9,15 +9,21 @@ const product = {
   name: 'Sample',
 } as PublicOgrProduct;
 
-describe('missingPublicOgrProductResponse', () => {
-  it('returns 404 when product is null', () => {
-    const res = missingPublicOgrProductResponse(null);
-    expect(res).toBeInstanceOf(Response);
+describe('resolvePublicOgrProductPageResponse', () => {
+  it('returns 503 when the public RPC fails', () => {
+    const res = resolvePublicOgrProductPageResponse({
+      product: null,
+      error: 'connection refused',
+    });
+    expect(res?.status).toBe(503);
+  });
+
+  it('returns 404 when product is missing without an RPC error', () => {
+    const res = resolvePublicOgrProductPageResponse({ product: null, error: null });
     expect(res?.status).toBe(404);
-    expect(res?.statusText).toBe('Not Found');
   });
 
   it('returns null when product exists so the page can render', () => {
-    expect(missingPublicOgrProductResponse(product)).toBeNull();
+    expect(resolvePublicOgrProductPageResponse({ product, error: null })).toBeNull();
   });
 });

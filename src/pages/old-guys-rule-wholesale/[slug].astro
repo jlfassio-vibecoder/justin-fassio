@@ -8,17 +8,23 @@ import {
   fetchPublicOgrSupplierTerms,
   type PublicOgrSupplierTerms,
 } from '@/lib/publicCatalog';
-import { missingPublicOgrProductResponse } from '@/lib/wholesaleRoutes';
+import { resolvePublicOgrProductPageResponse } from '@/lib/wholesaleRoutes';
 
 const slug = Astro.params.slug ?? '';
-const [{ data: product }, { data: terms }] = await Promise.all([
+const [{ data: product, error: productError }, { data: terms }] = await Promise.all([
   fetchPublicOgrProductBySlug(slug),
   fetchPublicOgrSupplierTerms(),
 ]);
 
-const notFound = missingPublicOgrProductResponse(product);
-if (notFound || !product) {
-  return notFound ?? missingPublicOgrProductResponse(null)!;
+const earlyResponse = resolvePublicOgrProductPageResponse({
+  product,
+  error: productError,
+});
+if (earlyResponse) {
+  return earlyResponse;
+}
+if (!product) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
 }
 
 const resolvedTerms: PublicOgrSupplierTerms = terms ?? {

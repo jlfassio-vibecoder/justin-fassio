@@ -1,10 +1,24 @@
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
 
 /**
- * Returns a 404 Response when the public product is missing; otherwise null
- * so the Astro page can continue rendering.
+ * Resolve the HTTP response for a public product-by-slug fetch.
+ * - RPC / transport failure → 503 (retryable)
+ * - Missing product → 404
+ * - Found → null (page continues rendering)
  */
-export function missingPublicOgrProductResponse(product: PublicOgrProduct | null): Response | null {
-  if (product) return null;
-  return new Response(null, { status: 404, statusText: 'Not Found' });
+export function resolvePublicOgrProductPageResponse(args: {
+  product: PublicOgrProduct | null;
+  error: string | null;
+}): Response | null {
+  if (args.error) {
+    return new Response('Wholesale catalog temporarily unavailable. Please try again shortly.', {
+      status: 503,
+      statusText: 'Service Unavailable',
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
+  if (!args.product) {
+    return new Response(null, { status: 404, statusText: 'Not Found' });
+  }
+  return null;
 }
