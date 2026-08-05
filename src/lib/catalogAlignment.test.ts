@@ -17,6 +17,10 @@ describe('unitEquivalentWholesaleUsd', () => {
       unitEquivalentWholesaleUsd({ wholesaleUsd: 40, packQuantity: 4, packPriceUsd: 40 }),
     ).toBe(10);
   });
+
+  it('divides wholesale by pack qty when pack price is omitted', () => {
+    expect(unitEquivalentWholesaleUsd({ wholesaleUsd: 25, packQuantity: 25 })).toBe(1);
+  });
 });
 
 describe('templatesForCategory', () => {
@@ -74,10 +78,10 @@ describe('factorsWithSettings', () => {
     } satisfies CatalogSettingsRow);
 
     const factors = factorsWithSettings(
-      { fx: 1.45, freightRate: 0.1, gstRate: 0.05, otherTaxRate: 0 },
+      { fx: 1.45, freightRate: 0.1, gstRate: 0.05, otherTaxRate: 0.02 },
       settings,
     );
-    expect(factors.otherTaxRate).toBeCloseTo(0.03);
+    expect(factors.otherTaxRate).toBeCloseTo(0.05);
     expect(factors.dutyRate).toBe(0.02);
     expect(factors.importGstRecoverable).toBe(true);
 

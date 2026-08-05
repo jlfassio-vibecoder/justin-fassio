@@ -139,6 +139,7 @@ export async function updateCatalogItem(
     actorId: string;
   },
 ): Promise<{ ok: true; item: CatalogItem } | { ok: false; error: string }> {
+  // Copilot suggestion ignored: Supabase JS has no multi-table transaction here; we keep sequential writes with early return on failure (existing catalog patch pattern).
   const loaded = await loadItemWithVariants(supabase, input.id);
   if ('error' in loaded) {
     return { ok: false, error: loaded.error };

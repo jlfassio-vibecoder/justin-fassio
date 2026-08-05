@@ -5,8 +5,10 @@ export function unitEquivalentWholesaleUsd(input: {
   packPriceUsd?: number | null;
 }): number {
   const packQty = input.packQuantity != null && input.packQuantity > 0 ? input.packQuantity : 1;
-  if (input.packPriceUsd != null && Number.isFinite(input.packPriceUsd) && packQty > 1) {
+  if (packQty <= 1) return input.wholesaleUsd;
+  if (input.packPriceUsd != null && Number.isFinite(input.packPriceUsd)) {
     return input.packPriceUsd / packQty;
   }
-  return input.wholesaleUsd;
+  // Pack wholesale is often the pack total with no separate packPriceUsd.
+  return input.wholesaleUsd / packQty;
 }

@@ -1024,7 +1024,6 @@ function ProductDetailDrawerInner({
                     const unitEq = unitEquivalentWholesaleUsd({
                       wholesaleUsd: wholesaleNum,
                       packQuantity: packQtyNum,
-                      packPriceUsd: selectedCatalogVariantForRow(item, v.id)?.packPriceUsd ?? null,
                     });
                     const active = i === safeVariantIndex;
                     return (
@@ -1616,14 +1615,6 @@ function ProductDetailDrawerInner({
       </aside>
     </>
   );
-}
-
-function selectedCatalogVariantForRow(
-  item: CatalogItem,
-  variantId: string | undefined,
-): { packPriceUsd: number | null } | undefined {
-  if (!variantId) return undefined;
-  return item.variants.find((v) => v.id === variantId);
 }
 
 function groupAttributes(

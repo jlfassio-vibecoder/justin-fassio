@@ -61,7 +61,8 @@ export function factorsWithSettings(
   const dutyAndSurtax = settings.dutyRate + settings.surtaxRate;
   return {
     ...base,
-    otherTaxRate: Math.max(base.otherTaxRate, dutyAndSurtax),
+    // Stack UI "other" with settings duty/surtax (do not collapse via max).
+    otherTaxRate: base.otherTaxRate + dutyAndSurtax,
     dutyRate: settings.dutyRate,
     surtaxRate: settings.surtaxRate,
     brokerageAllocationCad: settings.brokerageAllocationCad,

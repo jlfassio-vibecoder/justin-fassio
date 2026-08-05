@@ -116,15 +116,16 @@ export const POST: APIRoute = async ({ params, request }) => {
     .eq('id', id);
   if (updateError) return jsonError(updateError.message, 502);
 
-  await gate.supabase.from('catalog_assets').insert({
+  const { error: assetError } = await gate.supabase.from('catalog_assets').insert({
     catalog_item_id: id,
     line_id: owned.line_id,
     storage_path: path,
     asset_kind: 'primary',
     extraction_method: 'staff_upload',
   });
+  if (assetError) return jsonError(assetError.message, 502);
 
-  await gate.supabase.from('catalog_field_changes').insert({
+  const { error: changeError } = await gate.supabase.from('catalog_field_changes').insert({
     catalog_item_id: id,
     field_path: 'primaryImagePath',
     old_value: null,
@@ -132,6 +133,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     source: 'user',
     actor_id: gate.userId,
   });
+  if (changeError) return jsonError(changeError.message, 502);
 
   const loaded = await loadFullItem(gate.supabase, id);
   if ('error' in loaded) return jsonError(loaded.error ?? 'Not found', 502);

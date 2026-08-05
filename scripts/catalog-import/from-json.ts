@@ -117,8 +117,12 @@ function loadProducts(filePath: string): ImportProduct[] {
 function verifiedFromMeta(fieldMeta: unknown): Set<string> {
   if (!fieldMeta || typeof fieldMeta !== 'object' || Array.isArray(fieldMeta)) return new Set();
   const out = new Set<string>();
-  for (const [key, val] of Object.entries(fieldMeta as Record<string, { source?: string }>)) {
-    if (val?.source === 'user' || val?.source === 'verified') out.add(key);
+  for (const [key, val] of Object.entries(
+    fieldMeta as Record<string, { source?: string; verified?: boolean }>,
+  )) {
+    if (val?.verified === true || val?.source === 'user' || val?.source === 'catalog') {
+      out.add(key);
+    }
   }
   return out;
 }
@@ -153,7 +157,7 @@ async function main() {
   const { data: existingRows } = await supabase
     .from('catalog_items')
     .select(
-      'id, sku, name, cat, color, tagline, price_usd, msrp_cad, material, sales_description, primary_image_url, field_meta, department, unit_of_measure, pack_quantity',
+      'id, sku, name, cat, color, tagline, page, price_usd, msrp_cad, material, sales_description, primary_image_url, source_image_url, field_meta, department, unit_of_measure, pack_quantity',
     )
     .eq('line_id', line.id);
 
@@ -271,9 +275,11 @@ async function main() {
       material: existing.material,
       sales_description: existing.sales_description,
       primary_image_url: existing.primary_image_url,
+      source_image_url: existing.source_image_url,
       department: existing.department,
       unit_of_measure: existing.unit_of_measure,
       pack_quantity: existing.pack_quantity,
+      page: existing.page,
     };
     const { fills, conflicts } = mergeCatalogEvidence({
       current,

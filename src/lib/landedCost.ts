@@ -12,6 +12,7 @@ export type LandedCostFactors = {
   /** Optional duty rate from catalog_settings (folded into otherTaxRate when merging). */
   dutyRate?: number;
   surtaxRate?: number;
+  // Copilot suggestion ignored: brokerage is an order-level CAD allocation, not a per-SKU rate; folding it into every variant landed would overstate unit cost.
   brokerageAllocationCad?: number;
   importGstRecoverable?: boolean;
 };
