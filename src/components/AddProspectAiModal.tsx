@@ -4,18 +4,35 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input } from '@/components/ui/Input';
-import { enrichProspect } from '@/lib/enrichProspect';
+import { enrichProspect, type EnrichProspectInput } from '@/lib/enrichProspect';
 import type { Prospect } from '@/lib/prospects';
+
+export type AddProspectAiInitialValues = {
+  companyName?: string;
+  websiteUrl?: string;
+};
+
+export type AddProspectAiEnrichSeeds = Omit<EnrichProspectInput, 'companyName' | 'websiteUrl'>;
 
 interface AddProspectAiModalProps {
   open: boolean;
   onClose: () => void;
   onCreated: (prospect: Prospect) => void;
+  /** Prefill company/website when opened from Message Center (remount with key to re-seed). */
+  initialValues?: AddProspectAiInitialValues;
+  /** Known inbound facts passed through to enrich (phone/city/buyer preferred over AI guess). */
+  enrichSeeds?: AddProspectAiEnrichSeeds;
 }
 
-export function AddProspectAiModal({ open, onClose, onCreated }: AddProspectAiModalProps) {
-  const [companyName, setCompanyName] = useState('');
-  const [websiteUrl, setWebsiteUrl] = useState('');
+export function AddProspectAiModal({
+  open,
+  onClose,
+  onCreated,
+  initialValues,
+  enrichSeeds,
+}: AddProspectAiModalProps) {
+  const [companyName, setCompanyName] = useState(() => initialValues?.companyName?.trim() ?? '');
+  const [websiteUrl, setWebsiteUrl] = useState(() => initialValues?.websiteUrl?.trim() ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +60,11 @@ export function AddProspectAiModal({ open, onClose, onCreated }: AddProspectAiMo
     const result = await enrichProspect({
       companyName: name,
       websiteUrl: websiteUrl.trim() || undefined,
+      contactName: enrichSeeds?.contactName,
+      phone: enrichSeeds?.phone,
+      email: enrichSeeds?.email,
+      city: enrichSeeds?.city,
+      retailChannelHint: enrichSeeds?.retailChannelHint,
     });
     setBusy(false);
 

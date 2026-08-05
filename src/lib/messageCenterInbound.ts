@@ -36,6 +36,8 @@ export type WholesaleInboundMessageInput = {
   preferredContactMethod?: string | null;
   totalUnits: number;
   merchandiseSubtotalUsd: number;
+  /** Optional CRM auto-match — stored as suggestion until staff confirms. */
+  suggestedProspectId?: number | null;
   lines: Array<{
     sku: string;
     name: string;
@@ -175,12 +177,16 @@ export async function upsertWholesaleInboundMessage(
   let createdThread = false;
 
   if (!existing) {
+    const suggestedId =
+      typeof input.suggestedProspectId === 'number' && Number.isFinite(input.suggestedProspectId)
+        ? input.suggestedProspectId
+        : null;
     const { data: created, error: createError } = await admin
       .from('message_threads')
       .insert({
         identity_fingerprint: fingerprint,
-        mapping_status: 'unmapped',
-        prospect_id: null,
+        mapping_status: suggestedId != null ? 'suggested' : 'unmapped',
+        prospect_id: suggestedId,
         source: 'old-guys-rule-wholesale',
         subject,
         last_message_at: now,
