@@ -1,9 +1,20 @@
 import type { APIRoute } from 'astro';
+import type { AgentSupabase } from '@/lib/agentAuth';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
-import { mapCatalogRow } from '@/lib/catalog';
+import {
+  CATALOG_ATTRIBUTE_SELECT,
+  CATALOG_ITEM_SELECT,
+  CATALOG_VARIANT_SELECT,
+  mapCatalogRow,
+} from '@/lib/catalog';
+import { mapAttributeRow } from '@/lib/catalogAttributes';
 import { mapCatalogVariantRow } from '@/lib/catalogVariants';
 import { updateCatalogItem, type CatalogItemPatch } from '@/lib/updateCatalogItem';
-import type { CatalogItemRow, CatalogVariantRow } from '@/types/database';
+import type {
+  CatalogItemRow,
+  CatalogProductAttributeRow,
+  CatalogVariantRow,
+} from '@/types/database';
 
 export const prerender = false;
 
@@ -12,6 +23,29 @@ function jsonError(message: string, status: number): Response {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+async function loadFullItem(supabase: AgentSupabase, id: string) {
+  const { data, error } = await supabase
+    .from('catalog_items')
+    .select(CATALOG_ITEM_SELECT)
+    .eq('id', id)
+    .single();
+  if (error || !data) return { error: error?.message ?? 'Not found' };
+  const row = data as CatalogItemRow;
+  const { data: variantRows } = await supabase
+    .from('catalog_variants')
+    .select(CATALOG_VARIANT_SELECT)
+    .eq('catalog_item_id', id)
+    .order('sort_order', { ascending: true });
+  const { data: attrRows } = await supabase
+    .from('catalog_product_attributes')
+    .select(CATALOG_ATTRIBUTE_SELECT)
+    .eq('catalog_item_id', id)
+    .order('display_order', { ascending: true });
+  const variants = (variantRows ?? []).map((v) => mapCatalogVariantRow(v as CatalogVariantRow));
+  const attributes = (attrRows ?? []).map((a) => mapAttributeRow(a as CatalogProductAttributeRow));
+  return { item: mapCatalogRow(row, variants, attributes) };
 }
 
 export const GET: APIRoute = async ({ params, request }) => {
@@ -32,9 +66,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 
   const { data, error } = await gate.supabase
     .from('catalog_items')
-    .select(
-      'id, line_id, page, cat, sku, name, color, tagline, price_usd, msrp_cad, catalog_price_usd, price_usd_override, catalog_msrp_cad, msrp_cad_override, landed_cad_override, field_meta, status, is_new, is_name_drop, is_bestseller, pdf_page, catalog_year, brand, product_family, collection, product_type, accent_color, sales_description, material, special_notes, sales_priority, sales_notes, primary_image_path, created_at, updated_at',
-    )
+    .select('id')
     .eq('line_id', line.id)
     .eq('sku', sku)
     .maybeSingle();
@@ -42,18 +74,10 @@ export const GET: APIRoute = async ({ params, request }) => {
   if (error) return jsonError(error.message, 502);
   if (!data) return jsonError('Catalog item not found', 404);
 
-  const row = data as CatalogItemRow;
-  const { data: variantRows } = await gate.supabase
-    .from('catalog_variants')
-    .select(
-      'id, catalog_item_id, size, color, style, wholesale_usd, wholesale_usd_override, unit_of_measure, pack_quantity, pack_price_usd, availability, sort_order, notes, created_at, updated_at',
-    )
-    .eq('catalog_item_id', row.id)
-    .order('sort_order', { ascending: true });
+  const loaded = await loadFullItem(gate.supabase, data.id);
+  if ('error' in loaded) return jsonError(loaded.error ?? 'Not found', 502);
 
-  const variants = (variantRows ?? []).map((v) => mapCatalogVariantRow(v as CatalogVariantRow));
-
-  return new Response(JSON.stringify({ ok: true, item: mapCatalogRow(row, variants) }), {
+  return new Response(JSON.stringify({ ok: true, item: loaded.item }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });

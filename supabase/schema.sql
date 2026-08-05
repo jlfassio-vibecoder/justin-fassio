@@ -65,7 +65,7 @@ create table if not exists catalog_items (
   landed_cad_override numeric(10, 2),
   field_meta jsonb not null default '{}'::jsonb,
   status text not null default 'active'
-    check (status in ('active', 'discontinued', 'unavailable')),
+    check (status in ('active', 'inactive', 'discontinued', 'unavailable', 'unknown')),
   is_new boolean not null default false,
   is_name_drop boolean not null default false,
   is_bestseller boolean not null default false,
@@ -82,6 +82,29 @@ create table if not exists catalog_items (
   sales_priority text,
   sales_notes text,
   primary_image_path text,
+  department text
+    check (department is null or department in (
+      'Apparel', 'Headwear', 'Accessories', 'Drinkware', 'Displays', 'Metal Signs'
+    )),
+  normalized_sku text,
+  unit_of_measure text not null default 'each'
+    check (unit_of_measure in ('each', 'pack', 'set', 'display')),
+  minimum_quantity integer,
+  order_multiple integer,
+  pack_quantity integer,
+  made_in_usa_claim boolean,
+  country_of_blank_manufacture text,
+  country_of_decoration text,
+  country_of_origin text,
+  primary_image_url text,
+  source_image_url text,
+  catalog_verified boolean not null default false,
+  verification_notes text,
+  lifestyle_themes jsonb not null default '[]'::jsonb,
+  recommended_channels jsonb not null default '[]'::jsonb,
+  seasonality text,
+  sample_status text,
+  buyer_feedback text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (line_id, sku)
@@ -89,6 +112,8 @@ create table if not exists catalog_items (
 
 create index if not exists catalog_items_line_id_idx on catalog_items (line_id);
 create index if not exists catalog_items_cat_idx on catalog_items (cat);
+create index if not exists catalog_items_normalized_sku_idx on catalog_items (normalized_sku);
+create index if not exists catalog_items_department_idx on catalog_items (department);
 
 drop trigger if exists catalog_items_set_updated_at on catalog_items;
 create trigger catalog_items_set_updated_at
@@ -111,6 +136,12 @@ create table if not exists catalog_settings (
   import_gst_recoverable boolean not null default true,
   terms_verified boolean not null default false,
   terms_note text,
+  default_shipping_method text,
+  prices_subject_to_change boolean not null default true,
+  backorder_policy text,
+  order_processing_policy text,
+  claims_policy text,
+  returns_policy text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -125,8 +156,10 @@ create table if not exists catalog_variants (
   id uuid primary key default gen_random_uuid(),
   catalog_item_id uuid not null references catalog_items(id) on delete cascade,
   size text,
+  size_group text,
   color text,
   style text,
+  variant_sku text,
   wholesale_usd numeric(10, 2) not null default 0,
   wholesale_usd_override numeric(10, 2),
   unit_of_measure text not null default 'each',
@@ -154,6 +187,33 @@ create index if not exists catalog_variants_catalog_item_id_idx
 drop trigger if exists catalog_variants_set_updated_at on catalog_variants;
 create trigger catalog_variants_set_updated_at
   before update on catalog_variants
+  for each row execute function set_updated_at();
+
+create table if not exists catalog_product_attributes (
+  id uuid primary key default gen_random_uuid(),
+  catalog_item_id uuid not null references catalog_items(id) on delete cascade,
+  attribute_key text not null,
+  label text not null,
+  value text,
+  value_type text not null default 'text'
+    check (value_type in ('text', 'number', 'boolean', 'dimension')),
+  unit text,
+  attribute_group text not null default 'other'
+    check (attribute_group in (
+      'construction', 'decoration', 'dimensions', 'packaging', 'display', 'origin', 'other'
+    )),
+  display_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (catalog_item_id, attribute_key)
+);
+
+create index if not exists catalog_product_attributes_item_id_idx
+  on catalog_product_attributes (catalog_item_id);
+
+drop trigger if exists catalog_product_attributes_set_updated_at on catalog_product_attributes;
+create trigger catalog_product_attributes_set_updated_at
+  before update on catalog_product_attributes
   for each row execute function set_updated_at();
 
 create table if not exists catalog_field_changes (
@@ -597,6 +657,7 @@ alter table lines enable row level security;
 alter table catalog_items enable row level security;
 alter table catalog_settings enable row level security;
 alter table catalog_variants enable row level security;
+alter table catalog_product_attributes enable row level security;
 alter table catalog_field_changes enable row level security;
 alter table catalog_assets enable row level security;
 alter table catalog_import_runs enable row level security;
@@ -632,6 +693,12 @@ create policy "approved staff full access" on catalog_settings
 
 drop policy if exists "approved staff full access" on catalog_variants;
 create policy "approved staff full access" on catalog_variants
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on catalog_product_attributes;
+create policy "approved staff full access" on catalog_product_attributes
   for all to authenticated
   using (public.is_approved_staff())
   with check (public.is_approved_staff());
