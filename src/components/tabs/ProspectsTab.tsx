@@ -9,6 +9,7 @@ import { useAiAssist } from '@/hooks/useAiAssist';
 import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
 import type { ProspectResearchMode } from '@/lib/fillBlankProspectFields';
 import type { Prospect } from '@/lib/prospects';
+import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
 
 const PLANNING_COLUMN_HEADERS = [
   'External ID',
@@ -48,6 +49,7 @@ function TruncatedCell({ value, className = '' }: { value: string; className?: s
 
 interface ProspectsTabProps {
   prospects: Prospect[];
+  territories?: Territory[];
   onLogCall: (prospect: Prospect) => void;
   onConverted?: () => void;
   onProspectCreated?: (prospect: Prospect) => void;
@@ -57,6 +59,7 @@ interface ProspectsTabProps {
 
 export function ProspectsTab({
   prospects,
+  territories = [],
   onLogCall,
   onConverted,
   onProspectCreated,
@@ -65,6 +68,7 @@ export function ProspectsTab({
 }: ProspectsTabProps) {
   const { openAssist } = useAiAssist();
   const [addOpen, setAddOpen] = useState(false);
+  const [territoryCode, setTerritoryCode] = useState(BC_TERRITORY_CODE);
   const [highlightedProspectId, setHighlightedProspectId] = useState<number | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [detailProspect, setDetailProspect] = useState<Prospect | null>(null);
@@ -98,7 +102,10 @@ export function ProspectsTab({
       <RetailerDirectory
         data-screen-label="prospects"
         retailers={pipelineProspects}
-        searchPlaceholder="Search BC prospects by name, city, address, fit, ID, website…"
+        territories={territories}
+        territoryCode={territoryCode}
+        onTerritoryCodeChange={setTerritoryCode}
+        searchPlaceholder="Search prospects by name, city, address, fit, ID, website…"
         emptyMessage="No prospects match these filters. Converted accounts live under Active Accounts."
         highlightedId={highlightedProspectId}
         extraColumnHeaders={[...PLANNING_COLUMN_HEADERS]}
@@ -224,6 +231,7 @@ export function ProspectsTab({
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onCreated={handleCreated}
+        enrichSeeds={{ territoryCode }}
       />
 
       <AiUpdateResearchModal

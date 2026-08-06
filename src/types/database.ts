@@ -46,6 +46,39 @@ export interface Database {
         };
         Relationships: [];
       };
+      territories: {
+        Row: {
+          id: string;
+          code: string;
+          name: string;
+          country_code: string;
+          sort_order: number;
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          name: string;
+          country_code: string;
+          sort_order?: number;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          code?: string;
+          name?: string;
+          country_code?: string;
+          sort_order?: number;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       catalog_items: {
         Row: {
           id: string;
@@ -585,6 +618,7 @@ export interface Database {
           converted_at: string | null;
           initial_order_date: string | null;
           notes: string | null;
+          territory_id: string;
           external_id: string | null;
           subterritory: string | null;
           primary_district: string | null;
@@ -617,6 +651,7 @@ export interface Database {
           converted_at?: string | null;
           initial_order_date?: string | null;
           notes?: string | null;
+          territory_id: string;
           external_id?: string | null;
           subterritory?: string | null;
           primary_district?: string | null;
@@ -649,6 +684,7 @@ export interface Database {
           converted_at?: string | null;
           initial_order_date?: string | null;
           notes?: string | null;
+          territory_id?: string;
           external_id?: string | null;
           subterritory?: string | null;
           primary_district?: string | null;
@@ -668,7 +704,15 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'prospects_territory_id_fkey';
+            columns: ['territory_id'];
+            isOneToOne: false;
+            referencedRelation: 'territories';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       prospect_updates: {
         Row: {

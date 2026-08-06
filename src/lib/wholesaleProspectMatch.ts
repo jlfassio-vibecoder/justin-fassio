@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { nextProspectId } from '@/lib/createEnrichedProspect';
+import { resolveTerritoryIdByCode, territoryCodeFromProvince } from '@/lib/territories';
 import type { Database } from '@/types/database';
 
 export type WholesaleProspectMatchKind = 'email' | 'name' | 'created';
@@ -112,6 +113,12 @@ async function createInboundProspect(
   const allocated = await allocateNextId(admin);
   if (typeof allocated !== 'number') return { ok: false, error: allocated.error };
 
+  const territory = await resolveTerritoryIdByCode(
+    admin,
+    territoryCodeFromProvince(input.province),
+  );
+  if ('error' in territory) return { ok: false, error: territory.error };
+
   const existingOgr = input.isExistingCustomer ? 'yes' : 'unknown';
   const { data: prospect, error: prospectError } = await admin
     .from('prospects')
@@ -128,6 +135,7 @@ async function createInboundProspect(
       source_note: SOURCE_NOTE,
       existing_ogr: existingOgr,
       retail_category: input.retailChannel?.trim() || null,
+      territory_id: territory.id,
       // account_status omitted — DB default 'prospect'
     })
     .select('id')

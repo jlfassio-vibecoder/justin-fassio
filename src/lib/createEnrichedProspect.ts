@@ -8,9 +8,10 @@ import {
   PROSPECT_SELECT,
   type Prospect,
   type ProspectCategory,
+  type ProspectListRow,
   type ProspectRegion,
 } from '@/lib/prospects';
-import type { ProspectRow } from '@/types/database';
+import { BC_TERRITORY_CODE, resolveTerritoryIdByCode } from '@/lib/territories';
 
 export const PROSPECT_CATEGORIES = [
   'Golf',
@@ -67,6 +68,8 @@ export type CreateEnrichedProspectInput = {
   city?: string;
   /** Buyer retail channel hint for research + category mapping. */
   retailChannelHint?: string;
+  /** Territory code (bc/ab/ca/or/wa). Defaults to British Columbia. */
+  territoryCode?: string;
   /** When provided (e.g. by contact enrich), skip a second web search. */
   researchBrief?: string | null;
   /**
@@ -148,11 +151,11 @@ async function insertProspect(
   supabase: AgentSupabase,
   id: number,
   fields: EnrichedProspectFields,
-  extras?: { websiteUrl?: string; retailChannelHint?: string },
+  extras: { websiteUrl?: string; retailChannelHint?: string; territoryId: string },
 ): Promise<CreateEnrichedProspectResult> {
   const fit = formatProspectFit(fields.fitScore, fields.notes);
-  const website = extras?.websiteUrl?.trim() || null;
-  const retailCategory = extras?.retailChannelHint?.trim() || null;
+  const website = extras.websiteUrl?.trim() || null;
+  const retailCategory = extras.retailChannelHint?.trim() || null;
   const { data, error } = await supabase
     .from('prospects')
     .insert({
@@ -167,6 +170,7 @@ async function insertProspect(
       website,
       source_note: 'Add via AI',
       retail_category: retailCategory,
+      territory_id: extras.territoryId,
     })
     .select(PROSPECT_SELECT)
     .single();
@@ -177,7 +181,7 @@ async function insertProspect(
   if (!data) {
     return { ok: false, error: 'Insert returned no row' };
   }
-  return { ok: true, prospect: mapProspectRow(data as ProspectRow), researchBrief: null };
+  return { ok: true, prospect: mapProspectRow(data as ProspectListRow), researchBrief: null };
 }
 
 async function insertBuyerContact(
@@ -305,9 +309,18 @@ export async function createEnrichedProspect(
   }
 
   const { fields, researchBrief } = inferred;
+  const territory = await resolveTerritoryIdByCode(
+    supabase,
+    input.territoryCode?.trim() || BC_TERRITORY_CODE,
+  );
+  if ('error' in territory) {
+    return { ok: false, error: territory.error };
+  }
+
   const insertExtras = {
     websiteUrl: input.websiteUrl?.trim() || undefined,
     retailChannelHint: input.retailChannelHint?.trim() || undefined,
+    territoryId: territory.id,
   };
 
   const firstId = await allocateNextId(supabase);

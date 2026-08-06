@@ -26,7 +26,7 @@ const tabs: { key: TabKey; label: string; icon: typeof Package }[] = [
   { key: 'catalog', label: 'Line Sheet', icon: Package },
   { key: 'dashboard', label: 'PMF Dashboard', icon: Gauge },
   { key: 'calls', label: 'Call Pipeline', icon: ListChecks },
-  { key: 'prospects', label: 'BC Prospect Directory', icon: Home },
+  { key: 'prospects', label: 'Prospect Directory', icon: Home },
   { key: 'accounts', label: 'Active Accounts', icon: Building2 },
   { key: 'contacts', label: 'Contacts', icon: Users },
   { key: 'messages', label: 'Messages', icon: MessageSquare },

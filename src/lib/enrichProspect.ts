@@ -9,6 +9,7 @@ export type EnrichProspectInput = {
   email?: string;
   city?: string;
   retailChannelHint?: string;
+  territoryCode?: string;
 };
 
 export type EnrichProspectResult = { ok: true; prospect: Prospect } | { ok: false; error: string };
@@ -37,6 +38,7 @@ export async function enrichProspect(input: EnrichProspectInput): Promise<Enrich
       email: input.email,
       city: input.city,
       retailChannelHint: input.retailChannelHint,
+      territoryCode: input.territoryCode,
     }),
   });
 

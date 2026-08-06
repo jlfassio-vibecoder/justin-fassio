@@ -16,6 +16,7 @@ import { fetchCatalogItems, type CatalogItem } from '@/lib/catalog';
 import { fetchOgrCatalogSettings, type CatalogSupplierTerms } from '@/lib/catalogSettings';
 import { fetchNeedsMappingCount } from '@/lib/messages';
 import { fetchProspects, type Prospect } from '@/lib/prospects';
+import { fetchTerritories, type Territory } from '@/lib/territories';
 import type { TabKey } from '@/types';
 
 interface RepCommandCenterProps {
@@ -32,6 +33,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [supplierTerms, setSupplierTerms] = useState<CatalogSupplierTerms | null>(null);
   const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [territories, setTerritories] = useState<Territory[]>([]);
   const [contacts, setContacts] = useState<ContactDirectoryRow[]>([]);
   const [directoryLoading, setDirectoryLoading] = useState(true);
   const [directoryError, setDirectoryError] = useState<string | null>(null);
@@ -82,23 +84,33 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
         setDirectoryLoading(true);
       }
       setDirectoryError(null);
-      const [catalogResult, supplierTermsResult, prospectsResult, contactsResult] =
-        await Promise.all([
-          fetchCatalogItems(),
-          fetchOgrCatalogSettings(),
-          fetchProspects(),
-          fetchAllContacts(),
-        ]);
+      const [
+        catalogResult,
+        supplierTermsResult,
+        prospectsResult,
+        territoriesResult,
+        contactsResult,
+      ] = await Promise.all([
+        fetchCatalogItems(),
+        fetchOgrCatalogSettings(),
+        fetchProspects(),
+        fetchTerritories(),
+        fetchAllContacts(),
+      ]);
 
       if (!active) return;
 
-      const errors = [catalogResult.error, prospectsResult.error, contactsResult.error].filter(
-        Boolean,
-      );
+      const errors = [
+        catalogResult.error,
+        prospectsResult.error,
+        territoriesResult.error,
+        contactsResult.error,
+      ].filter(Boolean);
       if (errors.length) {
         if (isInitial) {
           setCatalog([]);
           setProspects([]);
+          setTerritories([]);
           setContacts([]);
         }
         setDirectoryError(errors.join(' · '));
@@ -110,6 +122,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
       // Supplier terms are supplemental (Ordering section); don't block the directory on them.
       setSupplierTerms(supplierTermsResult.error ? null : supplierTermsResult.data);
       setProspects(prospectsResult.data);
+      setTerritories(territoriesResult.data);
       setContacts(contactsResult.data);
       setDirectoryLoading(false);
     }
@@ -226,6 +239,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
             {activeTab === 'prospects' && (
               <ProspectsTab
                 prospects={pipelineProspects}
+                territories={territories}
                 onLogCall={(prospect) => openModal(prospect)}
                 onConverted={reloadDirectory}
                 onProspectCreated={(prospect) => {
@@ -246,6 +260,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
             {activeTab === 'accounts' && (
               <ActiveAccountsTab
                 accounts={activeAccounts}
+                territories={territories}
                 onLogCall={(account) => openModal(account)}
                 onNotesSaved={(id, notes) => {
                   setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));

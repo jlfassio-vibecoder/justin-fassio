@@ -24,9 +24,11 @@ import {
 import { fetchOrdersForAccounts, type OrderRow } from '@/lib/orders';
 import { computeReorderSuggestion, formatLocalIsoDate } from '@/lib/reorderCadence';
 import type { Prospect } from '@/lib/prospects';
+import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
 
 interface ActiveAccountsTabProps {
   accounts: Prospect[];
+  territories?: Territory[];
   onLogCall: (account: Prospect) => void;
   onNotesSaved?: (id: number, notes: string | null) => void;
   onProspectUpdated?: (prospect: Prospect) => void;
@@ -52,11 +54,13 @@ function isContactDue(isoDate: string | null | undefined, todayIso: string): boo
 
 export function ActiveAccountsTab({
   accounts,
+  territories = [],
   onLogCall,
   onNotesSaved,
   onProspectUpdated,
 }: ActiveAccountsTabProps) {
   const { openAssist } = useAiAssist();
+  const [territoryCode, setTerritoryCode] = useState(BC_TERRITORY_CODE);
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -221,6 +225,9 @@ export function ActiveAccountsTab({
       <RetailerDirectory
         data-screen-label="accounts"
         retailers={accounts}
+        territories={territories}
+        territoryCode={territoryCode}
+        onTerritoryCodeChange={setTerritoryCode}
         searchPlaceholder="Search active accounts by name, city, address, or fit…"
         emptyMessage="No active accounts yet. Convert a prospect after a Closed PO or from Details."
         extraColumnHeaders={['TLV', 'Last order', 'Season']}

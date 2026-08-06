@@ -256,7 +256,10 @@ export function buildFillBlankProposal(
     normalizeRetailCategory(evidence.retailCategory) ??
     'Other / needs review';
 
-  const territoryFromCity = mapBcTerritory({ city: current.city });
+  const territoryFromCity =
+    current.territoryCode === 'bc' || current.territoryCode == null
+      ? mapBcTerritory({ city: current.city })
+      : { primaryDistrict: 'Needs mapping' as const, subterritory: 'Needs mapping' as const };
   const subterritory = !isBlankProspectValue('subterritory', current.subterritory)
     ? current.subterritory
     : territoryFromCity.subterritory !== 'Needs mapping'

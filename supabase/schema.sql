@@ -44,6 +44,37 @@ values
 on conflict (code) do nothing;
 
 -- ─────────────────────────────────────────────────────────────────────────
+-- territories — sales geographies (BC, Alberta, CA/OR/WA). Prospects belong
+-- to one territory; region / primary_district / subterritory stay intra-territory.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists territories (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  country_code text not null,
+  sort_order integer not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint territories_code_check check (code in ('bc', 'ab', 'ca', 'or', 'wa')),
+  constraint territories_country_code_check check (country_code in ('CA', 'US'))
+);
+
+drop trigger if exists territories_set_updated_at on territories;
+create trigger territories_set_updated_at
+  before update on territories
+  for each row execute function set_updated_at();
+
+insert into territories (code, name, country_code, sort_order, active)
+values
+  ('bc', 'British Columbia', 'CA', 10, true),
+  ('ab', 'Alberta', 'CA', 20, true),
+  ('ca', 'California', 'US', 30, true),
+  ('or', 'Oregon', 'US', 40, true),
+  ('wa', 'Washington', 'US', 50, true)
+on conflict (code) do nothing;
+
+-- ─────────────────────────────────────────────────────────────────────────
 -- catalog_items — wholesale SKUs, scoped to a line. Seeded from the former
 -- static OGR corpus (see migrations/*_seed_catalog_prospects.sql).
 -- ─────────────────────────────────────────────────────────────────────────
@@ -302,7 +333,7 @@ create index if not exists catalog_import_conflicts_run_id_idx
   on catalog_import_conflicts (import_run_id);
 
 -- ─────────────────────────────────────────────────────────────────────────
--- prospects — BC retailer directory (integer ids stable for calls / updates).
+-- prospects — retailer directory (integer ids stable for calls / updates).
 -- ─────────────────────────────────────────────────────────────────────────
 create table if not exists prospects (
   id integer primary key,
@@ -318,6 +349,7 @@ create table if not exists prospects (
   converted_at timestamptz,
   initial_order_date timestamptz,
   notes text,
+  territory_id uuid not null references territories (id),
   external_id text,
   subterritory text,
   primary_district text,
@@ -341,6 +373,7 @@ create table if not exists prospects (
 create index if not exists prospects_category_idx on prospects (category);
 create index if not exists prospects_region_idx on prospects (region);
 create index if not exists prospects_account_status_idx on prospects (account_status);
+create index if not exists prospects_territory_id_idx on prospects (territory_id);
 create unique index if not exists prospects_external_id_uidx
   on prospects (external_id)
   where external_id is not null;
@@ -931,6 +964,7 @@ revoke all on function public.get_public_ogr_supplier_terms() from public;
 grant execute on function public.get_public_ogr_supplier_terms() to anon, authenticated;
 
 alter table lines enable row level security;
+alter table territories enable row level security;
 alter table catalog_items enable row level security;
 alter table catalog_settings enable row level security;
 alter table catalog_variants enable row level security;
@@ -954,6 +988,12 @@ drop policy if exists "public full access" on lines;
 drop policy if exists "authenticated full access" on lines;
 drop policy if exists "approved staff full access" on lines;
 create policy "approved staff full access" on lines
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on territories;
+create policy "approved staff full access" on territories
   for all to authenticated
   using (public.is_approved_staff())
   with check (public.is_approved_staff());

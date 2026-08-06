@@ -69,6 +69,7 @@ export function ProspectDetailDrawer({
             <Tag variant="accent-2">{prospect.category}</Tag>
             <span className="text-ink/70 text-sm">
               {prospect.city} ({prospect.region})
+              {prospect.territoryName ? ` · ${prospect.territoryName}` : ''}
             </span>
           </div>
 
