@@ -503,6 +503,8 @@ create table if not exists wholesale_order_requests (
       'submitted', 'reviewing', 'buyer_contacted', 'quoted', 'approved',
       'sent_to_ogr', 'accepted_by_ogr', 'declined', 'cancelled'
     )),
+  request_type text not null default 'order'
+    check (request_type in ('order', 'inquiry')),
   prospect_id integer references prospects(id) on delete set null,
   idempotency_key text unique,
   merchandise_subtotal_usd numeric(12, 2) not null default 0,
@@ -517,6 +519,8 @@ create index if not exists wholesale_order_requests_status_idx
   on wholesale_order_requests (status);
 create index if not exists wholesale_order_requests_email_idx
   on wholesale_order_requests (email);
+create index if not exists wholesale_order_requests_request_type_idx
+  on wholesale_order_requests (request_type);
 
 drop trigger if exists wholesale_order_requests_set_updated_at on wholesale_order_requests;
 create trigger wholesale_order_requests_set_updated_at
@@ -551,6 +555,14 @@ create table if not exists message_threads (
   confirmed_fingerprint text,
   source text not null default 'old-guys-rule-wholesale',
   subject text not null default '',
+  channel text not null default 'wholesale'
+    check (channel in ('wholesale', 'live_chat')),
+  chat_state text
+    check (chat_state is null or chat_state in ('awaiting_human', 'ai_active', 'human_active')),
+  visitor_user_id uuid references auth.users(id) on delete set null,
+  visitor_name text,
+  visitor_email text,
+  awaiting_reply_since timestamptz,
   last_message_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -559,11 +571,22 @@ create table if not exists message_threads (
 create unique index if not exists message_threads_identity_fingerprint_uidx
   on message_threads (identity_fingerprint);
 
+create unique index if not exists message_threads_live_chat_visitor_uidx
+  on message_threads (visitor_user_id)
+  where channel = 'live_chat' and visitor_user_id is not null;
+
 create index if not exists message_threads_prospect_id_idx
   on message_threads (prospect_id);
 
 create index if not exists message_threads_mapping_status_idx
   on message_threads (mapping_status);
+
+create index if not exists message_threads_channel_idx
+  on message_threads (channel);
+
+create index if not exists message_threads_chat_state_idx
+  on message_threads (chat_state)
+  where chat_state is not null;
 
 create index if not exists message_threads_last_message_at_idx
   on message_threads (last_message_at desc);
@@ -577,7 +600,14 @@ create table if not exists messages (
   id uuid primary key default gen_random_uuid(),
   thread_id uuid not null references message_threads(id) on delete cascade,
   kind text not null default 'wholesale_order_request'
-    check (kind in ('wholesale_order_request')),
+    check (kind in (
+      'wholesale_order_request',
+      'wholesale_inquiry',
+      'live_chat_visitor',
+      'live_chat_staff',
+      'live_chat_ai',
+      'live_chat_system'
+    )),
   wholesale_order_request_id uuid references wholesale_order_requests(id) on delete set null,
   body text not null default '',
   payload jsonb not null default '{}'::jsonb,
@@ -637,13 +667,25 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  is_chat boolean;
 begin
+  is_chat :=
+    coalesce(new.is_anonymous, false)
+    or coalesce((new.raw_user_meta_data->>'live_chat')::boolean, false)
+    or coalesce(new.raw_user_meta_data->>'live_chat', '') = 'true';
+
   insert into public.profiles (id, email, display_name, role, status)
   values (
     new.id,
     new.email,
-    coalesce(new.raw_user_meta_data ->> 'display_name', split_part(new.email, '@', 1)),
-    'rep',
+    coalesce(
+      new.raw_user_meta_data ->> 'display_name',
+      new.raw_user_meta_data ->> 'full_name',
+      new.raw_user_meta_data ->> 'name',
+      split_part(coalesce(new.email, ''), '@', 1)
+    ),
+    case when is_chat then 'buyer' else 'rep' end,
     'pending'
   )
   on conflict (id) do nothing;
@@ -1066,8 +1108,35 @@ create policy "approved staff full access" on message_threads
   using (public.is_approved_staff())
   with check (public.is_approved_staff());
 
+drop policy if exists "live chat visitor read threads" on message_threads;
+create policy "live chat visitor read threads" on message_threads
+  for select to authenticated
+  using (
+    channel = 'live_chat'
+    and visitor_user_id = auth.uid()
+  );
+
+-- Copilot suggestion applied: visitors do not UPDATE threads (service-role APIs own chat_state).
+drop policy if exists "live chat visitor update own thread meta" on message_threads;
+
 drop policy if exists "approved staff full access" on messages;
 create policy "approved staff full access" on messages
   for all to authenticated
   using (public.is_approved_staff())
   with check (public.is_approved_staff());
+
+drop policy if exists "live chat visitor read messages" on messages;
+create policy "live chat visitor read messages" on messages
+  for select to authenticated
+  using (
+    exists (
+      select 1
+      from message_threads t
+      where t.id = messages.thread_id
+        and t.channel = 'live_chat'
+        and t.visitor_user_id = auth.uid()
+    )
+  );
+
+-- Copilot suggestion applied: visitors do not INSERT messages directly (API + rate limits).
+drop policy if exists "live chat visitor insert messages" on messages;

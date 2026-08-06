@@ -172,7 +172,11 @@ describe('POST /api/wholesale/order-requests', () => {
 
     const res = await POST(requestWith(validBody));
     const json = await res.json();
-    expect(json).toEqual({ ok: true, requestNumber: 'W-2026-000042' });
+    expect(json).toEqual({
+      ok: true,
+      requestNumber: 'W-2026-000042',
+      requestType: 'order',
+    });
     expect(matchOrCreateWholesaleProspectMock).not.toHaveBeenCalled();
     expect(sendWholesaleOrderConfirmationMock).not.toHaveBeenCalled();
     expect(admin.insertCalls).toHaveLength(0);
@@ -205,7 +209,11 @@ describe('POST /api/wholesale/order-requests', () => {
     const res = await POST(requestWith(validBody));
     const json = await res.json();
     expect(res.status).toBe(200);
-    expect(json).toEqual({ ok: true, requestNumber: 'W-2026-000100' });
+    expect(json).toEqual({
+      ok: true,
+      requestNumber: 'W-2026-000100',
+      requestType: 'order',
+    });
 
     expect(admin.insertCalls.some((c) => c.table === 'wholesale_order_requests')).toBe(true);
     expect(admin.insertCalls.some((c) => c.table === 'wholesale_order_request_items')).toBe(true);
@@ -225,6 +233,72 @@ describe('POST /api/wholesale/order-requests', () => {
         businessName: 'Kelowna Outfitters',
         email: 'sam@example.com',
         suggestedProspectId: 55,
+        requestType: 'order',
+      }),
+    );
+  });
+
+  it('inquiry path skips line items and records request_type inquiry', async () => {
+    const admin = createAdminMock({
+      wholesale_order_requests: {
+        maybeSingle: async () => ({ data: null, error: null }),
+        insertResult: {
+          data: { id: 'req-inq', request_number: 'W-2026-000200' },
+          error: null,
+        },
+        updateResult: { error: null },
+      },
+      prospect_updates: {
+        insertResult: { error: null },
+      },
+    });
+    getServiceRoleClientMock.mockReturnValue(admin);
+    matchOrCreateWholesaleProspectMock.mockResolvedValue({
+      ok: true,
+      prospectId: 88,
+      matched: 'created',
+    });
+
+    const inquiryBody = {
+      idempotencyKey: 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33',
+      requestType: 'inquiry',
+      businessName: 'Kelowna Outfitters',
+      buyerName: 'Sam Buyer',
+      email: 'sam@example.com',
+      notes: 'Looking for opening assortment advice.',
+      companyFax: '',
+      lines: [],
+    };
+
+    const res = await POST(requestWith(inquiryBody));
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json).toEqual({
+      ok: true,
+      requestNumber: 'W-2026-000200',
+      requestType: 'inquiry',
+    });
+
+    const requestInsert = admin.insertCalls.find((c) => c.table === 'wholesale_order_requests');
+    expect(requestInsert?.payload).toMatchObject({
+      request_type: 'inquiry',
+      notes: 'Looking for opening assortment advice.',
+      total_units: 0,
+    });
+    expect(admin.insertCalls.some((c) => c.table === 'wholesale_order_request_items')).toBe(false);
+    expect(upsertWholesaleInboundMessageMock).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({
+        orderRequestId: 'req-inq',
+        requestType: 'inquiry',
+        notes: 'Looking for opening assortment advice.',
+        lines: [],
+      }),
+    );
+    expect(sendWholesaleOrderConfirmationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestType: 'inquiry',
+        notes: 'Looking for opening assortment advice.',
       }),
     );
   });

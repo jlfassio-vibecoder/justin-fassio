@@ -32,6 +32,7 @@ interface MessagesThreadListProps {
   selectedId: string | null;
   onSelect: (thread: MessageThread) => void;
   onOpenMapped?: (thread: MessageThread) => void;
+  onOpenLiveChat?: (thread: MessageThread) => void;
   emptyMessage?: string;
 }
 
@@ -40,6 +41,7 @@ export function MessagesThreadList({
   selectedId,
   onSelect,
   onOpenMapped,
+  onOpenLiveChat,
   emptyMessage = 'No messages yet.',
 }: MessagesThreadListProps) {
   if (threads.length === 0) {
@@ -50,7 +52,10 @@ export function MessagesThreadList({
     <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
       {threads.map((thread) => {
         const selected = thread.id === selectedId;
-        const title = thread.businessName || thread.subject || 'Wholesale request';
+        const title =
+          thread.businessName ||
+          thread.subject ||
+          (thread.channel === 'live_chat' ? 'Live chat' : 'Wholesale request');
         const canOpenMapped = thread.prospectId != null && onOpenMapped != null;
 
         return (
@@ -94,12 +99,24 @@ export function MessagesThreadList({
                     {thread.email ? ` · ${thread.email}` : ''}
                   </p>
                 </div>
-                <Tag variant={statusVariant(thread.mappingStatus)}>
-                  {statusLabel(thread.mappingStatus)}
-                </Tag>
+                <div className="flex flex-wrap gap-1">
+                  {thread.channel === 'live_chat' ? <Tag variant="neutral">Live</Tag> : null}
+                  <Tag variant={statusVariant(thread.mappingStatus)}>
+                    {statusLabel(thread.mappingStatus)}
+                  </Tag>
+                </div>
               </div>
-              <div className="text-ink/55 mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+              <div className="text-ink/55 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
                 {thread.requestNumber ? <span>{thread.requestNumber}</span> : null}
+                {thread.channel === 'live_chat' && thread.chatState ? (
+                  <span>
+                    {thread.chatState === 'human_active'
+                      ? 'You joined'
+                      : thread.chatState === 'ai_active'
+                        ? 'AI covering'
+                        : 'Awaiting you'}
+                  </span>
+                ) : null}
                 <span>{formatWhen(thread.lastMessageAt)}</span>
                 {thread.prospectName ? (
                   canOpenMapped ? (
@@ -117,6 +134,19 @@ export function MessagesThreadList({
                   ) : (
                     <span>→ {thread.prospectName}</span>
                   )
+                ) : null}
+                {thread.channel === 'live_chat' && onOpenLiveChat ? (
+                  <button
+                    type="button"
+                    className="text-accent m-0 cursor-pointer border-0 bg-transparent p-0 font-medium underline-offset-2 hover:underline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelect(thread);
+                      onOpenLiveChat(thread);
+                    }}
+                  >
+                    Open chat
+                  </button>
                 ) : null}
               </div>
             </div>
