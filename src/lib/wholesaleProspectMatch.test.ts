@@ -110,6 +110,9 @@ describe('matchOrCreateWholesaleProspect', () => {
         q.insert = vi.fn(async () => ({ data: null, error: null }));
         return q;
       }
+      if (table === 'territories') {
+        return query({ data: { id: 'terr-bc' }, error: null });
+      }
       if (table === 'prospects') {
         prospectSelectCalls += 1;
         if (prospectSelectCalls === 1) {
@@ -130,6 +133,7 @@ describe('matchOrCreateWholesaleProspect', () => {
       expect.objectContaining({
         name: 'Kelowna Outfitters',
         source_note: 'Inbound wholesale (old-guys-rule-wholesale)',
+        territory_id: 'terr-bc',
       }),
     );
     expect(prospectInsert).toHaveBeenCalledWith(
@@ -147,6 +151,9 @@ describe('matchOrCreateWholesaleProspect', () => {
         });
         q.insert = vi.fn(async () => ({ data: null, error: null }));
         return q;
+      }
+      if (table === 'territories') {
+        return query({ data: { id: 'terr-bc' }, error: null });
       }
       if (table === 'prospects') {
         prospectSelectCalls += 1;

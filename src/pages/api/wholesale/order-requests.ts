@@ -9,6 +9,7 @@ import {
 } from '@/lib/wholesaleProspectMatch';
 import { sendWholesaleOrderConfirmation } from '@/lib/wholesaleOrderEmail';
 import { upsertWholesaleInboundMessage } from '@/lib/messageCenterInbound';
+import { ensureWholesaleBuyerAccount } from '@/lib/wholesaleBuyerAccount';
 
 export const prerender = false;
 
@@ -198,6 +199,17 @@ export const POST: APIRoute = async ({ request }) => {
       if (activityError) {
         console.error('[wholesale-order-requests] activity failed', activityError.message);
       }
+    }
+
+    const buyerAccount = await ensureWholesaleBuyerAccount(admin, {
+      email: body.email,
+      buyerName: body.buyerName,
+      prospectId: match.prospectId,
+    });
+    if (!buyerAccount.ok) {
+      console.error('[wholesale-order-requests] buyer account failed', buyerAccount.error);
+    } else if ('skipped' in buyerAccount && buyerAccount.skipped) {
+      console.info('[wholesale-order-requests] buyer account skipped', buyerAccount.reason);
     }
   } else {
     console.error('[wholesale-order-requests] prospect match failed', match.error);

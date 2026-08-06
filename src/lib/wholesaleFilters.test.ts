@@ -59,7 +59,8 @@ describe('OGR_WHOLESALE_PATH', () => {
 describe('wholesale pricing labels', () => {
   it('formats USD wholesale and CAD retail labels', () => {
     expect(formatWholesaleUsd(13)).toBe('US$13.00 wholesale');
-    expect(formatSuggestedRetailCad(39.99)).toBe('Suggested retail C$39.99');
+    expect(formatWholesaleUsd(null)).toBeNull();
+    expect(formatSuggestedRetailCad(39.99)).toBe('Typical Canadian retail: C$39.99–C$44.99');
     expect(formatSuggestedRetailCad(0)).toBeNull();
     expect(formatMerchandiseSubtotalUsd(100.5)).toBe('US$100.50');
   });

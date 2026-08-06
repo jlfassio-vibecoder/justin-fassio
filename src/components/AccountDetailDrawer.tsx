@@ -205,6 +205,7 @@ export function AccountDetailDrawer({
             <Tag variant="accent-2">{account.category}</Tag>
             <span className="text-ink/70 text-sm">
               {account.city} ({account.region})
+              {account.territoryName ? ` · ${account.territoryName}` : ''}
             </span>
           </div>
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
+import { BC_PROSPECT_TERRITORY, EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
 import { filterProspects } from '@/lib/prospectFilters';
 
 const SAMPLE: Prospect[] = [
@@ -17,6 +17,7 @@ const SAMPLE: Prospect[] = [
     initialOrderDate: null,
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...BC_PROSPECT_TERRITORY,
   },
   {
     id: 2,
@@ -32,6 +33,7 @@ const SAMPLE: Prospect[] = [
     initialOrderDate: null,
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...BC_PROSPECT_TERRITORY,
   },
   {
     id: 3,
@@ -47,6 +49,7 @@ const SAMPLE: Prospect[] = [
     initialOrderDate: null,
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...BC_PROSPECT_TERRITORY,
   },
 ];
 
@@ -101,5 +104,25 @@ describe('filterProspects', () => {
         channel: 'Golf',
       }),
     ).toHaveLength(0);
+  });
+
+  it('filters by territory code (default ALL when omitted)', () => {
+    const mixed = [SAMPLE[0], { ...SAMPLE[1], territoryCode: 'ab', territoryName: 'Alberta' }];
+    expect(
+      filterProspects(mixed, {
+        search: '',
+        region: 'ALL',
+        channel: 'ALL',
+        territoryCode: 'bc',
+      }).map((p) => p.id),
+    ).toEqual([1]);
+    expect(
+      filterProspects(mixed, {
+        search: '',
+        region: 'ALL',
+        channel: 'ALL',
+        territoryCode: 'ab',
+      }).map((p) => p.id),
+    ).toEqual([2]);
   });
 });

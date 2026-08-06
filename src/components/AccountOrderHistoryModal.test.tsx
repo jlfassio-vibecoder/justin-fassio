@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountOrderHistoryModal } from '@/components/AccountOrderHistoryModal';
 import type { OrderRow } from '@/lib/orders';
-import { EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
+import { BC_PROSPECT_TERRITORY, EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
 
 const insertOrderMock = vi.fn();
 const fetchSettingsMock = vi.fn();
@@ -41,6 +41,7 @@ const ACCOUNT: Prospect = {
   initialOrderDate: '2026-08-01T00:00:00Z',
   notes: null,
   ...EMPTY_PROSPECT_PLANNING,
+  ...BC_PROSPECT_TERRITORY,
 };
 
 const ORDERS: OrderRow[] = [
@@ -55,6 +56,7 @@ const ORDERS: OrderRow[] = [
     status: 'submitted',
     notes: 'Opening write',
     ...EMPTY_PROSPECT_PLANNING,
+    ...BC_PROSPECT_TERRITORY,
     created_at: '2026-04-01T00:00:00Z',
     updated_at: '2026-04-01T00:00:00Z',
   },

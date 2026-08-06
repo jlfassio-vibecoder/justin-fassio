@@ -5,6 +5,7 @@ import { Tag } from '@/components/ui/Tag';
 import { CHANNEL_OPTIONS, REGION_OPTIONS } from '@/lib/directoryOptions';
 import { filterProspects } from '@/lib/prospectFilters';
 import type { Prospect } from '@/lib/prospects';
+import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
 
 const channelTagVariant: Record<
   Prospect['category'],
@@ -42,6 +43,11 @@ export interface RetailerDirectoryProps {
   toolbarExtra?: ReactNode;
   /** Briefly highlight a row (e.g. after AI add). */
   highlightedId?: number | null;
+  /** Active territories for the directory filter (defaults to BC when empty). */
+  territories?: Territory[];
+  /** Controlled territory code; defaults to British Columbia. */
+  territoryCode?: string;
+  onTerritoryCodeChange?: (code: string) => void;
 }
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
@@ -63,10 +69,22 @@ export function RetailerDirectory({
   banner,
   toolbarExtra,
   highlightedId = null,
+  territories = [],
+  territoryCode: territoryCodeProp,
+  onTerritoryCodeChange,
 }: RetailerDirectoryProps) {
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
+  const [territoryCodeInternal, setTerritoryCodeInternal] = useState(BC_TERRITORY_CODE);
+  const territoryCode = territoryCodeProp ?? territoryCodeInternal;
+
+  function setTerritoryCode(code: string) {
+    if (territoryCodeProp === undefined) {
+      setTerritoryCodeInternal(code);
+    }
+    onTerritoryCodeChange?.(code);
+  }
 
   useEffect(() => {
     if (highlightedId == null) return;
@@ -79,8 +97,8 @@ export function RetailerDirectory({
   }, [highlightedId]);
 
   const filtered = useMemo(
-    () => filterProspects(retailers, { search, region, channel }),
-    [retailers, search, region, channel],
+    () => filterProspects(retailers, { search, region, channel, territoryCode }),
+    [retailers, search, region, channel, territoryCode],
   );
 
   return (
@@ -92,6 +110,20 @@ export function RetailerDirectory({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        {territories.length > 0 ? (
+          <Select
+            className="w-auto"
+            value={territoryCode}
+            onChange={(e) => setTerritoryCode(e.target.value)}
+            aria-label="Territory"
+          >
+            {territories.map((t) => (
+              <option key={t.code} value={t.code}>
+                {t.name}
+              </option>
+            ))}
+          </Select>
+        ) : null}
         <Select className="w-auto" value={region} onChange={(e) => setRegion(e.target.value)}>
           {REGION_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { filterCalls, summarizeDashboard, tagCloud } from '@/lib/callAggregates';
 import type { CallRow } from '@/lib/calls';
-import { EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
+import { BC_PROSPECT_TERRITORY, EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
 
 const FIXTURE_PROSPECTS: Prospect[] = [
   {
@@ -18,6 +18,7 @@ const FIXTURE_PROSPECTS: Prospect[] = [
     initialOrderDate: null,
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...BC_PROSPECT_TERRITORY,
   },
   {
     id: 8,
@@ -33,6 +34,7 @@ const FIXTURE_PROSPECTS: Prospect[] = [
     initialOrderDate: null,
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...BC_PROSPECT_TERRITORY,
   },
 ];
 
@@ -46,6 +48,7 @@ function call(
     call_date: '2026-08-01',
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...BC_PROSPECT_TERRITORY,
     objection_tags: [],
     ...partial,
   };

@@ -28,6 +28,7 @@ describe('mapProspectRow', () => {
       converted_at: '2026-08-01T12:00:00Z',
       initial_order_date: '2026-08-01T12:00:00Z',
       notes: null,
+      territory_id: '00000000-0000-4000-8000-0000000000bc',
       external_id: null,
       subterritory: null,
       primary_district: null,
@@ -61,6 +62,9 @@ describe('mapProspectRow', () => {
       convertedAt: '2026-08-01T12:00:00Z',
       initialOrderDate: '2026-08-01T12:00:00Z',
       notes: null,
+      territoryId: '00000000-0000-4000-8000-0000000000bc',
+      territoryCode: null,
+      territoryName: null,
       ...EMPTY_PROSPECT_PLANNING,
     });
   });

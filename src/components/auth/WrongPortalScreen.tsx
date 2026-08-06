@@ -14,8 +14,8 @@ export function WrongPortalScreen({ email }: Props) {
       />
       <h1 className="m-0 text-2xl">Buyer account</h1>
       <p className="text-ink/70 mt-3 mb-2 text-sm">
-        This login is for the buyer portal, which is not available here. Use the buyer portal link
-        below, or sign out if you need a different account.
+        This login is for the retailer account. Open your buyer home below, or sign out if you need
+        a different account.
       </p>
       {email && (
         <p className="text-ink/80 m-0 mb-6 text-sm">
@@ -23,10 +23,10 @@ export function WrongPortalScreen({ email }: Props) {
         </p>
       )}
       <a
-        href="/login"
+        href="/account"
         className="font-heading text-accent-700 hover:text-accent-800 mb-4 no-underline"
       >
-        Go to Buyer Portal
+        Go to retailer account
       </a>
       <Button
         type="button"

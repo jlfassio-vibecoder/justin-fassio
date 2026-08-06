@@ -44,6 +44,13 @@ export const EMPTY_PROSPECT_PLANNING: ProspectPlanningFields = {
   sourceNote: null,
 };
 
+/** Default BC territory fields for fixtures / tests. */
+export const BC_PROSPECT_TERRITORY = {
+  territoryId: '00000000-0000-4000-8000-0000000000bc',
+  territoryCode: 'bc',
+  territoryName: 'British Columbia',
+};
+
 export interface Prospect extends ProspectPlanningFields {
   id: number;
   name: string;
@@ -57,6 +64,9 @@ export interface Prospect extends ProspectPlanningFields {
   convertedAt: string | null;
   initialOrderDate: string | null;
   notes: string | null;
+  territoryId: string;
+  territoryCode: string | null;
+  territoryName: string | null;
 }
 
 export interface FetchProspectsOptions {
@@ -65,7 +75,11 @@ export interface FetchProspectsOptions {
 }
 
 export const PROSPECT_SELECT =
-  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, external_id, subterritory, primary_district, retail_category, website, fit_score, ideal_opening_units, priority, provisional_grade, verification_status, buyer_verified, apparel_capability, existing_ogr, qualification_status, next_action, source_note, created_at, updated_at' as const;
+  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, territory_id, territories(code, name), external_id, subterritory, primary_district, retail_category, website, fit_score, ideal_opening_units, priority, provisional_grade, verification_status, buyer_verified, apparel_capability, existing_ogr, qualification_status, next_action, source_note, created_at, updated_at' as const;
+
+export type ProspectListRow = ProspectRow & {
+  territories?: { code: string; name: string } | null;
+};
 
 function mapPlanningFields(row: ProspectRow): ProspectPlanningFields {
   return {
@@ -88,7 +102,7 @@ function mapPlanningFields(row: ProspectRow): ProspectPlanningFields {
   };
 }
 
-export function mapProspectRow(row: ProspectRow): Prospect {
+export function mapProspectRow(row: ProspectListRow): Prospect {
   return {
     id: row.id,
     name: row.name,
@@ -102,6 +116,9 @@ export function mapProspectRow(row: ProspectRow): Prospect {
     convertedAt: row.converted_at,
     initialOrderDate: row.initial_order_date,
     notes: row.notes,
+    territoryId: row.territory_id,
+    territoryCode: row.territories?.code ?? null,
+    territoryName: row.territories?.name ?? null,
     ...mapPlanningFields(row),
   };
 }
@@ -140,5 +157,5 @@ export async function updateProspectNotes(
     return { data: null, error: error.message };
   }
 
-  return { data: mapProspectRow(data as ProspectRow), error: null };
+  return { data: mapProspectRow(data as ProspectListRow), error: null };
 }

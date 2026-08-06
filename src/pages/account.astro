@@ -1,0 +1,10 @@
+---
+export const prerender = false;
+
+import Layout from '@/layouts/Layout.astro';
+import { BuyerAccountHome } from '@/components/buyer/BuyerAccountHome';
+---
+
+<Layout title="Retailer account — Justin Fassio">
+  <BuyerAccountHome client:load />
+</Layout>

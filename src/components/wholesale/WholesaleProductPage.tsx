@@ -36,6 +36,7 @@ export function WholesaleProductPage({ product, terms }: Props) {
       <main className="px-8.1 mx-auto max-w-[1240px] pt-4 pb-16">
         <WholesaleProductDetail
           product={product}
+          onRequestAccess={() => scrollTo('buyer-form')}
           onAddLines={(lines) => {
             mergeLines(lines);
             scrollTo('order-builder');
@@ -68,6 +69,7 @@ export function WholesaleProductPage({ product, terms }: Props) {
           <WholesaleOrderBuilder
             draft={draft}
             terms={terms}
+            pricingUnlocked={product.wholesaleUsd != null}
             onChangeQuantity={(productId, size, quantity) => {
               setDraft((prev) => {
                 const line = prev.lines.find((l) => l.productId === productId && l.size === size);

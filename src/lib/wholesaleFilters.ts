@@ -63,7 +63,10 @@ export function filterPublicOgrProducts(
       case 'category':
         return a.cat.localeCompare(b.cat) || a.name.localeCompare(b.name);
       case 'wholesale':
-        return a.wholesaleUsd - b.wholesaleUsd;
+        return (
+          (a.wholesaleUsd ?? Number.POSITIVE_INFINITY) -
+          (b.wholesaleUsd ?? Number.POSITIVE_INFINITY)
+        );
       case 'newest':
         return Number(b.isNew) - Number(a.isNew) || a.publicSortOrder - b.publicSortOrder;
       case 'recommended':

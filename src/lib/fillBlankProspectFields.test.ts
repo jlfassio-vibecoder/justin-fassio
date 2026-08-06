@@ -6,7 +6,7 @@ import {
   type FillBlankEvidence,
   type FillBlankProspectFields,
 } from '@/lib/fillBlankProspectFields';
-import { EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
+import { BC_PROSPECT_TERRITORY, EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
 
 const base: Prospect = {
   id: 10,
@@ -22,6 +22,7 @@ const base: Prospect = {
   initialOrderDate: null,
   notes: 'Keep notes',
   ...EMPTY_PROSPECT_PLANNING,
+  ...BC_PROSPECT_TERRITORY,
   apparelCapability: 'Unknown',
   buyerVerified: false,
   existingOgr: 'Unknown',
@@ -209,6 +210,32 @@ describe('buildFillBlankProposal', () => {
     });
     expect(fields.subterritory).toBe('Sea-to-Sky');
     expect(fields.primaryDistrict).toBe('Lower Mainland');
+  });
+
+  it('does not run BC city mapper for non-BC territories', () => {
+    const alberta: Prospect = {
+      ...base,
+      city: 'Whistler',
+      territoryCode: 'ab',
+      territoryName: 'Alberta',
+      subterritory: 'Needs mapping',
+      primaryDistrict: 'Needs mapping',
+      fitScore: null,
+      priority: null,
+      idealOpeningUnits: null,
+      provisionalGrade: null,
+    };
+    const fields = buildFillBlankProposal(alberta, {
+      ...evidence,
+      officialWebsite: null,
+      address: null,
+      phone: null,
+      apparelCapability: 'Unknown',
+      operatingConfirmed: false,
+      directoryOnly: true,
+    });
+    expect(fields.subterritory).toBeNull();
+    expect(fields.primaryDistrict).toBeNull();
   });
 
   it('does not label Website confirmed without an official site', () => {

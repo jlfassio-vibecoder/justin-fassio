@@ -15,25 +15,36 @@ import { createEnrichedProspect } from '@/lib/createEnrichedProspect';
 import type { AgentSupabase } from '@/lib/agentAuth';
 
 function mockSupabaseInsert(row: unknown) {
-  const from = vi.fn(() => ({
-    select: () => ({
-      order: () => ({
-        limit: () => ({
-          maybeSingle: async () => ({ data: { id: 10 }, error: null }),
-        }),
-      }),
-    }),
-    insert: () => {
-      const result = { data: null, error: null };
+  const from = vi.fn((table: string) => {
+    if (table === 'territories') {
       return {
         select: () => ({
-          single: async () => ({ data: row, error: null }),
+          eq: () => ({
+            maybeSingle: async () => ({ data: { id: 'terr-bc' }, error: null }),
+          }),
         }),
-        then: (onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
-          Promise.resolve(result).then(onFulfilled, onRejected),
       };
-    },
-  }));
+    }
+    return {
+      select: () => ({
+        order: () => ({
+          limit: () => ({
+            maybeSingle: async () => ({ data: { id: 10 }, error: null }),
+          }),
+        }),
+      }),
+      insert: () => {
+        const result = { data: null, error: null };
+        return {
+          select: () => ({
+            single: async () => ({ data: row, error: null }),
+          }),
+          then: (onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
+            Promise.resolve(result).then(onFulfilled, onRejected),
+        };
+      },
+    };
+  });
   return { from } as unknown as AgentSupabase;
 }
 
@@ -50,6 +61,8 @@ const insertedRow = {
   converted_at: null,
   initial_order_date: null,
   notes: null,
+  territory_id: 'terr-bc',
+  territories: { code: 'bc', name: 'British Columbia' },
   external_id: null,
   subterritory: null,
   primary_district: null,
@@ -303,26 +316,37 @@ describe('createEnrichedProspect buyer contact', () => {
 
   function mockRecordingSupabase(row: unknown) {
     const inserts: Array<{ table: string; payload: unknown }> = [];
-    const from = vi.fn((table: string) => ({
-      select: () => ({
-        order: () => ({
-          limit: () => ({
-            maybeSingle: async () => ({ data: { id: 10 }, error: null }),
-          }),
-        }),
-      }),
-      insert: (payload: unknown) => {
-        inserts.push({ table, payload });
-        const result = { data: null, error: null };
+    const from = vi.fn((table: string) => {
+      if (table === 'territories') {
         return {
           select: () => ({
-            single: async () => ({ data: row, error: null }),
+            eq: () => ({
+              maybeSingle: async () => ({ data: { id: 'terr-bc' }, error: null }),
+            }),
           }),
-          then: (onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
-            Promise.resolve(result).then(onFulfilled, onRejected),
         };
-      },
-    }));
+      }
+      return {
+        select: () => ({
+          order: () => ({
+            limit: () => ({
+              maybeSingle: async () => ({ data: { id: 10 }, error: null }),
+            }),
+          }),
+        }),
+        insert: (payload: unknown) => {
+          inserts.push({ table, payload });
+          const result = { data: null, error: null };
+          return {
+            select: () => ({
+              single: async () => ({ data: row, error: null }),
+            }),
+            then: (onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
+              Promise.resolve(result).then(onFulfilled, onRejected),
+          };
+        },
+      };
+    });
     return { supabase: { from } as unknown as AgentSupabase, inserts };
   }
 

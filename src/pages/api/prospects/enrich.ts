@@ -48,6 +48,7 @@ export const POST: APIRoute = async ({ request }) => {
     email: optionalString(body.email),
     city: optionalString(body.city),
     retailChannelHint: optionalString(body.retailChannelHint),
+    territoryCode: optionalString(body.territoryCode),
   });
   if (!result.ok) {
     return jsonError(result.error, 502);

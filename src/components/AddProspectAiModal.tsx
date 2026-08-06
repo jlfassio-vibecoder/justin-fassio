@@ -65,6 +65,7 @@ export function AddProspectAiModal({
       email: enrichSeeds?.email,
       city: enrichSeeds?.city,
       retailChannelHint: enrichSeeds?.retailChannelHint,
+      territoryCode: enrichSeeds?.territoryCode,
     });
     setBusy(false);
 

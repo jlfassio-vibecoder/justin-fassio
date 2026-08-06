@@ -46,4 +46,37 @@ describe('mapPublicOgrProductRow', () => {
       expect(keys).not.toContain(forbidden);
     }
   });
+
+  it('maps null wholesale when public pricing is gated', () => {
+    const product = mapPublicOgrProductRow({
+      id: '11111111-1111-1111-1111-111111111111',
+      sku: 'OG2513',
+      public_slug: 'american-revival-og2513',
+      name: 'American Revival',
+      cat: 'Short Sleeve Tees',
+      color: 'Graphite Heather',
+      tagline: null,
+      description: null,
+      page: 4,
+      catalog_year: 2026,
+      collection: null,
+      wholesale_usd: null,
+      msrp_cad: 39.99,
+      is_new: false,
+      featured: false,
+      public_sort_order: 0,
+      primary_image_url: null,
+      alternate_image_urls: [],
+      unit_of_measure: 'each',
+      minimum_quantity: null,
+      order_multiple: null,
+      pack_quantity: null,
+      lifestyle_themes: [],
+      live_sku: null,
+      available_sizes: ['M-XL'],
+    });
+
+    expect(product.wholesaleUsd).toBeNull();
+    expect(product.msrpCad).toBe(39.99);
+  });
 });

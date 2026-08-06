@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { PublicOgrProduct, PublicOgrSupplierTerms } from '@/lib/publicCatalog';
+import { fetchPublicOgrProducts } from '@/lib/publicCatalog';
 import {
   DEFAULT_WHOLESALE_FILTERS,
   filterPublicOgrProducts,
@@ -9,7 +10,11 @@ import {
   wholesaleFiltersToSearchParams,
   type WholesaleFilterState,
 } from '@/lib/wholesaleFilters';
-import { orderTotals, upsertOrderLine } from '@/lib/wholesaleOrderDraft';
+import {
+  orderTotals,
+  upsertOrderLine,
+  getWholesaleOrderDraftSnapshot,
+} from '@/lib/wholesaleOrderDraft';
 import type { WholesaleRequestType } from '@/lib/wholesaleOrderRequestSchema';
 import { useWholesaleOrderDraft } from '@/hooks/useWholesaleOrderDraft';
 import { WholesaleBuyerForm } from '@/components/wholesale/WholesaleBuyerForm';
@@ -17,6 +22,9 @@ import { WholesaleFilters } from '@/components/wholesale/WholesaleFilters';
 import { WholesaleOrderBuilder } from '@/components/wholesale/WholesaleOrderBuilder';
 import { WholesaleProductCard } from '@/components/wholesale/WholesaleProductCard';
 import { WholesaleProductDetail } from '@/components/wholesale/WholesaleProductDetail';
+import { cartItemsToDraft, fetchBuyerCartItems, enqueueBuyerCartSync } from '@/lib/buyerCart';
+import { fetchBuyerLikedProductIds, toggleBuyerProductLike } from '@/lib/buyerLikes';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 type Props = {
   products: PublicOgrProduct[];
@@ -36,17 +44,25 @@ function readFiltersFromLocation(): WholesaleFilterState {
   return parseWholesaleFilters(new URLSearchParams(window.location.search));
 }
 
-export function WholesaleShowroom({ products, terms, initialQuickViewSlug = null }: Props) {
+export function WholesaleShowroom({
+  products: initialProducts,
+  terms,
+  initialQuickViewSlug = null,
+}: Props) {
   const resolvedTerms = terms ?? DEFAULT_TERMS;
+  const [products, setProducts] = useState(initialProducts);
   const [filters, setFilters] = useState<WholesaleFilterState>(readFiltersFromLocation);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const { draft, setDraft, mergeLines, clearDraft } = useWholesaleOrderDraft();
   const [quickView, setQuickView] = useState<PublicOgrProduct | null>(() => {
     if (!initialQuickViewSlug) return null;
-    return products.find((p) => p.publicSlug === initialQuickViewSlug) ?? null;
+    return initialProducts.find((p) => p.publicSlug === initialQuickViewSlug) ?? null;
   });
   const [successNumber, setSuccessNumber] = useState<string | null>(null);
   const [successType, setSuccessType] = useState<WholesaleRequestType>('order');
+  const [buyerUserId, setBuyerUserId] = useState<string | null>(null);
+  const [likedIds, setLikedIds] = useState<Set<string>>(() => new Set());
+  const [likeBusyId, setLikeBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     function onPopState() {
@@ -64,10 +80,63 @@ export function WholesaleShowroom({ products, terms, initialQuickViewSlug = null
     return () => window.removeEventListener('popstate', onPopState);
   }, [products]);
 
+  // Authenticated buyers re-fetch catalog (wholesale gated by session) + sync cart/likes.
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let active = true;
+
+    void (async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = sessionData.session;
+      if (!session?.user || !active) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, role, status, wholesale_pricing_unlocked')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (!active || profile?.role !== 'buyer') return;
+      setBuyerUserId(session.user.id);
+
+      const catalog = await fetchPublicOgrProducts();
+      if (active && catalog.data) {
+        setProducts(catalog.data);
+        if (initialQuickViewSlug) {
+          setQuickView(catalog.data.find((p) => p.publicSlug === initialQuickViewSlug) ?? null);
+        }
+      }
+
+      const [likes, cart] = await Promise.all([
+        fetchBuyerLikedProductIds(session.user.id),
+        fetchBuyerCartItems(session.user.id),
+      ]);
+      if (!active) return;
+      setLikedIds(new Set(likes.data));
+
+      if (cart.data.length > 0 && draft.lines.length === 0) {
+        setDraft(cartItemsToDraft(cart.data));
+      } else if (draft.lines.length > 0) {
+        void enqueueBuyerCartSync(session.user.id, draft.lines);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+    // Intentional once-on-mount session bootstrap.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only auth bootstrap
+  }, []);
+
   const categories = useMemo(() => uniqueCategories(products), [products]);
   const themes = useMemo(() => uniqueThemes(products), [products]);
   const filtered = useMemo(() => filterPublicOgrProducts(products, filters), [products, filters]);
   const { totalUnits } = orderTotals(draft);
+  const pricingUnlocked = products.some((p) => p.wholesaleUsd != null);
+
+  function requestAccess() {
+    scrollTo('buyer-form');
+  }
 
   function applyFilters(next: WholesaleFilterState) {
     setFilters(next);
@@ -113,7 +182,28 @@ export function WholesaleShowroom({ products, terms, initialQuickViewSlug = null
     setSuccessNumber(requestNumber);
     setSuccessType(requestType);
     clearDraft();
+    if (buyerUserId) {
+      void enqueueBuyerCartSync(buyerUserId, []);
+    }
     scrollTo('order-success');
+  }
+
+  async function handleToggleLike(product: PublicOgrProduct) {
+    if (!buyerUserId) {
+      requestAccess();
+      return;
+    }
+    const nextLiked = !likedIds.has(product.id);
+    setLikeBusyId(product.id);
+    const result = await toggleBuyerProductLike(buyerUserId, product.id, nextLiked);
+    setLikeBusyId(null);
+    if (!result.ok) return;
+    setLikedIds((prev) => {
+      const next = new Set(prev);
+      if (result.liked) next.add(product.id);
+      else next.delete(product.id);
+      return next;
+    });
   }
 
   return (
@@ -122,12 +212,22 @@ export function WholesaleShowroom({ products, terms, initialQuickViewSlug = null
         <a href="/" className="font-heading text-accent-2-900 text-lg no-underline">
           Justin Fassio
         </a>
-        <a
-          href="#order-builder"
-          className="border-divider px-3.1 font-heading text-ink hover:bg-ink/[0.05] inline-flex items-center rounded-full border py-2 text-sm no-underline"
-        >
-          Order draft{totalUnits > 0 ? ` (${totalUnits})` : ''}
-        </a>
+        <div className="flex items-center gap-3">
+          {buyerUserId ? (
+            <a
+              href="/account"
+              className="text-ink/70 hover:text-ink text-sm no-underline underline-offset-2 hover:underline"
+            >
+              Account
+            </a>
+          ) : null}
+          <a
+            href="#order-builder"
+            className="border-divider px-3.1 font-heading text-ink hover:bg-ink/[0.05] inline-flex items-center rounded-full border py-2 text-sm no-underline"
+          >
+            Order draft{totalUnits > 0 ? ` (${totalUnits})` : ''}
+          </a>
+        </div>
       </header>
 
       <section className="px-8.1 mx-auto max-w-[1240px] pt-4 pb-10">
@@ -160,9 +260,20 @@ export function WholesaleShowroom({ products, terms, initialQuickViewSlug = null
               scrollTo('buyer-form');
             }}
           >
-            Ask About the Line
+            Request wholesale access
+          </a>
+          <a
+            href={buyerUserId ? '/account' : '/login'}
+            className="text-ink/70 hover:text-ink px-2 py-2 text-sm no-underline underline-offset-2 hover:underline"
+          >
+            {buyerUserId ? 'Retailer account' : 'Retailer sign in'}
           </a>
         </div>
+        <p className="text-ink/55 m-0 mt-3 max-w-[540px] text-sm">
+          {pricingUnlocked
+            ? 'Wholesale unit pricing is unlocked for your verified retailer account.'
+            : 'Suggested retail is shown for browsing. Wholesale unit pricing unlocks after Justin verifies your retailer account.'}
+        </p>
       </section>
 
       <section id="collection" className="px-8.1 mx-auto max-w-[1240px] pb-12">
@@ -187,6 +298,10 @@ export function WholesaleShowroom({ products, terms, initialQuickViewSlug = null
                 product={product}
                 onViewDetails={openQuickView}
                 onAddToOrder={openAddPanel}
+                onRequestAccess={requestAccess}
+                liked={likedIds.has(product.id)}
+                onToggleLike={handleToggleLike}
+                likeDisabled={likeBusyId === product.id}
               />
             ))}
           </div>
@@ -208,13 +323,15 @@ export function WholesaleShowroom({ products, terms, initialQuickViewSlug = null
                 {successType === 'inquiry' ? (
                   <>
                     Your reference is <span className="font-heading">{successNumber}</span>. Justin
-                    will reply by email.
+                    will reply by email. Check your inbox for a retailer sign-in invite if this was
+                    your first request.
                   </>
                 ) : (
                   <>
                     Your order request number is{' '}
                     <span className="font-heading">{successNumber}</span>. We’ll follow up to
-                    confirm pricing, availability and next steps.
+                    confirm pricing, availability and next steps. Check email for a retailer sign-in
+                    invite if this was your first request.
                   </>
                 )}
               </p>
@@ -226,21 +343,31 @@ export function WholesaleShowroom({ products, terms, initialQuickViewSlug = null
         <WholesaleOrderBuilder
           draft={draft}
           terms={resolvedTerms}
+          pricingUnlocked={pricingUnlocked}
           onChangeQuantity={(productId, size, quantity) => {
             setDraft((prev) => {
               const line = prev.lines.find((l) => l.productId === productId && l.size === size);
               if (!line) return prev;
-              return upsertOrderLine(prev, { ...line, quantity });
+              const next = upsertOrderLine(prev, { ...line, quantity });
+              if (buyerUserId) void enqueueBuyerCartSync(buyerUserId, next.lines);
+              return next;
             });
           }}
           onRemoveLine={(productId, size) => {
-            setDraft((prev) => ({
-              ...prev,
-              lines: prev.lines.filter((l) => !(l.productId === productId && l.size === size)),
-              updatedAt: new Date().toISOString(),
-            }));
+            setDraft((prev) => {
+              const next = {
+                ...prev,
+                lines: prev.lines.filter((l) => !(l.productId === productId && l.size === size)),
+                updatedAt: new Date().toISOString(),
+              };
+              if (buyerUserId) void enqueueBuyerCartSync(buyerUserId, next.lines);
+              return next;
+            });
           }}
-          onClear={clearDraft}
+          onClear={() => {
+            clearDraft();
+            if (buyerUserId) void enqueueBuyerCartSync(buyerUserId, []);
+          }}
           onAskAboutLine={() => scrollTo('buyer-form')}
         />
       </section>
@@ -260,10 +387,19 @@ export function WholesaleShowroom({ products, terms, initialQuickViewSlug = null
               product={quickView}
               showClose
               onClose={closeQuickView}
+              onRequestAccess={() => {
+                closeQuickView();
+                requestAccess();
+              }}
               onAddLines={(lines) => {
                 mergeLines(lines);
                 closeQuickView();
                 scrollTo('order-builder');
+                if (buyerUserId) {
+                  queueMicrotask(() => {
+                    void enqueueBuyerCartSync(buyerUserId, getWholesaleOrderDraftSnapshot().lines);
+                  });
+                }
               }}
             />
           </div>
