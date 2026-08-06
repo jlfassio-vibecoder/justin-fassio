@@ -11,10 +11,13 @@ export {
 } from '@/lib/messageFingerprint';
 
 export const MESSAGE_THREAD_SELECT =
-  'id, prospect_id, mapping_status, identity_fingerprint, confirmed_fingerprint, source, subject, last_message_at, created_at, updated_at' as const;
+  'id, prospect_id, mapping_status, identity_fingerprint, confirmed_fingerprint, source, subject, channel, chat_state, visitor_user_id, visitor_name, visitor_email, awaiting_reply_since, last_message_at, created_at, updated_at' as const;
 
 export const MESSAGE_SELECT =
   'id, thread_id, kind, wholesale_order_request_id, body, payload, created_at' as const;
+
+export type MessageChannel = 'wholesale' | 'live_chat';
+export type ChatState = 'awaiting_human' | 'ai_active' | 'human_active';
 
 export type MessageThread = {
   id: string;
@@ -24,6 +27,12 @@ export type MessageThread = {
   confirmedFingerprint: string | null;
   source: string;
   subject: string;
+  channel: MessageChannel;
+  chatState: ChatState | null;
+  visitorUserId: string | null;
+  visitorName: string | null;
+  visitorEmail: string | null;
+  awaitingReplySince: string | null;
   lastMessageAt: string;
   createdAt: string;
   updatedAt: string;
@@ -82,6 +91,15 @@ function asMappingStatus(value: string): MappingStatus {
   return 'unmapped';
 }
 
+function asChannel(value: string | null | undefined): MessageChannel {
+  return value === 'live_chat' ? 'live_chat' : 'wholesale';
+}
+
+function asChatState(value: string | null | undefined): ChatState | null {
+  if (value === 'awaiting_human' || value === 'ai_active' || value === 'human_active') return value;
+  return null;
+}
+
 function mapThreadRow(row: {
   id: string;
   prospect_id: number | null;
@@ -90,6 +108,12 @@ function mapThreadRow(row: {
   confirmed_fingerprint: string | null;
   source: string;
   subject: string;
+  channel?: string | null;
+  chat_state?: string | null;
+  visitor_user_id?: string | null;
+  visitor_name?: string | null;
+  visitor_email?: string | null;
+  awaiting_reply_since?: string | null;
   last_message_at: string;
   created_at: string;
   updated_at: string;
@@ -102,6 +126,12 @@ function mapThreadRow(row: {
     confirmedFingerprint: row.confirmed_fingerprint,
     source: row.source,
     subject: row.subject,
+    channel: asChannel(row.channel),
+    chatState: asChatState(row.chat_state),
+    visitorUserId: row.visitor_user_id ?? null,
+    visitorName: row.visitor_name ?? null,
+    visitorEmail: row.visitor_email ?? null,
+    awaitingReplySince: row.awaiting_reply_since ?? null,
     lastMessageAt: row.last_message_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -214,11 +244,16 @@ export async function fetchMessageThreads(
   return {
     data: threads.map((t) => {
       const payload = latestByThread.get(t.id) ?? {};
+      const isLive = t.channel === 'live_chat';
       return {
         ...t,
-        businessName: payload.businessName ?? null,
-        buyerName: payload.buyerName ?? null,
-        email: payload.email ?? null,
+        businessName: isLive
+          ? (t.visitorName ?? payload.businessName ?? null)
+          : (payload.businessName ?? null),
+        buyerName: isLive
+          ? (t.visitorName ?? payload.buyerName ?? null)
+          : (payload.buyerName ?? null),
+        email: isLive ? (t.visitorEmail ?? payload.email ?? null) : (payload.email ?? null),
         requestNumber: payload.requestNumber ?? null,
         prospectName: t.prospectId != null ? (prospectNameById.get(t.prospectId) ?? null) : null,
       };
@@ -310,5 +345,14 @@ export function fingerprintFromPayload(payload: MessagePayload): string | null {
     email: payload.email,
     businessName: payload.businessName,
     buyerName: payload.buyerName,
+  });
+}
+
+export function fingerprintFromLiveChatThread(thread: MessageThread): string | null {
+  if (!thread.visitorEmail || !thread.visitorName) return null;
+  return identityFingerprint({
+    email: thread.visitorEmail,
+    businessName: 'live-chat',
+    buyerName: thread.visitorName,
   });
 }

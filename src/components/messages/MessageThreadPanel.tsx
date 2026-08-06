@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+// Copilot suggestion ignored: React 19 types export SubmitEvent; FormEvent is deprecated for form onSubmit.
+import { useEffect, useMemo, useState, type SubmitEvent } from 'react';
 import { AddProspectAiModal } from '@/components/AddProspectAiModal';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
+import { sendStaffChatReply } from '@/lib/liveChatClient';
 import type { MessagePayload, MessageRow, MessageThread } from '@/lib/messages';
 import {
   confirmThreadMapping,
@@ -11,6 +13,7 @@ import {
   searchProspectsForMapping,
 } from '@/lib/messages';
 import type { Prospect } from '@/lib/prospects';
+import { supabase } from '@/lib/supabase';
 
 interface ConfirmMappingFormProps {
   thread: MessageThread;
@@ -90,7 +93,7 @@ export function ConfirmMappingForm({
 
   async function confirmWithProspect(prospect: Prospect) {
     const fingerprint =
-      fingerprintFromPayload(latestPayload ?? {}) || thread.identityFingerprint || null;
+      thread.identityFingerprint || fingerprintFromPayload(latestPayload ?? {}) || null;
     if (!fingerprint) {
       setError('Missing buyer identity on this thread.');
       return;
@@ -267,9 +270,13 @@ export function MessageThreadPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confirmedOverride, setConfirmedOverride] = useState<MessageThread | null>(null);
+  const [reply, setReply] = useState('');
+  const [replyBusy, setReplyBusy] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
 
   const current =
     confirmedOverride && confirmedOverride.id === thread.id ? confirmedOverride : thread;
+  const isLiveChat = current.channel === 'live_chat';
 
   useEffect(() => {
     let active = true;
@@ -293,12 +300,86 @@ export function MessageThreadPanel({
     };
   }, [thread.id]);
 
+  useEffect(() => {
+    if (!isLiveChat) return;
+
+    const channel = supabase
+      .channel(`staff-live-chat-${thread.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `thread_id=eq.${thread.id}`,
+        },
+        (payload) => {
+          const row = payload.new as {
+            id: string;
+            thread_id: string;
+            kind: string;
+            wholesale_order_request_id: string | null;
+            body: string;
+            payload: unknown;
+            created_at: string;
+          };
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === row.id)) return prev;
+            return [
+              ...prev,
+              {
+                id: row.id,
+                threadId: row.thread_id,
+                kind: row.kind,
+                wholesaleOrderRequestId: row.wholesale_order_request_id,
+                body: row.body,
+                payload: (row.payload ?? {}) as MessagePayload,
+                createdAt: row.created_at,
+              },
+            ];
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [thread.id, isLiveChat]);
+
   const latestPayload = useMemo(() => {
-    const last = messages[messages.length - 1];
+    if (isLiveChat) {
+      return {
+        businessName: current.visitorName ?? undefined,
+        buyerName: current.visitorName ?? undefined,
+        email: current.visitorEmail ?? undefined,
+      } satisfies MessagePayload;
+    }
+    const last = [...messages].reverse().find((m) => m.payload && Object.keys(m.payload).length);
     return last?.payload ?? null;
-  }, [messages]);
+  }, [messages, isLiveChat, current.visitorName, current.visitorEmail]);
 
   const needsMapping = current.mappingStatus !== 'confirmed';
+
+  async function handleStaffReply(e: SubmitEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!reply.trim()) return;
+    setReplyBusy(true);
+    setReplyError(null);
+    try {
+      await sendStaffChatReply(thread.id, reply.trim());
+      setReply('');
+      onThreadUpdated?.({
+        ...current,
+        chatState: 'human_active',
+        lastMessageAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      setReplyError(err instanceof Error ? err.message : 'Could not send reply');
+    } finally {
+      setReplyBusy(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -307,6 +388,16 @@ export function MessageThreadPanel({
           <h3 className="font-heading m-0 text-lg">
             {latestPayload?.businessName || current.subject || 'Thread'}
           </h3>
+          {isLiveChat ? <Tag variant="neutral">Live chat</Tag> : null}
+          {isLiveChat && current.chatState ? (
+            <Tag variant={current.chatState === 'human_active' ? 'accent-2' : 'accent'}>
+              {current.chatState === 'human_active'
+                ? 'You joined'
+                : current.chatState === 'ai_active'
+                  ? 'AI covering'
+                  : 'Awaiting you'}
+            </Tag>
+          ) : null}
           <Tag variant={needsMapping ? 'accent' : 'accent-2'}>
             {needsMapping ? 'Needs mapping' : 'Confirmed'}
           </Tag>
@@ -335,7 +426,7 @@ export function MessageThreadPanel({
         ) : null}
       </div>
 
-      {latestPayload ? <BuyerFields payload={latestPayload} /> : null}
+      {!isLiveChat && latestPayload ? <BuyerFields payload={latestPayload} /> : null}
 
       {loading ? <p className="text-ink/60 m-0 text-sm">Loading messages…</p> : null}
       {error ? (
@@ -373,6 +464,32 @@ export function MessageThreadPanel({
           </article>
         ))}
       </div>
+
+      {isLiveChat ? (
+        <form className="flex flex-col gap-2" onSubmit={(e) => void handleStaffReply(e)}>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-heading text-sm">Reply as Justin</span>
+            <textarea
+              className="border-ink/15 min-h-[88px] rounded-md border px-3 py-2 text-sm outline-none"
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              placeholder="Take over the chat…"
+              maxLength={4000}
+              disabled={replyBusy}
+            />
+          </label>
+          {replyError ? (
+            <p className="text-accent-800 m-0 text-xs" role="alert">
+              {replyError}
+            </p>
+          ) : null}
+          <div>
+            <Button type="submit" variant="primary" disabled={replyBusy || !reply.trim()}>
+              {replyBusy ? 'Sending…' : 'Send reply'}
+            </Button>
+          </div>
+        </form>
+      ) : null}
 
       {!hideMappingForm && needsMapping ? (
         <ConfirmMappingForm

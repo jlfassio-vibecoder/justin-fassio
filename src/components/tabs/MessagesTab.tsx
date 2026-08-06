@@ -112,8 +112,8 @@ export function MessagesTab({
         <div>
           <h2 className="font-heading m-0 text-2xl">Messages</h2>
           <p className="text-ink/65 m-0 mt-1 text-sm">
-            Inbound wholesale order requests. Confirm the account map so threads show on prospect
-            and account drawers.
+            Wholesale requests and live chat. Confirm the account map so threads show on prospect
+            and account drawers. Reply in live chat to take over from the AI cover.
           </p>
         </div>
         <div className="bg-surface flex items-center gap-1 rounded-full p-1">
