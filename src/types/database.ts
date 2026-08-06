@@ -1269,6 +1269,10 @@ export interface Database {
           display_name: string | null;
           prospect_id: number | null;
           prospect_name: string | null;
+          prospect_city: string | null;
+          business_name: string | null;
+          buyer_name: string | null;
+          phone: string | null;
           wholesale_pricing_unlocked: boolean;
           status: string;
           created_at: string;

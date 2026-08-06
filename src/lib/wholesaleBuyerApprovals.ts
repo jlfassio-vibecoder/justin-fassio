@@ -6,6 +6,10 @@ export type PendingWholesaleBuyer = {
   displayName: string | null;
   prospectId: number | null;
   prospectName: string | null;
+  prospectCity: string | null;
+  businessName: string | null;
+  buyerName: string | null;
+  phone: string | null;
   wholesalePricingUnlocked: boolean;
   status: string;
   createdAt: string;
@@ -26,6 +30,10 @@ export async function listPendingWholesaleBuyers(): Promise<
       displayName: row.display_name,
       prospectId: row.prospect_id,
       prospectName: row.prospect_name,
+      prospectCity: row.prospect_city,
+      businessName: row.business_name,
+      buyerName: row.buyer_name,
+      phone: row.phone,
       wholesalePricingUnlocked: row.wholesale_pricing_unlocked,
       status: row.status,
       createdAt: row.created_at,
