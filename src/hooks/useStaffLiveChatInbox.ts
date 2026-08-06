@@ -61,14 +61,19 @@ export function useStaffLiveChatInbox(args: {
       .channel('staff-live-chat-inbox')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: 'kind=eq.live_chat_visitor',
+        },
         (payload) => {
           const row = payload.new as { thread_id?: string; kind?: string };
-          if (!row.thread_id || !row.kind?.startsWith('live_chat_')) return;
-          if (row.kind !== 'live_chat_visitor') return;
+          const threadId = row.thread_id;
+          if (!threadId) return;
 
           void (async () => {
-            const result = await fetchMessageThread(row.thread_id!);
+            const result = await fetchMessageThread(threadId);
             if (result.error || !result.data || result.data.channel !== 'live_chat') return;
             setOpenLiveChats((prev) => upsertIncomingLiveChat(prev, result.data as MessageThread));
             onInboxActivityRef.current?.();

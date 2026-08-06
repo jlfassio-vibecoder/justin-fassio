@@ -1116,17 +1116,8 @@ create policy "live chat visitor read threads" on message_threads
     and visitor_user_id = auth.uid()
   );
 
+-- Copilot suggestion applied: visitors do not UPDATE threads (service-role APIs own chat_state).
 drop policy if exists "live chat visitor update own thread meta" on message_threads;
-create policy "live chat visitor update own thread meta" on message_threads
-  for update to authenticated
-  using (
-    channel = 'live_chat'
-    and visitor_user_id = auth.uid()
-  )
-  with check (
-    channel = 'live_chat'
-    and visitor_user_id = auth.uid()
-  );
 
 drop policy if exists "approved staff full access" on messages;
 create policy "approved staff full access" on messages
@@ -1147,16 +1138,5 @@ create policy "live chat visitor read messages" on messages
     )
   );
 
+-- Copilot suggestion applied: visitors do not INSERT messages directly (API + rate limits).
 drop policy if exists "live chat visitor insert messages" on messages;
-create policy "live chat visitor insert messages" on messages
-  for insert to authenticated
-  with check (
-    kind = 'live_chat_visitor'
-    and exists (
-      select 1
-      from message_threads t
-      where t.id = messages.thread_id
-        and t.channel = 'live_chat'
-        and t.visitor_user_id = auth.uid()
-    )
-  );

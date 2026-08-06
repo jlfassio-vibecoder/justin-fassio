@@ -99,7 +99,7 @@ export async function ensureLiveChatThread(
     .single();
 
   if (createError || !created) {
-    // Collision on fingerprint: try attach by email fingerprint for same visitor.
+    // Collision on fingerprint: reclaim only unbound/own threads; never join a foreign visitor.
     if (createError?.code === '23505') {
       const { data: byFp } = await admin
         .from('message_threads')
@@ -108,7 +108,7 @@ export async function ensureLiveChatThread(
         )
         .eq('identity_fingerprint', fingerprint)
         .maybeSingle();
-      if (byFp) {
+      if (byFp && (!byFp.visitor_user_id || byFp.visitor_user_id === args.userId)) {
         if (!byFp.visitor_user_id) {
           await admin
             .from('message_threads')
@@ -134,6 +134,54 @@ export async function ensureLiveChatThread(
           },
         };
       }
+
+      if (byFp && byFp.visitor_user_id && byFp.visitor_user_id !== args.userId) {
+        const altFingerprint = liveChatFingerprint(
+          email ? `${email}#uid:${args.userId}` : '',
+          name,
+          args.userId,
+        );
+        const { data: createdAlt, error: altError } = await admin
+          .from('message_threads')
+          .insert({
+            channel: 'live_chat',
+            chat_state: 'awaiting_human',
+            visitor_user_id: args.userId,
+            visitor_name: name,
+            visitor_email: email || null,
+            identity_fingerprint: altFingerprint,
+            source: 'live-chat-fab',
+            subject: `Live chat · ${name}`,
+            mapping_status: 'unmapped',
+            last_message_at: now,
+          })
+          .select(
+            'id, chat_state, visitor_name, visitor_email, subject, last_message_at, awaiting_reply_since, prospect_id, mapping_status',
+          )
+          .single();
+        if (!altError && createdAlt) {
+          await admin.from('messages').insert({
+            thread_id: createdAlt.id,
+            kind: 'live_chat_system',
+            body: 'You’re chatting with Justin — a real person. He’ll jump in as soon as he can.',
+            payload: {},
+          });
+          return {
+            ok: true,
+            thread: {
+              id: createdAlt.id,
+              chatState: 'awaiting_human',
+              visitorName: name,
+              visitorEmail: email || null,
+              subject: createdAlt.subject,
+              lastMessageAt: createdAlt.last_message_at,
+              awaitingReplySince: createdAlt.awaiting_reply_since,
+              prospectId: createdAlt.prospect_id,
+              mappingStatus: createdAlt.mapping_status,
+            },
+          };
+        }
+      }
     }
     return { ok: false, error: createError?.message ?? 'Failed to create chat thread' };
   }
@@ -142,7 +190,7 @@ export async function ensureLiveChatThread(
     thread_id: created.id,
     kind: 'live_chat_system',
     body: 'You’re chatting with Justin — a real person. He’ll jump in as soon as he can.',
-    payload: { role: 'system' },
+    payload: {},
   });
   if (systemError) {
     console.error('[liveChat] system message failed', systemError.message);

@@ -2,6 +2,8 @@
 
 export const CHAT_RATE_LIMIT_MAX = 40;
 export const CHAT_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+/** Stricter cap for minting ephemeral chat auth users (unauthenticated). */
+export const CHAT_MINT_RATE_LIMIT_MAX = 8;
 
 const hitsByKey = new Map<string, number[]>();
 
@@ -12,9 +14,13 @@ function prune(timestamps: number[], now: number): number[] {
   return timestamps.filter((t) => t > cutoff);
 }
 
-export function checkChatRateLimit(key: string, now = Date.now()): ChatRateLimitResult {
+export function checkChatRateLimit(
+  key: string,
+  now = Date.now(),
+  max = CHAT_RATE_LIMIT_MAX,
+): ChatRateLimitResult {
   const pruned = prune(hitsByKey.get(key) ?? [], now);
-  if (pruned.length >= CHAT_RATE_LIMIT_MAX) {
+  if (pruned.length >= max) {
     const oldest = pruned[0] ?? now;
     const retryAfterSec = Math.max(1, Math.ceil((oldest + CHAT_RATE_LIMIT_WINDOW_MS - now) / 1000));
     hitsByKey.set(key, pruned);

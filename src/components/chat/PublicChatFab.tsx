@@ -134,6 +134,10 @@ export function PublicChatFab() {
     }
   }
 
+  useEffect(() => {
+    if (!open) clearSilenceTimer();
+  }, [open]);
+
   function scheduleSilenceCheck(id: string) {
     clearSilenceTimer();
     silenceTimer.current = window.setTimeout(() => {
@@ -146,6 +150,7 @@ export function PublicChatFab() {
           if (!refreshed.error) {
             setMessages(refreshed.data);
           } else if (result.inserted && result.wittyLine) {
+            const wittyLine = result.wittyLine;
             setMessages((prev) => [
               ...prev,
               {
@@ -153,7 +158,7 @@ export function PublicChatFab() {
                 threadId: id,
                 kind: 'live_chat_ai',
                 wholesaleOrderRequestId: null,
-                body: result.wittyLine!,
+                body: wittyLine,
                 payload: {},
                 createdAt: new Date().toISOString(),
               },

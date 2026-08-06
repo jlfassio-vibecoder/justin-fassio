@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { requireChatVisitorClient } from '@/lib/chatVisitorAuth';
-import { checkChatRateLimit } from '@/lib/chatRateLimit';
+import { CHAT_MINT_RATE_LIMIT_MAX, checkChatRateLimit } from '@/lib/chatRateLimit';
 import { rateLimitResponse } from '@/lib/agentRateLimit';
 import { createEphemeralChatUser } from '@/lib/liveChatAuth';
 import { ensureLiveChatThread } from '@/lib/liveChat';
@@ -47,12 +47,24 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const gate = await requireChatVisitorClient(request);
+  const authHeader = request.headers.get('Authorization');
   let userId: string;
   let credentials: { email: string; password: string } | null = null;
 
   if (gate.ok) {
     userId = gate.userId;
+  } else if (authHeader?.startsWith('Bearer ')) {
+    // Invalid/expired token — do not mint a new auth user.
+    return gate.response;
   } else {
+    // Copilot suggestion applied: stricter mint limit + no mint on bad bearer.
+    const mintLimited = checkChatRateLimit(
+      `chat-mint:${clientKey(request)}`,
+      Date.now(),
+      CHAT_MINT_RATE_LIMIT_MAX,
+    );
+    if (!mintLimited.ok) return rateLimitResponse(mintLimited.retryAfterSec);
+
     const created = await createEphemeralChatUser(admin);
     if (!created.ok) return json({ ok: false, error: created.error }, 500);
     userId = created.credentials.userId;
