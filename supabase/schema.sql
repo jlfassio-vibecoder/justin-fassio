@@ -28,6 +28,12 @@ create table if not exists lines (
   code text not null unique,          -- e.g. 'ogr', 'bkg' — stable short key for app logic
   name text not null,                 -- e.g. 'Old Guys Rule'
   active boolean not null default true,
+  tagline text,
+  description text,
+  hero_image_path text,
+  hero_image_url text,
+  sort_order integer not null default 0,
+  public_showroom_path text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -37,10 +43,18 @@ create trigger lines_set_updated_at
   before update on lines
   for each row execute function set_updated_at();
 
-insert into lines (code, name, active)
+insert into lines (code, name, active, tagline, description, sort_order, public_showroom_path)
 values
-  ('ogr', 'Old Guys Rule', true),
-  ('bkg', 'Busted Knuckles Garage', false)
+  (
+    'ogr',
+    'Old Guys Rule',
+    true,
+    'Now Repping',
+    'Apparel & lifestyle goods for the surf and skate crowd.',
+    10,
+    '/old-guys-rule-wholesale'
+  ),
+  ('bkg', 'Busted Knuckles Garage', false, null, null, 20, null)
 on conflict (code) do nothing;
 
 -- ─────────────────────────────────────────────────────────────────────────
@@ -1004,6 +1018,39 @@ $$;
 
 revoke all on function public.get_public_ogr_supplier_terms() from public;
 grant execute on function public.get_public_ogr_supplier_terms() to anon, authenticated;
+
+create or replace function public.get_public_active_lines()
+returns table (
+  id uuid,
+  code text,
+  name text,
+  tagline text,
+  description text,
+  hero_image_url text,
+  sort_order integer,
+  public_showroom_path text
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    l.id,
+    l.code,
+    l.name,
+    l.tagline,
+    l.description,
+    l.hero_image_url,
+    l.sort_order,
+    l.public_showroom_path
+  from lines l
+  where l.active = true
+  order by l.sort_order asc, l.name asc;
+$$;
+
+revoke all on function public.get_public_active_lines() from public;
+grant execute on function public.get_public_active_lines() to anon, authenticated;
 
 alter table lines enable row level security;
 alter table territories enable row level security;

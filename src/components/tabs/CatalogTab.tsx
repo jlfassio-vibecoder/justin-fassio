@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { LineEditDrawer } from '@/components/LineEditDrawer';
 import { ProductDetailDrawer } from '@/components/ProductDetailDrawer';
 import { Button } from '@/components/ui/Button';
 import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
@@ -16,6 +17,7 @@ import {
   type LandedCostFactors,
 } from '@/lib/landedCost';
 import { fetchLandedRates, type LandedRatesPayload } from '@/lib/landedRatesClient';
+import { fetchLineByCode, type LinePortfolio } from '@/lib/lines';
 import {
   DEFAULT_KEYSTONE_MARGIN_RATE,
   MIN_ORDER_PIECES,
@@ -122,6 +124,24 @@ export function CatalogTab({
   const [orderPieces, setOrderPieces] = useState(MIN_ORDER_PIECES);
   const [shippingCadOverride, setShippingCadOverride] = useState<number | null>(null);
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
+  const [activeLine, setActiveLine] = useState<LinePortfolio | null>(null);
+  const [lineEditOpen, setLineEditOpen] = useState(false);
+  const [lineLoadError, setLineLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void fetchLineByCode('ogr').then((result) => {
+      if (!active) return;
+      if (result.error) {
+        setLineLoadError(result.error);
+        return;
+      }
+      setActiveLine(result.data);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const pricedFactors = useMemo(
     () => factorsWithSettings(factors, supplierTerms),
@@ -211,6 +231,59 @@ export function CatalogTab({
 
   return (
     <section className="flex flex-col gap-5" data-screen-label="catalog">
+      {lineLoadError ? (
+        <p className="text-sm text-red-700" role="alert">
+          Could not load line portfolio: {lineLoadError}
+        </p>
+      ) : null}
+
+      {activeLine ? (
+        <Card className="overflow-hidden p-0">
+          <div className="grid gap-0 md:grid-cols-[minmax(0,280px)_1fr]">
+            <div className="bg-surface border-ink/10 min-h-[160px] border-b md:border-r md:border-b-0">
+              {activeLine.heroImageUrl ? (
+                <img
+                  src={activeLine.heroImageUrl}
+                  alt=""
+                  className="h-full max-h-56 w-full object-cover md:max-h-none md:min-h-[180px]"
+                />
+              ) : (
+                <div className="text-ink/45 flex h-40 items-center justify-center px-4 text-center text-xs md:h-full md:min-h-[180px]">
+                  Drop {activeLine.name} logo/lookbook image
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col gap-3 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="font-heading m-0 text-2xl leading-tight">{activeLine.name}</h2>
+                  {activeLine.tagline ? (
+                    <p className="text-accent-700 m-0 mt-1 text-sm font-semibold">
+                      {activeLine.tagline}
+                    </p>
+                  ) : null}
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="text-xs whitespace-nowrap"
+                  onClick={() => setLineEditOpen(true)}
+                >
+                  Edit line
+                </Button>
+              </div>
+              {activeLine.description ? (
+                <p className="text-ink/75 m-0 text-sm leading-relaxed">{activeLine.description}</p>
+              ) : (
+                <p className="text-ink/45 m-0 text-sm">
+                  Add a portfolio description for this line.
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
         <Card>
           <CardKicker>Total Styles / SKUs</CardKicker>
@@ -667,6 +740,15 @@ export function CatalogTab({
           setSelectedSku(updated.sku);
         }}
       />
+
+      {lineEditOpen && activeLine ? (
+        <LineEditDrawer
+          key={activeLine.id}
+          line={activeLine}
+          onClose={() => setLineEditOpen(false)}
+          onSaved={(updated) => setActiveLine(updated)}
+        />
+      ) : null}
 
       <Card>
         <CardTitle className="text-[17px]">Wholesale Terms &amp; Ordering Guidelines</CardTitle>

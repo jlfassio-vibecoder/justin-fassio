@@ -1,4 +1,6 @@
 ---
+export const prerender = false;
+
 import Layout from '@/layouts/Layout.astro';
 import {
   CONTACT_EMAIL,
@@ -6,9 +8,27 @@ import {
   SOCIAL_INSTAGRAM_URL,
   SOCIAL_LINKEDIN_URL,
 } from '@/data/landing';
+import { fetchPublicActiveLines } from '@/lib/lines';
 
 const instagramLive = SOCIAL_INSTAGRAM_URL !== '#';
 const linkedInLive = SOCIAL_LINKEDIN_URL !== '#';
+
+const { data: brandLines } = await fetchPublicActiveLines();
+const brands =
+  brandLines.length > 0
+    ? brandLines
+    : [
+        {
+          id: 'fallback-ogr',
+          code: 'ogr',
+          name: 'Old Guys Rule',
+          tagline: 'Now Repping',
+          description: 'Apparel & lifestyle goods for the surf and skate crowd.',
+          heroImageUrl: null,
+          sortOrder: 10,
+          publicShowroomPath: OGR_WHOLESALE_PATH,
+        },
+      ];
 ---
 
 <Layout title="Justin Fassio — Outdoor Lifestyle Rep">
@@ -135,62 +155,49 @@ const linkedInLive = SOCIAL_LINKEDIN_URL !== '#';
         <p class="mb-6.1 text-bg/75 max-w-[520px]">
           The lines I carry into shops today, with more joining the roster soon.
         </p>
-        <div class="brand-grid gap-6.1 grid md:grid-cols-2">
-          <article
-            class="brand-card elev-md gap-3.1 bg-bg p-4.1 flex flex-col rounded-xl shadow-md"
-          >
-            <div
-              class="bg-surface text-ink/45 flex h-40 w-full items-center justify-center rounded-md text-center text-xs"
-              role="img"
-              aria-label="Old Guys Rule image placeholder"
-            >
-              Drop Old Guys Rule logo/lookbook image
-            </div>
-            <div class="gap-2.1 flex flex-wrap items-center">
-              <span class="font-heading text-xl leading-tight">Old Guys Rule</span>
-              <span
-                class="bg-accent-2-100 text-accent-2-800 inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] tracking-wide"
-              >
-                Now Repping
-              </span>
-            </div>
-            <p class="text-ink/70 m-0 text-sm">
-              Apparel & lifestyle goods for the surf and skate crowd.
-            </p>
-            <a
-              href={OGR_WHOLESALE_PATH}
-              class="brand-cta bg-accent-700 px-4.1 py-2.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center self-start rounded-full text-sm no-underline"
-            >
-              View Line
-            </a>
-          </article>
-
-          <article
-            class="brand-card elev-sm gap-3.1 bg-bg p-4.1 flex flex-col rounded-xl opacity-85 shadow-sm"
-          >
-            <div
-              class="bg-surface text-ink/45 flex h-40 w-full items-center justify-center rounded-md text-center text-xs"
-              role="img"
-              aria-label="Busted Knuckles Garage image placeholder"
-            >
-              Drop Busted Knuckles Garage image
-            </div>
-            <div class="gap-2.1 flex flex-wrap items-center">
-              <span class="font-heading text-xl leading-tight">Busted Knuckles Garage</span>
-              <span
-                class="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-[3px] text-[11px] tracking-wide text-neutral-800"
-              >
-                Soon
-              </span>
-            </div>
-            <p class="text-ink/70 m-0 text-sm">Moto-inspired apparel joining the line card soon.</p>
-            <span
-              class="border-divider px-4.1 py-2.1 font-heading text-ink/70 inline-flex cursor-default items-center justify-center self-start rounded-full border text-sm opacity-70"
-              aria-disabled="true"
-            >
-              Coming Soon
-            </span>
-          </article>
+        <div
+          class={`brand-grid gap-6.1 grid ${brands.length > 1 ? 'md:grid-cols-2' : 'grid-cols-1 md:max-w-[420px]'}`}
+        >
+          {
+            brands.map((brand) => (
+              <article class="brand-card elev-md gap-3.1 bg-bg p-4.1 flex flex-col rounded-xl shadow-md">
+                {brand.heroImageUrl ? (
+                  <img
+                    src={brand.heroImageUrl}
+                    alt=""
+                    class="h-40 w-full rounded-md object-cover"
+                  />
+                ) : (
+                  <div
+                    class="bg-surface text-ink/45 flex h-40 w-full items-center justify-center rounded-md text-center text-xs"
+                    role="img"
+                    aria-label={`${brand.name} image placeholder`}
+                  >
+                    {`Drop ${brand.name} logo/lookbook image`}
+                  </div>
+                )}
+                <div class="gap-2.1 flex flex-wrap items-center">
+                  <span class="font-heading text-xl leading-tight">{brand.name}</span>
+                  {brand.tagline ? (
+                    <span class="bg-accent-2-100 text-accent-2-800 inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] tracking-wide">
+                      {brand.tagline}
+                    </span>
+                  ) : null}
+                </div>
+                {brand.description ? (
+                  <p class="text-ink/70 m-0 text-sm">{brand.description}</p>
+                ) : null}
+                {brand.publicShowroomPath ? (
+                  <a
+                    href={brand.publicShowroomPath}
+                    class="brand-cta bg-accent-700 px-4.1 py-2.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center self-start rounded-full text-sm no-underline"
+                  >
+                    View Line
+                  </a>
+                ) : null}
+              </article>
+            ))
+          }
         </div>
       </div>
     </section>

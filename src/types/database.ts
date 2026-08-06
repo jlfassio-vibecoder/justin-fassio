@@ -25,6 +25,12 @@ export interface Database {
           code: string;
           name: string;
           active: boolean;
+          tagline: string | null;
+          description: string | null;
+          hero_image_path: string | null;
+          hero_image_url: string | null;
+          sort_order: number;
+          public_showroom_path: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -33,6 +39,12 @@ export interface Database {
           code: string;
           name: string;
           active?: boolean;
+          tagline?: string | null;
+          description?: string | null;
+          hero_image_path?: string | null;
+          hero_image_url?: string | null;
+          sort_order?: number;
+          public_showroom_path?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -41,6 +53,12 @@ export interface Database {
           code?: string;
           name?: string;
           active?: boolean;
+          tagline?: string | null;
+          description?: string | null;
+          hero_image_path?: string | null;
+          hero_image_url?: string | null;
+          sort_order?: number;
+          public_showroom_path?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1233,6 +1251,19 @@ export interface Database {
           min_pieces_per_design: number;
           default_shipping_method: string | null;
           prices_subject_to_change: boolean;
+        }[];
+      };
+      get_public_active_lines: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          code: string;
+          name: string;
+          tagline: string | null;
+          description: string | null;
+          hero_image_url: string | null;
+          sort_order: number;
+          public_showroom_path: string | null;
         }[];
       };
     };
