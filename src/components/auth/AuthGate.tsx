@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AuthProvider } from '@/components/auth/AuthProvider';
 import { OwnerPendingPanel } from '@/components/auth/OwnerPendingPanel';
+import { OwnerWholesaleBuyersPanel } from '@/components/auth/OwnerWholesaleBuyersPanel';
 import { PendingApprovalScreen } from '@/components/auth/PendingApprovalScreen';
 import { WrongPortalScreen } from '@/components/auth/WrongPortalScreen';
 import { RepCommandCenter } from '@/components/RepCommandCenter';
@@ -82,6 +83,7 @@ function AuthGateInner() {
               {profile.role}
             </span>
           )}
+          {isApprovedStaff(profile) ? <OwnerWholesaleBuyersPanel /> : null}
           {isApprovedOwner(profile) ? <OwnerPendingPanel /> : null}
           <AIAssistantModal />
           {pingStatus && <span className="text-ink/60">{pingStatus}</span>}

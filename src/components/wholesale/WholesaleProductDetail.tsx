@@ -1,11 +1,16 @@
 import { useMemo, useState } from 'react';
-import { formatSuggestedRetailCad, formatWholesaleUsd } from '@/lib/wholesalePricing';
+import {
+  formatSuggestedRetailCad,
+  formatWholesaleUsd,
+  hasWholesalePricing,
+} from '@/lib/wholesalePricing';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
 import type { WholesaleOrderLine } from '@/lib/wholesaleOrderDraft';
 
 type Props = {
   product: PublicOgrProduct;
   onAddLines: (lines: WholesaleOrderLine[]) => void;
+  onRequestAccess: () => void;
   onClose?: () => void;
   showClose?: boolean;
 };
@@ -17,7 +22,13 @@ function galleryUrls(product: PublicOgrProduct): string[] {
   return [...new Set(urls)];
 }
 
-export function WholesaleProductDetail({ product, onAddLines, onClose, showClose }: Props) {
+export function WholesaleProductDetail({
+  product,
+  onAddLines,
+  onRequestAccess,
+  onClose,
+  showClose,
+}: Props) {
   const images = galleryUrls(product);
   const [activeIdx, setActiveIdx] = useState(0);
   const [imageBroken, setImageBroken] = useState(false);
@@ -27,6 +38,8 @@ export function WholesaleProductDetail({ product, onAddLines, onClose, showClose
   );
   const [copied, setCopied] = useState(false);
   const retail = formatSuggestedRetailCad(product.msrpCad);
+  const wholesale = formatWholesaleUsd(product.wholesaleUsd);
+  const canWholesale = hasWholesalePricing(product.wholesaleUsd);
   const totalUnits = useMemo(
     () => Object.values(qtyBySize).reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0),
     [qtyBySize],
@@ -38,6 +51,10 @@ export function WholesaleProductDetail({ product, onAddLines, onClose, showClose
   }
 
   function handleAdd() {
+    if (!canWholesale || product.wholesaleUsd == null) {
+      onRequestAccess();
+      return;
+    }
     const lines: WholesaleOrderLine[] = sizes
       .filter((s) => (qtyBySize[s] ?? 0) > 0)
       .map((size) => ({
@@ -45,7 +62,7 @@ export function WholesaleProductDetail({ product, onAddLines, onClose, showClose
         sku: product.sku,
         name: product.name,
         size,
-        wholesaleUsd: product.wholesaleUsd,
+        wholesaleUsd: product.wholesaleUsd as number,
         quantity: qtyBySize[size] ?? 0,
         primaryImageUrl: product.primaryImageUrl,
       }));
@@ -156,41 +173,59 @@ export function WholesaleProductDetail({ product, onAddLines, onClose, showClose
         ) : null}
 
         <div>
-          <p className="font-heading m-0 text-xl">{formatWholesaleUsd(product.wholesaleUsd)}</p>
-          {retail ? <p className="text-ink/60 m-0 text-sm">{retail}</p> : null}
+          {retail ? <p className="font-heading m-0 text-xl">{retail}</p> : null}
+          {wholesale ? (
+            <p className="text-ink/70 m-0 text-sm">{wholesale}</p>
+          ) : (
+            <p className="text-ink/55 m-0 text-sm">
+              Wholesale unit pricing is available after retailer verification.
+            </p>
+          )}
         </div>
 
-        <div className="gap-2.1 flex flex-col">
-          <p className="text-ink/70 m-0 text-xs tracking-wide uppercase">Quantities by size</p>
-          <div className="gap-2.1 grid grid-cols-2 sm:grid-cols-3">
-            {sizes.map((size) => (
-              <label
-                key={size}
-                className="border-divider bg-bg flex flex-col gap-1 rounded-lg border p-2 text-sm"
-              >
-                <span className="font-heading text-xs">{size}</span>
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={qtyBySize[size] ?? 0}
-                  onChange={(e) => setQty(size, e.target.value)}
-                  className="border-divider focus:border-accent-700 rounded border px-2 py-1 text-sm outline-none"
-                />
-              </label>
-            ))}
+        {canWholesale ? (
+          <div className="gap-2.1 flex flex-col">
+            <p className="text-ink/70 m-0 text-xs tracking-wide uppercase">Quantities by size</p>
+            <div className="gap-2.1 grid grid-cols-2 sm:grid-cols-3">
+              {sizes.map((size) => (
+                <label
+                  key={size}
+                  className="border-divider bg-bg flex flex-col gap-1 rounded-lg border p-2 text-sm"
+                >
+                  <span className="font-heading text-xs">{size}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={qtyBySize[size] ?? 0}
+                    onChange={(e) => setQty(size, e.target.value)}
+                    className="border-divider focus:border-accent-700 rounded border px-2 py-1 text-sm outline-none"
+                  />
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <div className="gap-2.1 flex flex-wrap">
-          <button
-            type="button"
-            disabled={totalUnits === 0}
-            className="bg-accent-700 px-4.1 py-2.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm disabled:opacity-40"
-            onClick={handleAdd}
-          >
-            Add to Order{totalUnits > 0 ? ` (${totalUnits})` : ''}
-          </button>
+          {canWholesale ? (
+            <button
+              type="button"
+              disabled={totalUnits === 0}
+              className="bg-accent-700 px-4.1 py-2.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm disabled:opacity-40"
+              onClick={handleAdd}
+            >
+              Add to Order{totalUnits > 0 ? ` (${totalUnits})` : ''}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="bg-accent-700 px-4.1 py-2.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm"
+              onClick={onRequestAccess}
+            >
+              Request wholesale pricing
+            </button>
+          )}
           <button
             type="button"
             className="border-divider px-4.1 py-2.1 font-heading text-ink hover:bg-ink/[0.05] inline-flex items-center justify-center rounded-full border text-sm"

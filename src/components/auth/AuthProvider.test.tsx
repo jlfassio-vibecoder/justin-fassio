@@ -53,6 +53,8 @@ const PROFILE: Profile = {
   display_name: 'Owner',
   role: 'owner',
   status: 'approved',
+  prospect_id: null,
+  wholesale_pricing_unlocked: false,
   created_at: '',
   updated_at: '',
 };

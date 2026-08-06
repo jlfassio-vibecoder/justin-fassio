@@ -39,6 +39,8 @@ function baseProfile(partial: Partial<Profile>): Profile {
     display_name: 'User',
     role: 'rep',
     status: 'pending',
+    prospect_id: null,
+    wholesale_pricing_unlocked: false,
     created_at: '',
     updated_at: '',
     ...partial,
@@ -112,9 +114,9 @@ describe('AuthGate', () => {
     });
     render(<AuthGate />);
     expect(screen.getByText('Buyer account')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Go to Buyer Portal' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Go to retailer account' })).toHaveAttribute(
       'href',
-      '/login',
+      '/account',
     );
     expect(screen.queryByText('Rep Command Center')).not.toBeInTheDocument();
   });
@@ -134,6 +136,7 @@ describe('AuthGate', () => {
     expect(screen.getByText('Rep Command Center')).toBeInTheDocument();
     expect(screen.getByText('justin@example.com')).toBeInTheDocument();
     expect(screen.getByText('rep')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Wholesale buyers' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pending reps' })).not.toBeInTheDocument();
   });
 
@@ -151,6 +154,7 @@ describe('AuthGate', () => {
     expect(screen.getByText('Rep Command Center')).toBeInTheDocument();
     expect(screen.getByText('owner')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pending reps' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Wholesale buyers' })).toBeInTheDocument();
   });
 
   it('signs out and returns home from the approved app shell', async () => {

@@ -1132,6 +1132,8 @@ export interface Database {
           display_name: string | null;
           role: UserRole;
           status: UserStatus;
+          prospect_id: number | null;
+          wholesale_pricing_unlocked: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -1141,6 +1143,8 @@ export interface Database {
           display_name?: string | null;
           role?: UserRole;
           status?: UserStatus;
+          prospect_id?: number | null;
+          wholesale_pricing_unlocked?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -1150,8 +1154,73 @@ export interface Database {
           display_name?: string | null;
           role?: UserRole;
           status?: UserStatus;
+          prospect_id?: number | null;
+          wholesale_pricing_unlocked?: boolean;
           created_at?: string;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      buyer_cart_items: {
+        Row: {
+          id: string;
+          user_id: string;
+          catalog_item_id: string;
+          sku: string;
+          name: string;
+          size: string;
+          quantity: number;
+          wholesale_usd: number | null;
+          primary_image_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          catalog_item_id: string;
+          sku: string;
+          name: string;
+          size?: string;
+          quantity: number;
+          wholesale_usd?: number | null;
+          primary_image_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          catalog_item_id?: string;
+          sku?: string;
+          name?: string;
+          size?: string;
+          quantity?: number;
+          wholesale_usd?: number | null;
+          primary_image_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      buyer_product_likes: {
+        Row: {
+          id: string;
+          user_id: string;
+          catalog_item_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          catalog_item_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          catalog_item_id?: string;
+          created_at?: string;
         };
         Relationships: [];
       };
@@ -1164,6 +1233,14 @@ export interface Database {
       };
       is_approved_owner: {
         Args: Record<string, never>;
+        Returns: boolean;
+      };
+      buyer_has_wholesale_pricing: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      buyer_owns_message_thread: {
+        Args: { p_thread_id: string };
         Returns: boolean;
       };
       list_pending_profiles: {
@@ -1184,6 +1261,27 @@ export interface Database {
         };
         Returns: undefined;
       };
+      list_pending_wholesale_buyers: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          email: string | null;
+          display_name: string | null;
+          prospect_id: number | null;
+          prospect_name: string | null;
+          wholesale_pricing_unlocked: boolean;
+          status: string;
+          created_at: string;
+        }[];
+      };
+      set_buyer_wholesale_pricing: {
+        Args: {
+          target_id: string;
+          unlocked: boolean;
+          approve_profile?: boolean;
+        };
+        Returns: undefined;
+      };
       get_public_ogr_products: {
         Args: Record<string, never>;
         Returns: {
@@ -1198,7 +1296,7 @@ export interface Database {
           page: number | null;
           catalog_year: number | null;
           collection: string | null;
-          wholesale_usd: number;
+          wholesale_usd: number | null;
           msrp_cad: number;
           is_new: boolean;
           featured: boolean;
@@ -1228,7 +1326,7 @@ export interface Database {
           page: number | null;
           catalog_year: number | null;
           collection: string | null;
-          wholesale_usd: number;
+          wholesale_usd: number | null;
           msrp_cad: number;
           is_new: boolean;
           featured: boolean;

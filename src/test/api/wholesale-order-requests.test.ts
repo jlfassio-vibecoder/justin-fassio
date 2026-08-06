@@ -6,6 +6,7 @@ const sendWholesaleOrderConfirmationMock = vi.fn();
 const checkWholesaleOrderRateLimitMock = vi.fn();
 const resetWholesaleOrderRateLimitForTestsMock = vi.fn();
 const upsertWholesaleInboundMessageMock = vi.fn();
+const ensureWholesaleBuyerAccountMock = vi.fn();
 
 vi.mock('@/lib/supabaseAdmin', () => ({
   getServiceRoleClient: (...args: unknown[]) => getServiceRoleClientMock(...args),
@@ -33,6 +34,10 @@ vi.mock('@/lib/wholesaleOrderRateLimit', () => ({
 
 vi.mock('@/lib/messageCenterInbound', () => ({
   upsertWholesaleInboundMessage: (...args: unknown[]) => upsertWholesaleInboundMessageMock(...args),
+}));
+
+vi.mock('@/lib/wholesaleBuyerAccount', () => ({
+  ensureWholesaleBuyerAccount: (...args: unknown[]) => ensureWholesaleBuyerAccountMock(...args),
 }));
 
 import { POST } from '@/pages/api/wholesale/order-requests';
@@ -147,6 +152,12 @@ describe('POST /api/wholesale/order-requests', () => {
       messageId: 'msg-1',
       createdThread: true,
     });
+    ensureWholesaleBuyerAccountMock.mockResolvedValue({
+      ok: true,
+      userId: 'buyer-1',
+      invited: true,
+      linkedExisting: false,
+    });
   });
 
   it('honeypot returns fake success without touching the DB', async () => {
@@ -218,6 +229,14 @@ describe('POST /api/wholesale/order-requests', () => {
     expect(admin.insertCalls.some((c) => c.table === 'wholesale_order_requests')).toBe(true);
     expect(admin.insertCalls.some((c) => c.table === 'wholesale_order_request_items')).toBe(true);
     expect(matchOrCreateWholesaleProspectMock).toHaveBeenCalledOnce();
+    expect(ensureWholesaleBuyerAccountMock).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({
+        email: 'sam@example.com',
+        buyerName: 'Sam Buyer',
+        prospectId: 55,
+      }),
+    );
     expect(admin.updateCalls).toContainEqual({
       table: 'wholesale_order_requests',
       payload: { prospect_id: 55 },

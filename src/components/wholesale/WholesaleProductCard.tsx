@@ -1,10 +1,19 @@
-import { formatSuggestedRetailCad, formatWholesaleUsd } from '@/lib/wholesalePricing';
+import {
+  formatSuggestedRetailCad,
+  formatWholesaleUsd,
+  hasWholesalePricing,
+} from '@/lib/wholesalePricing';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
+import { Heart } from 'lucide-react';
 
 type Props = {
   product: PublicOgrProduct;
   onViewDetails: (product: PublicOgrProduct) => void;
   onAddToOrder: (product: PublicOgrProduct) => void;
+  onRequestAccess: () => void;
+  liked?: boolean;
+  onToggleLike?: (product: PublicOgrProduct) => void;
+  likeDisabled?: boolean;
 };
 
 function ProductImage({ product }: { product: PublicOgrProduct }) {
@@ -32,10 +41,37 @@ function ProductImage({ product }: { product: PublicOgrProduct }) {
   );
 }
 
-export function WholesaleProductCard({ product, onViewDetails, onAddToOrder }: Props) {
+export function WholesaleProductCard({
+  product,
+  onViewDetails,
+  onAddToOrder,
+  onRequestAccess,
+  liked = false,
+  onToggleLike,
+  likeDisabled = false,
+}: Props) {
   const retail = formatSuggestedRetailCad(product.msrpCad);
+  const wholesale = formatWholesaleUsd(product.wholesaleUsd);
+  const canWholesale = hasWholesalePricing(product.wholesaleUsd);
+
   return (
-    <article className="elev-md gap-3.1 bg-bg p-3.1 flex flex-col rounded-xl shadow-md">
+    <article className="elev-md gap-3.1 bg-bg p-3.1 relative flex flex-col rounded-xl shadow-md">
+      {onToggleLike ? (
+        <button
+          type="button"
+          className="bg-bg/90 text-ink absolute top-3 right-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full shadow-sm"
+          aria-label={liked ? 'Unlike product' : 'Like product'}
+          aria-pressed={liked}
+          disabled={likeDisabled}
+          onClick={() => onToggleLike(product)}
+        >
+          <Heart
+            size={18}
+            strokeWidth={2.75}
+            className={liked ? 'fill-accent-700 text-accent-700' : ''}
+          />
+        </button>
+      ) : null}
       <button
         type="button"
         className="text-left no-underline"
@@ -68,8 +104,12 @@ export function WholesaleProductCard({ product, onViewDetails, onAddToOrder }: P
         ) : null}
       </div>
       <div className="mt-auto">
-        <p className="font-heading m-0 text-sm">{formatWholesaleUsd(product.wholesaleUsd)}</p>
-        {retail ? <p className="text-ink/60 m-0 text-xs">{retail}</p> : null}
+        {retail ? <p className="font-heading m-0 text-sm">{retail}</p> : null}
+        {wholesale ? (
+          <p className="text-ink/70 m-0 text-xs">{wholesale}</p>
+        ) : (
+          <p className="text-ink/55 m-0 text-xs">Wholesale pricing after retailer verification</p>
+        )}
       </div>
       <div className="gap-2.1 flex flex-wrap">
         <button
@@ -79,13 +119,23 @@ export function WholesaleProductCard({ product, onViewDetails, onAddToOrder }: P
         >
           View Details
         </button>
-        <button
-          type="button"
-          className="bg-accent-700 px-3.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full py-2 text-sm"
-          onClick={() => onAddToOrder(product)}
-        >
-          Add
-        </button>
+        {canWholesale ? (
+          <button
+            type="button"
+            className="bg-accent-700 px-3.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full py-2 text-sm"
+            onClick={() => onAddToOrder(product)}
+          >
+            Add
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="bg-accent-700 px-3.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full py-2 text-sm"
+            onClick={onRequestAccess}
+          >
+            Request pricing
+          </button>
+        )}
       </div>
     </article>
   );

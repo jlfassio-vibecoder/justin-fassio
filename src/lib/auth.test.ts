@@ -9,6 +9,8 @@ function profile(partial: Partial<Profile>): Profile {
     display_name: 'Test',
     role: 'rep',
     status: 'pending',
+    prospect_id: null,
+    wholesale_pricing_unlocked: false,
     created_at: '2026-08-01T00:00:00Z',
     updated_at: '2026-08-01T00:00:00Z',
     ...partial,

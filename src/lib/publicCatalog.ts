@@ -13,7 +13,7 @@ export type PublicOgrProduct = {
   page: number | null;
   catalogYear: number | null;
   collection: string;
-  wholesaleUsd: number;
+  wholesaleUsd: number | null;
   msrpCad: number;
   isNew: boolean;
   featured: boolean;
@@ -65,7 +65,7 @@ type PublicOgrProductRow = {
   page: number | null;
   catalog_year: number | null;
   collection: string | null;
-  wholesale_usd: number;
+  wholesale_usd: number | null;
   msrp_cad: number;
   is_new: boolean;
   featured: boolean;
@@ -99,7 +99,7 @@ export function mapPublicOgrProductRow(row: PublicOgrProductRow): PublicOgrProdu
     page: row.page,
     catalogYear: row.catalog_year,
     collection: row.collection ?? '',
-    wholesaleUsd: Number(row.wholesale_usd),
+    wholesaleUsd: row.wholesale_usd == null ? null : Number(row.wholesale_usd),
     msrpCad: Number(row.msrp_cad),
     isNew: row.is_new,
     featured: row.featured,
