@@ -34,6 +34,7 @@ interface MessagesTabProps {
   onLogCall: (prospect: Prospect) => void;
   onNotesSaved?: (id: number, notes: string | null) => void;
   onOpenLiveChat?: (thread: MessageThread) => void;
+  onSurfaceLiveChatPill?: (thread: MessageThread) => void;
 }
 
 export function MessagesTab({
@@ -42,6 +43,7 @@ export function MessagesTab({
   onLogCall,
   onNotesSaved,
   onOpenLiveChat,
+  onSurfaceLiveChatPill,
 }: MessagesTabProps) {
   const [filter, setFilter] = useState<MessageThreadFilter>('all');
   const [channel, setChannel] = useState<MessageChannelFilter>('all');
@@ -207,6 +209,7 @@ export function MessagesTab({
                 key={selected.id}
                 thread={selected}
                 onOpenLiveChat={onOpenLiveChat}
+                onSurfaceLiveChatPill={onSurfaceLiveChatPill}
                 onOpenMapped={(thread) => {
                   void openMapped(thread);
                 }}

@@ -78,16 +78,45 @@ export function upsertOpenLiveChat(
 }
 
 /**
+ * Reopen a dismissed/closed live chat as a minimized dock pill.
+ * Used when a new message arrives on a thread Justin previously closed.
+ */
+export function surfaceLiveChatAsPill(
+  slots: OpenLiveChatSlot[],
+  thread: MessageThread,
+  options: { unread?: number } = {},
+): OpenLiveChatSlot[] {
+  const unread = options.unread ?? 1;
+  undismissLiveChatThread(thread.id);
+  const existing = slots.find((s) => s.thread.id === thread.id);
+  if (existing) {
+    return slots.map((s) =>
+      s.thread.id === thread.id
+        ? {
+            thread,
+            minimized: true,
+            unread: s.minimized ? s.unread + unread : unread,
+          }
+        : s,
+    );
+  }
+  return enforceExpandedLimit([...slots, { thread, minimized: true, unread }]);
+}
+
+/**
  * Surface an incoming live chat without forcing expand:
  * - existing minimized slot → bump unread
  * - existing expanded → refresh thread meta
- * - new → add minimized with unread
- * Also clears any prior dismiss so a new visitor message reopens the dock pill.
+ * - new / previously dismissed → minimized pill with unread
  */
 export function upsertIncomingLiveChat(
   slots: OpenLiveChatSlot[],
   thread: MessageThread,
 ): OpenLiveChatSlot[] {
+  const wasDismissed = isLiveChatDismissed(thread.id);
+  if (wasDismissed) {
+    return surfaceLiveChatAsPill(slots, thread, { unread: 1 });
+  }
   undismissLiveChatThread(thread.id);
   const existing = slots.find((s) => s.thread.id === thread.id);
   if (existing) {
