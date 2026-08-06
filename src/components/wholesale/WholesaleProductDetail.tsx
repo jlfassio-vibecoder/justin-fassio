@@ -3,6 +3,8 @@ import {
   formatSuggestedRetailCad,
   formatWholesaleUsd,
   hasWholesalePricing,
+  RETAIL_PRICE_DISCLAIMER,
+  WHOLESALE_LOCKED_LABEL,
 } from '@/lib/wholesalePricing';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
 import type { WholesaleOrderLine } from '@/lib/wholesaleOrderDraft';
@@ -172,14 +174,13 @@ export function WholesaleProductDetail({
           </div>
         ) : null}
 
-        <div>
+        <div className="flex flex-col gap-1">
           {retail ? <p className="font-heading m-0 text-xl">{retail}</p> : null}
+          {retail ? <p className="text-ink/55 m-0 text-sm">{RETAIL_PRICE_DISCLAIMER}</p> : null}
           {wholesale ? (
             <p className="text-ink/70 m-0 text-sm">{wholesale}</p>
           ) : (
-            <p className="text-ink/55 m-0 text-sm">
-              Wholesale unit pricing is available after retailer verification.
-            </p>
+            <p className="text-ink/55 m-0 text-sm">{WHOLESALE_LOCKED_LABEL}</p>
           )}
         </div>
 

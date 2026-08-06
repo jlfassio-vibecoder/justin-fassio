@@ -2,6 +2,8 @@ import {
   formatSuggestedRetailCad,
   formatWholesaleUsd,
   hasWholesalePricing,
+  RETAIL_PRICE_DISCLAIMER,
+  WHOLESALE_LOCKED_LABEL,
 } from '@/lib/wholesalePricing';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
 import { Heart } from 'lucide-react';
@@ -103,12 +105,13 @@ export function WholesaleProductCard({
           <p className="text-ink/70 m-0 mt-1.5 text-sm">{product.tagline}</p>
         ) : null}
       </div>
-      <div className="mt-auto">
+      <div className="mt-auto flex flex-col gap-1">
         {retail ? <p className="font-heading m-0 text-sm">{retail}</p> : null}
+        {retail ? <p className="text-ink/55 m-0 text-xs">{RETAIL_PRICE_DISCLAIMER}</p> : null}
         {wholesale ? (
           <p className="text-ink/70 m-0 text-xs">{wholesale}</p>
         ) : (
-          <p className="text-ink/55 m-0 text-xs">Wholesale pricing after retailer verification</p>
+          <p className="text-ink/55 m-0 text-xs">{WHOLESALE_LOCKED_LABEL}</p>
         )}
       </div>
       <div className="gap-2.1 flex flex-wrap">
