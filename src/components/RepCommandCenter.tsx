@@ -9,13 +9,16 @@ import { ProspectsTab } from '@/components/tabs/ProspectsTab';
 import { ActiveAccountsTab } from '@/components/tabs/ActiveAccountsTab';
 import { ContactsTab } from '@/components/tabs/ContactsTab';
 import { InsightsTab } from '@/components/tabs/InsightsTab';
+import { StaffChatDock } from '@/components/messages/StaffChatDock';
 import { MessagesTab } from '@/components/tabs/MessagesTab';
 import { useLandedCostCalculator } from '@/hooks/useLandedCostCalculator';
+import { useStaffLiveChatInbox } from '@/hooks/useStaffLiveChatInbox';
 import { fetchAllContacts, type ContactDirectoryRow } from '@/lib/accountContacts';
 import { fetchCatalogItems, type CatalogItem } from '@/lib/catalog';
 import { fetchOgrCatalogSettings, type CatalogSupplierTerms } from '@/lib/catalogSettings';
-import { fetchNeedsMappingCount } from '@/lib/messages';
+import { fetchNeedsMappingCount, type MessageThread } from '@/lib/messages';
 import { fetchProspects, type Prospect } from '@/lib/prospects';
+import { upsertOpenLiveChat, type OpenLiveChatSlot } from '@/lib/staffChatDockState';
 import { fetchTerritories, type Territory } from '@/lib/territories';
 import type { TabKey } from '@/types';
 
@@ -38,6 +41,18 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   const [directoryLoading, setDirectoryLoading] = useState(true);
   const [directoryError, setDirectoryError] = useState<string | null>(null);
   const [messagesNeedsMappingCount, setMessagesNeedsMappingCount] = useState(0);
+  const [openLiveChats, setOpenLiveChats] = useState<OpenLiveChatSlot[]>([]);
+  const [messagesReloadToken, setMessagesReloadToken] = useState(0);
+
+  const openLiveChat = useCallback((thread: MessageThread) => {
+    if (thread.channel !== 'live_chat') return;
+    setOpenLiveChats((prev) => upsertOpenLiveChat(prev, thread));
+  }, []);
+
+  useStaffLiveChatInbox({
+    setOpenLiveChats,
+    onInboxActivity: () => setMessagesReloadToken((n) => n + 1),
+  });
 
   const {
     fx,
@@ -290,7 +305,9 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
             )}
             {activeTab === 'messages' && (
               <MessagesTab
+                reloadToken={messagesReloadToken}
                 onNeedsMappingCountChange={setMessagesNeedsMappingCount}
+                onOpenLiveChat={openLiveChat}
                 onLogCall={(store) => openModal(store)}
                 onNotesSaved={(id, notes) => {
                   setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
@@ -313,6 +330,12 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
         onStoreChange={(id) => setModalStoreId(id)}
         onSaved={() => setCallsReloadToken((n) => n + 1)}
         onConverted={reloadDirectory}
+      />
+
+      <StaffChatDock
+        openChats={openLiveChats}
+        onChange={setOpenLiveChats}
+        onReplySent={() => setMessagesReloadToken((n) => n + 1)}
       />
     </div>
   );

@@ -917,6 +917,7 @@ export interface Database {
           preferred_contact_method: string | null;
           source: string;
           status: string;
+          request_type: string;
           prospect_id: number | null;
           idempotency_key: string | null;
           merchandise_subtotal_usd: number;
@@ -943,6 +944,7 @@ export interface Database {
           preferred_contact_method?: string | null;
           source?: string;
           status?: string;
+          request_type?: string;
           prospect_id?: number | null;
           idempotency_key?: string | null;
           merchandise_subtotal_usd?: number;
@@ -969,6 +971,7 @@ export interface Database {
           preferred_contact_method?: string | null;
           source?: string;
           status?: string;
+          request_type?: string;
           prospect_id?: number | null;
           idempotency_key?: string | null;
           merchandise_subtotal_usd?: number;
@@ -1026,6 +1029,12 @@ export interface Database {
           confirmed_fingerprint: string | null;
           source: string;
           subject: string;
+          channel: string;
+          chat_state: string | null;
+          visitor_user_id: string | null;
+          visitor_name: string | null;
+          visitor_email: string | null;
+          awaiting_reply_since: string | null;
           last_message_at: string;
           created_at: string;
           updated_at: string;
@@ -1038,6 +1047,12 @@ export interface Database {
           confirmed_fingerprint?: string | null;
           source?: string;
           subject?: string;
+          channel?: string;
+          chat_state?: string | null;
+          visitor_user_id?: string | null;
+          visitor_name?: string | null;
+          visitor_email?: string | null;
+          awaiting_reply_since?: string | null;
           last_message_at?: string;
           created_at?: string;
           updated_at?: string;
@@ -1050,6 +1065,12 @@ export interface Database {
           confirmed_fingerprint?: string | null;
           source?: string;
           subject?: string;
+          channel?: string;
+          chat_state?: string | null;
+          visitor_user_id?: string | null;
+          visitor_name?: string | null;
+          visitor_email?: string | null;
+          awaiting_reply_since?: string | null;
           last_message_at?: string;
           created_at?: string;
           updated_at?: string;

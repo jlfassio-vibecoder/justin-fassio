@@ -17,6 +17,8 @@ export type WholesaleOrderEmailPayload = {
   totalUnits: number;
   merchandiseSubtotalUsd: number;
   lines: WholesaleOrderEmailLine[];
+  requestType?: 'order' | 'inquiry';
+  notes?: string | null;
 };
 
 export type WholesaleOrderEmailResult =
@@ -40,7 +42,7 @@ function escapeHtml(s: string): string {
     .replaceAll('"', '&quot;');
 }
 
-function buildHtml(payload: WholesaleOrderEmailPayload): string {
+function buildOrderHtml(payload: WholesaleOrderEmailPayload): string {
   return `
 <p>Hi ${escapeHtml(payload.buyerName)},</p>
 <p>We received your Old Guys Rule wholesale order request
@@ -54,6 +56,19 @@ ${escapeHtml(payload.businessName)}.</p>
 </table>
 <p>This is an order request, not a completed purchase. We will confirm pricing,
 availability, freight, duties and payment terms before acceptance.</p>
+<p>— Justin Fassio</p>
+`.trim();
+}
+
+function buildInquiryHtml(payload: WholesaleOrderEmailPayload): string {
+  const notes = payload.notes?.trim();
+  return `
+<p>Hi ${escapeHtml(payload.buyerName)},</p>
+<p>Thanks for reaching out about Old Guys Rule wholesale for
+${escapeHtml(payload.businessName)}. Your inquiry reference is
+<strong>${escapeHtml(payload.requestNumber)}</strong>.</p>
+${notes ? `<p>${escapeHtml(notes)}</p>` : ''}
+<p>Justin will follow up by email with next steps.</p>
 <p>— Justin Fassio</p>
 `.trim();
 }
@@ -77,8 +92,11 @@ export async function sendWholesaleOrderConfirmation(
     process.env.WHOLESALE_ORDER_EMAIL_FROM ??
     `Justin Fassio <${CONTACT_EMAIL}>`;
 
-  const html = buildHtml(payload);
-  const subject = `Wholesale order request ${payload.requestNumber}`;
+  const isInquiry = payload.requestType === 'inquiry';
+  const html = isInquiry ? buildInquiryHtml(payload) : buildOrderHtml(payload);
+  const subject = isInquiry
+    ? `Wholesale inquiry ${payload.requestNumber}`
+    : `Wholesale order request ${payload.requestNumber}`;
 
   try {
     const resend = new Resend(apiKey);

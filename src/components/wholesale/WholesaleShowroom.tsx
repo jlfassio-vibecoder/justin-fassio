@@ -10,6 +10,7 @@ import {
   type WholesaleFilterState,
 } from '@/lib/wholesaleFilters';
 import { orderTotals, upsertOrderLine } from '@/lib/wholesaleOrderDraft';
+import type { WholesaleRequestType } from '@/lib/wholesaleOrderRequestSchema';
 import { useWholesaleOrderDraft } from '@/hooks/useWholesaleOrderDraft';
 import { WholesaleBuyerForm } from '@/components/wholesale/WholesaleBuyerForm';
 import { WholesaleFilters } from '@/components/wholesale/WholesaleFilters';
@@ -45,6 +46,7 @@ export function WholesaleShowroom({ products, terms, initialQuickViewSlug = null
     return products.find((p) => p.publicSlug === initialQuickViewSlug) ?? null;
   });
   const [successNumber, setSuccessNumber] = useState<string | null>(null);
+  const [successType, setSuccessType] = useState<WholesaleRequestType>('order');
 
   useEffect(() => {
     function onPopState() {
@@ -107,8 +109,9 @@ export function WholesaleShowroom({ products, terms, initialQuickViewSlug = null
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function handleSuccess(requestNumber: string) {
+  function handleSuccess(requestNumber: string, requestType: WholesaleRequestType) {
     setSuccessNumber(requestNumber);
+    setSuccessType(requestType);
     clearDraft();
     scrollTo('order-success');
   }
@@ -198,10 +201,22 @@ export function WholesaleShowroom({ products, terms, initialQuickViewSlug = null
               className="border-accent-2-300 bg-accent-2-100 p-4.1 rounded-xl border"
               role="status"
             >
-              <h2 className="font-heading m-0 text-xl">Request received</h2>
+              <h2 className="font-heading m-0 text-xl">
+                {successType === 'inquiry' ? 'Message sent' : 'Request received'}
+              </h2>
               <p className="m-0 mt-2 text-sm">
-                Your order request number is <span className="font-heading">{successNumber}</span>.
-                We’ll follow up to confirm pricing, availability and next steps.
+                {successType === 'inquiry' ? (
+                  <>
+                    Your reference is <span className="font-heading">{successNumber}</span>. Justin
+                    will reply by email.
+                  </>
+                ) : (
+                  <>
+                    Your order request number is{' '}
+                    <span className="font-heading">{successNumber}</span>. We’ll follow up to
+                    confirm pricing, availability and next steps.
+                  </>
+                )}
               </p>
             </div>
           ) : (

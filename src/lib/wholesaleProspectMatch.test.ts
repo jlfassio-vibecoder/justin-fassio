@@ -57,6 +57,17 @@ describe('buildWholesaleActivityNote', () => {
     expect(note).toContain('24 units');
     expect(note).toContain('OG1, OG2');
   });
+
+  it('summarizes inquiry without units', () => {
+    const note = buildWholesaleActivityNote({
+      requestNumber: 'W-2026-000002',
+      totalUnits: 0,
+      merchandiseSubtotalUsd: 0,
+      skus: [],
+      requestType: 'inquiry',
+    });
+    expect(note).toBe('Wholesale inquiry W-2026-000002: no products selected.');
+  });
 });
 
 describe('matchOrCreateWholesaleProspect', () => {
