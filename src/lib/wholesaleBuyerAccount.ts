@@ -57,15 +57,30 @@ export async function ensureWholesaleBuyerAccount(
       };
     }
 
-    const patch: Database['public']['Tables']['profiles']['Update'] = {
-      prospect_id: input.prospectId,
-    };
+    // Copilot suggestion applied: never overwrite an existing prospect link from public form submit.
+    if (existing.prospect_id != null && existing.prospect_id !== input.prospectId) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: 'Buyer already linked to a different prospect',
+      };
+    }
+
+    const patch: Database['public']['Tables']['profiles']['Update'] = {};
+    if (existing.prospect_id == null) {
+      patch.prospect_id = input.prospectId;
+    }
     if (!existing.display_name?.trim() && input.buyerName.trim()) {
       patch.display_name = input.buyerName.trim();
     }
 
-    const { error: updateError } = await admin.from('profiles').update(patch).eq('id', existing.id);
-    if (updateError) return { ok: false, error: updateError.message };
+    if (Object.keys(patch).length > 0) {
+      const { error: updateError } = await admin
+        .from('profiles')
+        .update(patch)
+        .eq('id', existing.id);
+      if (updateError) return { ok: false, error: updateError.message };
+    }
 
     return { ok: true, userId: existing.id, invited: false, linkedExisting: true };
   }

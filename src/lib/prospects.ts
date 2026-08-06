@@ -47,8 +47,8 @@ export const EMPTY_PROSPECT_PLANNING: ProspectPlanningFields = {
 /** Default BC territory fields for fixtures / tests. */
 export const BC_PROSPECT_TERRITORY = {
   territoryId: '00000000-0000-4000-8000-0000000000bc',
-  territoryCode: 'bc' as string | null,
-  territoryName: 'British Columbia' as string | null,
+  territoryCode: 'bc',
+  territoryName: 'British Columbia',
 };
 
 export interface Prospect extends ProspectPlanningFields {

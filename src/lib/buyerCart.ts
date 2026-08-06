@@ -12,16 +12,19 @@ export type BuyerCartItem = {
   primaryImageUrl: string | null;
 };
 
-function mapCartRow(row: {
-  id: string;
-  catalog_item_id: string;
-  sku: string;
-  name: string;
-  size: string;
-  quantity: number;
-  wholesale_usd: number | null;
-  primary_image_url: string | null;
-}): BuyerCartItem {
+function mapCartRow(
+  row: {
+    id: string;
+    catalog_item_id: string;
+    sku: string;
+    name: string;
+    size: string;
+    quantity: number;
+    wholesale_usd: number | null;
+    primary_image_url: string | null;
+  },
+  pricingUnlocked: boolean,
+): BuyerCartItem {
   return {
     id: row.id,
     catalogItemId: row.catalog_item_id,
@@ -29,7 +32,8 @@ function mapCartRow(row: {
     name: row.name,
     size: row.size,
     quantity: row.quantity,
-    wholesaleUsd: row.wholesale_usd,
+    // Copilot suggestion applied: never surface denormalized wholesale after revoke.
+    wholesaleUsd: pricingUnlocked ? row.wholesale_usd : null,
     primaryImageUrl: row.primary_image_url,
   };
 }
@@ -52,14 +56,21 @@ export function cartItemsToDraft(items: BuyerCartItem[]): WholesaleOrderDraft {
 export async function fetchBuyerCartItems(
   userId: string,
 ): Promise<{ data: BuyerCartItem[]; error: string | null }> {
-  const { data, error } = await supabase
-    .from('buyer_cart_items')
-    .select('id, catalog_item_id, sku, name, size, quantity, wholesale_usd, primary_image_url')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false });
+  const [{ data, error }, pricing] = await Promise.all([
+    supabase
+      .from('buyer_cart_items')
+      .select('id, catalog_item_id, sku, name, size, quantity, wholesale_usd, primary_image_url')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false }),
+    supabase.rpc('buyer_has_wholesale_pricing'),
+  ]);
 
   if (error) return { data: [], error: error.message };
-  return { data: (data ?? []).map(mapCartRow), error: null };
+  const pricingUnlocked = pricing.data === true;
+  return {
+    data: (data ?? []).map((row) => mapCartRow(row, pricingUnlocked)),
+    error: null,
+  };
 }
 
 /** Replace server cart with local draft lines (merge-by-upsert then delete extras). */
@@ -68,6 +79,8 @@ export async function syncBuyerCartFromDraft(
   lines: WholesaleOrderLine[],
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const pricedLines = lines.filter((l) => l.quantity > 0 && Number.isFinite(l.wholesaleUsd));
+  const { data: unlocked } = await supabase.rpc('buyer_has_wholesale_pricing');
+  const pricingUnlocked = unlocked === true;
 
   const { data: existing, error: existingError } = await supabase
     .from('buyer_cart_items')
@@ -98,7 +111,7 @@ export async function syncBuyerCartFromDraft(
         name: line.name,
         size: line.size,
         quantity: line.quantity,
-        wholesale_usd: line.wholesaleUsd,
+        wholesale_usd: pricingUnlocked ? line.wholesaleUsd : null,
         primary_image_url: line.primaryImageUrl,
         updated_at: new Date().toISOString(),
       },
@@ -116,4 +129,19 @@ export async function clearBuyerCart(
   const { error } = await supabase.from('buyer_cart_items').delete().eq('user_id', userId);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+/** Serializes cart syncs so rapid edits cannot finish out of order. */
+let cartSyncChain: Promise<unknown> = Promise.resolve();
+
+export function enqueueBuyerCartSync(
+  userId: string,
+  lines: WholesaleOrderLine[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const run = cartSyncChain.then(() => syncBuyerCartFromDraft(userId, lines));
+  cartSyncChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }

@@ -22,7 +22,7 @@ import { WholesaleFilters } from '@/components/wholesale/WholesaleFilters';
 import { WholesaleOrderBuilder } from '@/components/wholesale/WholesaleOrderBuilder';
 import { WholesaleProductCard } from '@/components/wholesale/WholesaleProductCard';
 import { WholesaleProductDetail } from '@/components/wholesale/WholesaleProductDetail';
-import { cartItemsToDraft, fetchBuyerCartItems, syncBuyerCartFromDraft } from '@/lib/buyerCart';
+import { cartItemsToDraft, fetchBuyerCartItems, enqueueBuyerCartSync } from '@/lib/buyerCart';
 import { fetchBuyerLikedProductIds, toggleBuyerProductLike } from '@/lib/buyerLikes';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
@@ -117,7 +117,7 @@ export function WholesaleShowroom({
       if (cart.data.length > 0 && draft.lines.length === 0) {
         setDraft(cartItemsToDraft(cart.data));
       } else if (draft.lines.length > 0) {
-        void syncBuyerCartFromDraft(session.user.id, draft.lines);
+        void enqueueBuyerCartSync(session.user.id, draft.lines);
       }
     })();
 
@@ -183,7 +183,7 @@ export function WholesaleShowroom({
     setSuccessType(requestType);
     clearDraft();
     if (buyerUserId) {
-      void syncBuyerCartFromDraft(buyerUserId, []);
+      void enqueueBuyerCartSync(buyerUserId, []);
     }
     scrollTo('order-success');
   }
@@ -349,7 +349,7 @@ export function WholesaleShowroom({
               const line = prev.lines.find((l) => l.productId === productId && l.size === size);
               if (!line) return prev;
               const next = upsertOrderLine(prev, { ...line, quantity });
-              if (buyerUserId) void syncBuyerCartFromDraft(buyerUserId, next.lines);
+              if (buyerUserId) void enqueueBuyerCartSync(buyerUserId, next.lines);
               return next;
             });
           }}
@@ -360,13 +360,13 @@ export function WholesaleShowroom({
                 lines: prev.lines.filter((l) => !(l.productId === productId && l.size === size)),
                 updatedAt: new Date().toISOString(),
               };
-              if (buyerUserId) void syncBuyerCartFromDraft(buyerUserId, next.lines);
+              if (buyerUserId) void enqueueBuyerCartSync(buyerUserId, next.lines);
               return next;
             });
           }}
           onClear={() => {
             clearDraft();
-            if (buyerUserId) void syncBuyerCartFromDraft(buyerUserId, []);
+            if (buyerUserId) void enqueueBuyerCartSync(buyerUserId, []);
           }}
           onAskAboutLine={() => scrollTo('buyer-form')}
         />
@@ -397,10 +397,7 @@ export function WholesaleShowroom({
                 scrollTo('order-builder');
                 if (buyerUserId) {
                   queueMicrotask(() => {
-                    void syncBuyerCartFromDraft(
-                      buyerUserId,
-                      getWholesaleOrderDraftSnapshot().lines,
-                    );
+                    void enqueueBuyerCartSync(buyerUserId, getWholesaleOrderDraftSnapshot().lines);
                   });
                 }
               }}

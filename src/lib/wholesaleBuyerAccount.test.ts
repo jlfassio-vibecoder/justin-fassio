@@ -46,37 +46,39 @@ describe('ensureWholesaleBuyerAccount', () => {
     expect(admin.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
   });
 
-  it('skips staff accounts', async () => {
+  it('skips when buyer is already linked to a different prospect', async () => {
     const limit = vi.fn().mockResolvedValue({
       data: [
         {
-          id: 'rep-1',
-          role: 'rep',
-          prospect_id: null,
-          email: 'rep@example.com',
-          display_name: 'Rep',
+          id: 'user-2',
+          role: 'buyer',
+          prospect_id: 7,
+          email: 'sam@example.com',
+          display_name: 'Sam',
         },
       ],
       error: null,
     });
     const ilike = vi.fn(() => ({ limit }));
     const select = vi.fn(() => ({ ilike }));
-    const from = vi.fn(() => ({ select }));
+    const update = vi.fn();
+    const from = vi.fn(() => ({ select, update }));
     const admin = {
       from,
       auth: { admin: { inviteUserByEmail: vi.fn() } },
     } as unknown as SupabaseClient<Database>;
 
     const result = await ensureWholesaleBuyerAccount(admin, {
-      email: 'rep@example.com',
-      buyerName: 'Rep',
-      prospectId: 9,
+      email: 'sam@example.com',
+      buyerName: 'Sam Buyer',
+      prospectId: 42,
     });
 
     expect(result).toEqual({
       ok: true,
       skipped: true,
-      reason: 'Existing rep account — not linked as wholesale buyer',
+      reason: 'Buyer already linked to a different prospect',
     });
+    expect(update).not.toHaveBeenCalled();
   });
 });

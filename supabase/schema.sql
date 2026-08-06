@@ -686,7 +686,8 @@ create table if not exists messages (
       'live_chat_visitor',
       'live_chat_staff',
       'live_chat_ai',
-      'live_chat_system'
+      'live_chat_system',
+      'buyer_reply'
     )),
   wholesale_order_request_id uuid references wholesale_order_requests(id) on delete set null,
   body text not null default '',
@@ -969,6 +970,13 @@ begin
 
   if not found then
     raise exception 'buyer profile not found';
+  end if;
+
+  if not unlocked then
+    update public.buyer_cart_items
+    set wholesale_usd = null,
+        updated_at = now()
+    where user_id = target_id;
   end if;
 end;
 $$;
@@ -1431,16 +1439,6 @@ create policy "approved staff read buyer likes" on buyer_product_likes
   using (public.is_approved_staff());
 
 drop policy if exists "buyers read linked prospect" on prospects;
-create policy "buyers read linked prospect" on prospects
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid()
-        and p.role = 'buyer'
-        and p.prospect_id = prospects.id
-    )
-  );
 
 create or replace function public.buyer_owns_message_thread(p_thread_id uuid)
 returns boolean
@@ -1455,6 +1453,8 @@ as $$
     join public.profiles p on p.id = auth.uid()
     where t.id = p_thread_id
       and p.role = 'buyer'
+      and p.status = 'approved'
+      and p.wholesale_pricing_unlocked = true
       and p.prospect_id is not null
       and t.prospect_id = p.prospect_id
   );
@@ -1471,6 +1471,8 @@ create policy "buyers read linked threads" on message_threads
       select 1 from public.profiles p
       where p.id = auth.uid()
         and p.role = 'buyer'
+        and p.status = 'approved'
+        and p.wholesale_pricing_unlocked = true
         and p.prospect_id is not null
         and message_threads.prospect_id = p.prospect_id
     )

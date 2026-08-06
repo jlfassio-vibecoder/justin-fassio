@@ -115,12 +115,9 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
 
       if (!active) return;
 
-      const errors = [
-        catalogResult.error,
-        prospectsResult.error,
-        territoriesResult.error,
-        contactsResult.error,
-      ].filter(Boolean);
+      const errors = [catalogResult.error, prospectsResult.error, contactsResult.error].filter(
+        Boolean,
+      );
       if (errors.length) {
         if (isInitial) {
           setCatalog([]);
@@ -137,7 +134,8 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
       // Supplier terms are supplemental (Ordering section); don't block the directory on them.
       setSupplierTerms(supplierTermsResult.error ? null : supplierTermsResult.data);
       setProspects(prospectsResult.data);
-      setTerritories(territoriesResult.data);
+      // Territories power an optional filter; don't block the directory if they fail.
+      setTerritories(territoriesResult.error ? [] : territoriesResult.data);
       setContacts(contactsResult.data);
       setDirectoryLoading(false);
     }

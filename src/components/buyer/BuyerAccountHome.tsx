@@ -3,7 +3,7 @@ import { AuthProvider } from '@/components/auth/AuthProvider';
 import { BuyerMessagesSection } from '@/components/buyer/BuyerMessagesSection';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
-import { cartItemsToDraft, fetchBuyerCartItems, syncBuyerCartFromDraft } from '@/lib/buyerCart';
+import { cartItemsToDraft, fetchBuyerCartItems, enqueueBuyerCartSync } from '@/lib/buyerCart';
 import { fetchBuyerLikedProductIds } from '@/lib/buyerLikes';
 import { fetchPublicOgrProducts, type PublicOgrProduct } from '@/lib/publicCatalog';
 import { formatMerchandiseSubtotalUsd, formatWholesaleUsd } from '@/lib/wholesalePricing';
@@ -52,7 +52,7 @@ function BuyerAccountInner() {
       if (cartResult.data.length > 0 && local.lines.length === 0) {
         writeWholesaleOrderDraft(cartItemsToDraft(cartResult.data));
       } else if (local.lines.length > 0) {
-        await syncBuyerCartFromDraft(user.id, local.lines);
+        await enqueueBuyerCartSync(user.id, local.lines);
       }
       setCartSynced(true);
     })();
@@ -184,7 +184,7 @@ function BuyerAccountInner() {
                   onClick={() => {
                     void (async () => {
                       if (!user?.id) return;
-                      const result = await syncBuyerCartFromDraft(user.id, draft.lines);
+                      const result = await enqueueBuyerCartSync(user.id, draft.lines);
                       setStatusNote(
                         result.ok
                           ? 'Cart saved to your account.'
@@ -223,13 +223,17 @@ function BuyerAccountInner() {
           )}
         </section>
 
-        {profile.prospect_id != null ? (
+        {profile.prospect_id != null &&
+        profile.status === 'approved' &&
+        profile.wholesale_pricing_unlocked ? (
           <BuyerMessagesSection prospectId={profile.prospect_id} />
         ) : (
           <section>
             <h2 className="font-heading m-0 text-xl">Messages</h2>
             <p className="text-ink/60 m-0 mt-2 text-sm">
-              Submit a wholesale request so we can link your shop and open a message thread.
+              {profile.prospect_id == null
+                ? 'Submit a wholesale request so we can link your shop and open a message thread.'
+                : 'Message history unlocks after Justin verifies your retailer account and unlocks wholesale pricing.'}
             </p>
           </section>
         )}
