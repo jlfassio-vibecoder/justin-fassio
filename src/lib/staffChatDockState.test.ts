@@ -91,6 +91,19 @@ describe('staff chat dock helpers', () => {
 
     const resurfaced = upsertIncomingLiveChat([], thread('a', 'Ada'));
     expect(resurfaced).toHaveLength(1);
+    expect(resurfaced[0]?.minimized).toBe(true);
+    expect(resurfaced[0]?.unread).toBe(1);
     expect(isLiveChatNeedingAttention(thread('a'))).toBe(true);
+  });
+
+  it('reopens a dismissed chat as a pill when a new message surfaces it', () => {
+    dismissLiveChatThread('closed');
+    const next = upsertIncomingLiveChat(
+      [{ thread: thread('other'), minimized: true, unread: 0 }],
+      thread('closed', 'J-Dog'),
+    );
+    expect(next.map((s) => s.thread.id).sort()).toEqual(['closed', 'other']);
+    expect(next.find((s) => s.thread.id === 'closed')?.minimized).toBe(true);
+    expect(loadDismissedLiveChatIds().has('closed')).toBe(false);
   });
 });
