@@ -157,19 +157,32 @@ export function StaffLiveChatWindow({
 
   if (minimized) {
     return (
-      <button
-        type="button"
-        className="bg-accent-700 font-heading text-bg hover:bg-accent-600 pointer-events-auto relative inline-flex max-w-[14rem] items-center gap-2 rounded-full px-4 py-3 text-sm shadow-lg"
-        onClick={onExpand}
-        aria-label={`Expand chat with ${title}`}
-      >
-        <span className="truncate">{title}</span>
-        {unread > 0 ? (
-          <span className="bg-surface text-accent-800 absolute -top-1 -right-1 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold shadow">
-            {unread > 9 ? '9+' : unread}
-          </span>
-        ) : null}
-      </button>
+      <div className="pointer-events-auto relative inline-flex items-center">
+        <button
+          type="button"
+          className="bg-accent-700 font-heading text-bg hover:bg-accent-600 inline-flex max-w-[14rem] items-center gap-2 rounded-full py-3 pr-9 pl-4 text-sm shadow-lg"
+          onClick={onExpand}
+          aria-label={`Expand chat with ${title}`}
+        >
+          <span className="truncate">{title}</span>
+          {unread > 0 ? (
+            <span className="bg-surface text-accent-800 absolute -top-1 -right-1 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold shadow">
+              {unread > 9 ? '9+' : unread}
+            </span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          className="text-bg/90 hover:text-bg absolute top-1/2 right-1.5 inline-flex -translate-y-1/2 rounded-full p-1"
+          aria-label={`Close chat with ${title}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+        >
+          <X size={14} strokeWidth={2.75} />
+        </button>
+      </div>
     );
   }
 
