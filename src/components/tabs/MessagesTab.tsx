@@ -9,16 +9,23 @@ import {
   fetchMessageThreads,
   fetchNeedsMappingCount,
   fetchProspectById,
+  type MessageChannelFilter,
   type MessageThread,
   type MessageThreadFilter,
 } from '@/lib/messages';
 import { fetchOrdersForAccounts, type OrderRow } from '@/lib/orders';
 import type { Prospect } from '@/lib/prospects';
 
-const FILTERS: { key: MessageThreadFilter; label: string }[] = [
+const MAPPING_FILTERS: { key: MessageThreadFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'needs_mapping', label: 'Needs mapping' },
   { key: 'confirmed', label: 'Confirmed' },
+];
+
+const CHANNEL_FILTERS: { key: MessageChannelFilter; label: string }[] = [
+  { key: 'all', label: 'All channels' },
+  { key: 'live_chat', label: 'Realtime' },
+  { key: 'wholesale', label: 'Wholesale' },
 ];
 
 interface MessagesTabProps {
@@ -26,6 +33,7 @@ interface MessagesTabProps {
   onNeedsMappingCountChange?: (count: number) => void;
   onLogCall: (prospect: Prospect) => void;
   onNotesSaved?: (id: number, notes: string | null) => void;
+  onOpenLiveChat?: (thread: MessageThread) => void;
 }
 
 export function MessagesTab({
@@ -33,8 +41,10 @@ export function MessagesTab({
   onNeedsMappingCountChange,
   onLogCall,
   onNotesSaved,
+  onOpenLiveChat,
 }: MessagesTabProps) {
   const [filter, setFilter] = useState<MessageThreadFilter>('all');
+  const [channel, setChannel] = useState<MessageChannelFilter>('all');
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [selected, setSelected] = useState<MessageThread | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,7 +74,7 @@ export function MessagesTab({
     let active = true;
 
     void (async () => {
-      const result = await fetchMessageThreads({ filter });
+      const result = await fetchMessageThreads({ filter, channel });
       if (!active) return;
       if (result.error) {
         setThreads([]);
@@ -90,7 +100,7 @@ export function MessagesTab({
     return () => {
       active = false;
     };
-  }, [filter, reloadToken, listReloadToken, onNeedsMappingCountChange]);
+  }, [filter, channel, reloadToken, listReloadToken, onNeedsMappingCountChange]);
 
   useEffect(() => {
     if (!historyAccount) return;
@@ -106,33 +116,64 @@ export function MessagesTab({
 
   const isActiveAccount = detailStore?.accountStatus === 'active_account';
 
+  const emptyMessage =
+    channel === 'live_chat'
+      ? 'No realtime chats yet.'
+      : channel === 'wholesale'
+        ? 'No wholesale contact form threads yet.'
+        : filter === 'needs_mapping'
+          ? 'No threads need mapping.'
+          : filter === 'confirmed'
+            ? 'No confirmed threads yet.'
+            : 'No messages yet. Wholesale requests and live chats appear here.';
+
   return (
     <section data-screen-label="messages" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-heading m-0 text-2xl">Messages</h2>
           <p className="text-ink/65 m-0 mt-1 text-sm">
-            Wholesale requests and live chat. Confirm the account map so threads show on prospect
-            and account drawers. Reply in live chat to take over from the AI cover.
+            Wholesale requests and live chat history. Open realtime chats in floating windows to
+            reply while working other tabs. Confirm the account map so threads show on drawers.
           </p>
         </div>
-        <div className="bg-surface flex items-center gap-1 rounded-full p-1">
-          {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => {
-                setLoading(true);
-                setFilter(f.key);
-              }}
-              className={cn(
-                'font-heading rounded-full px-3.5 py-1.5 text-sm',
-                filter === f.key ? 'bg-accent text-bg' : 'text-ink/70 bg-transparent',
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
+        <div className="flex flex-col items-end gap-2">
+          <div className="bg-surface flex items-center gap-1 rounded-full p-1">
+            {CHANNEL_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => {
+                  setLoading(true);
+                  setChannel(f.key);
+                }}
+                className={cn(
+                  'font-heading rounded-full px-3.5 py-1.5 text-sm',
+                  channel === f.key ? 'bg-accent text-bg' : 'text-ink/70 bg-transparent',
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div className="bg-surface flex items-center gap-1 rounded-full p-1">
+            {MAPPING_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => {
+                  setLoading(true);
+                  setFilter(f.key);
+                }}
+                className={cn(
+                  'font-heading rounded-full px-3.5 py-1.5 text-sm',
+                  filter === f.key ? 'bg-accent text-bg' : 'text-ink/70 bg-transparent',
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -154,22 +195,18 @@ export function MessagesTab({
             threads={threads}
             selectedId={selected?.id ?? null}
             onSelect={setSelected}
+            onOpenLiveChat={onOpenLiveChat}
             onOpenMapped={(thread) => {
               void openMapped(thread);
             }}
-            emptyMessage={
-              filter === 'needs_mapping'
-                ? 'No threads need mapping.'
-                : filter === 'confirmed'
-                  ? 'No confirmed threads yet.'
-                  : 'No wholesale messages yet. New order requests appear here.'
-            }
+            emptyMessage={emptyMessage}
           />
           <div className="border-ink/10 bg-surface min-h-[20rem] rounded-md border p-4">
             {selected ? (
               <MessageThreadPanel
                 key={selected.id}
                 thread={selected}
+                onOpenLiveChat={onOpenLiveChat}
                 onOpenMapped={(thread) => {
                   void openMapped(thread);
                 }}

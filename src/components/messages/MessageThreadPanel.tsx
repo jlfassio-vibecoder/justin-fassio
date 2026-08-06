@@ -256,6 +256,7 @@ interface MessageThreadPanelProps {
   thread: MessageThread;
   onThreadUpdated?: (thread: MessageThread) => void;
   onOpenMapped?: (thread: MessageThread) => void;
+  onOpenLiveChat?: (thread: MessageThread) => void;
   /** When true, hide mapping form (e.g. already scoped inside a mapped drawer). */
   hideMappingForm?: boolean;
 }
@@ -264,6 +265,7 @@ export function MessageThreadPanel({
   thread,
   onThreadUpdated,
   onOpenMapped,
+  onOpenLiveChat,
   hideMappingForm = false,
 }: MessageThreadPanelProps) {
   const [messages, setMessages] = useState<MessageRow[]>([]);
@@ -401,6 +403,11 @@ export function MessageThreadPanel({
           <Tag variant={needsMapping ? 'accent' : 'accent-2'}>
             {needsMapping ? 'Needs mapping' : 'Confirmed'}
           </Tag>
+          {isLiveChat && onOpenLiveChat ? (
+            <Button type="button" variant="secondary" onClick={() => onOpenLiveChat(current)}>
+              Open chat
+            </Button>
+          ) : null}
         </div>
         <p className="text-ink/65 m-0 mt-1 text-sm">
           {latestPayload?.buyerName || current.buyerName || '—'}

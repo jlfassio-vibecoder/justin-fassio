@@ -154,7 +154,7 @@ export function PublicChatFab() {
                 kind: 'live_chat_ai',
                 wholesaleOrderRequestId: null,
                 body: result.wittyLine!,
-                payload: { role: 'ai', phase: 'holding' },
+                payload: {},
                 createdAt: new Date().toISOString(),
               },
             ]);

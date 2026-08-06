@@ -32,6 +32,7 @@ interface MessagesThreadListProps {
   selectedId: string | null;
   onSelect: (thread: MessageThread) => void;
   onOpenMapped?: (thread: MessageThread) => void;
+  onOpenLiveChat?: (thread: MessageThread) => void;
   emptyMessage?: string;
 }
 
@@ -40,6 +41,7 @@ export function MessagesThreadList({
   selectedId,
   onSelect,
   onOpenMapped,
+  onOpenLiveChat,
   emptyMessage = 'No messages yet.',
 }: MessagesThreadListProps) {
   if (threads.length === 0) {
@@ -104,7 +106,7 @@ export function MessagesThreadList({
                   </Tag>
                 </div>
               </div>
-              <div className="text-ink/55 mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+              <div className="text-ink/55 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
                 {thread.requestNumber ? <span>{thread.requestNumber}</span> : null}
                 {thread.channel === 'live_chat' && thread.chatState ? (
                   <span>
@@ -132,6 +134,19 @@ export function MessagesThreadList({
                   ) : (
                     <span>→ {thread.prospectName}</span>
                   )
+                ) : null}
+                {thread.channel === 'live_chat' && onOpenLiveChat ? (
+                  <button
+                    type="button"
+                    className="text-accent m-0 cursor-pointer border-0 bg-transparent p-0 font-medium underline-offset-2 hover:underline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelect(thread);
+                      onOpenLiveChat(thread);
+                    }}
+                  >
+                    Open chat
+                  </button>
                 ) : null}
               </div>
             </div>

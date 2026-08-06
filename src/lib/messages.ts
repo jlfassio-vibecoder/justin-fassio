@@ -85,6 +85,7 @@ export type MessageRow = {
 };
 
 export type MessageThreadFilter = 'all' | 'needs_mapping' | 'confirmed';
+export type MessageChannelFilter = 'all' | 'live_chat' | 'wholesale';
 
 function asMappingStatus(value: string): MappingStatus {
   if (value === 'suggested' || value === 'confirmed' || value === 'unmapped') return value;
@@ -171,6 +172,7 @@ export async function fetchNeedsMappingCount(): Promise<{ count: number; error: 
 export async function fetchMessageThreads(
   options: {
     filter?: MessageThreadFilter;
+    channel?: MessageChannelFilter;
     prospectId?: number;
     limit?: number;
   } = {},
@@ -190,6 +192,12 @@ export async function fetchMessageThreads(
     query = query.neq('mapping_status', 'confirmed');
   } else if (options.filter === 'confirmed') {
     query = query.eq('mapping_status', 'confirmed');
+  }
+
+  if (options.channel === 'live_chat') {
+    query = query.eq('channel', 'live_chat');
+  } else if (options.channel === 'wholesale') {
+    query = query.eq('channel', 'wholesale');
   }
 
   const { data, error } = await query;
