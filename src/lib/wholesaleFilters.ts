@@ -83,6 +83,29 @@ export function filterPublicOgrProducts(
   return list;
 }
 
+/** Staff sales ranks use public_sort_order below 9000 (10, 20, …). Fallback published items sit at 9000+. */
+const SALES_RANK_FALLBACK_FLOOR = 9000;
+
+/**
+ * Absolute YTD sales-volume ranks (#1 = highest) for catalog items staff ranked via public_sort_order.
+ * Unranked / fallback items are omitted.
+ */
+export function salesVolumeRankByProductId(products: PublicOgrProduct[]): Map<string, number> {
+  const ranked = products
+    .filter((p) => p.publicSortOrder > 0 && p.publicSortOrder < SALES_RANK_FALLBACK_FLOOR)
+    .sort(
+      (a, b) =>
+        a.publicSortOrder - b.publicSortOrder ||
+        a.name.localeCompare(b.name) ||
+        a.sku.localeCompare(b.sku),
+    );
+  const map = new Map<string, number>();
+  ranked.forEach((p, index) => {
+    map.set(p.id, index + 1);
+  });
+  return map;
+}
+
 export function uniqueCategories(products: PublicOgrProduct[]): string[] {
   return [...new Set(products.map((p) => p.cat).filter(Boolean))].sort();
 }

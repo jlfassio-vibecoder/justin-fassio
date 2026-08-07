@@ -16,7 +16,7 @@ type Props = {
 };
 
 const SORT_OPTIONS: { value: WholesaleSort; label: string }[] = [
-  { value: 'recommended', label: 'Recommended' },
+  { value: 'recommended', label: 'Best sellers' },
   { value: 'name', label: 'Name' },
   { value: 'category', label: 'Category' },
   { value: 'wholesale', label: 'Wholesale price' },
@@ -83,6 +83,7 @@ function FilterFields({
           value={filters.sort}
           onChange={(e) => onChange({ ...filters, sort: e.target.value as WholesaleSort })}
           className="border-divider bg-bg px-3.1 focus:border-accent-700 rounded-lg border py-2 text-sm outline-none"
+          aria-describedby={filters.sort === 'recommended' ? 'wholesale-sort-hint' : undefined}
         >
           {SORT_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -114,9 +115,16 @@ export function WholesaleFilters({
   return (
     <div className="gap-3.1 flex flex-col">
       <div className="gap-3.1 flex flex-wrap items-center justify-between">
-        <p className="text-ink/70 m-0 text-sm">
-          {resultCount} {resultCount === 1 ? 'product' : 'products'}
-        </p>
+        <div className="min-w-0">
+          <p className="text-ink/70 m-0 text-sm">
+            {resultCount} {resultCount === 1 ? 'product' : 'products'}
+          </p>
+          {filters.sort === 'recommended' ? (
+            <p id="wholesale-sort-hint" className="text-ink/55 m-0 mt-1 text-xs">
+              Best sellers: ordered by sales volume, highest first.
+            </p>
+          ) : null}
+        </div>
         <div className="gap-2.1 flex flex-wrap">
           <button
             type="button"

@@ -8,6 +8,7 @@ import {
   uniqueCategories,
   uniqueThemes,
   wholesaleFiltersToSearchParams,
+  salesVolumeRankByProductId,
   type WholesaleFilterState,
 } from '@/lib/wholesaleFilters';
 import {
@@ -131,6 +132,7 @@ export function WholesaleShowroom({
   const categories = useMemo(() => uniqueCategories(products), [products]);
   const themes = useMemo(() => uniqueThemes(products), [products]);
   const filtered = useMemo(() => filterPublicOgrProducts(products, filters), [products, filters]);
+  const salesRanks = useMemo(() => salesVolumeRankByProductId(products), [products]);
   const { totalUnits } = orderTotals(draft);
   const pricingUnlocked = products.some((p) => p.wholesaleUsd != null);
 
@@ -296,6 +298,7 @@ export function WholesaleShowroom({
               <WholesaleProductCard
                 key={product.id}
                 product={product}
+                salesRank={salesRanks.get(product.id) ?? null}
                 onViewDetails={openQuickView}
                 onAddToOrder={openAddPanel}
                 onRequestAccess={requestAccess}
