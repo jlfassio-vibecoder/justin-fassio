@@ -1,0 +1,65 @@
+import { supabase } from '@/lib/supabase';
+
+export type SendOgrProductEmailInput = {
+  productId: string;
+  to: string;
+  recipientName?: string;
+  subject?: string;
+  introText?: string;
+  closingText?: string;
+};
+
+export type SendOgrProductEmailResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Client call to POST /api/staff/ogr-product-email with the current session Bearer token.
+ * Sends only staff-editable fields — never html, from, signature, or presentation.
+ */
+export async function sendOgrProductEmail(
+  input: SendOgrProductEmailInput,
+): Promise<SendOgrProductEmailResult> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) {
+    return { ok: false, error: 'Not signed in' };
+  }
+
+  const body: Record<string, string> = {
+    productId: input.productId,
+    to: input.to,
+  };
+  if (input.recipientName != null && input.recipientName.trim()) {
+    body.recipientName = input.recipientName.trim();
+  }
+  if (input.subject != null && input.subject.trim()) {
+    body.subject = input.subject.trim();
+  }
+  if (input.introText != null && input.introText.trim()) {
+    body.introText = input.introText.trim();
+  }
+  if (input.closingText != null && input.closingText.trim()) {
+    body.closingText = input.closingText.trim();
+  }
+
+  const res = await fetch('/api/staff/ogr-product-email', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  let payload: { ok?: boolean; error?: string } = {};
+  try {
+    payload = (await res.json()) as typeof payload;
+  } catch {
+    return { ok: false, error: `Send failed (${res.status})` };
+  }
+
+  if (!res.ok || !payload.ok) {
+    return { ok: false, error: payload.error || `Send failed (${res.status})` };
+  }
+
+  return { ok: true };
+}

@@ -6,10 +6,22 @@ import {
   type PublicProductPresentation,
 } from '@/lib/publicProductPresentation';
 
-const DEFAULT_INTRO = 'I thought this Old Guys Rule style could be a strong fit for your store.';
-const DEFAULT_CLOSING = "Let me know if you'd like pricing or availability.";
+/** Default intro for staff compose UI + server fallback. */
+export const OGR_PRODUCT_EMAIL_DEFAULT_INTRO =
+  'I thought this Old Guys Rule style could be a strong fit for your store.';
+
+/** Default closing for staff compose UI + server fallback. */
+export const OGR_PRODUCT_EMAIL_DEFAULT_CLOSING =
+  "Let me know if you'd like pricing or availability.";
+
 const SITE_FOOTER = 'justinfassio.com';
 const MUTED_FOOTER_STYLE = 'margin:16px 0 0 0;font-size:12px;line-height:1.4;color:#888888;';
+
+/** Default subject line for staff compose UI + server fallback. */
+export function defaultOgrProductEmailSubject(productName: string): string {
+  const name = productName.trim() || OGR_PUBLIC_BRAND_NAME;
+  return `Old Guys Rule — ${name}`;
+}
 
 export type OgrProductOutreachEmailInput = {
   presentation: PublicProductPresentation;
@@ -126,9 +138,9 @@ export function renderOgrProductOutreachEmail(
 
   const { presentation } = input;
   const productName = presentation.name.trim() || OGR_PUBLIC_BRAND_NAME;
-  const subject = resolveProse(input.subject, `Old Guys Rule — ${productName}`);
-  const intro = resolveProse(input.introText, DEFAULT_INTRO);
-  const closing = resolveProse(input.closingText, DEFAULT_CLOSING);
+  const subject = resolveProse(input.subject, defaultOgrProductEmailSubject(productName));
+  const intro = resolveProse(input.introText, OGR_PRODUCT_EMAIL_DEFAULT_INTRO);
+  const closing = resolveProse(input.closingText, OGR_PRODUCT_EMAIL_DEFAULT_CLOSING);
   const greeting = buildGreeting(input.recipientName);
 
   const cardHtml = renderOgrProductEmailCard(presentation, { href: productHref });
