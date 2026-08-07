@@ -7,10 +7,22 @@ interface Props {
   description?: string;
   canonicalUrl?: string;
   ogImage?: string | null;
+  ogImageAlt?: string | null;
+  ogSiteName?: string | null;
+  ogType?: 'website';
   noIndex?: boolean;
 }
 
-const { title, description, canonicalUrl, ogImage, noIndex = false } = Astro.props;
+const {
+  title,
+  description,
+  canonicalUrl,
+  ogImage,
+  ogImageAlt,
+  ogSiteName,
+  ogType = 'website',
+  noIndex = false,
+} = Astro.props;
 const resolvedCanonical = canonicalUrl ?? new URL(Astro.url.pathname, Astro.site ?? Astro.url).href;
 const path = Astro.url.pathname;
 const isStaffSurface = path === '/app' || path.startsWith('/app/') || path === '/rep-login';
@@ -27,10 +39,16 @@ const isStaffSurface = path === '/app' || path.startsWith('/app/') || path === '
     <link rel="canonical" href={resolvedCanonical} />
     <meta property="og:title" content={title} />
     {description ? <meta property="og:description" content={description} /> : null}
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
     <meta property="og:url" content={resolvedCanonical} />
+    {ogSiteName ? <meta property="og:site_name" content={ogSiteName} /> : null}
     {ogImage ? <meta property="og:image" content={ogImage} /> : null}
+    {ogImage && ogImageAlt ? <meta property="og:image:alt" content={ogImageAlt} /> : null}
     <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
+    <meta name="twitter:title" content={title} />
+    {description ? <meta name="twitter:description" content={description} /> : null}
+    {ogImage ? <meta name="twitter:image" content={ogImage} /> : null}
+    {ogImage && ogImageAlt ? <meta name="twitter:image:alt" content={ogImageAlt} /> : null}
   </head>
   <body>
     <slot />

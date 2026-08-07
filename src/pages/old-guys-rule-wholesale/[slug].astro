@@ -8,6 +8,8 @@ import {
   fetchPublicOgrSupplierTerms,
   type PublicOgrSupplierTerms,
 } from '@/lib/publicCatalog';
+import { buildOgrProductMetadata, toLayoutSeoProps } from '@/lib/ogrPageMetadata';
+import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import { buildOgrProductUrl, resolvePublicSiteOrigin } from '@/lib/productUrls';
 import { resolvePublicOgrProductPageResponse } from '@/lib/wholesaleRoutes';
 
@@ -35,22 +37,19 @@ const resolvedTerms: PublicOgrSupplierTerms = terms ?? {
   pricesSubjectToChange: true,
 };
 
-const title = `${product.name} | Old Guys Rule Wholesale | Justin Fassio`;
-const description =
-  product.tagline ||
-  product.description ||
-  `${product.name} (${product.sku}) — wholesale for Canadian retailers via Justin Fassio.`;
+const presentation = buildPublicProductPresentation(product);
 const canonicalUrl = buildOgrProductUrl(
-  product.publicSlug,
+  presentation.slug,
   resolvePublicSiteOrigin({ requestOrigin: Astro.url.origin }),
+);
+const seo = toLayoutSeoProps(
+  buildOgrProductMetadata({
+    presentation,
+    canonicalUrl,
+  }),
 );
 ---
 
-<Layout
-  title={title}
-  description={description}
-  canonicalUrl={canonicalUrl}
-  ogImage={product.primaryImageUrl}
->
+<Layout {...seo}>
   <WholesaleProductPage client:load product={product} terms={resolvedTerms} />
 </Layout>

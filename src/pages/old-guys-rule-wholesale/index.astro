@@ -3,17 +3,21 @@ export const prerender = false;
 
 import Layout from '@/layouts/Layout.astro';
 import { WholesaleShowroom } from '@/components/wholesale/WholesaleShowroom';
+import { fetchPublicActiveLines } from '@/lib/lines';
 import {
   fetchPublicOgrProducts,
   fetchPublicOgrSupplierTerms,
   type PublicOgrSupplierTerms,
 } from '@/lib/publicCatalog';
+import { buildOgrCollectionMetadata, toLayoutSeoProps } from '@/lib/ogrPageMetadata';
 import { buildOgrCollectionUrl, resolvePublicSiteOrigin } from '@/lib/productUrls';
 
-const [{ data: products, error: productsError }, { data: terms }] = await Promise.all([
-  fetchPublicOgrProducts(),
-  fetchPublicOgrSupplierTerms(),
-]);
+const [{ data: products, error: productsError }, { data: terms }, { data: lines }] =
+  await Promise.all([
+    fetchPublicOgrProducts(),
+    fetchPublicOgrSupplierTerms(),
+    fetchPublicActiveLines(),
+  ]);
 
 const resolvedTerms: PublicOgrSupplierTerms = terms ?? {
   minOrderPieces: 24,
@@ -22,15 +26,19 @@ const resolvedTerms: PublicOgrSupplierTerms = terms ?? {
   pricesSubjectToChange: true,
 };
 
-const title = 'Old Guys Rule Wholesale Canada | Justin Fassio';
-const description =
-  'Browse the Old Guys Rule wholesale collection for Canadian retailers. Men’s lifestyle apparel—request pricing and availability through Justin Fassio.';
+const ogrLine = lines.find((line) => line.code === 'ogr') ?? null;
 const canonicalUrl = buildOgrCollectionUrl(
   resolvePublicSiteOrigin({ requestOrigin: Astro.url.origin }),
 );
+const seo = toLayoutSeoProps(
+  buildOgrCollectionMetadata({
+    canonicalUrl,
+    line: ogrLine,
+  }),
+);
 ---
 
-<Layout title={title} description={description} canonicalUrl={canonicalUrl}>
+<Layout {...seo}>
   {
     productsError ? (
       <main class="bg-bg text-ink px-8.1 mx-auto max-w-[720px] py-16">
