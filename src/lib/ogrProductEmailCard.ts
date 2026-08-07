@@ -6,6 +6,7 @@ import {
 } from '@/lib/publicProductPresentation';
 
 const DEFAULT_CTA_LABEL = 'View Details';
+// Copilot suggestion ignored: Phase 5 intentionally attributes justinfassio.com, not the href host.
 const DOMAIN_ATTRIBUTION = 'justinfassio.com';
 const FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
 const CARD_MAX_WIDTH = 560;

@@ -24,6 +24,15 @@ export function buildOgrProductPath(slug: string): string {
   return `${OGR_WHOLESALE_PATH}/${encodeURIComponent(normalized)}`;
 }
 
+/** Same as `buildOgrProductPath`, but returns null instead of throwing on invalid slug. */
+export function tryBuildOgrProductPath(slug: string): string | null {
+  try {
+    return buildOgrProductPath(slug);
+  } catch {
+    return null;
+  }
+}
+
 function normalizeOriginBase(origin: string): string {
   const trimmed = origin.trim();
   if (!trimmed) {
@@ -65,6 +74,15 @@ export function buildOgrCollectionUrl(origin: string): string {
 
 export function buildOgrProductUrl(slug: string, origin: string): string {
   return buildCanonicalUrl(buildOgrProductPath(slug), origin);
+}
+
+/** Same as `buildOgrProductUrl`, but returns null instead of throwing on invalid slug/origin. */
+export function tryBuildOgrProductUrl(slug: string, origin: string): string | null {
+  try {
+    return buildOgrProductUrl(slug, origin);
+  } catch {
+    return null;
+  }
 }
 
 export type ResolvePublicSiteOriginInput = {

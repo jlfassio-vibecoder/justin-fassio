@@ -16,7 +16,12 @@ export type EnsureWholesaleBuyerResult =
   | { ok: false; error: string };
 
 function siteOrigin(): string {
-  return resolvePublicSiteOrigin();
+  try {
+    return resolvePublicSiteOrigin();
+  } catch {
+    // Copilot suggestion applied: malformed PUBLIC_SITE_URL must not escape ensureWholesaleBuyerAccount.
+    return 'https://justinfassio.com';
+  }
 }
 
 /**

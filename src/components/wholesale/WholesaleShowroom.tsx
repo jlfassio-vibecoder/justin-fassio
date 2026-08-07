@@ -26,7 +26,7 @@ import { WholesaleProductDetail } from '@/components/wholesale/WholesaleProductD
 import { cartItemsToDraft, fetchBuyerCartItems, enqueueBuyerCartSync } from '@/lib/buyerCart';
 import { fetchBuyerLikedProductIds, toggleBuyerProductLike } from '@/lib/buyerLikes';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
-import { buildOgrProductPath, OGR_WHOLESALE_PATH } from '@/lib/productUrls';
+import { tryBuildOgrProductPath, OGR_WHOLESALE_PATH } from '@/lib/productUrls';
 
 type Props = {
   products: PublicOgrProduct[];
@@ -74,7 +74,13 @@ export function WholesaleShowroom({
         new RegExp(`^${OGR_WHOLESALE_PATH.replace(/\//g, '\\/')}\\/([^/]+)\\/?$`),
       );
       if (match?.[1]) {
-        const product = products.find((p) => p.publicSlug === match[1]);
+        let segment = match[1];
+        try {
+          segment = decodeURIComponent(match[1]);
+        } catch {
+          /* keep raw segment */
+        }
+        const product = products.find((p) => p.publicSlug === segment);
         setQuickView(product ?? null);
       } else {
         setQuickView(null);
@@ -177,7 +183,8 @@ export function WholesaleShowroom({
     setQuickView(product);
     const params = wholesaleFiltersToSearchParams(filters);
     const qs = params.toString();
-    const path = buildOgrProductPath(product.publicSlug);
+    const path = tryBuildOgrProductPath(product.publicSlug);
+    if (!path) return;
     const url = qs ? `${path}?${qs}` : path;
     window.history.pushState({}, '', url);
   }

@@ -7,6 +7,8 @@ import {
   normalizeOgrProductSlug,
   OGR_WHOLESALE_PATH,
   resolvePublicSiteOrigin,
+  tryBuildOgrProductPath,
+  tryBuildOgrProductUrl,
 } from '@/lib/productUrls';
 
 describe('normalizeOgrProductSlug', () => {
@@ -32,6 +34,14 @@ describe('buildOgrProductPath', () => {
 
   it('normalizes before building', () => {
     expect(buildOgrProductPath(' American-Revival ')).toBe(
+      `${OGR_WHOLESALE_PATH}/american-revival`,
+    );
+  });
+
+  it('tryBuild helpers return null for invalid slugs instead of throwing', () => {
+    expect(tryBuildOgrProductPath('a b')).toBeNull();
+    expect(tryBuildOgrProductUrl('a b', 'https://justinfassio.com')).toBeNull();
+    expect(tryBuildOgrProductPath('american-revival')).toBe(
       `${OGR_WHOLESALE_PATH}/american-revival`,
     );
   });

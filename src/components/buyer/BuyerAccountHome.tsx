@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { cartItemsToDraft, fetchBuyerCartItems, enqueueBuyerCartSync } from '@/lib/buyerCart';
 import { fetchBuyerLikedProductIds } from '@/lib/buyerLikes';
 import { fetchPublicOgrProducts, type PublicOgrProduct } from '@/lib/publicCatalog';
-import { buildOgrProductPath, OGR_WHOLESALE_PATH } from '@/lib/productUrls';
+import { tryBuildOgrProductPath, OGR_WHOLESALE_PATH } from '@/lib/productUrls';
 import { formatMerchandiseSubtotalUsd, formatWholesaleUsd } from '@/lib/wholesalePricing';
 import {
   getWholesaleOrderDraftSnapshot,
@@ -209,17 +209,24 @@ function BuyerAccountInner() {
             </p>
           ) : (
             <ul className="gap-3.1 m-0 grid list-none p-0 sm:grid-cols-2">
-              {likedProducts.map((product) => (
-                <li key={product.id} className="border-divider rounded-lg border p-3 text-sm">
-                  <a
-                    href={buildOgrProductPath(product.publicSlug)}
-                    className="font-heading text-ink no-underline hover:underline"
-                  >
-                    {product.name}
-                  </a>
-                  <p className="text-ink/55 m-0 mt-1 text-xs">{product.sku}</p>
-                </li>
-              ))}
+              {likedProducts.map((product) => {
+                const productPath = tryBuildOgrProductPath(product.publicSlug);
+                return (
+                  <li key={product.id} className="border-divider rounded-lg border p-3 text-sm">
+                    {productPath ? (
+                      <a
+                        href={productPath}
+                        className="font-heading text-ink no-underline hover:underline"
+                      >
+                        {product.name}
+                      </a>
+                    ) : (
+                      <span className="font-heading text-ink">{product.name}</span>
+                    )}
+                    <p className="text-ink/55 m-0 mt-1 text-xs">{product.sku}</p>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
