@@ -28,3 +28,6 @@ supabase/.branches/
 
 # Vercel CLI
 .vercel
+
+# Local email card previews
+tmp/
