@@ -182,6 +182,73 @@ describe('POST /api/staff/ogr-product-email', () => {
     expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
   });
 
+  it('rejects client-supplied from', async () => {
+    const res = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        from: 'attacker@evil.com',
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ ok: false, error: 'Unsupported fields in request' });
+    expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects client-supplied signatureName', async () => {
+    const res = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        signatureName: 'Not Justin',
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-UUID productId', async () => {
+    const res = await POST(requestWith({ productId: 'not-a-uuid', to: 'buyer@example.com' }));
+    expect(res.status).toBe(400);
+    expect(loadPublishedOgrProductForEmailMock).not.toHaveBeenCalled();
+    expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects overlong introText', async () => {
+    const res = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        introText: 'x'.repeat(2001),
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/introText is too long/i);
+    expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('falls back signature to Justin Fassio when profile display_name is blank', async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: { display_name: '   ' },
+      error: null,
+    });
+    const eq = vi.fn().mockReturnValue({ maybeSingle });
+    const select = vi.fn().mockReturnValue({ eq });
+    const from = vi.fn().mockReturnValue({ select });
+    requireApprovedStaffClientMock.mockResolvedValue({
+      ok: true,
+      userId: 'user-1',
+      supabase: { from },
+    });
+
+    const res = await POST(requestWith({ productId: PRODUCT_ID, to: 'buyer@example.com' }));
+    expect(res.status).toBe(200);
+    expect(renderOgrProductOutreachEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ signatureName: 'Justin Fassio' }),
+    );
+  });
+
   it('returns 404 for missing product', async () => {
     loadPublishedOgrProductForEmailMock.mockResolvedValue({
       ok: false,

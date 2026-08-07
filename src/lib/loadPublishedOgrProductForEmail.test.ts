@@ -163,6 +163,74 @@ describe('loadPublishedOgrProductForEmail', () => {
     });
   });
 
+  it('returns not_available when inactive', async () => {
+    const inactive = { ...publishedRow, status: 'archived' };
+    const from = vi.fn((table: string) => {
+      if (table === 'lines') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'line-ogr' }, error: null }),
+            }),
+          }),
+        };
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: inactive, error: null }),
+            }),
+          }),
+        }),
+      };
+    });
+
+    const result = await loadPublishedOgrProductForEmail(
+      { from } as unknown as AgentSupabase,
+      publishedRow.id,
+    );
+    expect(result).toEqual({
+      ok: false,
+      reason: 'not_available',
+      message: 'Product is not publicly available',
+    });
+  });
+
+  it('returns not_available when public_slug is blank', async () => {
+    const noSlug = { ...publishedRow, public_slug: '   ' };
+    const from = vi.fn((table: string) => {
+      if (table === 'lines') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'line-ogr' }, error: null }),
+            }),
+          }),
+        };
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: noSlug, error: null }),
+            }),
+          }),
+        }),
+      };
+    });
+
+    const result = await loadPublishedOgrProductForEmail(
+      { from } as unknown as AgentSupabase,
+      publishedRow.id,
+    );
+    expect(result).toEqual({
+      ok: false,
+      reason: 'not_available',
+      message: 'Product is not publicly available',
+    });
+  });
+
   it('returns not_found when OGR line is missing (non-OGR path)', async () => {
     const from = vi.fn().mockReturnValue({
       select: vi.fn().mockReturnValue({

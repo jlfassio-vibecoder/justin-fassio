@@ -8,12 +8,18 @@ import {
   OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
   OGR_PRODUCT_EMAIL_DEFAULT_INTRO,
 } from '@/lib/ogrProductOutreachEmail';
+import {
+  OGR_PRODUCT_EMAIL_MAX_PROSE,
+  OGR_PRODUCT_EMAIL_MAX_RECIPIENT_NAME,
+  OGR_PRODUCT_EMAIL_MAX_SUBJECT,
+  OGR_PRODUCT_EMAIL_MAX_TO,
+} from '@/lib/ogrProductEmailLimits';
 import { sendOgrProductEmail } from '@/lib/sendOgrProductEmailClient';
 
-const MAX_TO = 200;
-const MAX_RECIPIENT_NAME = 120;
-const MAX_SUBJECT = 200;
-const MAX_PROSE = 2000;
+const MAX_TO = OGR_PRODUCT_EMAIL_MAX_TO;
+const MAX_RECIPIENT_NAME = OGR_PRODUCT_EMAIL_MAX_RECIPIENT_NAME;
+const MAX_SUBJECT = OGR_PRODUCT_EMAIL_MAX_SUBJECT;
+const MAX_PROSE = OGR_PRODUCT_EMAIL_MAX_PROSE;
 
 export type OgrProductEmailComposerModalProps = {
   open: boolean;

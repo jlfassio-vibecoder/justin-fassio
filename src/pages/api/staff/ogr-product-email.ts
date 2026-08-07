@@ -1,6 +1,12 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { loadPublishedOgrProductForEmail } from '@/lib/loadPublishedOgrProductForEmail';
+import {
+  OGR_PRODUCT_EMAIL_MAX_PROSE,
+  OGR_PRODUCT_EMAIL_MAX_RECIPIENT_NAME,
+  OGR_PRODUCT_EMAIL_MAX_SUBJECT,
+  OGR_PRODUCT_EMAIL_MAX_TO,
+} from '@/lib/ogrProductEmailLimits';
 import { renderOgrProductOutreachEmail } from '@/lib/ogrProductOutreachEmail';
 import { buildOgrProductUrl, resolvePublicSiteOrigin } from '@/lib/productUrls';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
@@ -9,11 +15,6 @@ import { sendOgrProductOutreachEmail } from '@/lib/sendOgrProductOutreachEmail';
 export const prerender = false;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const MAX_TO = 200;
-const MAX_RECIPIENT_NAME = 120;
-const MAX_SUBJECT = 200;
-const MAX_PROSE = 2000;
 
 function jsonError(message: string, status: number): Response {
   return new Response(JSON.stringify({ ok: false, error: message }), {
@@ -51,6 +52,8 @@ export const POST: APIRoute = async ({ request }) => {
     closingText?: unknown;
     html?: unknown;
     from?: unknown;
+    signatureName?: unknown;
+    productHref?: unknown;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -58,7 +61,12 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonError('Invalid JSON body', 400);
   }
 
-  if (body.html != null || body.from != null) {
+  if (
+    body.html != null ||
+    body.from != null ||
+    body.signatureName != null ||
+    body.productHref != null
+  ) {
     return jsonError('Unsupported fields in request', 400);
   }
 
@@ -68,24 +76,36 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const to = typeof body.to === 'string' ? body.to.trim() : '';
-  if (!to || !to.includes('@') || to.length > MAX_TO) {
+  if (!to || !to.includes('@') || to.length > OGR_PRODUCT_EMAIL_MAX_TO) {
     return jsonError('A valid recipient email is required', 400);
   }
 
   const recipientNameResult = optionalBoundedString(
     body.recipientName,
-    MAX_RECIPIENT_NAME,
+    OGR_PRODUCT_EMAIL_MAX_RECIPIENT_NAME,
     'recipientName',
   );
   if (!recipientNameResult.ok) return jsonError(recipientNameResult.error, 400);
 
-  const subjectResult = optionalBoundedString(body.subject, MAX_SUBJECT, 'subject');
+  const subjectResult = optionalBoundedString(
+    body.subject,
+    OGR_PRODUCT_EMAIL_MAX_SUBJECT,
+    'subject',
+  );
   if (!subjectResult.ok) return jsonError(subjectResult.error, 400);
 
-  const introResult = optionalBoundedString(body.introText, MAX_PROSE, 'introText');
+  const introResult = optionalBoundedString(
+    body.introText,
+    OGR_PRODUCT_EMAIL_MAX_PROSE,
+    'introText',
+  );
   if (!introResult.ok) return jsonError(introResult.error, 400);
 
-  const closingResult = optionalBoundedString(body.closingText, MAX_PROSE, 'closingText');
+  const closingResult = optionalBoundedString(
+    body.closingText,
+    OGR_PRODUCT_EMAIL_MAX_PROSE,
+    'closingText',
+  );
   if (!closingResult.ok) return jsonError(closingResult.error, 400);
 
   const loaded = await loadPublishedOgrProductForEmail(gate.supabase, productId);
