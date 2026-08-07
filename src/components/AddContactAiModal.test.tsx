@@ -2,7 +2,12 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AddContactAiModal } from '@/components/AddContactAiModal';
-import { BC_PROSPECT_TERRITORY, EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
+import {
+  BC_PROSPECT_TERRITORY,
+  EMPTY_PROSPECT_PLANNING,
+  EMPTY_PROSPECT_TAXONOMY,
+  type Prospect,
+} from '@/lib/prospects';
 
 const enrichContactMock = vi.fn();
 
@@ -13,7 +18,7 @@ vi.mock('@/lib/enrichContact', () => ({
 const EXISTING: Prospect = {
   id: 1,
   name: 'Kelowna Golf & Country Club',
-  category: 'Golf',
+  category: 'golf_retail',
   region: 'Okanagan',
   city: 'Kelowna',
   address: '',
@@ -24,6 +29,7 @@ const EXISTING: Prospect = {
   initialOrderDate: null,
   notes: null,
   ...EMPTY_PROSPECT_PLANNING,
+  ...EMPTY_PROSPECT_TAXONOMY,
   ...BC_PROSPECT_TERRITORY,
 };
 

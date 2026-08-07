@@ -3,7 +3,12 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountOrderHistoryModal } from '@/components/AccountOrderHistoryModal';
 import type { OrderRow } from '@/lib/orders';
-import { BC_PROSPECT_TERRITORY, EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
+import {
+  BC_PROSPECT_TERRITORY,
+  EMPTY_PROSPECT_PLANNING,
+  EMPTY_PROSPECT_TAXONOMY,
+  type Prospect,
+} from '@/lib/prospects';
 
 const insertOrderMock = vi.fn();
 const fetchSettingsMock = vi.fn();
@@ -30,7 +35,7 @@ vi.mock('@/lib/lines', () => ({
 const ACCOUNT: Prospect = {
   id: 42,
   name: 'Kelowna Golf & Country Club',
-  category: 'Golf',
+  category: 'golf_retail',
   region: 'Okanagan',
   city: 'Kelowna',
   address: '1297 Glenmore Dr',
@@ -41,6 +46,7 @@ const ACCOUNT: Prospect = {
   initialOrderDate: '2026-08-01T00:00:00Z',
   notes: null,
   ...EMPTY_PROSPECT_PLANNING,
+  ...EMPTY_PROSPECT_TAXONOMY,
   ...BC_PROSPECT_TERRITORY,
 };
 
@@ -56,6 +62,7 @@ const ORDERS: OrderRow[] = [
     status: 'submitted',
     notes: 'Opening write',
     ...EMPTY_PROSPECT_PLANNING,
+    ...EMPTY_PROSPECT_TAXONOMY,
     ...BC_PROSPECT_TERRITORY,
     created_at: '2026-04-01T00:00:00Z',
     updated_at: '2026-04-01T00:00:00Z',

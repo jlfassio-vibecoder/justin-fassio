@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { findCompanyMatches } from '@/lib/companyMatch';
-import { BC_PROSPECT_TERRITORY, EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
+import {
+  BC_PROSPECT_TERRITORY,
+  EMPTY_PROSPECT_PLANNING,
+  EMPTY_PROSPECT_TAXONOMY,
+  type Prospect,
+} from '@/lib/prospects';
 
 const SAMPLE: Prospect[] = [
   {
     id: 1,
     name: 'Kelowna Golf & Country Club',
-    category: 'Golf',
+    category: 'golf_retail',
     region: 'Okanagan',
     city: 'Kelowna',
     address: '',
@@ -17,12 +22,13 @@ const SAMPLE: Prospect[] = [
     initialOrderDate: null,
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...EMPTY_PROSPECT_TAXONOMY,
     ...BC_PROSPECT_TERRITORY,
   },
   {
     id: 2,
     name: 'Sidney Marina Store',
-    category: 'Marina',
+    category: 'marine_retail',
     region: 'Vancouver Island',
     city: 'Sidney',
     address: '',
@@ -33,12 +39,13 @@ const SAMPLE: Prospect[] = [
     initialOrderDate: null,
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...EMPTY_PROSPECT_TAXONOMY,
     ...BC_PROSPECT_TERRITORY,
   },
   {
     id: 3,
     name: 'Kelowna Marina Shop',
-    category: 'Marina',
+    category: 'marine_retail',
     region: 'Okanagan',
     city: 'Kelowna',
     address: '',
@@ -49,6 +56,7 @@ const SAMPLE: Prospect[] = [
     initialOrderDate: null,
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...EMPTY_PROSPECT_TAXONOMY,
     ...BC_PROSPECT_TERRITORY,
   },
 ];

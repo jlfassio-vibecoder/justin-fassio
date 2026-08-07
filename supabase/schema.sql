@@ -380,6 +380,11 @@ create table if not exists prospects (
   qualification_status text,
   next_action text,
   source_note text,
+  secondary_channels jsonb not null default '[]'::jsonb,
+  retail_subchannels jsonb not null default '[]'::jsonb,
+  venue_contexts jsonb not null default '[]'::jsonb,
+  lifestyle_themes jsonb not null default '[]'::jsonb,
+  retail_capabilities jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

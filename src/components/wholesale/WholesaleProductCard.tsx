@@ -8,9 +8,9 @@ import {
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
 import {
   BEST_SELLER_BADGE_MAX_RANK,
-  isRetailChannel,
-  retailChannelLabel,
-} from '@/lib/retailChannels';
+  isLifestyleTheme,
+  lifestyleThemeLabel,
+} from '@/lib/crmRetailTaxonomy';
 import { Heart } from 'lucide-react';
 
 type Props = {
@@ -67,7 +67,7 @@ export function WholesaleProductCard({
     typeof salesRank === 'number' && salesRank >= 1 && salesRank <= BEST_SELLER_BADGE_MAX_RANK;
   const themeLabels = showBestSellerRank
     ? []
-    : product.lifestyleThemes.filter(isRetailChannel).slice(0, 3).map(retailChannelLabel);
+    : product.lifestyleThemes.filter(isLifestyleTheme).slice(0, 3).map(lifestyleThemeLabel);
 
   return (
     <article className="elev-md gap-3.1 bg-bg p-3.1 relative flex flex-col rounded-xl shadow-md">

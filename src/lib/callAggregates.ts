@@ -1,8 +1,12 @@
 import type { CallRow } from '@/lib/calls';
 import type { Prospect } from '@/lib/prospects';
+import {
+  PRIMARY_RETAIL_CHANNELS,
+  type PrimaryRetailChannel,
+  isPrimaryRetailChannel,
+} from '@/lib/crmRetailTaxonomy';
 
-export type ChannelFilter =
-  'All Retail Channels' | 'Golf Pro Shops' | 'Marinas' | 'Hardware / Farm Co-op' | 'Resort Gift';
+export type ChannelFilter = 'All Retail Channels' | PrimaryRetailChannel;
 
 export type OutcomeFilter =
   | 'All Call Outcomes'
@@ -18,15 +22,10 @@ export interface CallFilterOptions {
   outcome: OutcomeFilter;
 }
 
-const CHANNEL_TO_CATEGORY: Record<
-  Exclude<ChannelFilter, 'All Retail Channels'>,
-  Prospect['category']
-> = {
-  'Golf Pro Shops': 'Golf',
-  Marinas: 'Marina',
-  'Hardware / Farm Co-op': 'Hardware',
-  'Resort Gift': 'Resort Gift',
-};
+export const CALL_CHANNEL_FILTER_OPTIONS: { value: ChannelFilter; label: string }[] = [
+  { value: 'All Retail Channels', label: 'All Retail Channels' },
+  ...PRIMARY_RETAIL_CHANNELS,
+];
 
 /** UI filter labels → substrings that match persisted Log Call outcome strings. */
 const OUTCOME_FILTER_NEEDLE: Record<Exclude<OutcomeFilter, 'All Call Outcomes'>, string> = {
@@ -57,7 +56,9 @@ export function filterCalls(
   const index = byId(prospects);
   const q = options.search.trim().toLowerCase();
   const category =
-    options.channel === 'All Retail Channels' ? null : CHANNEL_TO_CATEGORY[options.channel];
+    options.channel === 'All Retail Channels' || !isPrimaryRetailChannel(options.channel)
+      ? null
+      : options.channel;
   const outcomeNeedle =
     options.outcome === 'All Call Outcomes' ? null : OUTCOME_FILTER_NEEDLE[options.outcome];
 

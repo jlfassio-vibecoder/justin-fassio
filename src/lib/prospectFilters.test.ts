@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { BC_PROSPECT_TERRITORY, EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
+import {
+  BC_PROSPECT_TERRITORY,
+  EMPTY_PROSPECT_PLANNING,
+  EMPTY_PROSPECT_TAXONOMY,
+  type Prospect,
+} from '@/lib/prospects';
 import { filterProspects } from '@/lib/prospectFilters';
 
 const SAMPLE: Prospect[] = [
   {
     id: 1,
     name: 'Kelowna Golf & Country Club',
-    category: 'Golf',
+    category: 'golf_retail',
     region: 'Okanagan',
     city: 'Kelowna',
     address: '1297 Glenmore Dr',
@@ -17,12 +22,13 @@ const SAMPLE: Prospect[] = [
     initialOrderDate: null,
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...EMPTY_PROSPECT_TAXONOMY,
     ...BC_PROSPECT_TERRITORY,
   },
   {
     id: 2,
     name: 'Sidney Marina Store',
-    category: 'Marina',
+    category: 'marine_retail',
     region: 'Vancouver Island',
     city: 'Sidney',
     address: '1 Harbour Rd',
@@ -33,12 +39,13 @@ const SAMPLE: Prospect[] = [
     initialOrderDate: null,
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...EMPTY_PROSPECT_TAXONOMY,
     ...BC_PROSPECT_TERRITORY,
   },
   {
     id: 3,
     name: 'Nelson Hardware Co-op',
-    category: 'Hardware',
+    category: 'hardware_farm_rural',
     region: 'Kootenays',
     city: 'Nelson',
     address: '200 Baker St',
@@ -49,6 +56,7 @@ const SAMPLE: Prospect[] = [
     initialOrderDate: null,
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...EMPTY_PROSPECT_TAXONOMY,
     ...BC_PROSPECT_TERRITORY,
   },
 ];
@@ -66,7 +74,9 @@ describe('filterProspects', () => {
 
   it('filters by channel', () => {
     expect(
-      filterProspects(SAMPLE, { search: '', region: 'ALL', channel: 'Marina' }).map((p) => p.id),
+      filterProspects(SAMPLE, { search: '', region: 'ALL', channel: 'marine_retail' }).map(
+        (p) => p.id,
+      ),
     ).toEqual([2]);
   });
 
@@ -93,7 +103,7 @@ describe('filterProspects', () => {
       filterProspects(SAMPLE, {
         search: 'golf',
         region: 'Okanagan',
-        channel: 'Golf',
+        channel: 'golf_retail',
       }).map((p) => p.id),
     ).toEqual([1]);
 
@@ -101,7 +111,7 @@ describe('filterProspects', () => {
       filterProspects(SAMPLE, {
         search: 'golf',
         region: 'Kootenays',
-        channel: 'Golf',
+        channel: 'golf_retail',
       }),
     ).toHaveLength(0);
   });

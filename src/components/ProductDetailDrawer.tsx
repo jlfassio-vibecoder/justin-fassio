@@ -26,7 +26,13 @@ import {
 import { patchCatalogItem } from '@/lib/updateCatalogItemClient';
 import type { CatalogItemPatch } from '@/lib/updateCatalogItem';
 import { OGR_WHOLESALE_PATH } from '@/data/landing';
-import { normalizeRetailChannels, RETAIL_CHANNEL_OPTIONS } from '@/lib/retailChannels';
+import {
+  MAX_RECOMMENDED_CHANNELS,
+  normalizeLifestyleThemes,
+  normalizePrimaryChannels,
+  LIFESTYLE_THEMES,
+  PRIMARY_RETAIL_CHANNELS,
+} from '@/lib/crmRetailTaxonomy';
 
 const STATUS_OPTIONS = ['active', 'inactive', 'discontinued', 'unavailable', 'unknown'];
 const DEPARTMENT_OPTIONS = [
@@ -97,6 +103,7 @@ type Draft = {
   catalogVerified: boolean;
   verificationNotes: string;
   lifestyleThemes: string[];
+  recommendedChannels: string[];
   seasonality: string;
   sampleStatus: string;
   buyerFeedback: string;
@@ -145,10 +152,11 @@ function itemToDraft(item: CatalogItem): Draft {
     primaryImageUrl: item.primaryImageUrl ?? '',
     catalogVerified: item.catalogVerified,
     verificationNotes: item.verificationNotes,
-    lifestyleThemes: normalizeRetailChannels([
-      ...item.lifestyleThemes,
-      ...item.recommendedChannels,
-    ]),
+    lifestyleThemes: normalizeLifestyleThemes(item.lifestyleThemes),
+    recommendedChannels: normalizePrimaryChannels(item.recommendedChannels).slice(
+      0,
+      MAX_RECOMMENDED_CHANNELS,
+    ),
     seasonality: item.seasonality,
     sampleStatus: item.sampleStatus,
     buyerFeedback: item.buyerFeedback,
@@ -443,8 +451,11 @@ function ProductDetailDrawerInner({
       primaryImageUrl: draft.primaryImageUrl.trim() || null,
       catalogVerified: draft.catalogVerified,
       verificationNotes: draft.verificationNotes.trim() || null,
-      lifestyleThemes: normalizeRetailChannels(draft.lifestyleThemes),
-      recommendedChannels: normalizeRetailChannels(draft.lifestyleThemes),
+      lifestyleThemes: normalizeLifestyleThemes(draft.lifestyleThemes),
+      recommendedChannels: normalizePrimaryChannels(draft.recommendedChannels).slice(
+        0,
+        MAX_RECOMMENDED_CHANNELS,
+      ),
       seasonality: draft.seasonality.trim() || null,
       sampleStatus: draft.sampleStatus.trim() || null,
       buyerFeedback: draft.buyerFeedback.trim() || null,
@@ -1621,9 +1632,9 @@ function ProductDetailDrawerInner({
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <Field className="sm:col-span-2">
-                <FieldLabel>CRM Retail Channels</FieldLabel>
+                <FieldLabel>Lifestyle Themes</FieldLabel>
                 <div className="gap-2.1 mt-1 flex flex-wrap">
-                  {RETAIL_CHANNEL_OPTIONS.map((opt) => {
+                  {LIFESTYLE_THEMES.map((opt) => {
                     const checked = draft.lifestyleThemes.includes(opt.value);
                     return (
                       <label
@@ -1641,7 +1652,7 @@ function ProductDetailDrawerInner({
                               else next.add(opt.value);
                               return {
                                 ...d,
-                                lifestyleThemes: normalizeRetailChannels([...next]),
+                                lifestyleThemes: normalizeLifestyleThemes([...next]),
                               };
                             });
                           }}
@@ -1652,7 +1663,44 @@ function ProductDetailDrawerInner({
                   })}
                 </div>
                 <p className="text-ink/55 m-0 mt-1 text-xs">
-                  Maps to Lifestyle Theme on the wholesale showroom. Staff can refine anytime.
+                  Merchandise themes shown on the wholesale showroom Lifestyle Theme filter.
+                </p>
+              </Field>
+              <Field className="sm:col-span-2">
+                <FieldLabel>
+                  Recommended Retail Channels (up to {MAX_RECOMMENDED_CHANNELS})
+                </FieldLabel>
+                <div className="gap-2.1 mt-1 flex flex-wrap">
+                  {PRIMARY_RETAIL_CHANNELS.map((opt) => {
+                    const checked = draft.recommendedChannels.includes(opt.value);
+                    return (
+                      <label
+                        key={opt.value}
+                        className="border-divider text-ink inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={readOnly || busy}
+                          onChange={() => {
+                            setDraft((d) => {
+                              const next = new Set(d.recommendedChannels);
+                              if (next.has(opt.value)) next.delete(opt.value);
+                              else if (next.size < MAX_RECOMMENDED_CHANNELS) next.add(opt.value);
+                              return {
+                                ...d,
+                                recommendedChannels: normalizePrimaryChannels([...next]),
+                              };
+                            });
+                          }}
+                        />
+                        <span>{opt.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-ink/55 m-0 mt-1 text-xs">
+                  Retailer types this garment best fits (staff CRM guidance).
                 </p>
               </Field>
               <Field>

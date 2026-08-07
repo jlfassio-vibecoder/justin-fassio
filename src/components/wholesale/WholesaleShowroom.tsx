@@ -10,7 +10,7 @@ import {
   salesVolumeRankByProductId,
   type WholesaleFilterState,
 } from '@/lib/wholesaleFilters';
-import { effectiveRetailChannels } from '@/lib/retailChannels';
+import { effectiveLifestyleThemes } from '@/lib/crmRetailTaxonomy';
 import {
   orderTotals,
   upsertOrderLine,
@@ -134,7 +134,7 @@ export function WholesaleShowroom({
     () =>
       products.map((p) => ({
         ...p,
-        lifestyleThemes: effectiveRetailChannels({
+        lifestyleThemes: effectiveLifestyleThemes({
           lifestyleThemes: p.lifestyleThemes,
           name: p.name,
           tagline: p.tagline,

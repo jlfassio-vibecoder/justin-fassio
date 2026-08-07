@@ -4,9 +4,10 @@ import { AccountContactsSection } from '@/components/AccountContactsSection';
 import { AccountNotesEditor } from '@/components/AccountNotesEditor';
 import { ConvertAccountModal } from '@/components/ConvertAccountModal';
 import { AccountMessagesSection } from '@/components/messages/AccountMessagesSection';
+import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
-import type { Prospect } from '@/lib/prospects';
+import { primaryRetailChannelLabel, type Prospect, updateProspectTaxonomy } from '@/lib/prospects';
 
 interface ProspectDetailDrawerProps {
   prospect: Prospect | null;
@@ -14,6 +15,7 @@ interface ProspectDetailDrawerProps {
   onLogCall: (prospect: Prospect) => void;
   onConverted?: () => void;
   onNotesSaved?: (notes: string | null) => void;
+  onTaxonomySaved?: (prospect: Prospect) => void;
 }
 
 const STATUS_LABEL: Record<Prospect['accountStatus'], string> = {
@@ -28,6 +30,7 @@ export function ProspectDetailDrawer({
   onLogCall,
   onConverted,
   onNotesSaved,
+  onTaxonomySaved,
 }: ProspectDetailDrawerProps) {
   const [convertOpen, setConvertOpen] = useState(false);
 
@@ -66,7 +69,7 @@ export function ProspectDetailDrawer({
 
         <div className="flex flex-1 flex-col gap-4 overflow-auto px-5 py-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Tag variant="accent-2">{prospect.category}</Tag>
+            <Tag variant="accent-2">{primaryRetailChannelLabel(prospect.category)}</Tag>
             <span className="text-ink/70 text-sm">
               {prospect.city} ({prospect.region})
               {prospect.territoryName ? ` · ${prospect.territoryName}` : ''}
@@ -88,8 +91,26 @@ export function ProspectDetailDrawer({
             </div>
           </dl>
 
+          <section className="flex flex-col gap-2">
+            <h3 className="font-heading m-0 text-base">CRM Retail Taxonomy</h3>
+            <ProspectTaxonomyEditor
+              key={prospect.id}
+              category={prospect.category}
+              secondaryChannels={prospect.secondaryChannels}
+              retailSubchannels={prospect.retailSubchannels}
+              venueContexts={prospect.venueContexts}
+              lifestyleThemes={prospect.lifestyleThemes}
+              retailCapabilities={prospect.retailCapabilities}
+              onSave={async (patch) => {
+                const result = await updateProspectTaxonomy(prospect.id, patch);
+                if (result.error || !result.data) throw new Error(result.error ?? 'Save failed');
+                onTaxonomySaved?.(result.data);
+              }}
+            />
+          </section>
+
           <AccountNotesEditor
-            key={prospect.id}
+            key={`notes-${prospect.id}`}
             accountId={prospect.id}
             initialNotes={prospect.notes}
             onSaved={onNotesSaved}

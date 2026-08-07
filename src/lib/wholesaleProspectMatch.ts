@@ -25,14 +25,17 @@ type AdminClient = SupabaseClient<Database>;
 
 const SOURCE_NOTE = 'Inbound wholesale (old-guys-rule-wholesale)';
 
-/** Map buyer retail channel onto a CRM category (required NOT NULL on prospects). */
+/** Map buyer retail channel onto a CRM primary channel (required NOT NULL on prospects). */
 export function categoryFromRetailChannel(retailChannel: string | null | undefined): string {
   const c = (retailChannel ?? '').toLowerCase();
-  if (c.includes('golf')) return 'Golf';
-  if (c.includes('resort')) return 'Resort Gift';
-  if (c.includes('gift') || c.includes('lifestyle')) return 'Resort Gift';
-  if (c.includes('marina') || c.includes('boat')) return 'Marina';
-  return 'Hardware';
+  if (c.includes('golf')) return 'golf_retail';
+  if (c.includes('marina') || c.includes('boat')) return 'marine_retail';
+  if (c.includes('outdoor') || c.includes('sporting')) return 'outdoor_camping_hunting';
+  if (c.includes('resort')) return 'resort_hospitality';
+  if (c.includes('gift') || c.includes('lifestyle')) return 'gift_novelty_souvenir';
+  if (c.includes('specialty') || c.includes('independent')) return 'apparel_specialty';
+  if (c.includes('online')) return 'online_specialty';
+  return 'hardware_farm_rural';
 }
 
 export function buildWholesaleActivityNote(args: {

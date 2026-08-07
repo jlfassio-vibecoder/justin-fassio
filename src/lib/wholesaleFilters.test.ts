@@ -98,7 +98,7 @@ describe('wholesale filters URL round-trip', () => {
         sku: 'A1',
         publicSortOrder: 2,
         wholesaleUsd: 10,
-        lifestyleThemes: ['Golf'],
+        lifestyleThemes: ['golf'],
         cat: 'Hats',
       }),
     ];
@@ -106,7 +106,7 @@ describe('wholesale filters URL round-trip', () => {
       filterPublicOgrProducts(products, { ...DEFAULT_WHOLESALE_FILTERS, q: 'alpha' }),
     ).toHaveLength(1);
     expect(
-      filterPublicOgrProducts(products, { ...DEFAULT_WHOLESALE_FILTERS, theme: 'Golf' })[0]?.sku,
+      filterPublicOgrProducts(products, { ...DEFAULT_WHOLESALE_FILTERS, theme: 'golf' })[0]?.sku,
     ).toBe('A1');
     expect(
       filterPublicOgrProducts(products, { ...DEFAULT_WHOLESALE_FILTERS, sort: 'wholesale' })[0]
@@ -114,7 +114,7 @@ describe('wholesale filters URL round-trip', () => {
     ).toBe(10);
   });
 
-  it('filters by lifestyle theme using inferred CRM channels when tags are empty', () => {
+  it('filters by lifestyle theme using inferred merchandise themes when tags are empty', () => {
     const products = [
       sample({ id: 'a', name: 'RUSTY TRUCK', sku: 'OG2042', lifestyleThemes: [], tagline: 'Rust' }),
       sample({
@@ -126,14 +126,15 @@ describe('wholesale filters URL round-trip', () => {
       }),
     ];
     expect(
-      filterPublicOgrProducts(products, { ...DEFAULT_WHOLESALE_FILTERS, theme: 'Hardware' }).map(
-        (p) => p.sku,
-      ),
+      filterPublicOgrProducts(products, {
+        ...DEFAULT_WHOLESALE_FILTERS,
+        theme: 'trucks_garage',
+      }).map((p) => p.sku),
     ).toEqual(['OG2042']);
     expect(
       filterPublicOgrProducts(products, {
         ...DEFAULT_WHOLESALE_FILTERS,
-        theme: 'Golf Pro Shops',
+        theme: 'Golf',
       }).map((p) => p.sku),
     ).toEqual(['OG2023']);
   });

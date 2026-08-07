@@ -7,7 +7,7 @@ describe('mapProspectRow notes', () => {
     const row: ProspectRow = {
       id: 1,
       name: 'Kelowna Golf & Country Club',
-      category: 'Golf',
+      category: 'golf_retail',
       region: 'Okanagan',
       city: 'Kelowna',
       address: '1297 Glenmore Dr',
@@ -35,6 +35,12 @@ describe('mapProspectRow notes', () => {
       next_action: null,
       source_note: null,
       created_at: '2026-01-01T00:00:00Z',
+      secondary_channels: [],
+      retail_subchannels: [],
+      venue_contexts: [],
+      lifestyle_themes: [],
+      retail_capabilities: [],
+
       updated_at: '2026-08-01T12:00:00Z',
     };
 
@@ -45,7 +51,7 @@ describe('mapProspectRow notes', () => {
     const row: ProspectRow = {
       id: 2,
       name: 'Sidney Marina Store',
-      category: 'Marina',
+      category: 'marine_retail',
       region: 'Vancouver Island',
       city: 'Sidney',
       address: '1 Harbour Rd',
@@ -73,6 +79,12 @@ describe('mapProspectRow notes', () => {
       next_action: null,
       source_note: null,
       created_at: '2026-01-01T00:00:00Z',
+      secondary_channels: [],
+      retail_subchannels: [],
+      venue_contexts: [],
+      lifestyle_themes: [],
+      retail_capabilities: [],
+
       updated_at: '2026-08-01T12:00:00Z',
     };
 

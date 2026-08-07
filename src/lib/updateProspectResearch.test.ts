@@ -25,12 +25,17 @@ import {
   previewProspectResearchUpdate,
 } from '@/lib/updateProspectResearch';
 import { buildResearchUpdateDiffs } from '@/lib/researchUpdateDiffs';
-import { BC_PROSPECT_TERRITORY, EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
+import {
+  BC_PROSPECT_TERRITORY,
+  EMPTY_PROSPECT_PLANNING,
+  EMPTY_PROSPECT_TAXONOMY,
+  type Prospect,
+} from '@/lib/prospects';
 
 const currentRow = {
   id: 42,
   name: 'Old Store',
-  category: 'Golf',
+  category: 'golf_retail',
   region: 'Okanagan',
   city: 'Kelowna',
   address: '1 Main St',
@@ -57,13 +62,19 @@ const currentRow = {
   next_action: null,
   source_note: null,
   created_at: '2026-08-01T00:00:00Z',
+  secondary_channels: [],
+  retail_subchannels: [],
+  venue_contexts: [],
+  lifestyle_themes: [],
+  retail_capabilities: [],
+
   updated_at: '2026-08-01T00:00:00Z',
 };
 
 const updatedRow = {
   ...currentRow,
   name: 'New Store',
-  category: 'Hardware',
+  category: 'hardware_farm_rural',
   region: 'Shuswap',
   city: 'Salmon Arm',
   address: '9 Lake Ave',
@@ -107,7 +118,7 @@ describe('buildResearchUpdateDiffs', () => {
     const current: Prospect = {
       id: 1,
       name: 'A',
-      category: 'Golf',
+      category: 'golf_retail',
       region: 'Okanagan',
       city: 'Kelowna',
       address: '',
@@ -118,6 +129,7 @@ describe('buildResearchUpdateDiffs', () => {
       initialOrderDate: null,
       notes: null,
       ...EMPTY_PROSPECT_PLANNING,
+      ...EMPTY_PROSPECT_TAXONOMY,
       ...BC_PROSPECT_TERRITORY,
     };
     const proposed: Prospect = {
@@ -142,7 +154,7 @@ describe('previewProspectResearchUpdate', () => {
       ok: true,
       fields: {
         name: 'New Store',
-        category: 'Hardware',
+        category: 'hardware_farm_rural',
         region: 'Shuswap',
         city: 'Salmon Arm',
         fitScore: 8,
@@ -176,7 +188,7 @@ describe('previewProspectResearchUpdate', () => {
       ok: true,
       fields: {
         name: 'Should Not Overwrite',
-        category: 'Hardware',
+        category: 'hardware_farm_rural',
         region: 'Shuswap',
         city: 'Salmon Arm',
         address: '9 Lake Ave',
@@ -225,7 +237,7 @@ describe('applyProspectResearchUpdate', () => {
       id: 42,
       fields: {
         name: 'New Store',
-        category: 'Hardware',
+        category: 'hardware_farm_rural',
         region: 'Shuswap',
         city: 'Salmon Arm',
         fitScore: 8,
@@ -241,7 +253,7 @@ describe('applyProspectResearchUpdate', () => {
     expect(result.prospect.fit).toBe('8/10 — Strong hardware traffic.');
     expect(supabase.update).toHaveBeenCalledWith({
       name: 'New Store',
-      category: 'Hardware',
+      category: 'hardware_farm_rural',
       region: 'Shuswap',
       city: 'Salmon Arm',
       address: '9 Lake Ave',
@@ -295,7 +307,7 @@ describe('applyProspectResearchUpdate', () => {
       mode: 'fill-blanks',
       fields: {
         name: null,
-        category: 'Hardware',
+        category: 'hardware_farm_rural',
         region: null,
         city: null,
         address: '9 Lake Ave',

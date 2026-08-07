@@ -112,10 +112,14 @@ describe('assignProspectPriority', () => {
 
 describe('crmChannelFromRetailCategory', () => {
   it('maps to CRM channels', () => {
-    expect(crmChannelFromRetailCategory('Golf pro shop')).toBe('Golf');
-    expect(crmChannelFromRetailCategory('Marine dealer / supply')).toBe('Marina');
-    expect(crmChannelFromRetailCategory('Hardware / farm store with apparel')).toBe('Hardware');
-    expect(crmChannelFromRetailCategory('Fishing / outdoor retailer')).toBe('Hardware');
-    expect(crmChannelFromRetailCategory('Independent gift / tourist store')).toBe('Resort Gift');
+    expect(crmChannelFromRetailCategory('Golf pro shop')).toBe('golf_retail');
+    expect(crmChannelFromRetailCategory('Marine dealer / supply')).toBe('marine_retail');
+    expect(crmChannelFromRetailCategory('Hardware / farm store with apparel')).toBe(
+      'hardware_farm_rural',
+    );
+    expect(crmChannelFromRetailCategory('Fishing / outdoor retailer')).toBe('fishing_fly_tackle');
+    expect(crmChannelFromRetailCategory('Independent gift / tourist store')).toBe(
+      'gift_novelty_souvenir',
+    );
   });
 });

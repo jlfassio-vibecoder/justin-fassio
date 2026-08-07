@@ -27,10 +27,10 @@ const HEADERS = [
 ];
 
 const channelTagVariant: Record<string, 'accent-2' | 'accent' | 'neutral' | 'outline'> = {
-  Golf: 'accent-2',
-  Marina: 'accent',
-  Hardware: 'neutral',
-  'Resort Gift': 'outline',
+  golf_retail: 'accent-2',
+  marine_retail: 'accent',
+  hardware_farm_rural: 'neutral',
+  gift_novelty_souvenir: 'outline',
 };
 
 const STATUS_LABEL: Record<ContactDirectoryRow['accountStatus'], string> = {

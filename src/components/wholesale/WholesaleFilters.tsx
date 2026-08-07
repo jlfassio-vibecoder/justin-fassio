@@ -3,7 +3,7 @@ import {
   type WholesaleFilterState,
   type WholesaleSort,
 } from '@/lib/wholesaleFilters';
-import { RETAIL_CHANNEL_OPTIONS } from '@/lib/retailChannels';
+import { LIFESTYLE_THEMES } from '@/lib/crmRetailTaxonomy';
 
 type Props = {
   filters: WholesaleFilterState;
@@ -67,7 +67,7 @@ function FilterFields({
           className="border-divider bg-bg px-3.1 focus:border-accent-700 rounded-lg border py-2 text-sm outline-none"
         >
           <option value="">All themes</option>
-          {RETAIL_CHANNEL_OPTIONS.map((o) => (
+          {LIFESTYLE_THEMES.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>

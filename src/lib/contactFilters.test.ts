@@ -18,7 +18,7 @@ const BASE: ContactDirectoryRow = {
   accountName: 'Kelowna Golf & Country Club',
   accountCity: 'Kelowna',
   accountRegion: 'Okanagan',
-  accountCategory: 'Golf',
+  accountCategory: 'golf_retail',
   accountAddress: '1297 Glenmore Dr',
   accountPhone: '250-762-2531',
   accountStatus: 'active_account',
@@ -38,7 +38,7 @@ const SAMPLE: ContactDirectoryRow[] = [
     accountName: 'Sidney Marina Store',
     accountCity: 'Sidney',
     accountRegion: 'Vancouver Island',
-    accountCategory: 'Marina',
+    accountCategory: 'marine_retail',
     accountAddress: '1 Harbour Rd',
     accountPhone: '250-555-0200',
     accountStatus: 'prospect',
@@ -69,7 +69,7 @@ describe('enrichContactsForDirectory', () => {
           name: 'Kelowna Golf',
           city: 'Kelowna',
           region: 'Okanagan',
-          category: 'Golf',
+          category: 'golf_retail',
           address: '1297 Glenmore',
           phone: '250-762-2531',
           account_status: 'active_account',
@@ -82,7 +82,7 @@ describe('enrichContactsForDirectory', () => {
       accountName: 'Kelowna Golf',
       accountCity: 'Kelowna',
       accountRegion: 'Okanagan',
-      accountCategory: 'Golf',
+      accountCategory: 'golf_retail',
       accountStatus: 'active_account',
     });
   });
@@ -137,7 +137,7 @@ describe('filterContacts', () => {
       filterContacts(SAMPLE, {
         search: '',
         region: 'ALL',
-        channel: 'Marina',
+        channel: 'marine_retail',
         accountStatus: 'ALL',
       }).map((c) => c.id),
     ).toEqual(['c2']);

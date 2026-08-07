@@ -4,18 +4,27 @@ import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { CHANNEL_OPTIONS, REGION_OPTIONS } from '@/lib/directoryOptions';
 import { filterProspects } from '@/lib/prospectFilters';
+import { primaryRetailChannelLabel } from '@/lib/crmRetailTaxonomy';
 import type { Prospect } from '@/lib/prospects';
 import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
 
-const channelTagVariant: Record<
-  Prospect['category'],
-  'accent-2' | 'accent' | 'neutral' | 'outline'
+const channelTagVariant: Partial<
+  Record<Prospect['category'], 'accent-2' | 'accent' | 'neutral' | 'outline'>
 > = {
-  Golf: 'accent-2',
-  Marina: 'accent',
-  Hardware: 'neutral',
-  'Resort Gift': 'outline',
+  golf_retail: 'accent-2',
+  marine_retail: 'accent',
+  hardware_farm_rural: 'neutral',
+  gift_novelty_souvenir: 'outline',
+  apparel_specialty: 'accent-2',
+  resort_hospitality: 'outline',
+  fishing_fly_tackle: 'accent',
 };
+
+function tagVariantForChannel(
+  category: Prospect['category'],
+): 'accent-2' | 'accent' | 'neutral' | 'outline' {
+  return channelTagVariant[category] ?? 'neutral';
+}
 
 const BASE_HEADERS = ['#', 'Store', 'Channel', 'City (Region)', 'Address', 'Phone', 'Fit Reason'];
 
@@ -199,7 +208,9 @@ export function RetailerDirectory({
                       {p.name}
                     </td>
                     <td className="border-ink/[0.08] border-b p-2">
-                      <Tag variant={channelTagVariant[p.category]}>{p.category}</Tag>
+                      <Tag variant={tagVariantForChannel(p.category)}>
+                        {primaryRetailChannelLabel(p.category)}
+                      </Tag>
                     </td>
                     <td className="border-ink/[0.08] border-b p-2">
                       {p.city} ({p.region})

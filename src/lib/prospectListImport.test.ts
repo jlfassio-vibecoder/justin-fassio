@@ -49,11 +49,13 @@ function sheet(
 
 describe('prospectListImport mapping', () => {
   it('maps retail categories to CRM channels', () => {
-    expect(mapRetailCategoryToChannel('Golf pro shop')).toBe('Golf');
-    expect(mapRetailCategoryToChannel('Marine dealer / supply')).toBe('Marina');
-    expect(mapRetailCategoryToChannel('Marina / resort store')).toBe('Marina');
-    expect(mapRetailCategoryToChannel('Hardware / farm store with apparel')).toBe('Hardware');
-    expect(mapRetailCategoryToChannel('Fishing / outdoor retailer')).toBe('Resort Gift');
+    expect(mapRetailCategoryToChannel('Golf pro shop')).toBe('golf_retail');
+    expect(mapRetailCategoryToChannel('Marine dealer / supply')).toBe('marine_retail');
+    expect(mapRetailCategoryToChannel('Marina / resort store')).toBe('marine_retail');
+    expect(mapRetailCategoryToChannel('Hardware / farm store with apparel')).toBe(
+      'hardware_farm_rural',
+    );
+    expect(mapRetailCategoryToChannel('Fishing / outdoor retailer')).toBe('fishing_fly_tackle');
   });
 
   it('maps districts to CRM regions', () => {
@@ -122,7 +124,7 @@ describe('matchSheetToCrm', () => {
     const result = matchSheetToCrm(
       {
         ...sheet({ externalId: 'BC-099', name: 'Already Linked' }),
-        category: 'Golf',
+        category: 'golf_retail',
         region: 'Okanagan',
       },
       crm,
@@ -135,7 +137,7 @@ describe('matchSheetToCrm', () => {
     const result = matchSheetToCrm(
       {
         ...sheet({ externalId: 'BC-001', name: "Gallagher's Canyon Golf Club" }),
-        category: 'Golf',
+        category: 'golf_retail',
         region: 'Okanagan',
       },
       crm,
@@ -154,7 +156,7 @@ describe('matchSheetToCrm', () => {
           primaryDistrict: 'Lower Mainland',
           subterritory: 'Sea-to-Sky',
         }),
-        category: 'Golf',
+        category: 'golf_retail',
         region: 'Sea-to-Sky',
       },
       crm,
@@ -167,7 +169,7 @@ describe('matchSheetToCrm', () => {
     const result = matchSheetToCrm(
       {
         ...sheet({ externalId: 'BC-400', name: 'Brand New Outfitters' }),
-        category: 'Resort Gift',
+        category: 'gift_novelty_souvenir',
         region: 'Okanagan',
       },
       crm,

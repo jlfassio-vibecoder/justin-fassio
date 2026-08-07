@@ -39,9 +39,9 @@ function query(result: { data: unknown; error: unknown | null }) {
 
 describe('categoryFromRetailChannel', () => {
   it('maps common channels', () => {
-    expect(categoryFromRetailChannel('Golf / resort')).toBe('Golf');
-    expect(categoryFromRetailChannel('Gift / lifestyle')).toBe('Resort Gift');
-    expect(categoryFromRetailChannel('Independent specialty retail')).toBe('Hardware');
+    expect(categoryFromRetailChannel('Golf / resort')).toBe('golf_retail');
+    expect(categoryFromRetailChannel('Gift / lifestyle')).toBe('gift_novelty_souvenir');
+    expect(categoryFromRetailChannel('Independent specialty retail')).toBe('apparel_specialty');
   });
 });
 

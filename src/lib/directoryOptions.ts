@@ -1,4 +1,4 @@
-import { RETAIL_CHANNEL_OPTIONS } from '@/lib/retailChannels';
+import { PRIMARY_RETAIL_CHANNELS } from '@/lib/crmRetailTaxonomy';
 
 export const REGION_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Regions (6 corridors)' },
@@ -12,5 +12,5 @@ export const REGION_OPTIONS: { value: string; label: string }[] = [
 
 export const CHANNEL_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Retail Channels' },
-  ...RETAIL_CHANNEL_OPTIONS,
+  ...PRIMARY_RETAIL_CHANNELS,
 ];

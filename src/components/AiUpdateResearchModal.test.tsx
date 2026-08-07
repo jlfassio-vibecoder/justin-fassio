@@ -2,7 +2,12 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AiUpdateResearchModal } from '@/components/AiUpdateResearchModal';
-import { BC_PROSPECT_TERRITORY, EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
+import {
+  BC_PROSPECT_TERRITORY,
+  EMPTY_PROSPECT_PLANNING,
+  EMPTY_PROSPECT_TAXONOMY,
+  type Prospect,
+} from '@/lib/prospects';
 
 const previewMock = vi.fn();
 const applyMock = vi.fn();
@@ -15,7 +20,7 @@ vi.mock('@/lib/updateProspectResearchClient', () => ({
 const baseProspect: Prospect = {
   id: 7,
   name: 'Old Marina',
-  category: 'Marina',
+  category: 'marine_retail',
   region: 'Vancouver Island',
   city: 'Nanaimo',
   address: '1 Dock',
@@ -26,12 +31,13 @@ const baseProspect: Prospect = {
   initialOrderDate: null,
   notes: null,
   ...EMPTY_PROSPECT_PLANNING,
+  ...EMPTY_PROSPECT_TAXONOMY,
   ...BC_PROSPECT_TERRITORY,
 };
 
 const fields = {
   name: 'New Marina',
-  category: 'Marina' as const,
+  category: 'marine_retail' as const,
   region: 'Vancouver Island' as const,
   city: 'Nanaimo',
   fitScore: 9,

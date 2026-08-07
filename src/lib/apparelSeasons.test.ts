@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { APPAREL_SEASON_LABELS, APPAREL_SEASONS, apparelSeasonLabel } from '@/lib/apparelSeasons';
-import { EMPTY_PROSPECT_PLANNING, mapProspectRow } from '@/lib/prospects';
+import { EMPTY_PROSPECT_PLANNING, EMPTY_PROSPECT_TAXONOMY, mapProspectRow } from '@/lib/prospects';
 import type { ProspectRow } from '@/types/database';
 
 describe('apparelSeasons', () => {
@@ -18,7 +18,7 @@ describe('mapProspectRow', () => {
     const row: ProspectRow = {
       id: 1,
       name: 'Kelowna Golf & Country Club',
-      category: 'Golf',
+      category: 'golf_retail',
       region: 'Okanagan',
       city: 'Kelowna',
       address: '1297 Glenmore Dr',
@@ -46,13 +46,19 @@ describe('mapProspectRow', () => {
       next_action: null,
       source_note: null,
       created_at: '2026-01-01T00:00:00Z',
+      secondary_channels: [],
+      retail_subchannels: [],
+      venue_contexts: [],
+      lifestyle_themes: [],
+      retail_capabilities: [],
+
       updated_at: '2026-08-01T12:00:00Z',
     };
 
     expect(mapProspectRow(row)).toEqual({
       id: 1,
       name: 'Kelowna Golf & Country Club',
-      category: 'Golf',
+      category: 'golf_retail',
       region: 'Okanagan',
       city: 'Kelowna',
       address: '1297 Glenmore Dr',
@@ -66,6 +72,7 @@ describe('mapProspectRow', () => {
       territoryCode: null,
       territoryName: null,
       ...EMPTY_PROSPECT_PLANNING,
+      ...EMPTY_PROSPECT_TAXONOMY,
     });
   });
 });
