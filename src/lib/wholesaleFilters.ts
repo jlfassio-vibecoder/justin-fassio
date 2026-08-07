@@ -1,4 +1,5 @@
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
+import { effectiveRetailChannels, resolveRetailChannelFilter } from '@/lib/retailChannels';
 
 export type WholesaleSort = 'recommended' | 'name' | 'category' | 'wholesale' | 'newest';
 
@@ -45,9 +46,18 @@ export function filterPublicOgrProducts(
   filters: WholesaleFilterState,
 ): PublicOgrProduct[] {
   const q = filters.q.toLowerCase();
+  const theme = resolveRetailChannelFilter(filters.theme);
   let list = products.filter((p) => {
     if (filters.cat && p.cat !== filters.cat) return false;
-    if (filters.theme && !p.lifestyleThemes.includes(filters.theme)) return false;
+    if (theme) {
+      const channels = effectiveRetailChannels({
+        lifestyleThemes: p.lifestyleThemes,
+        name: p.name,
+        tagline: p.tagline,
+        description: p.description,
+      });
+      if (!channels.includes(theme)) return false;
+    }
     if (!q) return true;
     return (
       p.name.toLowerCase().includes(q) ||

@@ -10,6 +10,7 @@ import {
   salesVolumeRankByProductId,
   type WholesaleFilterState,
 } from '@/lib/wholesaleFilters';
+import { effectiveRetailChannels } from '@/lib/retailChannels';
 import {
   orderTotals,
   upsertOrderLine,
@@ -129,8 +130,27 @@ export function WholesaleShowroom({
   }, []);
 
   const categories = useMemo(() => uniqueCategories(products), [products]);
-  const filtered = useMemo(() => filterPublicOgrProducts(products, filters), [products, filters]);
-  const salesRanks = useMemo(() => salesVolumeRankByProductId(products), [products]);
+  const productsForShowroom = useMemo(
+    () =>
+      products.map((p) => ({
+        ...p,
+        lifestyleThemes: effectiveRetailChannels({
+          lifestyleThemes: p.lifestyleThemes,
+          name: p.name,
+          tagline: p.tagline,
+          description: p.description,
+        }),
+      })),
+    [products],
+  );
+  const filtered = useMemo(
+    () => filterPublicOgrProducts(productsForShowroom, filters),
+    [productsForShowroom, filters],
+  );
+  const salesRanks = useMemo(
+    () => salesVolumeRankByProductId(productsForShowroom),
+    [productsForShowroom],
+  );
   const { totalUnits } = orderTotals(draft);
   const pricingUnlocked = products.some((p) => p.wholesaleUsd != null);
 

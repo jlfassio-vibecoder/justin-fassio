@@ -19,6 +19,10 @@ const LABEL_BY_VALUE = Object.fromEntries(
   RETAIL_CHANNEL_OPTIONS.map((o) => [o.value, o.label]),
 ) as Record<RetailChannel, string>;
 
+const VALUE_BY_LABEL = Object.fromEntries(
+  RETAIL_CHANNEL_OPTIONS.map((o) => [o.label, o.value]),
+) as Record<string, RetailChannel>;
+
 export function isRetailChannel(value: string): value is RetailChannel {
   return CHANNEL_SET.has(value);
 }
@@ -29,6 +33,7 @@ export function normalizeRetailChannels(values: readonly string[]): RetailChanne
   for (const raw of values) {
     const v = raw.trim();
     if (isRetailChannel(v)) set.add(v);
+    else if (VALUE_BY_LABEL[v]) set.add(VALUE_BY_LABEL[v]);
   }
   return RETAIL_CHANNEL_OPTIONS.map((o) => o.value).filter((v) => set.has(v));
 }
@@ -38,17 +43,61 @@ export function retailChannelLabel(value: string): string {
   return value;
 }
 
+/** Resolve filter option values that may be codes or display labels. */
+export function resolveRetailChannelFilter(theme: string): RetailChannel | null {
+  const t = theme.trim();
+  if (!t) return null;
+  if (isRetailChannel(t)) return t;
+  return VALUE_BY_LABEL[t] ?? null;
+}
+
 type ChannelRule = { channel: RetailChannel; needles: string[] };
 
 /** Keyword rules shared with the OGR backfill migration (keep in sync). */
 export const RETAIL_CHANNEL_INFER_RULES: ChannelRule[] = [
   {
     channel: 'Golf',
-    needles: ['golf', 'fairway', 'tee time', 'links', 'still swing', 'swinging'],
+    needles: [
+      'golf',
+      'fairway',
+      'tee time',
+      'links',
+      'still swing',
+      'swinging',
+      'best round',
+      '19th hole',
+      'nineteenth hole',
+      'putt',
+      'par ',
+      'birdie',
+    ],
   },
   {
     channel: 'Marina',
-    needles: ['boat', 'marina', 'dock', 'sail', 'fish', 'tackle', 'lake', 'ocean', 'beach cruiser'],
+    needles: [
+      'boat',
+      'marina',
+      'dock',
+      'sail',
+      'fish',
+      'tackle',
+      'lake',
+      'ocean',
+      'beach cruiser',
+      'hookin',
+      'hooking',
+      'reel',
+      'chasing tail',
+      'pirate',
+      'mariner',
+      'crab',
+      'surf',
+      'salty',
+      'anchor',
+      'captain',
+      'harbor',
+      'harbour',
+    ],
   },
   {
     channel: 'Hardware',
@@ -63,6 +112,7 @@ export const RETAIL_CHANNEL_INFER_RULES: ChannelRule[] = [
       'bbq',
       'muscle',
       'dog',
+      'lab ',
       'veteran',
       'flag',
       'usa',
@@ -75,6 +125,14 @@ export const RETAIL_CHANNEL_INFER_RULES: ChannelRule[] = [
       'oak cask',
       'crazy beer',
       'leash',
+      'how i roll',
+      'ride',
+      'gears',
+      'road',
+      'king of road',
+      'big red',
+      'shelby',
+      'muscle',
     ],
   },
   {
@@ -98,15 +156,34 @@ export const RETAIL_CHANNEL_INFER_RULES: ChannelRule[] = [
       'opv',
       'american dream',
       'american revival',
+      'american legend',
       'freedom',
       'born',
+      'bucket list',
+      'dream',
+      'aloha',
+      'island',
+      'camper',
+      'lounge',
+      'legend',
+      'older',
+      'better i was',
+      'rock',
+      'disgracefully',
+      'expert',
+      'beanie',
+      'dad cap',
+      'mug',
+      'magnet',
+      'metal sign',
+      'sticker',
     ],
   },
 ];
 
 /**
- * Infer CRM retail channels from garment copy for backfill heuristics / tests.
- * A style may match multiple channels.
+ * Infer CRM retail channels from garment copy for backfill / client fallback.
+ * Falls back to Resort Gift when nothing matches so every style is filterable.
  */
 export function inferRetailChannelsFromCopy(parts: {
   name?: string | null;
@@ -117,11 +194,24 @@ export function inferRetailChannelsFromCopy(parts: {
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
-  if (!hay.trim()) return [];
+  if (!hay.trim()) return ['Resort Gift'];
 
   const matched: RetailChannel[] = [];
   for (const rule of RETAIL_CHANNEL_INFER_RULES) {
     if (rule.needles.some((n) => hay.includes(n))) matched.push(rule.channel);
   }
-  return normalizeRetailChannels(matched);
+  const normalized = normalizeRetailChannels(matched);
+  return normalized.length > 0 ? normalized : ['Resort Gift'];
+}
+
+/** Prefer persisted themes; otherwise infer from name/tagline/description. */
+export function effectiveRetailChannels(parts: {
+  lifestyleThemes?: readonly string[] | null;
+  name?: string | null;
+  tagline?: string | null;
+  description?: string | null;
+}): RetailChannel[] {
+  const stored = normalizeRetailChannels(parts.lifestyleThemes ?? []);
+  if (stored.length > 0) return stored;
+  return inferRetailChannelsFromCopy(parts);
 }
