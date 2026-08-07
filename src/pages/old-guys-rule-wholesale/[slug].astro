@@ -3,18 +3,25 @@ export const prerender = false;
 
 import Layout from '@/layouts/Layout.astro';
 import { WholesaleProductPage } from '@/components/wholesale/WholesaleProductPage';
+import { fetchPublicActiveLines } from '@/lib/lines';
 import {
   fetchPublicOgrProductBySlug,
   fetchPublicOgrSupplierTerms,
   type PublicOgrSupplierTerms,
 } from '@/lib/publicCatalog';
+import { buildOgrProductMetadata, toLayoutSeoProps } from '@/lib/ogrPageMetadata';
+import { resolveOgrProductShareImage } from '@/lib/ogrShareImages';
+import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
+import { buildOgrProductUrl, resolvePublicSiteOrigin } from '@/lib/productUrls';
 import { resolvePublicOgrProductPageResponse } from '@/lib/wholesaleRoutes';
 
 const slug = Astro.params.slug ?? '';
-const [{ data: product, error: productError }, { data: terms }] = await Promise.all([
-  fetchPublicOgrProductBySlug(slug),
-  fetchPublicOgrSupplierTerms(),
-]);
+const [{ data: product, error: productError }, { data: terms }, { data: lines }] =
+  await Promise.all([
+    fetchPublicOgrProductBySlug(slug),
+    fetchPublicOgrSupplierTerms(),
+    fetchPublicActiveLines(),
+  ]);
 
 const earlyResponse = resolvePublicOgrProductPageResponse({
   product,
@@ -34,19 +41,25 @@ const resolvedTerms: PublicOgrSupplierTerms = terms ?? {
   pricesSubjectToChange: true,
 };
 
-const title = `${product.name} | Old Guys Rule Wholesale | Justin Fassio`;
-const description =
-  product.tagline ||
-  product.description ||
-  `${product.name} (${product.sku}) — wholesale for Canadian retailers via Justin Fassio.`;
-const canonicalUrl = new URL(`/old-guys-rule-wholesale/${product.publicSlug}`, Astro.url).href;
+const ogrLine = lines.find((line) => line.code === 'ogr') ?? null;
+const presentation = buildPublicProductPresentation(product);
+const shareImage = resolveOgrProductShareImage({
+  presentation,
+  lineHeroImageUrl: ogrLine?.heroImageUrl,
+});
+const canonicalUrl = buildOgrProductUrl(
+  presentation.slug,
+  resolvePublicSiteOrigin({ requestOrigin: Astro.url.origin }),
+);
+const seo = toLayoutSeoProps(
+  buildOgrProductMetadata({
+    presentation,
+    canonicalUrl,
+    image: shareImage,
+  }),
+);
 ---
 
-<Layout
-  title={title}
-  description={description}
-  canonicalUrl={canonicalUrl}
-  ogImage={product.primaryImageUrl}
->
+<Layout {...seo}>
   <WholesaleProductPage client:load product={product} terms={resolvedTerms} />
 </Layout>

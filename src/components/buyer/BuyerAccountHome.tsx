@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { cartItemsToDraft, fetchBuyerCartItems, enqueueBuyerCartSync } from '@/lib/buyerCart';
 import { fetchBuyerLikedProductIds } from '@/lib/buyerLikes';
 import { fetchPublicOgrProducts, type PublicOgrProduct } from '@/lib/publicCatalog';
+import { tryBuildOgrProductPath, OGR_WHOLESALE_PATH } from '@/lib/productUrls';
 import { formatMerchandiseSubtotalUsd, formatWholesaleUsd } from '@/lib/wholesalePricing';
 import {
   getWholesaleOrderDraftSnapshot,
@@ -100,7 +101,7 @@ function BuyerAccountInner() {
           Justin Fassio
         </a>
         <div className="flex items-center gap-3 text-sm">
-          <a href="/old-guys-rule-wholesale" className="text-ink/70 no-underline hover:underline">
+          <a href={OGR_WHOLESALE_PATH} className="text-ink/70 no-underline hover:underline">
             Showroom
           </a>
           <Button
@@ -148,7 +149,7 @@ function BuyerAccountInner() {
           ) : draft.lines.length === 0 ? (
             <p className="text-ink/60 m-0 text-sm">
               No saved lines yet.{' '}
-              <a href="/old-guys-rule-wholesale" className="text-accent-700 hover:underline">
+              <a href={OGR_WHOLESALE_PATH} className="text-accent-700 hover:underline">
                 Browse the collection
               </a>
             </p>
@@ -172,7 +173,7 @@ function BuyerAccountInner() {
               </ul>
               <div className="flex flex-wrap gap-2">
                 <a
-                  href="/old-guys-rule-wholesale#order-builder"
+                  href={`${OGR_WHOLESALE_PATH}#order-builder`}
                   className="bg-accent-700 px-4.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center rounded-full py-2 text-sm no-underline"
                 >
                   Continue in showroom
@@ -208,17 +209,24 @@ function BuyerAccountInner() {
             </p>
           ) : (
             <ul className="gap-3.1 m-0 grid list-none p-0 sm:grid-cols-2">
-              {likedProducts.map((product) => (
-                <li key={product.id} className="border-divider rounded-lg border p-3 text-sm">
-                  <a
-                    href={`/old-guys-rule-wholesale/${product.publicSlug}`}
-                    className="font-heading text-ink no-underline hover:underline"
-                  >
-                    {product.name}
-                  </a>
-                  <p className="text-ink/55 m-0 mt-1 text-xs">{product.sku}</p>
-                </li>
-              ))}
+              {likedProducts.map((product) => {
+                const productPath = tryBuildOgrProductPath(product.publicSlug);
+                return (
+                  <li key={product.id} className="border-divider rounded-lg border p-3 text-sm">
+                    {productPath ? (
+                      <a
+                        href={productPath}
+                        className="font-heading text-ink no-underline hover:underline"
+                      >
+                        {product.name}
+                      </a>
+                    ) : (
+                      <span className="font-heading text-ink">{product.name}</span>
+                    )}
+                    <p className="text-ink/55 m-0 mt-1 text-xs">{product.sku}</p>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

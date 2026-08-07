@@ -1,5 +1,6 @@
 import { useEffect, useState, type MouseEvent, type SubmitEvent } from 'react';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { OGR_WHOLESALE_PATH } from '@/lib/productUrls';
 import { Button } from '@/components/ui/Button';
 import { Field, FieldLabel, Input } from '@/components/ui/Input';
 
@@ -162,7 +163,7 @@ export function BuyerLoginForm() {
       <p className="text-ink/55 relative z-10 mt-6 text-center text-sm">
         Need access?{' '}
         <a
-          href="/old-guys-rule-wholesale#buyer-form"
+          href={`${OGR_WHOLESALE_PATH}#buyer-form`}
           className="text-accent-700 no-underline hover:underline"
         >
           Request wholesale pricing

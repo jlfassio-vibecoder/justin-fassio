@@ -7,6 +7,7 @@ import {
   WHOLESALE_LOCKED_LABEL,
 } from '@/lib/wholesalePricing';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
+import { tryBuildOgrProductUrl } from '@/lib/productUrls';
 import type { WholesaleOrderLine } from '@/lib/wholesaleOrderDraft';
 import { lifestyleThemeLabel } from '@/lib/crmRetailTaxonomy';
 
@@ -75,7 +76,8 @@ export function WholesaleProductDetail({
   }
 
   async function copyLink() {
-    const url = `${window.location.origin}/old-guys-rule-wholesale/${product.publicSlug}`;
+    const url = tryBuildOgrProductUrl(product.publicSlug, window.location.origin);
+    if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
