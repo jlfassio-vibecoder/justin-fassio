@@ -8,23 +8,51 @@ Living notes for the public OGR showroom and **OG product cards**. Companion del
 
 ## Status overview (2026-08-07)
 
-| Area | Status |
-|------|--------|
-| Public showroom `/old-guys-rule-wholesale` | **Shipped** |
-| Product detail `/old-guys-rule-wholesale/[slug]` | **Shipped** |
-| Homepage OGR brand CTA → showroom | **Shipped** |
-| Public catalog RPCs (no anon table SELECT) | **Shipped** |
-| Order-request submit → CRM | **Shipped** |
-| OG product cards (grid) | **Shipped** — see below |
-| Sales-volume “Best sellers” sort + `#N` badges | **Shipped** (PR #48) |
-| Lifestyle theme tags on cards / filters | **Shipped** (PR #48 taxonomy) |
-| Retailer pricing gate + likes on cards | **Shipped** |
-| Open Graph / social preview polish | Partial — layout + product `og:image`; structured data / dedicated share art still open |
-| Payment, live inventory, cloud carts | Out of scope |
+| Area                                                  | Status                                                 |
+| ----------------------------------------------------- | ------------------------------------------------------ |
+| Public showroom `/old-guys-rule-wholesale`            | **Shipped**                                            |
+| Product detail `/old-guys-rule-wholesale/[slug]`      | **Shipped**                                            |
+| Homepage OGR brand CTA → showroom                     | **Shipped**                                            |
+| Public catalog RPCs (no anon table SELECT)            | **Shipped**                                            |
+| Order-request submit → CRM                            | **Shipped**                                            |
+| OG product cards (grid)                               | **Shipped** — see below                                |
+| Sales-volume “Best sellers” sort + `#N` badges        | **Shipped** (PR #48)                                   |
+| Lifestyle theme tags on cards / filters               | **Shipped** (PR #48 taxonomy)                          |
+| Retailer pricing gate + likes on cards                | **Shipped**                                            |
+| Public presentation + canonical URLs + SSR OG/Twitter | **Shipped** on `feature/og-cards` (PR #50, Phases 1–4) |
+| Share-image policy (primary → line hero → omit)       | **Shipped** (Phase 4)                                  |
+| Email-safe product card HTML fragment                 | **Shipped** (Phase 5) — preview only; no send path     |
+| Production product outreach email (Phase 6)           | **Deferred**                                           |
+| Payment, live inventory, cloud carts                  | Out of scope                                           |
 
 ---
 
-## OG product cards — done to date
+## OGR Card System (Phases 1–5 on `feature/og-cards`)
+
+One public-safe product contract, multiple renderers:
+
+| Layer        | Module                                                                    | Role                                                                      |
+| ------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Presentation | [`publicProductPresentation.ts`](../src/lib/publicProductPresentation.ts) | Wholesale-free product view model                                         |
+| URLs         | [`productUrls.ts`](../src/lib/productUrls.ts)                             | Collection/product paths + absolute URLs                                  |
+| Metadata     | [`ogrPageMetadata.ts`](../src/lib/ogrPageMetadata.ts)                     | SSR `PageMetadata` → Layout OG/Twitter                                    |
+| Share images | [`ogrShareImages.ts`](../src/lib/ogrShareImages.ts)                       | Product: absolute primary → OGR line hero → omit; collection: hero → omit |
+| Email card   | [`ogrProductEmailCard.ts`](../src/lib/ogrProductEmailCard.ts)             | Pure HTML fragment; no Resend                                             |
+
+**Developer preview (no send):**
+
+```bash
+npm run email:preview-ogr-card
+# → tmp/ogr-product-email-card-preview.html
+```
+
+**Intentional differences:** social share may fall back to line hero; email card uses primary/override only then text-only. Suggested retail appears on storefront, not in meta/email card.
+
+**Known limitation:** direct `/[slug]` product page does not refetch catalog after buyer login (collection showroom does). Pre-existing; not introduced by card phases.
+
+---
+
+## Storefront product cards — done to date
 
 Public grid cards live in [`WholesaleProductCard.tsx`](../src/components/wholesale/WholesaleProductCard.tsx), rendered by [`WholesaleShowroom.tsx`](../src/components/wholesale/WholesaleShowroom.tsx).
 
@@ -102,13 +130,13 @@ The pre-implementation audit below is kept for history. It described the repo **
 <details>
 <summary>Pre-MVP inspection findings</summary>
 
-| Area | Then |
-|------|------|
-| Public routes | No wholesale showroom |
-| Homepage View Line | External marketplace URL |
-| RLS | Catalog staff-only; no public projection |
-| Order-request entity | Missing |
-| Public product card | Missing |
+| Area                 | Then                                     |
+| -------------------- | ---------------------------------------- |
+| Public routes        | No wholesale showroom                    |
+| Homepage View Line   | External marketplace URL                 |
+| RLS                  | Catalog staff-only; no public projection |
+| Order-request entity | Missing                                  |
+| Public product card  | Missing                                  |
 
 Security constraint that still holds: **do not** grant anon `SELECT` on `catalog_items`; public data only via restricted RPCs.
 
@@ -116,13 +144,14 @@ Security constraint that still holds: **do not** grant anon `SELECT` on `catalog
 
 ---
 
-## Next on `feature/og-cards`
+## Next after PR #50
 
-Use this branch for further OG card / showroom card design and behavior work. Candidates implied by architecture but not fully closed:
+Phase 6+ candidates (not blockers for the OG/share/email-card merge):
 
-- Richer Open Graph / social preview cards (collection + product)
-- Product / collection structured data
-- Card layout or imagery polish beyond the current Organic elev card
-- Any remaining architecture card fields (e.g. hover alternate image on pointer devices only)
+- Wire `renderOgrProductEmailCard` into a staff-authorized Resend outreach path
+- Optional UTM wrapper around Phase 2 absolute URLs (never on canonical/`og:url`)
+- Generated branded OG images / curated 1200×630 collection asset
+- Product / collection JSON-LD
+- Card layout polish (e.g. hover alternate image on pointer devices only)
 
 Record decisions here as they ship.
