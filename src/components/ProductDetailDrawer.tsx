@@ -1535,13 +1535,16 @@ function ProductDetailDrawerInner({
                 Featured
               </label>
               <Field>
-                <FieldLabel>Public sort order</FieldLabel>
+                <FieldLabel>Sales rank</FieldLabel>
                 <Input
                   type="number"
                   value={draft.publicSortOrder}
                   disabled={readOnly || busy}
                   onChange={(e) => setDraft((d) => ({ ...d, publicSortOrder: e.target.value }))}
                 />
+                <p className="text-ink/55 m-0 mt-1 text-xs">
+                  Lower numbers appear first on the wholesale showroom.
+                </p>
               </Field>
               <Field>
                 <FieldLabel>Public slug{draft.isPubliclyPublished ? ' *' : ''}</FieldLabel>
