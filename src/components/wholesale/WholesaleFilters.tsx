@@ -3,11 +3,11 @@ import {
   type WholesaleFilterState,
   type WholesaleSort,
 } from '@/lib/wholesaleFilters';
+import { RETAIL_CHANNEL_OPTIONS } from '@/lib/retailChannels';
 
 type Props = {
   filters: WholesaleFilterState;
   categories: string[];
-  themes: string[];
   resultCount: number;
   mobileOpen: boolean;
   onMobileOpenChange: (open: boolean) => void;
@@ -26,12 +26,10 @@ const SORT_OPTIONS: { value: WholesaleSort; label: string }[] = [
 function FilterFields({
   filters,
   categories,
-  themes,
   onChange,
 }: {
   filters: WholesaleFilterState;
   categories: string[];
-  themes: string[];
   onChange: (next: WholesaleFilterState) => void;
 }) {
   return (
@@ -62,17 +60,16 @@ function FilterFields({
         </select>
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="text-ink/70 text-xs tracking-wide uppercase">Lifestyle theme</span>
+        <span className="text-ink/70 text-xs tracking-wide uppercase">Lifestyle Theme</span>
         <select
           value={filters.theme}
           onChange={(e) => onChange({ ...filters, theme: e.target.value })}
           className="border-divider bg-bg px-3.1 focus:border-accent-700 rounded-lg border py-2 text-sm outline-none"
-          disabled={themes.length === 0}
         >
           <option value="">All themes</option>
-          {themes.map((t) => (
-            <option key={t} value={t}>
-              {t}
+          {RETAIL_CHANNEL_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
             </option>
           ))}
         </select>
@@ -99,7 +96,6 @@ function FilterFields({
 export function WholesaleFilters({
   filters,
   categories,
-  themes,
   resultCount,
   mobileOpen,
   onMobileOpenChange,
@@ -147,12 +143,7 @@ export function WholesaleFilters({
       </div>
 
       <div className={`${mobileOpen ? 'block' : 'hidden'} md:block`}>
-        <FilterFields
-          filters={filters}
-          categories={categories}
-          themes={themes}
-          onChange={onChange}
-        />
+        <FilterFields filters={filters} categories={categories} onChange={onChange} />
       </div>
     </div>
   );

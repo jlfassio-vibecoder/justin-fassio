@@ -6,6 +6,11 @@ import {
   WHOLESALE_LOCKED_LABEL,
 } from '@/lib/wholesalePricing';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
+import {
+  BEST_SELLER_BADGE_MAX_RANK,
+  isRetailChannel,
+  retailChannelLabel,
+} from '@/lib/retailChannels';
 import { Heart } from 'lucide-react';
 
 type Props = {
@@ -58,7 +63,11 @@ export function WholesaleProductCard({
   const retail = formatSuggestedRetailCad(product.msrpCad);
   const wholesale = formatWholesaleUsd(product.wholesaleUsd);
   const canWholesale = hasWholesalePricing(product.wholesaleUsd);
-  const hasSalesRank = typeof salesRank === 'number' && salesRank > 0;
+  const showBestSellerRank =
+    typeof salesRank === 'number' && salesRank >= 1 && salesRank <= BEST_SELLER_BADGE_MAX_RANK;
+  const themeLabels = showBestSellerRank
+    ? []
+    : product.lifestyleThemes.filter(isRetailChannel).slice(0, 3).map(retailChannelLabel);
 
   return (
     <article className="elev-md gap-3.1 bg-bg p-3.1 relative flex flex-col rounded-xl shadow-md">
@@ -87,7 +96,7 @@ export function WholesaleProductCard({
         <ProductImage product={product} />
       </button>
       <div className="gap-1.1 flex flex-wrap items-center">
-        {hasSalesRank ? (
+        {showBestSellerRank ? (
           <span
             className="border-divider text-ink/75 inline-flex items-center rounded-full border px-2.5 py-[3px] text-[11px] tracking-wide"
             title="YTD sales volume rank among ranked styles (highest first)"
@@ -95,6 +104,14 @@ export function WholesaleProductCard({
             #{salesRank} best seller
           </span>
         ) : null}
+        {themeLabels.map((label) => (
+          <span
+            key={label}
+            className="bg-accent-100 text-accent-800 inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] tracking-wide"
+          >
+            {label}
+          </span>
+        ))}
         {product.isNew ? (
           <span className="bg-accent-100 text-accent-800 inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] tracking-wide">
             New

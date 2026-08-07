@@ -6,7 +6,6 @@ import {
   filterPublicOgrProducts,
   parseWholesaleFilters,
   uniqueCategories,
-  uniqueThemes,
   wholesaleFiltersToSearchParams,
   salesVolumeRankByProductId,
   type WholesaleFilterState,
@@ -130,7 +129,6 @@ export function WholesaleShowroom({
   }, []);
 
   const categories = useMemo(() => uniqueCategories(products), [products]);
-  const themes = useMemo(() => uniqueThemes(products), [products]);
   const filtered = useMemo(() => filterPublicOgrProducts(products, filters), [products, filters]);
   const salesRanks = useMemo(() => salesVolumeRankByProductId(products), [products]);
   const { totalUnits } = orderTotals(draft);
@@ -282,7 +280,6 @@ export function WholesaleShowroom({
         <WholesaleFilters
           filters={filters}
           categories={categories}
-          themes={themes}
           resultCount={filtered.length}
           mobileOpen={mobileFiltersOpen}
           onMobileOpenChange={setMobileFiltersOpen}

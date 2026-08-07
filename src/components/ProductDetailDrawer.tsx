@@ -26,6 +26,7 @@ import {
 import { patchCatalogItem } from '@/lib/updateCatalogItemClient';
 import type { CatalogItemPatch } from '@/lib/updateCatalogItem';
 import { OGR_WHOLESALE_PATH } from '@/data/landing';
+import { normalizeRetailChannels, RETAIL_CHANNEL_OPTIONS } from '@/lib/retailChannels';
 
 const STATUS_OPTIONS = ['active', 'inactive', 'discontinued', 'unavailable', 'unknown'];
 const DEPARTMENT_OPTIONS = [
@@ -95,8 +96,7 @@ type Draft = {
   primaryImageUrl: string;
   catalogVerified: boolean;
   verificationNotes: string;
-  lifestyleThemes: string;
-  recommendedChannels: string;
+  lifestyleThemes: string[];
   seasonality: string;
   sampleStatus: string;
   buyerFeedback: string;
@@ -145,8 +145,10 @@ function itemToDraft(item: CatalogItem): Draft {
     primaryImageUrl: item.primaryImageUrl ?? '',
     catalogVerified: item.catalogVerified,
     verificationNotes: item.verificationNotes,
-    lifestyleThemes: item.lifestyleThemes.join(', '),
-    recommendedChannels: item.recommendedChannels.join(', '),
+    lifestyleThemes: normalizeRetailChannels([
+      ...item.lifestyleThemes,
+      ...item.recommendedChannels,
+    ]),
     seasonality: item.seasonality,
     sampleStatus: item.sampleStatus,
     buyerFeedback: item.buyerFeedback,
@@ -186,13 +188,6 @@ function parseOptionalNumber(raw: string): number | null {
   if (!t) return null;
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
-}
-
-function parseCommaList(raw: string): string[] {
-  return raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
 }
 
 function parseNewlineList(raw: string): string[] {
@@ -448,8 +443,8 @@ function ProductDetailDrawerInner({
       primaryImageUrl: draft.primaryImageUrl.trim() || null,
       catalogVerified: draft.catalogVerified,
       verificationNotes: draft.verificationNotes.trim() || null,
-      lifestyleThemes: parseCommaList(draft.lifestyleThemes),
-      recommendedChannels: parseCommaList(draft.recommendedChannels),
+      lifestyleThemes: normalizeRetailChannels(draft.lifestyleThemes),
+      recommendedChannels: normalizeRetailChannels(draft.lifestyleThemes),
       seasonality: draft.seasonality.trim() || null,
       sampleStatus: draft.sampleStatus.trim() || null,
       buyerFeedback: draft.buyerFeedback.trim() || null,
@@ -1625,21 +1620,40 @@ function ProductDetailDrawerInner({
             onToggle={() => toggleSection('crm')}
           >
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field>
-                <FieldLabel>Lifestyle themes (comma-separated)</FieldLabel>
-                <Input
-                  value={draft.lifestyleThemes}
-                  disabled={readOnly || busy}
-                  onChange={(e) => setDraft((d) => ({ ...d, lifestyleThemes: e.target.value }))}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Recommended channels (comma-separated)</FieldLabel>
-                <Input
-                  value={draft.recommendedChannels}
-                  disabled={readOnly || busy}
-                  onChange={(e) => setDraft((d) => ({ ...d, recommendedChannels: e.target.value }))}
-                />
+              <Field className="sm:col-span-2">
+                <FieldLabel>CRM Retail Channels</FieldLabel>
+                <div className="gap-2.1 mt-1 flex flex-wrap">
+                  {RETAIL_CHANNEL_OPTIONS.map((opt) => {
+                    const checked = draft.lifestyleThemes.includes(opt.value);
+                    return (
+                      <label
+                        key={opt.value}
+                        className="border-divider text-ink inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={readOnly || busy}
+                          onChange={() => {
+                            setDraft((d) => {
+                              const next = new Set(d.lifestyleThemes);
+                              if (next.has(opt.value)) next.delete(opt.value);
+                              else next.add(opt.value);
+                              return {
+                                ...d,
+                                lifestyleThemes: normalizeRetailChannels([...next]),
+                              };
+                            });
+                          }}
+                        />
+                        <span>{opt.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-ink/55 m-0 mt-1 text-xs">
+                  Maps to Lifestyle Theme on the wholesale showroom. Staff can refine anytime.
+                </p>
               </Field>
               <Field>
                 <FieldLabel>Seasonality</FieldLabel>
