@@ -2,6 +2,7 @@ import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { fetchMessageThread, fetchMessageThreads, type MessageThread } from '@/lib/messages';
 import {
   isLiveChatNeedingAttention,
+  loadDismissedLiveChatIds,
   upsertIncomingLiveChat,
   type OpenLiveChatSlot,
 } from '@/lib/staffChatDockState';
@@ -27,7 +28,10 @@ export function useStaffLiveChatInbox(args: {
     void (async () => {
       const result = await fetchMessageThreads({ channel: 'live_chat', limit: 40 });
       if (!active || result.error) return;
-      const needing = result.data.filter((t) => isLiveChatNeedingAttention(t));
+      const dismissedIds = loadDismissedLiveChatIds();
+      const needing = result.data.filter((t) =>
+        isLiveChatNeedingAttention(t, Date.now(), dismissedIds),
+      );
       if (needing.length === 0) return;
 
       setOpenLiveChats((prev) => {

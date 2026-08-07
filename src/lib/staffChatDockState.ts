@@ -27,7 +27,11 @@ export function loadDismissedLiveChatIds(): Set<string> {
 
 export function persistDismissedLiveChatIds(ids: Set<string>): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(DISMISSED_LIVE_CHAT_STORAGE_KEY, JSON.stringify([...ids]));
+  try {
+    window.localStorage.setItem(DISMISSED_LIVE_CHAT_STORAGE_KEY, JSON.stringify([...ids]));
+  } catch {
+    // Quota / private-mode / security errors must not crash the dock UI.
+  }
 }
 
 export function dismissLiveChatThread(threadId: string): void {
@@ -90,12 +94,13 @@ export function surfaceLiveChatAsPill(
   undismissLiveChatThread(thread.id);
   const existing = slots.find((s) => s.thread.id === thread.id);
   if (existing) {
+    // Keep an already-expanded window open (e.g. staff reply from Messages).
     return slots.map((s) =>
       s.thread.id === thread.id
         ? {
             thread,
-            minimized: true,
-            unread: s.minimized ? s.unread + unread : unread,
+            minimized: s.minimized,
+            unread: s.minimized ? s.unread + unread : 0,
           }
         : s,
     );
@@ -134,9 +139,14 @@ export function upsertIncomingLiveChat(
 }
 
 /** Threads Justin should see in the dock without hunting the inbox. */
-export function isLiveChatNeedingAttention(thread: MessageThread, now = Date.now()): boolean {
+export function isLiveChatNeedingAttention(
+  thread: MessageThread,
+  now = Date.now(),
+  dismissedIds?: ReadonlySet<string>,
+): boolean {
   if (thread.channel !== 'live_chat') return false;
-  if (isLiveChatDismissed(thread.id)) return false;
+  const dismissed = dismissedIds ?? loadDismissedLiveChatIds();
+  if (dismissed.has(thread.id)) return false;
   if (thread.chatState === 'awaiting_human' || thread.chatState === 'ai_active') return true;
   if (thread.chatState !== 'human_active') return false;
   const last = new Date(thread.lastMessageAt).getTime();

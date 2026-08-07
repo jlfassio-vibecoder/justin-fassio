@@ -28,6 +28,7 @@ import type { CatalogItemPatch } from '@/lib/updateCatalogItem';
 import { OGR_WHOLESALE_PATH } from '@/data/landing';
 import {
   MAX_RECOMMENDED_CHANNELS,
+  isLifestyleTheme,
   normalizeLifestyleThemes,
   normalizePrimaryChannels,
   LIFESTYLE_THEMES,
@@ -451,11 +452,22 @@ function ProductDetailDrawerInner({
       primaryImageUrl: draft.primaryImageUrl.trim() || null,
       catalogVerified: draft.catalogVerified,
       verificationNotes: draft.verificationNotes.trim() || null,
-      lifestyleThemes: normalizeLifestyleThemes(draft.lifestyleThemes),
-      recommendedChannels: normalizePrimaryChannels(draft.recommendedChannels).slice(
-        0,
-        MAX_RECOMMENDED_CHANNELS,
-      ),
+      // Keep any non-canonical stored values so a save (without touching CRM
+      // checkboxes) cannot silently wipe pre-taxonomy data.
+      lifestyleThemes: [
+        ...normalizeLifestyleThemes(draft.lifestyleThemes),
+        ...item.lifestyleThemes.filter((raw) => {
+          const v = raw.trim();
+          return v.length > 0 && !isLifestyleTheme(v);
+        }),
+      ],
+      recommendedChannels: [
+        ...normalizePrimaryChannels(draft.recommendedChannels).slice(0, MAX_RECOMMENDED_CHANNELS),
+        ...item.recommendedChannels.filter((raw) => {
+          const v = raw.trim();
+          return v.length > 0 && normalizePrimaryChannels([v]).length === 0;
+        }),
+      ],
       seasonality: draft.seasonality.trim() || null,
       sampleStatus: draft.sampleStatus.trim() || null,
       buyerFeedback: draft.buyerFeedback.trim() || null,

@@ -5,6 +5,8 @@ import {
   enforceExpandedLimit,
   isLiveChatNeedingAttention,
   loadDismissedLiveChatIds,
+  persistDismissedLiveChatIds,
+  surfaceLiveChatAsPill,
   upsertIncomingLiveChat,
   upsertOpenLiveChat,
   type OpenLiveChatSlot,
@@ -105,5 +107,21 @@ describe('staff chat dock helpers', () => {
     expect(next.map((s) => s.thread.id).sort()).toEqual(['closed', 'other']);
     expect(next.find((s) => s.thread.id === 'closed')?.minimized).toBe(true);
     expect(loadDismissedLiveChatIds().has('closed')).toBe(false);
+  });
+
+  it('does not collapse an already-expanded chat when surfacing as pill', () => {
+    const slots: OpenLiveChatSlot[] = [{ thread: thread('a'), minimized: false, unread: 0 }];
+    const next = surfaceLiveChatAsPill(slots, thread('a', 'Ada'), { unread: 0 });
+    expect(next[0]?.minimized).toBe(false);
+    expect(next[0]?.unread).toBe(0);
+  });
+
+  it('swallows localStorage write failures when persisting dismissed ids', () => {
+    const original = window.localStorage.setItem.bind(window.localStorage);
+    window.localStorage.setItem = () => {
+      throw new DOMException('QuotaExceededError');
+    };
+    expect(() => persistDismissedLiveChatIds(new Set(['a']))).not.toThrow();
+    window.localStorage.setItem = original;
   });
 });
