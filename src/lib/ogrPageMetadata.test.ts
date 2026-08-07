@@ -110,6 +110,19 @@ describe('buildOgrProductMetadata', () => {
       expect(metadata).not.toHaveProperty(key);
     }
   });
+
+  it('uses explicit image override when provided, including null', () => {
+    const presentation = buildPublicProductPresentation(fixture());
+    const canonicalUrl = 'https://justinfassio.com/old-guys-rule-wholesale/american-revival-og2513';
+    const override = {
+      url: 'https://cdn.example/hero.jpg',
+      alt: 'Old Guys Rule wholesale collection',
+    };
+    expect(buildOgrProductMetadata({ presentation, canonicalUrl, image: override }).image).toEqual(
+      override,
+    );
+    expect(buildOgrProductMetadata({ presentation, canonicalUrl, image: null }).image).toBeNull();
+  });
 });
 
 describe('buildOgrCollectionMetadata', () => {
@@ -150,6 +163,33 @@ describe('buildOgrCollectionMetadata', () => {
     });
     expect(fallback.description).toContain('Canadian retailers');
     expect(fallback.image).toBeNull();
+  });
+
+  it('uses explicit image override when provided, including null', () => {
+    const line = {
+      name: 'Old Guys Rule',
+      tagline: 'Now Repping',
+      description: 'Men’s lifestyle apparel for Canadian retailers.',
+      heroImageUrl: 'https://cdn.example/hero.jpg',
+    };
+    const override = {
+      url: 'https://cdn.example/override.jpg',
+      alt: 'Custom share alt',
+    };
+    expect(
+      buildOgrCollectionMetadata({
+        canonicalUrl: 'https://justinfassio.com/old-guys-rule-wholesale',
+        line,
+        image: override,
+      }).image,
+    ).toEqual(override);
+    expect(
+      buildOgrCollectionMetadata({
+        canonicalUrl: 'https://justinfassio.com/old-guys-rule-wholesale',
+        line,
+        image: null,
+      }).image,
+    ).toBeNull();
   });
 });
 

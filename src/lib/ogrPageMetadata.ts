@@ -55,28 +55,35 @@ function resolveSeoImage(
 /**
  * Product page SEO/OG metadata from Phase 1 presentation + Phase 2 canonical URL.
  * Pure: no fetch, session, or hand-built paths.
+ * When `image` is provided (including null), use it as-is; otherwise derive from primary.
  */
 export function buildOgrProductMetadata(input: {
   presentation: PublicProductPresentation;
   canonicalUrl: string;
+  image?: PageSeoImage | null;
 }): PageMetadata {
   const { presentation, canonicalUrl } = input;
+  const image =
+    input.image !== undefined
+      ? input.image
+      : resolveSeoImage(
+          presentation.primaryImageUrl,
+          presentation.primaryImageAlt,
+          PRODUCT_IMAGE_ALT_FALLBACK,
+        );
   return {
     title: collapseWhitespace(presentation.publicShareTitle),
     description: collapseWhitespace(presentation.publicShareDescription),
     canonicalUrl,
     siteName: OGR_PUBLIC_SITE_NAME,
     ogType: 'website',
-    image: resolveSeoImage(
-      presentation.primaryImageUrl,
-      presentation.primaryImageAlt,
-      PRODUCT_IMAGE_ALT_FALLBACK,
-    ),
+    image,
   };
 }
 
 /**
  * Collection page SEO/OG metadata. Uses OGR line portfolio when available.
+ * When `image` is provided (including null), use it as-is; otherwise derive from line hero.
  */
 export function buildOgrCollectionMetadata(input: {
   canonicalUrl: string;
@@ -86,6 +93,7 @@ export function buildOgrCollectionMetadata(input: {
     description: string | null;
     heroImageUrl: string | null;
   } | null;
+  image?: PageSeoImage | null;
 }): PageMetadata {
   const line = input.line ?? null;
   const description =
@@ -94,6 +102,10 @@ export function buildOgrCollectionMetadata(input: {
     COLLECTION_DESCRIPTION_FALLBACK;
   const lineName = collapseWhitespace(line?.name ?? '') || OGR_PUBLIC_BRAND_NAME;
   const imageAlt = `${lineName} wholesale collection`;
+  const image =
+    input.image !== undefined
+      ? input.image
+      : resolveSeoImage(line?.heroImageUrl, imageAlt, COLLECTION_IMAGE_ALT_FALLBACK);
 
   return {
     title: COLLECTION_TITLE,
@@ -101,7 +113,7 @@ export function buildOgrCollectionMetadata(input: {
     canonicalUrl: input.canonicalUrl,
     siteName: OGR_PUBLIC_SITE_NAME,
     ogType: 'website',
-    image: resolveSeoImage(line?.heroImageUrl, imageAlt, COLLECTION_IMAGE_ALT_FALLBACK),
+    image,
   };
 }
 

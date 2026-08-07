@@ -10,6 +10,7 @@ import {
   type PublicOgrSupplierTerms,
 } from '@/lib/publicCatalog';
 import { buildOgrCollectionMetadata, toLayoutSeoProps } from '@/lib/ogrPageMetadata';
+import { resolveOgrCollectionShareImage } from '@/lib/ogrShareImages';
 import { buildOgrCollectionUrl, resolvePublicSiteOrigin } from '@/lib/productUrls';
 
 const [{ data: products, error: productsError }, { data: terms }, { data: lines }] =
@@ -27,6 +28,10 @@ const resolvedTerms: PublicOgrSupplierTerms = terms ?? {
 };
 
 const ogrLine = lines.find((line) => line.code === 'ogr') ?? null;
+const shareImage = resolveOgrCollectionShareImage({
+  lineName: ogrLine?.name,
+  lineHeroImageUrl: ogrLine?.heroImageUrl,
+});
 const canonicalUrl = buildOgrCollectionUrl(
   resolvePublicSiteOrigin({ requestOrigin: Astro.url.origin }),
 );
@@ -34,6 +39,7 @@ const seo = toLayoutSeoProps(
   buildOgrCollectionMetadata({
     canonicalUrl,
     line: ogrLine,
+    image: shareImage,
   }),
 );
 ---
