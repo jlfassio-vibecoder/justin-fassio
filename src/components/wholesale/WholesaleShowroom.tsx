@@ -26,6 +26,7 @@ import { WholesaleProductDetail } from '@/components/wholesale/WholesaleProductD
 import { cartItemsToDraft, fetchBuyerCartItems, enqueueBuyerCartSync } from '@/lib/buyerCart';
 import { fetchBuyerLikedProductIds, toggleBuyerProductLike } from '@/lib/buyerLikes';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { buildOgrProductPath, OGR_WHOLESALE_PATH } from '@/lib/productUrls';
 
 type Props = {
   products: PublicOgrProduct[];
@@ -69,7 +70,9 @@ export function WholesaleShowroom({
     function onPopState() {
       setFilters(readFiltersFromLocation());
       const path = window.location.pathname;
-      const match = path.match(/^\/old-guys-rule-wholesale\/([^/]+)\/?$/);
+      const match = path.match(
+        new RegExp(`^${OGR_WHOLESALE_PATH.replace(/\//g, '\\/')}\\/([^/]+)\\/?$`),
+      );
       if (match?.[1]) {
         const product = products.find((p) => p.publicSlug === match[1]);
         setQuickView(product ?? null);
@@ -162,8 +165,7 @@ export function WholesaleShowroom({
     setFilters(next);
     const params = wholesaleFiltersToSearchParams(next);
     const qs = params.toString();
-    const base = '/old-guys-rule-wholesale';
-    const url = qs ? `${base}?${qs}` : base;
+    const url = qs ? `${OGR_WHOLESALE_PATH}?${qs}` : OGR_WHOLESALE_PATH;
     window.history.replaceState({}, '', url);
   }
 
@@ -175,7 +177,8 @@ export function WholesaleShowroom({
     setQuickView(product);
     const params = wholesaleFiltersToSearchParams(filters);
     const qs = params.toString();
-    const url = `/old-guys-rule-wholesale/${product.publicSlug}${qs ? `?${qs}` : ''}`;
+    const path = buildOgrProductPath(product.publicSlug);
+    const url = qs ? `${path}?${qs}` : path;
     window.history.pushState({}, '', url);
   }
 
@@ -183,11 +186,7 @@ export function WholesaleShowroom({
     setQuickView(null);
     const params = wholesaleFiltersToSearchParams(filters);
     const qs = params.toString();
-    window.history.pushState(
-      {},
-      '',
-      qs ? `/old-guys-rule-wholesale?${qs}` : '/old-guys-rule-wholesale',
-    );
+    window.history.pushState({}, '', qs ? `${OGR_WHOLESALE_PATH}?${qs}` : OGR_WHOLESALE_PATH);
   }
 
   function openAddPanel(product: PublicOgrProduct) {

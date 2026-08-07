@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { PublicOgrProduct, PublicOgrSupplierTerms } from '@/lib/publicCatalog';
+import { OGR_WHOLESALE_PATH } from '@/lib/productUrls';
 import { upsertOrderLine } from '@/lib/wholesaleOrderDraft';
 import { useWholesaleOrderDraft } from '@/hooks/useWholesaleOrderDraft';
 import { WholesaleBuyerForm } from '@/components/wholesale/WholesaleBuyerForm';
@@ -26,7 +27,7 @@ export function WholesaleProductPage({ product, terms }: Props) {
           Justin Fassio
         </a>
         <a
-          href="/old-guys-rule-wholesale"
+          href={OGR_WHOLESALE_PATH}
           className="text-accent-700 hover:text-accent-800 text-sm no-underline"
         >
           ← Back to collection

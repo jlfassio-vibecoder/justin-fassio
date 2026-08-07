@@ -8,6 +8,7 @@ import {
   fetchPublicOgrSupplierTerms,
   type PublicOgrSupplierTerms,
 } from '@/lib/publicCatalog';
+import { buildOgrCollectionUrl, resolvePublicSiteOrigin } from '@/lib/productUrls';
 
 const [{ data: products, error: productsError }, { data: terms }] = await Promise.all([
   fetchPublicOgrProducts(),
@@ -24,13 +25,12 @@ const resolvedTerms: PublicOgrSupplierTerms = terms ?? {
 const title = 'Old Guys Rule Wholesale Canada | Justin Fassio';
 const description =
   'Browse the Old Guys Rule wholesale collection for Canadian retailers. Men’s lifestyle apparel—request pricing and availability through Justin Fassio.';
+const canonicalUrl = buildOgrCollectionUrl(
+  resolvePublicSiteOrigin({ requestOrigin: Astro.url.origin }),
+);
 ---
 
-<Layout
-  title={title}
-  description={description}
-  canonicalUrl={new URL('/old-guys-rule-wholesale', Astro.url).href}
->
+<Layout title={title} description={description} canonicalUrl={canonicalUrl}>
   {
     productsError ? (
       <main class="bg-bg text-ink px-8.1 mx-auto max-w-[720px] py-16">

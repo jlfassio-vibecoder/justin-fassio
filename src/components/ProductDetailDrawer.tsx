@@ -25,7 +25,7 @@ import {
 } from '@/lib/landedCost';
 import { patchCatalogItem } from '@/lib/updateCatalogItemClient';
 import type { CatalogItemPatch } from '@/lib/updateCatalogItem';
-import { OGR_WHOLESALE_PATH } from '@/data/landing';
+import { buildOgrProductUrl } from '@/lib/productUrls';
 import {
   MAX_RECOMMENDED_CHANNELS,
   isLifestyleTheme,
@@ -209,8 +209,12 @@ function parseNewlineList(raw: string): string[] {
 function publicWholesaleUrl(slug: string): string {
   const trimmed = slug.trim();
   if (!trimmed) return '';
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  return `${origin}${OGR_WHOLESALE_PATH}/${trimmed}`;
+  if (typeof window === 'undefined') return '';
+  try {
+    return buildOgrProductUrl(trimmed, window.location.origin);
+  } catch {
+    return '';
+  }
 }
 
 function formatHistoryValue(value: unknown): string {

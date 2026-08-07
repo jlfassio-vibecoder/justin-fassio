@@ -8,6 +8,7 @@ import {
   fetchPublicOgrSupplierTerms,
   type PublicOgrSupplierTerms,
 } from '@/lib/publicCatalog';
+import { buildOgrProductUrl, resolvePublicSiteOrigin } from '@/lib/productUrls';
 import { resolvePublicOgrProductPageResponse } from '@/lib/wholesaleRoutes';
 
 const slug = Astro.params.slug ?? '';
@@ -39,7 +40,10 @@ const description =
   product.tagline ||
   product.description ||
   `${product.name} (${product.sku}) — wholesale for Canadian retailers via Justin Fassio.`;
-const canonicalUrl = new URL(`/old-guys-rule-wholesale/${product.publicSlug}`, Astro.url).href;
+const canonicalUrl = buildOgrProductUrl(
+  product.publicSlug,
+  resolvePublicSiteOrigin({ requestOrigin: Astro.url.origin }),
+);
 ---
 
 <Layout

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { resolvePublicSiteOrigin } from '@/lib/productUrls';
 import type { Database } from '@/types/database';
 
 type Admin = SupabaseClient<Database>;
@@ -15,11 +16,7 @@ export type EnsureWholesaleBuyerResult =
   | { ok: false; error: string };
 
 function siteOrigin(): string {
-  const fromEnv = import.meta.env.PUBLIC_SITE_URL;
-  if (typeof fromEnv === 'string' && fromEnv.trim()) {
-    return fromEnv.replace(/\/$/, '');
-  }
-  return 'https://justinfassio.com';
+  return resolvePublicSiteOrigin();
 }
 
 /**
