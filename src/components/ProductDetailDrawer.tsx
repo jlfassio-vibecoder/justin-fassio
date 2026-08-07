@@ -26,6 +26,14 @@ import {
 import { patchCatalogItem } from '@/lib/updateCatalogItemClient';
 import type { CatalogItemPatch } from '@/lib/updateCatalogItem';
 import { OGR_WHOLESALE_PATH } from '@/data/landing';
+import {
+  MAX_RECOMMENDED_CHANNELS,
+  isLifestyleTheme,
+  normalizeLifestyleThemes,
+  normalizePrimaryChannels,
+  LIFESTYLE_THEMES,
+  PRIMARY_RETAIL_CHANNELS,
+} from '@/lib/crmRetailTaxonomy';
 
 const STATUS_OPTIONS = ['active', 'inactive', 'discontinued', 'unavailable', 'unknown'];
 const DEPARTMENT_OPTIONS = [
@@ -95,8 +103,8 @@ type Draft = {
   primaryImageUrl: string;
   catalogVerified: boolean;
   verificationNotes: string;
-  lifestyleThemes: string;
-  recommendedChannels: string;
+  lifestyleThemes: string[];
+  recommendedChannels: string[];
   seasonality: string;
   sampleStatus: string;
   buyerFeedback: string;
@@ -145,8 +153,11 @@ function itemToDraft(item: CatalogItem): Draft {
     primaryImageUrl: item.primaryImageUrl ?? '',
     catalogVerified: item.catalogVerified,
     verificationNotes: item.verificationNotes,
-    lifestyleThemes: item.lifestyleThemes.join(', '),
-    recommendedChannels: item.recommendedChannels.join(', '),
+    lifestyleThemes: normalizeLifestyleThemes(item.lifestyleThemes),
+    recommendedChannels: normalizePrimaryChannels(item.recommendedChannels).slice(
+      0,
+      MAX_RECOMMENDED_CHANNELS,
+    ),
     seasonality: item.seasonality,
     sampleStatus: item.sampleStatus,
     buyerFeedback: item.buyerFeedback,
@@ -186,13 +197,6 @@ function parseOptionalNumber(raw: string): number | null {
   if (!t) return null;
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
-}
-
-function parseCommaList(raw: string): string[] {
-  return raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
 }
 
 function parseNewlineList(raw: string): string[] {
@@ -448,8 +452,22 @@ function ProductDetailDrawerInner({
       primaryImageUrl: draft.primaryImageUrl.trim() || null,
       catalogVerified: draft.catalogVerified,
       verificationNotes: draft.verificationNotes.trim() || null,
-      lifestyleThemes: parseCommaList(draft.lifestyleThemes),
-      recommendedChannels: parseCommaList(draft.recommendedChannels),
+      // Keep any non-canonical stored values so a save (without touching CRM
+      // checkboxes) cannot silently wipe pre-taxonomy data.
+      lifestyleThemes: [
+        ...normalizeLifestyleThemes(draft.lifestyleThemes),
+        ...item.lifestyleThemes.filter((raw) => {
+          const v = raw.trim();
+          return v.length > 0 && !isLifestyleTheme(v);
+        }),
+      ],
+      recommendedChannels: [
+        ...normalizePrimaryChannels(draft.recommendedChannels).slice(0, MAX_RECOMMENDED_CHANNELS),
+        ...item.recommendedChannels.filter((raw) => {
+          const v = raw.trim();
+          return v.length > 0 && normalizePrimaryChannels([v]).length === 0;
+        }),
+      ],
       seasonality: draft.seasonality.trim() || null,
       sampleStatus: draft.sampleStatus.trim() || null,
       buyerFeedback: draft.buyerFeedback.trim() || null,
@@ -1535,13 +1553,16 @@ function ProductDetailDrawerInner({
                 Featured
               </label>
               <Field>
-                <FieldLabel>Public sort order</FieldLabel>
+                <FieldLabel>Sales rank</FieldLabel>
                 <Input
                   type="number"
                   value={draft.publicSortOrder}
                   disabled={readOnly || busy}
                   onChange={(e) => setDraft((d) => ({ ...d, publicSortOrder: e.target.value }))}
                 />
+                <p className="text-ink/55 m-0 mt-1 text-xs">
+                  Lower numbers appear first on the wholesale showroom.
+                </p>
               </Field>
               <Field>
                 <FieldLabel>Public slug{draft.isPubliclyPublished ? ' *' : ''}</FieldLabel>
@@ -1622,21 +1643,77 @@ function ProductDetailDrawerInner({
             onToggle={() => toggleSection('crm')}
           >
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field>
-                <FieldLabel>Lifestyle themes (comma-separated)</FieldLabel>
-                <Input
-                  value={draft.lifestyleThemes}
-                  disabled={readOnly || busy}
-                  onChange={(e) => setDraft((d) => ({ ...d, lifestyleThemes: e.target.value }))}
-                />
+              <Field className="sm:col-span-2">
+                <FieldLabel>Lifestyle Themes</FieldLabel>
+                <div className="gap-2.1 mt-1 flex flex-wrap">
+                  {LIFESTYLE_THEMES.map((opt) => {
+                    const checked = draft.lifestyleThemes.includes(opt.value);
+                    return (
+                      <label
+                        key={opt.value}
+                        className="border-divider text-ink inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={readOnly || busy}
+                          onChange={() => {
+                            setDraft((d) => {
+                              const next = new Set(d.lifestyleThemes);
+                              if (next.has(opt.value)) next.delete(opt.value);
+                              else next.add(opt.value);
+                              return {
+                                ...d,
+                                lifestyleThemes: normalizeLifestyleThemes([...next]),
+                              };
+                            });
+                          }}
+                        />
+                        <span>{opt.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-ink/55 m-0 mt-1 text-xs">
+                  Merchandise themes shown on the wholesale showroom Lifestyle Theme filter.
+                </p>
               </Field>
-              <Field>
-                <FieldLabel>Recommended channels (comma-separated)</FieldLabel>
-                <Input
-                  value={draft.recommendedChannels}
-                  disabled={readOnly || busy}
-                  onChange={(e) => setDraft((d) => ({ ...d, recommendedChannels: e.target.value }))}
-                />
+              <Field className="sm:col-span-2">
+                <FieldLabel>
+                  Recommended Retail Channels (up to {MAX_RECOMMENDED_CHANNELS})
+                </FieldLabel>
+                <div className="gap-2.1 mt-1 flex flex-wrap">
+                  {PRIMARY_RETAIL_CHANNELS.map((opt) => {
+                    const checked = draft.recommendedChannels.includes(opt.value);
+                    return (
+                      <label
+                        key={opt.value}
+                        className="border-divider text-ink inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={readOnly || busy}
+                          onChange={() => {
+                            setDraft((d) => {
+                              const next = new Set(d.recommendedChannels);
+                              if (next.has(opt.value)) next.delete(opt.value);
+                              else if (next.size < MAX_RECOMMENDED_CHANNELS) next.add(opt.value);
+                              return {
+                                ...d,
+                                recommendedChannels: normalizePrimaryChannels([...next]),
+                              };
+                            });
+                          }}
+                        />
+                        <span>{opt.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-ink/55 m-0 mt-1 text-xs">
+                  Retailer types this garment best fits (staff CRM guidance).
+                </p>
               </Field>
               <Field>
                 <FieldLabel>Seasonality</FieldLabel>

@@ -47,7 +47,7 @@ describe('AddProspectAiModal', () => {
       prospect: {
         id: 250,
         name: 'Coastal Outfitters',
-        category: 'Marina',
+        category: 'marine_retail',
         region: 'Vancouver Island',
         city: 'Nanaimo',
         address: '',
@@ -84,7 +84,7 @@ describe('AddProspectAiModal', () => {
       prospect: {
         id: 251,
         name: 'Smoke Test Outfitters',
-        category: 'Hardware',
+        category: 'hardware_farm_rural',
         region: 'Okanagan',
         city: 'Kelowna',
         address: '',

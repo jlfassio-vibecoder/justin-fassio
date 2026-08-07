@@ -653,6 +653,11 @@ export interface Database {
           qualification_status: string | null;
           next_action: string | null;
           source_note: string | null;
+          secondary_channels: unknown;
+          retail_subchannels: unknown;
+          venue_contexts: unknown;
+          lifestyle_themes: unknown;
+          retail_capabilities: unknown;
           created_at: string;
           updated_at: string;
         };
@@ -686,6 +691,11 @@ export interface Database {
           qualification_status?: string | null;
           next_action?: string | null;
           source_note?: string | null;
+          secondary_channels?: unknown;
+          retail_subchannels?: unknown;
+          venue_contexts?: unknown;
+          lifestyle_themes?: unknown;
+          retail_capabilities?: unknown;
           created_at?: string;
           updated_at?: string;
         };
@@ -719,6 +729,11 @@ export interface Database {
           qualification_status?: string | null;
           next_action?: string | null;
           source_note?: string | null;
+          secondary_channels?: unknown;
+          retail_subchannels?: unknown;
+          venue_contexts?: unknown;
+          lifestyle_themes?: unknown;
+          retail_capabilities?: unknown;
           created_at?: string;
           updated_at?: string;
         };

@@ -3,6 +3,7 @@ import {
   DEFAULT_WHOLESALE_FILTERS,
   filterPublicOgrProducts,
   parseWholesaleFilters,
+  salesVolumeRankByProductId,
   wholesaleFiltersToSearchParams,
 } from '@/lib/wholesaleFilters';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
@@ -111,6 +112,45 @@ describe('wholesale filters URL round-trip', () => {
       filterPublicOgrProducts(products, { ...DEFAULT_WHOLESALE_FILTERS, sort: 'wholesale' })[0]
         ?.wholesaleUsd,
     ).toBe(10);
+  });
+
+  it('filters by lifestyle theme using inferred merchandise themes when tags are empty', () => {
+    const products = [
+      sample({ id: 'a', name: 'RUSTY TRUCK', sku: 'OG2042', lifestyleThemes: [], tagline: 'Rust' }),
+      sample({
+        id: 'b',
+        name: 'STILL SWINGING',
+        sku: 'OG2023',
+        lifestyleThemes: [],
+        tagline: 'Still Swinging',
+      }),
+    ];
+    expect(
+      filterPublicOgrProducts(products, {
+        ...DEFAULT_WHOLESALE_FILTERS,
+        theme: 'trucks_garage',
+      }).map((p) => p.sku),
+    ).toEqual(['OG2042']);
+    expect(
+      filterPublicOgrProducts(products, {
+        ...DEFAULT_WHOLESALE_FILTERS,
+        theme: 'Golf',
+      }).map((p) => p.sku),
+    ).toEqual(['OG2023']);
+  });
+
+  it('maps staff public_sort_order into absolute sales-volume ranks', () => {
+    const products = [
+      sample({ id: '1', name: 'Rusty Truck', sku: 'OG2042', publicSortOrder: 10 }),
+      sample({ id: '2', name: 'American Revival', sku: 'OG2513', publicSortOrder: 20 }),
+      sample({ id: '3', name: 'Unranked', sku: 'OG9999', publicSortOrder: 9010 }),
+      sample({ id: '4', name: 'Zero', sku: 'OG0000', publicSortOrder: 0 }),
+    ];
+    const ranks = salesVolumeRankByProductId(products);
+    expect(ranks.get('1')).toBe(1);
+    expect(ranks.get('2')).toBe(2);
+    expect(ranks.has('3')).toBe(false);
+    expect(ranks.has('4')).toBe(false);
   });
 });
 

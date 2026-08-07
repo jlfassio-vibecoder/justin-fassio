@@ -14,7 +14,8 @@ import {
 import { apparelSeasonLabel } from '@/lib/apparelSeasons';
 import type { AccountReorderSettingsRow } from '@/lib/accountReorderSettings';
 import { demoteToProspect } from '@/lib/convertToActiveAccount';
-import type { Prospect } from '@/lib/prospects';
+import { primaryRetailChannelLabel, updateProspectTaxonomy, type Prospect } from '@/lib/prospects';
+import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
 import type { ApparelSeason } from '@/types/database';
 
 export interface AccountDetailSummary {
@@ -31,6 +32,7 @@ interface AccountDetailDrawerProps {
   onLogCall: (account: Prospect) => void;
   onLogOrder: (account: Prospect) => void;
   onNotesSaved?: (notes: string | null) => void;
+  onTaxonomySaved?: (prospect: Prospect) => void;
   onDemoted?: (prospect: Prospect) => void;
 }
 
@@ -137,6 +139,7 @@ export function AccountDetailDrawer({
   onLogCall,
   onLogOrder,
   onNotesSaved,
+  onTaxonomySaved,
   onDemoted,
 }: AccountDetailDrawerProps) {
   const [demoteBusy, setDemoteBusy] = useState(false);
@@ -202,12 +205,30 @@ export function AccountDetailDrawer({
 
         <div className="flex flex-1 flex-col gap-5 overflow-auto px-5 py-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Tag variant="accent-2">{account.category}</Tag>
+            <Tag variant="accent-2">{primaryRetailChannelLabel(account.category)}</Tag>
             <span className="text-ink/70 text-sm">
               {account.city} ({account.region})
               {account.territoryName ? ` · ${account.territoryName}` : ''}
             </span>
           </div>
+
+          <section className="flex flex-col gap-2">
+            <h3 className="font-heading m-0 text-base">CRM Retail Taxonomy</h3>
+            <ProspectTaxonomyEditor
+              key={account.id}
+              category={account.category}
+              secondaryChannels={account.secondaryChannels}
+              retailSubchannels={account.retailSubchannels}
+              venueContexts={account.venueContexts}
+              lifestyleThemes={account.lifestyleThemes}
+              retailCapabilities={account.retailCapabilities}
+              onSave={async (patch) => {
+                const result = await updateProspectTaxonomy(account.id, patch);
+                if (result.error || !result.data) throw new Error(result.error ?? 'Save failed');
+                onTaxonomySaved?.(result.data);
+              }}
+            />
+          </section>
 
           <dl className="m-0 grid gap-3 text-sm">
             <div>

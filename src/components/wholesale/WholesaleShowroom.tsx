@@ -6,10 +6,11 @@ import {
   filterPublicOgrProducts,
   parseWholesaleFilters,
   uniqueCategories,
-  uniqueThemes,
   wholesaleFiltersToSearchParams,
+  salesVolumeRankByProductId,
   type WholesaleFilterState,
 } from '@/lib/wholesaleFilters';
+import { effectiveLifestyleThemes } from '@/lib/crmRetailTaxonomy';
 import {
   orderTotals,
   upsertOrderLine,
@@ -129,8 +130,27 @@ export function WholesaleShowroom({
   }, []);
 
   const categories = useMemo(() => uniqueCategories(products), [products]);
-  const themes = useMemo(() => uniqueThemes(products), [products]);
-  const filtered = useMemo(() => filterPublicOgrProducts(products, filters), [products, filters]);
+  const productsForShowroom = useMemo(
+    () =>
+      products.map((p) => ({
+        ...p,
+        lifestyleThemes: effectiveLifestyleThemes({
+          lifestyleThemes: p.lifestyleThemes,
+          name: p.name,
+          tagline: p.tagline,
+          description: p.description,
+        }),
+      })),
+    [products],
+  );
+  const filtered = useMemo(
+    () => filterPublicOgrProducts(productsForShowroom, filters),
+    [productsForShowroom, filters],
+  );
+  const salesRanks = useMemo(
+    () => salesVolumeRankByProductId(productsForShowroom),
+    [productsForShowroom],
+  );
   const { totalUnits } = orderTotals(draft);
   const pricingUnlocked = products.some((p) => p.wholesaleUsd != null);
 
@@ -280,7 +300,6 @@ export function WholesaleShowroom({
         <WholesaleFilters
           filters={filters}
           categories={categories}
-          themes={themes}
           resultCount={filtered.length}
           mobileOpen={mobileFiltersOpen}
           onMobileOpenChange={setMobileFiltersOpen}
@@ -296,6 +315,7 @@ export function WholesaleShowroom({
               <WholesaleProductCard
                 key={product.id}
                 product={product}
+                salesRank={salesRanks.get(product.id) ?? null}
                 onViewDetails={openQuickView}
                 onAddToOrder={openAddPanel}
                 onRequestAccess={requestAccess}

@@ -44,7 +44,7 @@ describe('createAgentCrmTools', () => {
     const row = {
       id: 12,
       name: 'Coastal Golf',
-      category: 'Golf',
+      category: 'golf_retail',
       region: 'Vancouver Island',
       city: 'Nanaimo',
       fit: 'Strong',
@@ -139,7 +139,7 @@ describe('createAgentCrmTools', () => {
     const prospect = {
       id: 12,
       name: 'Coastal Golf',
-      category: 'Golf',
+      category: 'golf_retail',
       region: 'Vancouver Island',
       city: 'Nanaimo',
       fit: 'Strong coastal golf traffic',
@@ -229,7 +229,7 @@ describe('createAgentCrmTools', () => {
     const prospect = {
       id: 12,
       name: 'Coastal Golf',
-      category: 'Golf',
+      category: 'golf_retail',
       region: 'Vancouver Island',
       city: 'Nanaimo',
       fit: 'Strong',
@@ -270,7 +270,7 @@ describe('createAgentCrmTools', () => {
     const prospect = {
       id: 5,
       name: 'Kelowna Golf',
-      category: 'Golf',
+      category: 'golf_retail',
       region: 'Okanagan',
       city: 'Kelowna',
       fit: 'Strong',

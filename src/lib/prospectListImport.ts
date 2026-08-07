@@ -3,7 +3,7 @@
  * Used by scripts/import-prospect-list.mjs (via vitest/vite-node) and unit tests.
  */
 
-export type ProspectCategory = 'Golf' | 'Marina' | 'Hardware' | 'Resort Gift';
+export type ProspectCategory = import('@/lib/prospects').ProspectCategory;
 export type ProspectRegion =
   'Okanagan' | 'Shuswap' | 'Vancouver Island' | 'Sea-to-Sky' | 'Kootenays' | 'Fraser Valley';
 
@@ -79,10 +79,12 @@ export function parseBuyerVerified(raw: string): boolean {
 
 export function mapRetailCategoryToChannel(retailCategory: string): ProspectCategory {
   const t = retailCategory.trim().toLowerCase();
-  if (t === 'golf pro shop') return 'Golf';
-  if (t === 'marine dealer / supply' || t === 'marina / resort store') return 'Marina';
-  if (t === 'hardware / farm store with apparel') return 'Hardware';
-  return 'Resort Gift';
+  if (t === 'golf pro shop') return 'golf_retail';
+  if (t === 'marine dealer / supply' || t === 'marina / resort store') return 'marine_retail';
+  if (t === 'hardware / farm store with apparel') return 'hardware_farm_rural';
+  if (t.includes('fishing') || t.includes('outdoor')) return 'fishing_fly_tackle';
+  if (t.includes('apparel') || t.includes('clothing')) return 'apparel_specialty';
+  return 'gift_novelty_souvenir';
 }
 
 export function mapDistrictToRegion(primaryDistrict: string, subterritory: string): ProspectRegion {

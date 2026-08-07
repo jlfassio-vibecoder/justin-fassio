@@ -51,7 +51,7 @@ function mockSupabaseInsert(row: unknown) {
 const insertedRow = {
   id: 11,
   name: 'Kelowna Golf',
-  category: 'Golf',
+  category: 'golf_retail',
   region: 'Okanagan',
   city: 'Kelowna',
   address: '1297 Glenmore Dr',
@@ -80,6 +80,12 @@ const insertedRow = {
   next_action: null,
   source_note: null,
   created_at: '2026-08-01T00:00:00Z',
+  secondary_channels: [],
+  retail_subchannels: [],
+  venue_contexts: [],
+  lifestyle_themes: [],
+  retail_capabilities: [],
+
   updated_at: '2026-08-01T00:00:00Z',
 };
 
@@ -96,7 +102,7 @@ describe('createEnrichedProspect web research', () => {
     generateObjectMock.mockResolvedValue({
       object: {
         name: 'Kelowna Golf',
-        category: 'Golf',
+        category: 'golf_retail',
         region: 'Okanagan',
         city: 'Kelowna',
         fitScore: 8,
@@ -127,7 +133,7 @@ describe('createEnrichedProspect web research', () => {
     generateObjectMock.mockResolvedValue({
       object: {
         name: 'Kelowna Golf',
-        category: 'Golf',
+        category: 'golf_retail',
         region: 'Okanagan',
         city: 'Kelowna',
         fitScore: 7,
@@ -157,7 +163,7 @@ describe('createEnrichedProspect web research', () => {
     generateObjectMock.mockResolvedValue({
       object: {
         name: 'Kelowna Golf',
-        category: 'Golf',
+        category: 'golf_retail',
         region: 'Okanagan',
         city: 'Kelowna',
         fitScore: 8,
@@ -202,7 +208,7 @@ describe('applyInboundSeedOverrides', () => {
     const next = applyInboundSeedOverrides(
       {
         name: 'Store',
-        category: 'Hardware',
+        category: 'hardware_farm_rural',
         region: 'Okanagan',
         city: 'AI City',
         fitScore: 7,
@@ -221,7 +227,7 @@ describe('applyInboundSeedOverrides', () => {
     const next = applyInboundSeedOverrides(
       {
         name: 'Store',
-        category: 'Hardware',
+        category: 'hardware_farm_rural',
         region: 'Okanagan',
         city: 'AI City',
         fitScore: 7,
@@ -249,7 +255,7 @@ describe('createEnrichedProspect inbound seeds', () => {
     generateObjectMock.mockResolvedValue({
       object: {
         name: 'Smoke Test Outfitters',
-        category: 'Hardware',
+        category: 'hardware_farm_rural',
         region: 'Okanagan',
         city: 'Wrong City',
         fitScore: 7,
@@ -262,7 +268,7 @@ describe('createEnrichedProspect inbound seeds', () => {
     const supabase = mockSupabaseInsert({
       ...insertedRow,
       name: 'Smoke Test Outfitters',
-      category: 'Hardware',
+      category: 'hardware_farm_rural',
       city: 'Kelowna',
       phone: '250-555-0100',
       address: '',
@@ -303,7 +309,7 @@ describe('createEnrichedProspect buyer contact', () => {
     generateObjectMock.mockResolvedValue({
       object: {
         name: 'Smoke Test Outfitters',
-        category: 'Hardware',
+        category: 'hardware_farm_rural',
         region: 'Okanagan',
         city: 'Kelowna',
         fitScore: 7,

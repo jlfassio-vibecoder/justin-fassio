@@ -6,6 +6,11 @@ import {
   WHOLESALE_LOCKED_LABEL,
 } from '@/lib/wholesalePricing';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
+import {
+  BEST_SELLER_BADGE_MAX_RANK,
+  isLifestyleTheme,
+  lifestyleThemeLabel,
+} from '@/lib/crmRetailTaxonomy';
 import { Heart } from 'lucide-react';
 
 type Props = {
@@ -13,6 +18,8 @@ type Props = {
   onViewDetails: (product: PublicOgrProduct) => void;
   onAddToOrder: (product: PublicOgrProduct) => void;
   onRequestAccess: () => void;
+  /** Absolute YTD sales-volume rank (#1 = highest). Omitted when unranked. */
+  salesRank?: number | null;
   liked?: boolean;
   onToggleLike?: (product: PublicOgrProduct) => void;
   likeDisabled?: boolean;
@@ -48,6 +55,7 @@ export function WholesaleProductCard({
   onViewDetails,
   onAddToOrder,
   onRequestAccess,
+  salesRank = null,
   liked = false,
   onToggleLike,
   likeDisabled = false,
@@ -55,6 +63,11 @@ export function WholesaleProductCard({
   const retail = formatSuggestedRetailCad(product.msrpCad);
   const wholesale = formatWholesaleUsd(product.wholesaleUsd);
   const canWholesale = hasWholesalePricing(product.wholesaleUsd);
+  const showBestSellerRank =
+    typeof salesRank === 'number' && salesRank >= 1 && salesRank <= BEST_SELLER_BADGE_MAX_RANK;
+  const themeLabels = showBestSellerRank
+    ? []
+    : product.lifestyleThemes.filter(isLifestyleTheme).slice(0, 3).map(lifestyleThemeLabel);
 
   return (
     <article className="elev-md gap-3.1 bg-bg p-3.1 relative flex flex-col rounded-xl shadow-md">
@@ -83,6 +96,22 @@ export function WholesaleProductCard({
         <ProductImage product={product} />
       </button>
       <div className="gap-1.1 flex flex-wrap items-center">
+        {showBestSellerRank ? (
+          <span
+            className="border-divider text-ink/75 inline-flex items-center rounded-full border px-2.5 py-[3px] text-[11px] tracking-wide"
+            title="YTD sales volume rank among ranked styles (highest first)"
+          >
+            #{salesRank} best seller
+          </span>
+        ) : null}
+        {themeLabels.map((label) => (
+          <span
+            key={label}
+            className="bg-accent-100 text-accent-800 inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] tracking-wide"
+          >
+            {label}
+          </span>
+        ))}
         {product.isNew ? (
           <span className="bg-accent-100 text-accent-800 inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] tracking-wide">
             New

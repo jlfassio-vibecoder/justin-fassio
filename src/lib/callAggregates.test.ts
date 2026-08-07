@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { filterCalls, summarizeDashboard, tagCloud } from '@/lib/callAggregates';
 import type { CallRow } from '@/lib/calls';
-import { BC_PROSPECT_TERRITORY, EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
+import {
+  BC_PROSPECT_TERRITORY,
+  EMPTY_PROSPECT_PLANNING,
+  EMPTY_PROSPECT_TAXONOMY,
+  type Prospect,
+} from '@/lib/prospects';
 
 const FIXTURE_PROSPECTS: Prospect[] = [
   {
     id: 1,
     name: 'Kelowna Golf & Country Club',
-    category: 'Golf',
+    category: 'golf_retail',
     region: 'Okanagan',
     city: 'Kelowna',
     address: '1297 Glenmore Dr',
@@ -18,12 +23,13 @@ const FIXTURE_PROSPECTS: Prospect[] = [
     initialOrderDate: null,
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...EMPTY_PROSPECT_TAXONOMY,
     ...BC_PROSPECT_TERRITORY,
   },
   {
     id: 8,
     name: 'Penticton Yacht Club and Marina',
-    category: 'Marina',
+    category: 'marine_retail',
     region: 'Okanagan',
     city: 'Penticton',
     address: '1 Harbour',
@@ -34,6 +40,7 @@ const FIXTURE_PROSPECTS: Prospect[] = [
     initialOrderDate: null,
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...EMPTY_PROSPECT_TAXONOMY,
     ...BC_PROSPECT_TERRITORY,
   },
 ];
@@ -48,6 +55,7 @@ function call(
     call_date: '2026-08-01',
     notes: null,
     ...EMPTY_PROSPECT_PLANNING,
+    ...EMPTY_PROSPECT_TAXONOMY,
     ...BC_PROSPECT_TERRITORY,
     objection_tags: [],
     ...partial,
@@ -103,7 +111,7 @@ describe('filterCalls', () => {
       rows,
       {
         search: '',
-        channel: 'Golf Pro Shops',
+        channel: 'golf_retail',
         outcome: 'All Call Outcomes',
       },
       FIXTURE_PROSPECTS,
@@ -113,7 +121,7 @@ describe('filterCalls', () => {
       rows,
       {
         search: '',
-        channel: 'Marinas',
+        channel: 'marine_retail',
         outcome: 'All Call Outcomes',
       },
       FIXTURE_PROSPECTS,
@@ -195,7 +203,7 @@ describe('summarizeDashboard', () => {
     expect(s.fitBreakdown[0]?.pct).toBe(33);
     expect(s.fitBreakdown[1]?.pct).toBe(33);
     expect(s.fitBreakdown[2]?.pct).toBe(33);
-    expect(s.byChannel[0]?.category).toBe('Golf');
+    expect(s.byChannel[0]?.category).toBe('golf_retail');
     expect(s.byOutcome[0]?.count).toBeGreaterThanOrEqual(1);
     expect(s.recent[0]?.id).toBe('1');
   });

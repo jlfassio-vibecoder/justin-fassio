@@ -1,5 +1,9 @@
 import { StaffLiveChatWindow } from '@/components/messages/StaffLiveChatWindow';
-import { enforceExpandedLimit, type OpenLiveChatSlot } from '@/lib/staffChatDockState';
+import {
+  dismissLiveChatThread,
+  enforceExpandedLimit,
+  type OpenLiveChatSlot,
+} from '@/lib/staffChatDockState';
 import type { MessageThread } from '@/lib/messages';
 
 interface StaffChatDockProps {
@@ -38,7 +42,10 @@ export function StaffChatDock({ openChats, onChange, onReplySent }: StaffChatDoc
               ),
             )
           }
-          onClose={() => onChange(openChats.filter((s) => s.thread.id !== slot.thread.id))}
+          onClose={() => {
+            dismissLiveChatThread(slot.thread.id);
+            onChange(openChats.filter((s) => s.thread.id !== slot.thread.id));
+          }}
           onVisitorMessageWhileMinimized={() =>
             onChange(
               openChats.map((s) =>

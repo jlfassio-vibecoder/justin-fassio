@@ -18,7 +18,11 @@ import { fetchCatalogItems, type CatalogItem } from '@/lib/catalog';
 import { fetchOgrCatalogSettings, type CatalogSupplierTerms } from '@/lib/catalogSettings';
 import { fetchNeedsMappingCount, type MessageThread } from '@/lib/messages';
 import { fetchProspects, type Prospect } from '@/lib/prospects';
-import { upsertOpenLiveChat, type OpenLiveChatSlot } from '@/lib/staffChatDockState';
+import {
+  upsertOpenLiveChat,
+  surfaceLiveChatAsPill,
+  type OpenLiveChatSlot,
+} from '@/lib/staffChatDockState';
 import { fetchTerritories, type Territory } from '@/lib/territories';
 import type { TabKey } from '@/types';
 
@@ -47,6 +51,11 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   const openLiveChat = useCallback((thread: MessageThread) => {
     if (thread.channel !== 'live_chat') return;
     setOpenLiveChats((prev) => upsertOpenLiveChat(prev, thread));
+  }, []);
+
+  const surfaceLiveChatPill = useCallback((thread: MessageThread) => {
+    if (thread.channel !== 'live_chat') return;
+    setOpenLiveChats((prev) => surfaceLiveChatAsPill(prev, thread, { unread: 0 }));
   }, []);
 
   useStaffLiveChatInbox({
@@ -306,6 +315,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                 reloadToken={messagesReloadToken}
                 onNeedsMappingCountChange={setMessagesNeedsMappingCount}
                 onOpenLiveChat={openLiveChat}
+                onSurfaceLiveChatPill={surfaceLiveChatPill}
                 onLogCall={(store) => openModal(store)}
                 onNotesSaved={(id, notes) => {
                   setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));

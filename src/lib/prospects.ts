@@ -1,7 +1,23 @@
 import { supabase } from '@/lib/supabase';
 import type { AccountStatus, ProspectRow } from '@/types/database';
+import {
+  clampSecondaryChannels,
+  coercePrimaryRetailChannel,
+  normalizeLifestyleThemes,
+  normalizePrimaryChannels,
+  normalizeRetailCapabilities,
+  normalizeSubchannels,
+  normalizeVenueContexts,
+  primaryRetailChannelLabel,
+  subchannelOptionsFor,
+  type LifestyleTheme,
+  type PrimaryRetailChannel,
+  type RetailCapability,
+  type VenueContext,
+} from '@/lib/crmRetailTaxonomy';
 
-export type ProspectCategory = 'Golf' | 'Marina' | 'Hardware' | 'Resort Gift';
+/** Primary retail channel code (formerly Golf|Marina|Hardware|Resort Gift). */
+export type ProspectCategory = PrimaryRetailChannel;
 export type ProspectRegion =
   'Okanagan' | 'Shuswap' | 'Vancouver Island' | 'Sea-to-Sky' | 'Kootenays' | 'Fraser Valley';
 
@@ -25,6 +41,14 @@ export type ProspectPlanningFields = {
   sourceNote: string | null;
 };
 
+export type ProspectTaxonomyFields = {
+  secondaryChannels: PrimaryRetailChannel[];
+  retailSubchannels: string[];
+  venueContexts: VenueContext[];
+  lifestyleThemes: LifestyleTheme[];
+  retailCapabilities: RetailCapability[];
+};
+
 export const EMPTY_PROSPECT_PLANNING: ProspectPlanningFields = {
   externalId: null,
   subterritory: null,
@@ -44,6 +68,14 @@ export const EMPTY_PROSPECT_PLANNING: ProspectPlanningFields = {
   sourceNote: null,
 };
 
+export const EMPTY_PROSPECT_TAXONOMY: ProspectTaxonomyFields = {
+  secondaryChannels: [],
+  retailSubchannels: [],
+  venueContexts: [],
+  lifestyleThemes: [],
+  retailCapabilities: [],
+};
+
 /** Default BC territory fields for fixtures / tests. */
 export const BC_PROSPECT_TERRITORY = {
   territoryId: '00000000-0000-4000-8000-0000000000bc',
@@ -51,7 +83,7 @@ export const BC_PROSPECT_TERRITORY = {
   territoryName: 'British Columbia',
 };
 
-export interface Prospect extends ProspectPlanningFields {
+export interface Prospect extends ProspectPlanningFields, ProspectTaxonomyFields {
   id: number;
   name: string;
   category: ProspectCategory;
@@ -74,8 +106,13 @@ export interface FetchProspectsOptions {
   accountStatus?: AccountStatus;
 }
 
+function asStringArray(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((v): v is string => typeof v === 'string' && v.length > 0);
+}
+
 export const PROSPECT_SELECT =
-  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, territory_id, territories(code, name), external_id, subterritory, primary_district, retail_category, website, fit_score, ideal_opening_units, priority, provisional_grade, verification_status, buyer_verified, apparel_capability, existing_ogr, qualification_status, next_action, source_note, created_at, updated_at' as const;
+  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, territory_id, territories(code, name), external_id, subterritory, primary_district, retail_category, website, fit_score, ideal_opening_units, priority, provisional_grade, verification_status, buyer_verified, apparel_capability, existing_ogr, qualification_status, next_action, source_note, secondary_channels, retail_subchannels, venue_contexts, lifestyle_themes, retail_capabilities, created_at, updated_at' as const;
 
 export type ProspectListRow = ProspectRow & {
   territories?: { code: string; name: string } | null;
@@ -103,10 +140,13 @@ function mapPlanningFields(row: ProspectRow): ProspectPlanningFields {
 }
 
 export function mapProspectRow(row: ProspectListRow): Prospect {
+  const category = coercePrimaryRetailChannel(row.category);
+  const secondaryChannels = clampSecondaryChannels(category, asStringArray(row.secondary_channels));
+  const subOpts = subchannelOptionsFor(category, secondaryChannels);
   return {
     id: row.id,
     name: row.name,
-    category: row.category as ProspectCategory,
+    category,
     region: row.region as ProspectRegion,
     city: row.city,
     address: row.address,
@@ -119,6 +159,11 @@ export function mapProspectRow(row: ProspectListRow): Prospect {
     territoryId: row.territory_id,
     territoryCode: row.territories?.code ?? null,
     territoryName: row.territories?.name ?? null,
+    secondaryChannels,
+    retailSubchannels: normalizeSubchannels(asStringArray(row.retail_subchannels), subOpts),
+    venueContexts: normalizeVenueContexts(asStringArray(row.venue_contexts)),
+    lifestyleThemes: normalizeLifestyleThemes(asStringArray(row.lifestyle_themes)),
+    retailCapabilities: normalizeRetailCapabilities(asStringArray(row.retail_capabilities)),
     ...mapPlanningFields(row),
   };
 }
@@ -159,3 +204,41 @@ export async function updateProspectNotes(
 
   return { data: mapProspectRow(data as ProspectListRow), error: null };
 }
+
+export type ProspectTaxonomyPatch = {
+  category: PrimaryRetailChannel;
+  secondaryChannels: PrimaryRetailChannel[];
+  retailSubchannels: string[];
+  venueContexts: VenueContext[];
+  lifestyleThemes: LifestyleTheme[];
+  retailCapabilities: RetailCapability[];
+};
+
+export async function updateProspectTaxonomy(
+  id: number,
+  patch: ProspectTaxonomyPatch,
+): Promise<{ data: Prospect | null; error: string | null }> {
+  const secondary = clampSecondaryChannels(patch.category, patch.secondaryChannels);
+  const subOpts = subchannelOptionsFor(patch.category, secondary);
+  const { data, error } = await supabase
+    .from('prospects')
+    .update({
+      category: patch.category,
+      secondary_channels: secondary,
+      retail_subchannels: normalizeSubchannels(patch.retailSubchannels, subOpts),
+      venue_contexts: normalizeVenueContexts(patch.venueContexts),
+      lifestyle_themes: normalizeLifestyleThemes(patch.lifestyleThemes),
+      retail_capabilities: normalizeRetailCapabilities(patch.retailCapabilities),
+    })
+    .eq('id', id)
+    .select(PROSPECT_SELECT)
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return { data: mapProspectRow(data as ProspectListRow), error: null };
+}
+
+export { primaryRetailChannelLabel, normalizePrimaryChannels };

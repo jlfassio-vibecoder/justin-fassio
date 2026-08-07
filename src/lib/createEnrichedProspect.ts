@@ -7,18 +7,16 @@ import {
   mapProspectRow,
   PROSPECT_SELECT,
   type Prospect,
-  type ProspectCategory,
   type ProspectListRow,
   type ProspectRegion,
 } from '@/lib/prospects';
+import { PRIMARY_RETAIL_CHANNELS, type PrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
 import { BC_TERRITORY_CODE, resolveTerritoryIdByCode } from '@/lib/territories';
 
-export const PROSPECT_CATEGORIES = [
-  'Golf',
-  'Marina',
-  'Hardware',
-  'Resort Gift',
-] as const satisfies readonly ProspectCategory[];
+export const PROSPECT_CATEGORIES = PRIMARY_RETAIL_CHANNELS.map((o) => o.value) as [
+  PrimaryRetailChannel,
+  ...PrimaryRetailChannel[],
+];
 
 export const PROSPECT_REGIONS = [
   'Okanagan',
@@ -34,7 +32,7 @@ export const enrichedProspectSchema = z.object({
   category: z
     .enum(PROSPECT_CATEGORIES)
     .describe(
-      'CRM channel from actual merchandise: hunting/fishing/shooting specialty → Hardware; golf → Golf; marine → Marina; resort gift → Resort Gift. Never map hunting/fishing to Golf.',
+      'Primary retail channel code from actual merchandise (see CATEGORY_MAPPING_GUIDANCE). Never map hunting/fishing specialty to golf_retail.',
     ),
   region: z.enum(PROSPECT_REGIONS),
   city: z.string().min(1).describe('BC city or town'),
@@ -259,9 +257,9 @@ export async function inferEnrichedProspectFields(
         'Web research brief (ground truth when present; do not invent beyond it):',
         researchBrief,
         'Use address/phone only if the brief explicitly includes them; otherwise set those fields to null.',
-        'If the brief describes hunting, fishing, firearms, or shooting specialty, category MUST be Hardware — not Golf.',
+        'If the brief describes hunting, fishing, firearms, or shooting specialty, category MUST be fishing_fly_tackle, outdoor_camping_hunting, or hardware_farm_rural — not golf_retail.',
       ].join('\n')
-    : 'No web research brief available; infer carefully from the company name and website hint only. Set address and phone to null. Do not assume Golf from "Sports" in the name.';
+    : 'No web research brief available; infer carefully from the company name and website hint only. Set address and phone to null. Do not assume golf_retail from "Sports" in the name.';
 
   try {
     const result = await generateObject({

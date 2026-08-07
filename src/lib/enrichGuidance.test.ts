@@ -14,9 +14,10 @@ describe('hostnameFromUrl', () => {
 });
 
 describe('CATEGORY_MAPPING_GUIDANCE', () => {
-  it('steers hunting/fishing specialty away from Golf', () => {
+  it('steers hunting/fishing specialty away from golf_retail', () => {
     expect(CATEGORY_MAPPING_GUIDANCE).toMatch(/hunting\/fishing\/shooting/i);
     expect(CATEGORY_MAPPING_GUIDANCE).toMatch(/Never map hunting/i);
-    expect(CATEGORY_MAPPING_GUIDANCE).toMatch(/Hardware/);
+    expect(CATEGORY_MAPPING_GUIDANCE).toMatch(/golf_retail/);
+    expect(CATEGORY_MAPPING_GUIDANCE).toMatch(/hardware_farm_rural/);
   });
 });

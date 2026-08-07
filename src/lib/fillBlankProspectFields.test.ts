@@ -6,12 +6,17 @@ import {
   type FillBlankEvidence,
   type FillBlankProspectFields,
 } from '@/lib/fillBlankProspectFields';
-import { BC_PROSPECT_TERRITORY, EMPTY_PROSPECT_PLANNING, type Prospect } from '@/lib/prospects';
+import {
+  BC_PROSPECT_TERRITORY,
+  EMPTY_PROSPECT_PLANNING,
+  EMPTY_PROSPECT_TAXONOMY,
+  type Prospect,
+} from '@/lib/prospects';
 
 const base: Prospect = {
   id: 10,
   name: 'Known Store',
-  category: 'Golf',
+  category: 'golf_retail',
   region: 'Okanagan',
   city: 'Kelowna',
   address: '',
@@ -22,6 +27,7 @@ const base: Prospect = {
   initialOrderDate: null,
   notes: 'Keep notes',
   ...EMPTY_PROSPECT_PLANNING,
+  ...EMPTY_PROSPECT_TAXONOMY,
   ...BC_PROSPECT_TERRITORY,
   apparelCapability: 'Unknown',
   buyerVerified: false,
@@ -35,7 +41,7 @@ const base: Prospect = {
 
 const inferred: FillBlankProspectFields = {
   name: 'Hijacked Name',
-  category: 'Hardware',
+  category: 'hardware_farm_rural',
   region: 'Shuswap',
   city: 'Salmon Arm',
   address: '9 Lake Ave',
@@ -89,7 +95,7 @@ describe('mergeFillBlankFields', () => {
     const { proposed, dbPatch, filledKeys } = mergeFillBlankFields(base, inferred);
 
     expect(proposed.name).toBe('Known Store');
-    expect(proposed.category).toBe('Golf');
+    expect(proposed.category).toBe('golf_retail');
     expect(proposed.region).toBe('Okanagan');
     expect(proposed.city).toBe('Kelowna');
     expect(proposed.fit).toBe('7/10 — Existing fit.');

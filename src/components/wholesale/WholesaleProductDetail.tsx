@@ -8,6 +8,7 @@ import {
 } from '@/lib/wholesalePricing';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
 import type { WholesaleOrderLine } from '@/lib/wholesaleOrderDraft';
+import { lifestyleThemeLabel } from '@/lib/crmRetailTaxonomy';
 
 type Props = {
   product: PublicOgrProduct;
@@ -168,7 +169,7 @@ export function WholesaleProductDetail({
                 key={t}
                 className="bg-accent-100 text-accent-800 inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] tracking-wide"
               >
-                {t}
+                {lifestyleThemeLabel(t)}
               </span>
             ))}
           </div>

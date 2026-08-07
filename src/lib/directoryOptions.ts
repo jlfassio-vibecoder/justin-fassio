@@ -1,3 +1,5 @@
+import { PRIMARY_RETAIL_CHANNELS } from '@/lib/crmRetailTaxonomy';
+
 export const REGION_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Regions (6 corridors)' },
   { value: 'Okanagan', label: 'Okanagan Valley' },
@@ -10,8 +12,5 @@ export const REGION_OPTIONS: { value: string; label: string }[] = [
 
 export const CHANNEL_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Retail Channels' },
-  { value: 'Golf', label: 'Golf Pro Shops' },
-  { value: 'Marina', label: 'Marinas & Boat Stores' },
-  { value: 'Hardware', label: 'Hardware Dealers & Co-ops' },
-  { value: 'Resort Gift', label: 'Resort Gift Boutiques' },
+  ...PRIMARY_RETAIL_CHANNELS,
 ];

@@ -18,7 +18,11 @@ vi.mock('ai', () => ({
 }));
 
 import { createEnrichedContact, fillContactGapsFromBrief } from '@/lib/createEnrichedContact';
-import { BC_PROSPECT_TERRITORY, EMPTY_PROSPECT_PLANNING } from '@/lib/prospects';
+import {
+  BC_PROSPECT_TERRITORY,
+  EMPTY_PROSPECT_PLANNING,
+  EMPTY_PROSPECT_TAXONOMY,
+} from '@/lib/prospects';
 
 function mockSupabase(handlers: {
   prospectSingle?: unknown;
@@ -68,13 +72,19 @@ const contactRow = {
   is_primary: true,
   notes: null,
   created_at: '2026-08-01T00:00:00Z',
+  secondary_channels: [],
+  retail_subchannels: [],
+  venue_contexts: [],
+  lifestyle_themes: [],
+  retail_capabilities: [],
+
   updated_at: '2026-08-01T00:00:00Z',
 };
 
 const prospectRow = {
   id: 12,
   name: 'Kelowna Golf',
-  category: 'Golf',
+  category: 'golf_retail',
   region: 'Okanagan',
   city: 'Kelowna',
   address: '',
@@ -101,6 +111,12 @@ const prospectRow = {
   next_action: null,
   source_note: null,
   created_at: '2026-08-01T00:00:00Z',
+  secondary_channels: [],
+  retail_subchannels: [],
+  venue_contexts: [],
+  lifestyle_themes: [],
+  retail_capabilities: [],
+
   updated_at: '2026-08-01T00:00:00Z',
 };
 
@@ -161,7 +177,7 @@ describe('createEnrichedContact', () => {
       prospect: {
         id: 12,
         name: 'Kelowna Golf',
-        category: 'Golf',
+        category: 'golf_retail',
         region: 'Okanagan',
         city: 'Kelowna',
         address: '',
@@ -172,6 +188,7 @@ describe('createEnrichedContact', () => {
         initialOrderDate: null,
         notes: null,
         ...EMPTY_PROSPECT_PLANNING,
+        ...EMPTY_PROSPECT_TAXONOMY,
         ...BC_PROSPECT_TERRITORY,
       },
       researchBrief: 'Research brief',

@@ -9,6 +9,7 @@ import {
   filterCalls,
   prospectForCall,
   storeName,
+  CALL_CHANNEL_FILTER_OPTIONS,
   type ChannelFilter,
   type OutcomeFilter,
 } from '@/lib/callAggregates';
@@ -74,11 +75,11 @@ export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProp
           value={channel}
           onChange={(e) => setChannel(e.target.value as ChannelFilter)}
         >
-          <option>All Retail Channels</option>
-          <option>Golf Pro Shops</option>
-          <option>Marinas</option>
-          <option>Hardware / Farm Co-op</option>
-          <option>Resort Gift</option>
+          {CALL_CHANNEL_FILTER_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
         </Select>
         <Select
           className="w-auto"

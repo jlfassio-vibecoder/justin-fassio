@@ -257,6 +257,8 @@ interface MessageThreadPanelProps {
   onThreadUpdated?: (thread: MessageThread) => void;
   onOpenMapped?: (thread: MessageThread) => void;
   onOpenLiveChat?: (thread: MessageThread) => void;
+  /** Reopen a closed live chat as a minimized dock pill (e.g. after reply). */
+  onSurfaceLiveChatPill?: (thread: MessageThread) => void;
   /** When true, hide mapping form (e.g. already scoped inside a mapped drawer). */
   hideMappingForm?: boolean;
 }
@@ -266,6 +268,7 @@ export function MessageThreadPanel({
   onThreadUpdated,
   onOpenMapped,
   onOpenLiveChat,
+  onSurfaceLiveChatPill,
   hideMappingForm = false,
 }: MessageThreadPanelProps) {
   const [messages, setMessages] = useState<MessageRow[]>([]);
@@ -371,11 +374,14 @@ export function MessageThreadPanel({
     try {
       await sendStaffChatReply(thread.id, reply.trim());
       setReply('');
-      onThreadUpdated?.({
+      const updated = {
         ...current,
-        chatState: 'human_active',
+        chatState: 'human_active' as const,
         lastMessageAt: new Date().toISOString(),
-      });
+      };
+      onThreadUpdated?.(updated);
+      // Reopen dismissed live chats as a dock pill when staff replies from Messages.
+      if (isLiveChat) onSurfaceLiveChatPill?.(updated);
     } catch (err) {
       setReplyError(err instanceof Error ? err.message : 'Could not send reply');
     } finally {
