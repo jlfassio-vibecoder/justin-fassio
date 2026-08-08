@@ -28,7 +28,7 @@
     "@ai-sdk/react": "^2.0.227",
     "@astrojs/react": "^6.0.2",
     "@astrojs/vercel": "^11.0.4",
-    "@supabase/supabase-js": "^2.111.0",
+    "@supabase/supabase-js": "^2.112.1",
     "@tailwindcss/vite": "^4.3.3",
     "ai": "^5.0.225",
     "astro": "^7.1.6",
@@ -70,7 +70,7 @@
     "@emnapi/core": "^1.11.3",
     "@emnapi/runtime": "^1.11.3",
     "@emnapi/wasi-threads": "^1.2.3",
-    "@rolldown/binding-linux-x64-gnu": "1.2.1",
+    "@rolldown/binding-linux-x64-gnu": "1.2.3",
     "@tailwindcss/oxide-linux-x64-gnu": "4.3.3",
     "lightningcss-linux-x64-gnu": "1.33.0"
   }
