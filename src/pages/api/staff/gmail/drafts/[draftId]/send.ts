@@ -6,6 +6,7 @@ import {
   GoogleAccessTokenError,
 } from '@/lib/google/accessToken';
 import { GmailClientError } from '@/lib/google/gmailClient';
+import { gmailClientErrorJsonResponse } from '@/lib/google/gmailErrors';
 import { sendGmailDraft } from '@/lib/google/gmailSend';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
 
@@ -47,8 +48,7 @@ export const POST: APIRoute = async ({ request, params }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof GmailClientError) {
-      console.error('[gmail]', { workflow: 'send_draft', error: 'gmail_failed' });
-      return json({ ok: false, error: 'Failed to send Gmail draft' }, 502);
+      return gmailClientErrorJsonResponse('send_draft', err, 'Failed to send Gmail draft');
     }
     console.error('[gmail]', { workflow: 'send_draft', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to send Gmail draft' }, 500);

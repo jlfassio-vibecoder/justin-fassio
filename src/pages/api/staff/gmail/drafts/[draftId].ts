@@ -7,6 +7,7 @@ import {
 } from '@/lib/google/accessToken';
 import { GmailClientError } from '@/lib/google/gmailClient';
 import { parseComposeRequestBody } from '@/lib/google/gmailComposeValidation';
+import { gmailClientErrorJsonResponse } from '@/lib/google/gmailErrors';
 import { GmailMimeError } from '@/lib/google/gmailMime';
 import { deleteGmailDraft, getGmailDraft, updateGmailDraft } from '@/lib/google/gmailSend';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
@@ -45,8 +46,7 @@ export const GET: APIRoute = async ({ request, params }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof GmailClientError) {
-      console.error('[gmail]', { workflow: 'get_draft', error: 'gmail_failed' });
-      return json({ ok: false, error: 'Failed to load Gmail draft' }, 502);
+      return gmailClientErrorJsonResponse('get_draft', err, 'Failed to load Gmail draft');
     }
     console.error('[gmail]', { workflow: 'get_draft', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to load Gmail draft' }, 500);
@@ -104,8 +104,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
       return json({ ok: false, error: err.message }, 400);
     }
     if (err instanceof GmailClientError) {
-      console.error('[gmail]', { workflow: 'update_draft', error: 'gmail_failed' });
-      return json({ ok: false, error: 'Failed to update Gmail draft' }, 502);
+      return gmailClientErrorJsonResponse('update_draft', err, 'Failed to update Gmail draft');
     }
     console.error('[gmail]', { workflow: 'update_draft', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to update Gmail draft' }, 500);
@@ -137,8 +136,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof GmailClientError) {
-      console.error('[gmail]', { workflow: 'delete_draft', error: 'gmail_failed' });
-      return json({ ok: false, error: 'Failed to discard Gmail draft' }, 502);
+      return gmailClientErrorJsonResponse('delete_draft', err, 'Failed to discard Gmail draft');
     }
     console.error('[gmail]', { workflow: 'delete_draft', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to discard Gmail draft' }, 500);

@@ -7,6 +7,7 @@ import {
 } from '@/lib/google/accessToken';
 import { GmailClientError } from '@/lib/google/gmailClient';
 import { parseComposeRequestBody } from '@/lib/google/gmailComposeValidation';
+import { gmailClientErrorJsonResponse } from '@/lib/google/gmailErrors';
 import { GmailMimeError } from '@/lib/google/gmailMime';
 import { createGmailDraft, listGmailDrafts } from '@/lib/google/gmailSend';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
@@ -54,8 +55,7 @@ export const GET: APIRoute = async ({ request }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof GmailClientError) {
-      console.error('[gmail]', { workflow: 'list_drafts', error: 'gmail_failed' });
-      return json({ ok: false, error: 'Failed to load Gmail drafts' }, 502);
+      return gmailClientErrorJsonResponse('list_drafts', err, 'Failed to load Gmail drafts');
     }
     console.error('[gmail]', { workflow: 'list_drafts', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to load Gmail drafts' }, 500);
@@ -111,8 +111,7 @@ export const POST: APIRoute = async ({ request }) => {
       return json({ ok: false, error: err.message }, 400);
     }
     if (err instanceof GmailClientError) {
-      console.error('[gmail]', { workflow: 'create_draft', error: 'gmail_failed' });
-      return json({ ok: false, error: 'Failed to create Gmail draft' }, 502);
+      return gmailClientErrorJsonResponse('create_draft', err, 'Failed to create Gmail draft');
     }
     console.error('[gmail]', { workflow: 'create_draft', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to create Gmail draft' }, 500);
