@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, ImageIcon, Plus, Upload, X } from 'lucide-re
 import { Button } from '@/components/ui/Button';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
+import { OgrProductEmailComposerModal } from '@/components/OgrProductEmailComposerModal';
 import {
   ATTRIBUTE_REGISTRY,
   type AttributeGroup,
@@ -25,7 +26,14 @@ import {
 } from '@/lib/landedCost';
 import { patchCatalogItem } from '@/lib/updateCatalogItemClient';
 import type { CatalogItemPatch } from '@/lib/updateCatalogItem';
-import { buildOgrProductUrl } from '@/lib/productUrls';
+import { tryBuildOgrProductUrl } from '@/lib/productUrls';
+import {
+  buildOgrProductEmailCardPlainText,
+  copyOgrProductEmailCardToClipboard,
+} from '@/lib/copyOgrProductEmailCard';
+import { renderOgrProductEmailCard } from '@/lib/ogrProductEmailCard';
+import type { PublicOgrProduct } from '@/lib/publicCatalog';
+import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import {
   MAX_RECOMMENDED_CHANNELS,
   isLifestyleTheme,
@@ -210,11 +218,46 @@ function publicWholesaleUrl(slug: string): string {
   const trimmed = slug.trim();
   if (!trimmed) return '';
   if (typeof window === 'undefined') return '';
-  try {
-    return buildOgrProductUrl(trimmed, window.location.origin);
-  } catch {
-    return '';
-  }
+  return tryBuildOgrProductUrl(trimmed, window.location.origin) ?? '';
+}
+
+function parseDraftNumber(raw: string): number {
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Draft snapshot → public product shape for email card presentation (no salesVolumeRank). */
+function draftToPublicOgrProduct(item: CatalogItem, draft: Draft): PublicOgrProduct {
+  return {
+    id: item.id,
+    sku: item.sku,
+    publicSlug: draft.publicSlug.trim(),
+    name: draft.name.trim(),
+    cat: draft.cat.trim(),
+    color: draft.color.trim(),
+    tagline: draft.tagline.trim(),
+    description: draft.salesDescription.trim(),
+    page: item.page,
+    catalogYear: item.catalogYear,
+    collection: draft.collection.trim(),
+    wholesaleUsd: null,
+    msrpCad: parseDraftNumber(draft.msrpCad),
+    isNew: draft.isNew,
+    featured: draft.featured,
+    publicSortOrder: parseDraftNumber(draft.publicSortOrder),
+    primaryImageUrl: draft.primaryImageUrl.trim() || null,
+    alternateImageUrls: draft.alternateImageUrls
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean),
+    unitOfMeasure: draft.unitOfMeasure.trim() || 'each',
+    minimumQuantity: draft.minimumQuantity.trim() ? parseDraftNumber(draft.minimumQuantity) : null,
+    orderMultiple: draft.orderMultiple.trim() ? parseDraftNumber(draft.orderMultiple) : null,
+    packQuantity: draft.packQuantity.trim() ? parseDraftNumber(draft.packQuantity) : null,
+    lifestyleThemes: draft.lifestyleThemes,
+    liveSku: draft.liveSku.trim() || null,
+    availableSizes: item.variants.map((v) => v.size).filter(Boolean),
+  };
 }
 
 function formatHistoryValue(value: unknown): string {
@@ -310,6 +353,13 @@ function ProductDetailDrawerInner({
     source: false,
   });
   const [linkCopied, setLinkCopied] = useState(false);
+  const [emailCardCopyState, setEmailCardCopyState] = useState<'idle' | 'rich' | 'plain' | 'error'>(
+    'idle',
+  );
+  const emailCardCopyTimerRef = useRef<number | null>(null);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailSendState, setEmailSendState] = useState<'idle' | 'sent'>('idle');
+  const emailSendTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -326,6 +376,26 @@ function ProductDetailDrawerInner({
       active = false;
     };
   }, [item.id]);
+
+  useEffect(() => {
+    return () => {
+      if (emailCardCopyTimerRef.current != null) {
+        window.clearTimeout(emailCardCopyTimerRef.current);
+      }
+      if (emailSendTimerRef.current != null) {
+        window.clearTimeout(emailSendTimerRef.current);
+      }
+    };
+  }, []);
+
+  const emailCardPreviewHtml = useMemo(() => {
+    if (!emailModalOpen) return '';
+    if (typeof window === 'undefined') return '';
+    const href = tryBuildOgrProductUrl(draft.publicSlug, window.location.origin);
+    if (!href) return '';
+    const presentation = buildPublicProductPresentation(draftToPublicOgrProduct(item, draft));
+    return renderOgrProductEmailCard(presentation, { href });
+  }, [emailModalOpen, draft, item]);
 
   const dirty = useMemo(() => {
     return JSON.stringify(draft) !== JSON.stringify(itemToDraft(item));
@@ -1633,9 +1703,89 @@ function ProductDetailDrawerInner({
                   Preview public page
                 </Button>
               </div>
+              <div className="sm:col-span-2">
+                <p className="text-ink/55 m-0 mb-2 text-xs font-medium tracking-wide uppercase">
+                  Email
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={!draft.publicSlug.trim()}
+                    onClick={() => {
+                      const href = tryBuildOgrProductUrl(draft.publicSlug, window.location.origin);
+                      if (!href) {
+                        setEmailCardCopyState('error');
+                        if (emailCardCopyTimerRef.current != null) {
+                          window.clearTimeout(emailCardCopyTimerRef.current);
+                        }
+                        emailCardCopyTimerRef.current = window.setTimeout(
+                          () => setEmailCardCopyState('idle'),
+                          2000,
+                        );
+                        return;
+                      }
+                      const presentation = buildPublicProductPresentation(
+                        draftToPublicOgrProduct(item, draft),
+                      );
+                      const html = renderOgrProductEmailCard(presentation, { href });
+                      const plainText = buildOgrProductEmailCardPlainText({
+                        productName: presentation.name,
+                        tagline: presentation.tagline,
+                        productHref: href,
+                      });
+                      void copyOgrProductEmailCardToClipboard({ html, plainText })
+                        .then((mode) => {
+                          setEmailCardCopyState(mode);
+                          if (emailCardCopyTimerRef.current != null) {
+                            window.clearTimeout(emailCardCopyTimerRef.current);
+                          }
+                          emailCardCopyTimerRef.current = window.setTimeout(
+                            () => setEmailCardCopyState('idle'),
+                            2000,
+                          );
+                        })
+                        .catch(() => {
+                          setEmailCardCopyState('error');
+                          if (emailCardCopyTimerRef.current != null) {
+                            window.clearTimeout(emailCardCopyTimerRef.current);
+                          }
+                          emailCardCopyTimerRef.current = window.setTimeout(
+                            () => setEmailCardCopyState('idle'),
+                            2000,
+                          );
+                        });
+                    }}
+                  >
+                    {emailCardCopyState === 'rich'
+                      ? 'Email card copied'
+                      : emailCardCopyState === 'plain'
+                        ? 'Copied as plain text'
+                        : emailCardCopyState === 'error'
+                          ? 'Could not copy email card'
+                          : 'Copy Email Card'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={!draft.publicSlug.trim() || !draft.isPubliclyPublished}
+                    title={
+                      !draft.publicSlug.trim()
+                        ? 'Public slug is required'
+                        : !draft.isPubliclyPublished
+                          ? 'Publish to send product email'
+                          : undefined
+                    }
+                    onClick={() => setEmailModalOpen(true)}
+                  >
+                    {emailSendState === 'sent' ? 'Email sent' : 'Email Product'}
+                  </Button>
+                </div>
+              </div>
               {!draft.isPubliclyPublished ? (
                 <p className="text-ink/55 text-xs sm:col-span-2">
-                  Publish to preview on the public site. Copy link still works from the slug.
+                  Publish to preview on the public site or send Email Product. Copy link and Copy
+                  Email Card still work from the slug.
                 </p>
               ) : null}
             </div>
@@ -1844,6 +1994,20 @@ function ProductDetailDrawerInner({
           </Section>
         </div>
       </aside>
+      <OgrProductEmailComposerModal
+        open={emailModalOpen}
+        onClose={() => setEmailModalOpen(false)}
+        onSent={() => {
+          setEmailSendState('sent');
+          if (emailSendTimerRef.current != null) {
+            window.clearTimeout(emailSendTimerRef.current);
+          }
+          emailSendTimerRef.current = window.setTimeout(() => setEmailSendState('idle'), 2000);
+        }}
+        productId={item.id}
+        productName={draft.name.trim()}
+        cardHtml={emailCardPreviewHtml}
+      />
     </>
   );
 }
