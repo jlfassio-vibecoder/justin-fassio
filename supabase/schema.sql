@@ -1515,3 +1515,31 @@ drop trigger if exists messages_touch_thread on messages;
 create trigger messages_touch_thread
   after insert on messages
   for each row execute function public.touch_message_thread_on_insert();
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- google_account_connections — staff Google Workspace OAuth (encrypted refresh).
+-- See migrations/20260809143000_google_account_connections.sql.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists google_account_connections (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid not null references profiles (id) on delete cascade,
+  google_sub text not null,
+  google_email text not null,
+  refresh_token_ciphertext text not null,
+  scopes text[] not null default '{}'::text[],
+  status text not null default 'active'
+    check (status in ('active', 'revoked', 'error')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint google_account_connections_profile_id_uidx unique (profile_id)
+);
+
+create index if not exists google_account_connections_google_sub_idx
+  on google_account_connections (google_sub);
+
+drop trigger if exists google_account_connections_set_updated_at on google_account_connections;
+create trigger google_account_connections_set_updated_at
+  before update on google_account_connections
+  for each row execute function set_updated_at();
+
+alter table google_account_connections enable row level security;
