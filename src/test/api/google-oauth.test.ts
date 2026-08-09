@@ -216,6 +216,8 @@ describe('Google OAuth staff APIs', () => {
     expect(res.status).toBe(302);
     expect(res.headers.get('Location')).toContain('google=error');
     expect(res.headers.get('Location')).toContain('invalid_state');
+    // Astro appends Set-Cookie onto this Response; Response.redirect() is immutable and 500s in prod.
+    expect(() => res.headers.append('Set-Cookie', 'x=1')).not.toThrow();
   });
 
   it('stores verified Google identity on successful callback', async () => {
