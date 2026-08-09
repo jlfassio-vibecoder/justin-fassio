@@ -25,12 +25,12 @@
     "email:preview-ogr-card": "WRITE_EMAIL_PREVIEW=1 vitest run src/lib/ogrProductEmailCard.preview.test.ts"
   },
   "dependencies": {
-    "@ai-sdk/react": "^4.0.58",
+    "@ai-sdk/react": "^4.0.61",
     "@astrojs/react": "^6.0.2",
     "@astrojs/vercel": "^11.0.4",
     "@supabase/supabase-js": "^2.112.1",
     "@tailwindcss/vite": "^4.3.3",
-    "ai": "^5.0.225",
+    "ai": "^7.0.58",
     "astro": "^7.1.6",
     "lucide-react": "^1.27.0",
     "react": "^19.2.8",
