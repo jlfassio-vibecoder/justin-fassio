@@ -31,8 +31,8 @@ export type StartGoogleOAuthResult =
   { ok: true; authorizeUrl: string } | { ok: false; error: string };
 
 export type StartGoogleOAuthOptions = {
-  /** Default identity. Use gmail_readonly for Phase B incremental consent. */
-  scopes?: 'identity' | 'gmail_readonly';
+  /** Default identity. gmail_readonly = Phase B; gmail_compose = Phase C. */
+  scopes?: 'identity' | 'gmail_readonly' | 'gmail_compose';
 };
 
 export async function startGoogleOAuth(

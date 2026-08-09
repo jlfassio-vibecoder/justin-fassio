@@ -8,4 +8,6 @@ export type GoogleConnectionPublic = {
   scopes: string[];
   /** True when stored scopes include gmail.readonly (Phase B). */
   hasGmailReadonly: boolean;
+  /** True when stored scopes include gmail.compose (Phase C). */
+  hasGmailCompose: boolean;
 };

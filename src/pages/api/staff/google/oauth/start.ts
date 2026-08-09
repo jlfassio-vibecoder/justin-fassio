@@ -26,6 +26,7 @@ function json(data: unknown, status = 200): Response {
 function parseScopePreset(body: unknown): GoogleOAuthScopePreset {
   if (body == null || typeof body !== 'object') return 'identity';
   const scopes = (body as { scopes?: unknown }).scopes;
+  if (scopes === 'gmail_compose') return 'gmail_compose';
   if (scopes === 'gmail_readonly') return 'gmail_readonly';
   return 'identity';
 }

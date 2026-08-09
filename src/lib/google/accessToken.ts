@@ -1,4 +1,8 @@
-import { getGoogleClientCredentials, scopesIncludeGmailReadonly } from '@/lib/google/config';
+import {
+  getGoogleClientCredentials,
+  scopesIncludeGmailCompose,
+  scopesIncludeGmailReadonly,
+} from '@/lib/google/config';
 import { GoogleOAuthError } from '@/lib/google/oauth';
 import {
   loadConnectionForProfile,
@@ -14,7 +18,12 @@ const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
 export class GoogleAccessTokenError extends Error {
   readonly code:
-    'not_connected' | 'needs_gmail_readonly' | 'revoked' | 'misconfigured' | 'refresh_failed';
+    | 'not_connected'
+    | 'needs_gmail_readonly'
+    | 'needs_gmail_compose'
+    | 'revoked'
+    | 'misconfigured'
+    | 'refresh_failed';
 
   constructor(code: GoogleAccessTokenError['code'], message: string) {
     super(message);
@@ -39,6 +48,7 @@ async function markConnectionError(profileId: string, admin: AdminClient): Promi
 export async function getGoogleAccessTokenForProfile(params: {
   profileId: string;
   requireGmailReadonly?: boolean;
+  requireGmailCompose?: boolean;
   client?: AdminClient | null;
   fetchImpl?: typeof fetch;
 }): Promise<{ accessToken: string; connection: GoogleConnectionRow }> {
@@ -68,6 +78,13 @@ export async function getGoogleAccessTokenForProfile(params: {
     throw new GoogleAccessTokenError(
       'needs_gmail_readonly',
       'Gmail read access has not been granted',
+    );
+  }
+
+  if (params.requireGmailCompose && !scopesIncludeGmailCompose(connection.scopes)) {
+    throw new GoogleAccessTokenError(
+      'needs_gmail_compose',
+      'Gmail send/drafts access has not been granted',
     );
   }
 
@@ -126,6 +143,12 @@ export function accessTokenErrorToHttp(err: GoogleAccessTokenError): {
     return {
       status: 409,
       body: { ok: false, error: err.message, needsGmailReadonly: true },
+    };
+  }
+  if (err.code === 'needs_gmail_compose') {
+    return {
+      status: 409,
+      body: { ok: false, error: err.message, needsGmailCompose: true },
     };
   }
   if (err.code === 'revoked') {

@@ -14,6 +14,7 @@ export type GmailAttachmentMeta = {
   filename: string;
   mimeType: string;
   size: number;
+  attachmentId: string | null;
 };
 
 export type GmailMessageView = {

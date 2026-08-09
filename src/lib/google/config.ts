@@ -4,26 +4,44 @@ export const GOOGLE_PHASE_A_SCOPES = ['openid', 'email', 'profile'] as const;
 /** Phase B read-only Gmail (Restricted). Request via incremental OAuth. */
 export const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
-export type GoogleOAuthScopePreset = 'identity' | 'gmail_readonly';
+/**
+ * Phase C compose/send/drafts (Restricted).
+ * Prefer this over gmail.send — compose covers messages.send + drafts.*; do not also request gmail.send.
+ */
+export const GMAIL_COMPOSE_SCOPE = 'https://www.googleapis.com/auth/gmail.compose';
+
+export type GoogleOAuthScopePreset = 'identity' | 'gmail_readonly' | 'gmail_compose';
 
 export function scopesForPreset(preset: GoogleOAuthScopePreset): string[] {
+  if (preset === 'gmail_compose') {
+    return [...GOOGLE_PHASE_A_SCOPES, GMAIL_READONLY_SCOPE, GMAIL_COMPOSE_SCOPE];
+  }
   if (preset === 'gmail_readonly') {
     return [...GOOGLE_PHASE_A_SCOPES, GMAIL_READONLY_SCOPE];
   }
   return [...GOOGLE_PHASE_A_SCOPES];
 }
 
+function scopeMatches(scopes: string[], fullUri: string, bareName: string): boolean {
+  const full = fullUri.toLowerCase();
+  const bare = bareName.toLowerCase();
+  const suffix = `/auth/${bare}`;
+  return scopes.some((s) => {
+    const value = s.trim().toLowerCase();
+    return value === full || value === bare || value.endsWith(suffix);
+  });
+}
+
 /** True if stored scopes include Gmail readonly (full URI or bare name). */
 export function scopesIncludeGmailReadonly(scopes: string[] | null | undefined): boolean {
   if (!scopes?.length) return false;
-  return scopes.some((s) => {
-    const value = s.trim().toLowerCase();
-    return (
-      value === GMAIL_READONLY_SCOPE.toLowerCase() ||
-      value === 'gmail.readonly' ||
-      value.endsWith('/auth/gmail.readonly')
-    );
-  });
+  return scopeMatches(scopes, GMAIL_READONLY_SCOPE, 'gmail.readonly');
+}
+
+/** True if stored scopes include Gmail compose (full URI or bare name). */
+export function scopesIncludeGmailCompose(scopes: string[] | null | undefined): boolean {
+  if (!scopes?.length) return false;
+  return scopeMatches(scopes, GMAIL_COMPOSE_SCOPE, 'gmail.compose');
 }
 
 export type GoogleOAuthConfig = {

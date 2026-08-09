@@ -29,6 +29,8 @@ export type GmailThreadListProps = {
   loading: boolean;
   emptyMessage?: string;
   hasMore: boolean;
+  canCompose?: boolean;
+  onCompose?: () => void;
   onSelect: (thread: GmailThreadSummary) => void;
   onLabelChange: (label: GmailLabelFilter) => void;
   onSearchChange: (value: string) => void;
@@ -45,6 +47,8 @@ export function GmailThreadList({
   loading,
   emptyMessage = 'No Gmail threads.',
   hasMore,
+  canCompose = false,
+  onCompose,
   onSelect,
   onLabelChange,
   onSearchChange,
@@ -54,20 +58,31 @@ export function GmailThreadList({
 }: GmailThreadListProps) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="bg-surface flex flex-wrap items-center gap-1 rounded-full p-1">
-        {LABELS.map((f) => (
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="bg-surface flex flex-wrap items-center gap-1 rounded-full p-1">
+          {LABELS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => onLabelChange(f.key)}
+              className={cn(
+                'font-heading rounded-full px-3 py-1.5 text-sm',
+                label === f.key ? 'bg-accent text-bg' : 'text-ink/70 bg-transparent',
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        {canCompose && onCompose ? (
           <button
-            key={f.key}
             type="button"
-            onClick={() => onLabelChange(f.key)}
-            className={cn(
-              'font-heading rounded-full px-3 py-1.5 text-sm',
-              label === f.key ? 'bg-accent text-bg' : 'text-ink/70 bg-transparent',
-            )}
+            onClick={onCompose}
+            className="font-heading bg-accent text-bg rounded-md px-3 py-1.5 text-sm"
           >
-            {f.label}
+            Compose
           </button>
-        ))}
+        ) : null}
       </div>
 
       <form

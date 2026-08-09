@@ -1,4 +1,6 @@
-import type { GmailThreadDetail } from '@/lib/google/gmailTypes';
+import { Button } from '@/components/ui/Button';
+import type { GmailMessageView, GmailThreadDetail } from '@/lib/google/gmailTypes';
+import { downloadGmailAttachmentClient } from '@/lib/gmailClientBrowser';
 
 function formatWhen(iso: string | null): string {
   if (!iso) return '';
@@ -19,9 +21,17 @@ export type GmailThreadPanelProps = {
   thread: GmailThreadDetail | null;
   loading: boolean;
   error: string | null;
+  canCompose?: boolean;
+  onReply?: (mode: 'reply' | 'reply_all', message: GmailMessageView) => void;
 };
 
-export function GmailThreadPanel({ thread, loading, error }: GmailThreadPanelProps) {
+export function GmailThreadPanel({
+  thread,
+  loading,
+  error,
+  canCompose = false,
+  onReply,
+}: GmailThreadPanelProps) {
   if (loading && !thread) {
     return <p className="text-ink/60 m-0 text-sm">Loading thread…</p>;
   }
@@ -36,14 +46,28 @@ export function GmailThreadPanel({ thread, loading, error }: GmailThreadPanelPro
     return <p className="text-ink/60 m-0 text-sm">Select a Gmail thread to read.</p>;
   }
 
+  const latest = thread.messages[thread.messages.length - 1] ?? null;
+
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h3 className="font-heading m-0 text-lg">{thread.subject}</h3>
-        <p className="text-ink/55 m-0 mt-1 text-xs">
-          {thread.messages.length} message{thread.messages.length === 1 ? '' : 's'}
-          {thread.unread ? ' · unread' : ''}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="font-heading m-0 text-lg">{thread.subject}</h3>
+          <p className="text-ink/55 m-0 mt-1 text-xs">
+            {thread.messages.length} message{thread.messages.length === 1 ? '' : 's'}
+            {thread.unread ? ' · unread' : ''}
+          </p>
+        </div>
+        {canCompose && latest && onReply ? (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => onReply('reply', latest)}>
+              Reply
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => onReply('reply_all', latest)}>
+              Reply all
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-4">
@@ -72,11 +96,31 @@ export function GmailThreadPanel({ thread, loading, error }: GmailThreadPanelPro
               <p className="text-ink/50 m-0 text-sm">No message body.</p>
             )}
             {message.attachments.length > 0 ? (
-              <ul className="text-ink/60 m-0 mt-3 list-disc pl-5 text-xs">
+              <ul className="text-ink/60 m-0 mt-3 list-none p-0 text-xs">
                 {message.attachments.map((a) => (
-                  <li key={`${message.id}-${a.filename}`}>
-                    {a.filename}
-                    {a.size > 0 ? ` (${a.size} bytes)` : ''}
+                  <li
+                    key={`${message.id}-${a.filename}-${a.attachmentId ?? 'x'}`}
+                    className="mt-1 flex flex-wrap items-center gap-2"
+                  >
+                    <span>
+                      {a.filename}
+                      {a.size > 0 ? ` (${a.size} bytes)` : ''}
+                    </span>
+                    {a.attachmentId ? (
+                      <button
+                        type="button"
+                        className="text-accent font-heading underline"
+                        onClick={() => {
+                          void downloadGmailAttachmentClient({
+                            messageId: message.id,
+                            attachmentId: a.attachmentId!,
+                            filename: a.filename,
+                          });
+                        }}
+                      >
+                        Download
+                      </button>
+                    ) : null}
                   </li>
                 ))}
               </ul>

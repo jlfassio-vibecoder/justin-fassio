@@ -173,6 +173,39 @@ describe('Google OAuth staff APIs', () => {
     );
   });
 
+  it('starts OAuth with gmail_compose preset keeping readonly', async () => {
+    requireApprovedStaffClientMock.mockResolvedValue({
+      ok: true,
+      userId: 'profile-1',
+      supabase: {},
+    });
+    const cookies = cookieJar();
+    const res = await startPOST(
+      ctx({
+        request: new Request('http://localhost:4321/api/staff/google/oauth/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scopes: 'gmail_compose' }),
+        }),
+        cookies,
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.scopesPreset).toBe('gmail_compose');
+    expect(buildGoogleAuthorizeUrlMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopes: expect.arrayContaining([
+          'openid',
+          'https://www.googleapis.com/auth/gmail.readonly',
+          'https://www.googleapis.com/auth/gmail.compose',
+        ]),
+      }),
+    );
+    const scopes = buildGoogleAuthorizeUrlMock.mock.calls[0][0].scopes as string[];
+    expect(scopes.some((s) => s.includes('gmail.send'))).toBe(false);
+  });
+
   it('rejects callback with missing/invalid state', async () => {
     const res = await callbackGET(
       ctx({

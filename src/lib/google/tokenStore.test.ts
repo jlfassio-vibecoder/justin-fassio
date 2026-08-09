@@ -26,6 +26,7 @@ describe('tokenStore public mapping', () => {
       status: 'active',
       scopes: ['openid', 'email', 'profile'],
       hasGmailReadonly: false,
+      hasGmailCompose: false,
     });
     expect(JSON.stringify(pub)).not.toContain('SECRET_CIPHERTEXT');
     expect(JSON.stringify(pub)).not.toContain('refresh_token');
@@ -39,6 +40,7 @@ describe('tokenStore public mapping', () => {
       status: null,
       scopes: [],
       hasGmailReadonly: false,
+      hasGmailCompose: false,
     });
   });
 
@@ -48,5 +50,19 @@ describe('tokenStore public mapping', () => {
       scopes: ['openid', 'https://www.googleapis.com/auth/gmail.readonly'],
     });
     expect(pub.hasGmailReadonly).toBe(true);
+    expect(pub.hasGmailCompose).toBe(false);
+  });
+
+  it('sets hasGmailCompose when scope is present', () => {
+    const pub = toPublicConnection({
+      ...row,
+      scopes: [
+        'openid',
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.compose',
+      ],
+    });
+    expect(pub.hasGmailReadonly).toBe(true);
+    expect(pub.hasGmailCompose).toBe(true);
   });
 });

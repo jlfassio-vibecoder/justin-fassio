@@ -18,7 +18,7 @@ export class GmailClientError extends Error {
 }
 
 type GmailHeader = { name?: string; value?: string };
-type GmailBody = { data?: string; size?: number };
+type GmailBody = { data?: string; size?: number; attachmentId?: string };
 type GmailPart = {
   mimeType?: string;
   filename?: string;
@@ -108,6 +108,7 @@ function extractAttachments(payload: GmailPart | undefined): GmailAttachmentMeta
       filename,
       mimeType: part.mimeType ?? 'application/octet-stream',
       size: part.body?.size ?? 0,
+      attachmentId: part.body?.attachmentId ?? null,
     });
   }
   return attachments;

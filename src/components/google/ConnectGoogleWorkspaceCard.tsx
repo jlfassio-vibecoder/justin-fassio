@@ -35,7 +35,9 @@ export function ConnectGoogleWorkspaceCard() {
     };
   }, [reloadToken]);
 
-  async function handleConnect(scopes: 'identity' | 'gmail_readonly' = 'identity') {
+  async function handleConnect(
+    scopes: 'identity' | 'gmail_readonly' | 'gmail_compose' = 'identity',
+  ) {
     if (busy) return;
     setBusy(true);
     setError(null);
@@ -63,6 +65,9 @@ export function ConnectGoogleWorkspaceCard() {
   }
 
   const needsGmailGrant = Boolean(connection?.connected && !connection.hasGmailReadonly);
+  const needsComposeGrant = Boolean(
+    connection?.connected && connection.hasGmailReadonly && !connection.hasGmailCompose,
+  );
 
   return (
     <div className="border-ink/10 bg-surface flex flex-col gap-4 rounded-md border p-5">
@@ -87,8 +92,15 @@ export function ConnectGoogleWorkspaceCard() {
               Gmail read access is not granted yet. Grant access to browse Inbox, Sent, and Drafts
               here (read-only).
             </p>
+          ) : needsComposeGrant ? (
+            <p className="text-ink/70 m-0 text-sm">
+              Gmail read access is granted. Grant send/drafts to compose, reply, and manage drafts
+              here.
+            </p>
           ) : (
-            <p className="text-ink/70 m-0 text-sm">Gmail read access is granted.</p>
+            <p className="text-ink/70 m-0 text-sm">
+              Gmail read and send/drafts access are granted.
+            </p>
           )}
           <div className="flex flex-wrap gap-2">
             {needsGmailGrant ? (
@@ -102,11 +114,30 @@ export function ConnectGoogleWorkspaceCard() {
                 Grant Gmail access
               </Button>
             ) : null}
+            {needsComposeGrant ? (
+              <Button
+                type="button"
+                variant="primary"
+                disabled={busy}
+                onClick={() => void handleConnect('gmail_compose')}
+              >
+                <Mail strokeWidth={2.75} className="size-4" aria-hidden />
+                Grant Gmail send/drafts
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="secondary"
               disabled={busy}
-              onClick={() => void handleConnect(needsGmailGrant ? 'gmail_readonly' : 'identity')}
+              onClick={() =>
+                void handleConnect(
+                  needsGmailGrant
+                    ? 'gmail_readonly'
+                    : needsComposeGrant
+                      ? 'gmail_compose'
+                      : 'identity',
+                )
+              }
             >
               <Link2 strokeWidth={2.75} className="size-4" aria-hidden />
               Reconnect
