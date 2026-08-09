@@ -25,6 +25,7 @@ describe('tokenStore public mapping', () => {
       googleEmail: 'staff@example.com',
       status: 'active',
       scopes: ['openid', 'email', 'profile'],
+      hasGmailReadonly: false,
     });
     expect(JSON.stringify(pub)).not.toContain('SECRET_CIPHERTEXT');
     expect(JSON.stringify(pub)).not.toContain('refresh_token');
@@ -37,6 +38,15 @@ describe('tokenStore public mapping', () => {
       googleEmail: null,
       status: null,
       scopes: [],
+      hasGmailReadonly: false,
     });
+  });
+
+  it('sets hasGmailReadonly when scope is present', () => {
+    const pub = toPublicConnection({
+      ...row,
+      scopes: ['openid', 'https://www.googleapis.com/auth/gmail.readonly'],
+    });
+    expect(pub.hasGmailReadonly).toBe(true);
   });
 });

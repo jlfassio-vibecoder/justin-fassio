@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AccountDetailDrawer } from '@/components/AccountDetailDrawer';
 import { AccountOrderHistoryModal } from '@/components/AccountOrderHistoryModal';
-import { ConnectGoogleWorkspaceCard } from '@/components/google/ConnectGoogleWorkspaceCard';
+import { GmailEmailChannel } from '@/components/messages/GmailEmailChannel';
 import { MessageThreadPanel } from '@/components/messages/MessageThreadPanel';
 import { MessagesThreadList } from '@/components/messages/MessagesThreadList';
 import { ProspectDetailDrawer } from '@/components/ProspectDetailDrawer';
@@ -200,7 +200,7 @@ export function MessagesTab({
         </div>
       </div>
 
-      {channel === 'email' ? <ConnectGoogleWorkspaceCard /> : null}
+      {channel === 'email' ? <GmailEmailChannel /> : null}
 
       {channel !== 'email' && loading ? (
         <p className="text-ink/60 m-0 text-sm">Loading threads…</p>

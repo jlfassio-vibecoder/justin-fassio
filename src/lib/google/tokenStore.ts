@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { scopesIncludeGmailReadonly } from '@/lib/google/config';
 import type { GoogleConnectionPublic } from '@/lib/google/connectionTypes';
 import { decryptRefreshToken, encryptRefreshToken } from '@/lib/google/tokenCrypto';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
@@ -27,17 +28,25 @@ export function toPublicConnection(
   row: GoogleConnectionRow | null | undefined,
 ): GoogleConnectionPublic {
   if (!row) {
-    return { connected: false, googleEmail: null, status: null, scopes: [] };
+    return {
+      connected: false,
+      googleEmail: null,
+      status: null,
+      scopes: [],
+      hasGmailReadonly: false,
+    };
   }
   const status =
     row.status === 'active' || row.status === 'revoked' || row.status === 'error'
       ? row.status
       : 'error';
+  const scopes = Array.isArray(row.scopes) ? [...row.scopes] : [];
   return {
     connected: status === 'active',
     googleEmail: row.google_email,
     status,
-    scopes: Array.isArray(row.scopes) ? [...row.scopes] : [],
+    scopes,
+    hasGmailReadonly: scopesIncludeGmailReadonly(scopes),
   };
 }
 

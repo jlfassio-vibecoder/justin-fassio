@@ -30,13 +30,24 @@ export async function fetchGoogleConnection(): Promise<GoogleConnectionResult> {
 export type StartGoogleOAuthResult =
   { ok: true; authorizeUrl: string } | { ok: false; error: string };
 
-export async function startGoogleOAuth(): Promise<StartGoogleOAuthResult> {
+export type StartGoogleOAuthOptions = {
+  /** Default identity. Use gmail_readonly for Phase B incremental consent. */
+  scopes?: 'identity' | 'gmail_readonly';
+};
+
+export async function startGoogleOAuth(
+  options: StartGoogleOAuthOptions = {},
+): Promise<StartGoogleOAuthResult> {
   const token = await staffBearer();
   if (!token) return { ok: false, error: 'Not signed in' };
 
   const res = await fetch('/api/staff/google/oauth/start', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ scopes: options.scopes ?? 'identity' }),
   });
   const body = (await res.json()) as { ok?: boolean; authorizeUrl?: string; error?: string };
   if (!res.ok || !body.ok || !body.authorizeUrl) {

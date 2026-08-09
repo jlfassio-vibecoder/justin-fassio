@@ -6,4 +6,6 @@ export type GoogleConnectionPublic = {
   googleEmail: string | null;
   status: GoogleConnectionStatusValue | null;
   scopes: string[];
+  /** True when stored scopes include gmail.readonly (Phase B). */
+  hasGmailReadonly: boolean;
 };

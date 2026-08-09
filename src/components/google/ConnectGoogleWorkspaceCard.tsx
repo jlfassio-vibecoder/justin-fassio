@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link2, Link2Off } from 'lucide-react';
+import { Link2, Link2Off, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import type { GoogleConnectionPublic } from '@/lib/google/connectionTypes';
 import {
@@ -35,11 +35,11 @@ export function ConnectGoogleWorkspaceCard() {
     };
   }, [reloadToken]);
 
-  async function handleConnect() {
+  async function handleConnect(scopes: 'identity' | 'gmail_readonly' = 'identity') {
     if (busy) return;
     setBusy(true);
     setError(null);
-    const result = await startGoogleOAuth();
+    const result = await startGoogleOAuth({ scopes });
     if (!result.ok) {
       setError(result.error);
       setBusy(false);
@@ -62,13 +62,15 @@ export function ConnectGoogleWorkspaceCard() {
     setReloadToken((n) => n + 1);
   }
 
+  const needsGmailGrant = Boolean(connection?.connected && !connection.hasGmailReadonly);
+
   return (
     <div className="border-ink/10 bg-surface flex flex-col gap-4 rounded-md border p-5">
       <div>
         <h3 className="font-heading m-0 text-lg">Email (Google Workspace)</h3>
         <p className="text-ink/65 m-0 mt-1 text-sm">
-          Connect the company Google Workspace account for Gmail and Calendar. Ordinary business
-          email will use Gmail; OGR Email Product continues to send through Resend.
+          Connect the company Google Workspace account for Gmail. Ordinary business email uses
+          Gmail; OGR Email Product continues to send through Resend.
         </p>
       </div>
 
@@ -80,12 +82,31 @@ export function ConnectGoogleWorkspaceCard() {
             Connected as <span className="font-medium">{connection.googleEmail}</span>
             {connection.status ? <span className="text-ink/55"> · {connection.status}</span> : null}
           </p>
+          {needsGmailGrant ? (
+            <p className="text-ink/70 m-0 text-sm">
+              Gmail read access is not granted yet. Grant access to browse Inbox, Sent, and Drafts
+              here (read-only).
+            </p>
+          ) : (
+            <p className="text-ink/70 m-0 text-sm">Gmail read access is granted.</p>
+          )}
           <div className="flex flex-wrap gap-2">
+            {needsGmailGrant ? (
+              <Button
+                type="button"
+                variant="primary"
+                disabled={busy}
+                onClick={() => void handleConnect('gmail_readonly')}
+              >
+                <Mail strokeWidth={2.75} className="size-4" aria-hidden />
+                Grant Gmail access
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="secondary"
               disabled={busy}
-              onClick={() => void handleConnect()}
+              onClick={() => void handleConnect(needsGmailGrant ? 'gmail_readonly' : 'identity')}
             >
               <Link2 strokeWidth={2.75} className="size-4" aria-hidden />
               Reconnect
@@ -111,7 +132,7 @@ export function ConnectGoogleWorkspaceCard() {
               type="button"
               variant="primary"
               disabled={busy}
-              onClick={() => void handleConnect()}
+              onClick={() => void handleConnect('identity')}
             >
               <Link2 strokeWidth={2.75} className="size-4" aria-hidden />
               Connect Google Workspace

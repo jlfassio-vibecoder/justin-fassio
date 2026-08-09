@@ -36,13 +36,16 @@ export function buildGoogleAuthorizeUrl(params: {
   state: string;
   requestOrigin?: string;
   config?: GoogleOAuthConfig;
+  /** Defaults to Phase A identity scopes. */
+  scopes?: string[];
 }): string {
   const config = params.config ?? getGoogleOAuthConfig(params.requestOrigin);
+  const scopes = params.scopes?.length ? params.scopes : [...GOOGLE_PHASE_A_SCOPES];
   const url = new URL(GOOGLE_AUTH_URL);
   url.searchParams.set('client_id', config.clientId);
   url.searchParams.set('redirect_uri', config.redirectUri);
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', GOOGLE_PHASE_A_SCOPES.join(' '));
+  url.searchParams.set('scope', scopes.join(' '));
   url.searchParams.set('state', params.state);
   url.searchParams.set('access_type', 'offline');
   url.searchParams.set('prompt', 'consent');

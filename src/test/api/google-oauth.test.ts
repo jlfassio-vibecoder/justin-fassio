@@ -138,6 +138,39 @@ describe('Google OAuth staff APIs', () => {
     expect(body.ok).toBe(true);
     expect(body.authorizeUrl).toContain('accounts.google.com');
     expect(cookies.store.get(GOOGLE_OAUTH_STATE_COOKIE)).toBeTruthy();
+    expect(buildGoogleAuthorizeUrlMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopes: ['openid', 'email', 'profile'],
+      }),
+    );
+  });
+
+  it('starts OAuth with gmail.readonly for incremental grant', async () => {
+    requireApprovedStaffClientMock.mockResolvedValue({
+      ok: true,
+      userId: 'profile-1',
+      supabase: {},
+    });
+    const cookies = cookieJar();
+    const res = await startPOST(
+      ctx({
+        request: new Request('http://localhost:4321/api/staff/google/oauth/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scopes: 'gmail_readonly' }),
+        }),
+        cookies,
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(buildGoogleAuthorizeUrlMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopes: expect.arrayContaining([
+          'openid',
+          'https://www.googleapis.com/auth/gmail.readonly',
+        ]),
+      }),
+    );
   });
 
   it('rejects callback with missing/invalid state', async () => {

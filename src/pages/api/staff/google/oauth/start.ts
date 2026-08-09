@@ -1,6 +1,11 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
-import { GoogleConfigError, isGoogleOAuthConfigured } from '@/lib/google/config';
+import {
+  GoogleConfigError,
+  isGoogleOAuthConfigured,
+  scopesForPreset,
+  type GoogleOAuthScopePreset,
+} from '@/lib/google/config';
 import { buildGoogleAuthorizeUrl } from '@/lib/google/oauth';
 import {
   createOAuthState,
@@ -18,6 +23,13 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
+function parseScopePreset(body: unknown): GoogleOAuthScopePreset {
+  if (body == null || typeof body !== 'object') return 'identity';
+  const scopes = (body as { scopes?: unknown }).scopes;
+  if (scopes === 'gmail_readonly') return 'gmail_readonly';
+  return 'identity';
+}
+
 export const POST: APIRoute = async ({ request, cookies }) => {
   const gate = await requireApprovedStaffClient(request);
   if (!gate.ok) return gate.response;
@@ -26,12 +38,26 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return json({ ok: false, error: 'Google OAuth is not configured' }, 503);
   }
 
+  let preset: GoogleOAuthScopePreset = 'identity';
+  try {
+    const text = await request.text();
+    if (text.trim()) {
+      preset = parseScopePreset(JSON.parse(text) as unknown);
+    }
+  } catch {
+    return json({ ok: false, error: 'Invalid JSON body' }, 400);
+  }
+
   try {
     const origin = new URL(request.url).origin;
     const state = createOAuthState(gate.userId);
     cookies.set(GOOGLE_OAUTH_STATE_COOKIE, state, oauthStateCookieOptions());
-    const authorizeUrl = buildGoogleAuthorizeUrl({ state, requestOrigin: origin });
-    return json({ ok: true, authorizeUrl });
+    const authorizeUrl = buildGoogleAuthorizeUrl({
+      state,
+      requestOrigin: origin,
+      scopes: scopesForPreset(preset),
+    });
+    return json({ ok: true, authorizeUrl, scopesPreset: preset });
   } catch (err) {
     if (err instanceof GoogleConfigError || err instanceof OAuthStateError) {
       return json({ ok: false, error: err.message }, 503);
