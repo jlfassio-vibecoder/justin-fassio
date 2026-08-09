@@ -1176,6 +1176,42 @@ export interface Database {
         };
         Relationships: [];
       };
+      google_account_connections: {
+        Row: {
+          id: string;
+          profile_id: string;
+          google_sub: string;
+          google_email: string;
+          refresh_token_ciphertext: string;
+          scopes: string[];
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          google_sub: string;
+          google_email: string;
+          refresh_token_ciphertext: string;
+          scopes?: string[];
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          google_sub?: string;
+          google_email?: string;
+          refresh_token_ciphertext?: string;
+          scopes?: string[];
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       buyer_cart_items: {
         Row: {
           id: string;

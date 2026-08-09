@@ -49,31 +49,31 @@ CRM
 
 ### 2.1 Messages today (not email)
 
-| Layer | File / symbol | Role |
-| ----- | ------------- | ---- |
-| Tab | [`MessagesTab.tsx`](src/components/tabs/MessagesTab.tsx) | Staff Message Center; filters All / Needs mapping / Confirmed; channels All / Realtime / Wholesale |
-| List / panel | [`MessagesThreadList.tsx`](src/components/messages/MessagesThreadList.tsx), [`MessageThreadPanel.tsx`](src/components/messages/MessageThreadPanel.tsx) | Thread list + detail, mapping UI, live reply |
-| Account surface | [`AccountMessagesSection.tsx`](src/components/messages/AccountMessagesSection.tsx) | Confirmed threads on prospect/account drawers |
-| Live chat dock | [`StaffChatDock.tsx`](src/components/messages/StaffChatDock.tsx), [`StaffLiveChatWindow.tsx`](src/components/messages/StaffLiveChatWindow.tsx) | Floating live-chat windows |
-| Public chat | [`PublicChatFab.tsx`](src/components/chat/PublicChatFab.tsx) | Site FAB → `/api/chat/*` |
-| Buyer portal | [`BuyerMessagesSection.tsx`](src/components/buyer/BuyerMessagesSection.tsx), [`buyerMessages.ts`](src/lib/buyerMessages.ts) | Buyer thread view + `buyer_reply` |
-| Domain lib | [`messages.ts`](src/lib/messages.ts) | `MessageChannel = 'wholesale' \| 'live_chat'`; fetch/map threads |
-| Fingerprint | [`messageFingerprint.ts`](src/lib/messageFingerprint.ts) | Identity fingerprint + mapping status |
-| Wholesale inbound | [`messageCenterInbound.ts`](src/lib/messageCenterInbound.ts) | Upsert wholesale → threads |
-| Live chat | [`liveChat.ts`](src/lib/liveChat.ts), [`useStaffLiveChatInbox.ts`](src/hooks/useStaffLiveChatInbox.ts) | Chat ops + Resend staff alert |
-| Shell | [`RepCommandCenter.tsx`](src/components/RepCommandCenter.tsx), [`TabNav.tsx`](src/components/TabNav.tsx) | Wires Messages tab + dock; badge = unconfirmed mapping count |
-| Tab key | [`types/index.ts`](src/types/index.ts) | `TabKey` includes `'messages'`; **no** `'calendar'` |
+| Layer             | File / symbol                                                                                                                                          | Role                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Tab               | [`MessagesTab.tsx`](src/components/tabs/MessagesTab.tsx)                                                                                               | Staff Message Center; filters All / Needs mapping / Confirmed; channels All / Realtime / Wholesale |
+| List / panel      | [`MessagesThreadList.tsx`](src/components/messages/MessagesThreadList.tsx), [`MessageThreadPanel.tsx`](src/components/messages/MessageThreadPanel.tsx) | Thread list + detail, mapping UI, live reply                                                       |
+| Account surface   | [`AccountMessagesSection.tsx`](src/components/messages/AccountMessagesSection.tsx)                                                                     | Confirmed threads on prospect/account drawers                                                      |
+| Live chat dock    | [`StaffChatDock.tsx`](src/components/messages/StaffChatDock.tsx), [`StaffLiveChatWindow.tsx`](src/components/messages/StaffLiveChatWindow.tsx)         | Floating live-chat windows                                                                         |
+| Public chat       | [`PublicChatFab.tsx`](src/components/chat/PublicChatFab.tsx)                                                                                           | Site FAB → `/api/chat/*`                                                                           |
+| Buyer portal      | [`BuyerMessagesSection.tsx`](src/components/buyer/BuyerMessagesSection.tsx), [`buyerMessages.ts`](src/lib/buyerMessages.ts)                            | Buyer thread view + `buyer_reply`                                                                  |
+| Domain lib        | [`messages.ts`](src/lib/messages.ts)                                                                                                                   | `MessageChannel = 'wholesale' \| 'live_chat'`; fetch/map threads                                   |
+| Fingerprint       | [`messageFingerprint.ts`](src/lib/messageFingerprint.ts)                                                                                               | Identity fingerprint + mapping status                                                              |
+| Wholesale inbound | [`messageCenterInbound.ts`](src/lib/messageCenterInbound.ts)                                                                                           | Upsert wholesale → threads                                                                         |
+| Live chat         | [`liveChat.ts`](src/lib/liveChat.ts), [`useStaffLiveChatInbox.ts`](src/hooks/useStaffLiveChatInbox.ts)                                                 | Chat ops + Resend staff alert                                                                      |
+| Shell             | [`RepCommandCenter.tsx`](src/components/RepCommandCenter.tsx), [`TabNav.tsx`](src/components/TabNav.tsx)                                               | Wires Messages tab + dock; badge = unconfirmed mapping count                                       |
+| Tab key           | [`types/index.ts`](src/types/index.ts)                                                                                                                 | `TabKey` includes `'messages'`; **no** `'calendar'`                                                |
 
 **Channels today:** wholesale form submissions + live chat. Outbound Resend emails are **not** stored as `messages` rows.
 
 ### 2.2 CRM accounts / contacts
 
-| Layer | File / symbol | Role |
-| ----- | ------------- | ---- |
-| Shared entity | `prospects` + `account_status` | Prospects and Active Accounts are one table |
-| Contacts | [`accountContacts.ts`](src/lib/accountContacts.ts), [`AccountContactsSection.tsx`](src/components/AccountContactsSection.tsx), [`ContactsTab.tsx`](src/components/tabs/ContactsTab.tsx) | People: `buyer` / `manager` / `owner`; email on contact row |
-| Drawers | [`ProspectDetailDrawer.tsx`](src/components/ProspectDetailDrawer.tsx), [`AccountDetailDrawer.tsx`](src/components/AccountDetailDrawer.tsx) | Notes, contacts, confirmed messages, reorder (accounts) |
-| Conversion | [`convertToActiveAccount.ts`](src/lib/convertToActiveAccount.ts) | Prospect → active account |
+| Layer         | File / symbol                                                                                                                                                                           | Role                                                        |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Shared entity | `prospects` + `account_status`                                                                                                                                                          | Prospects and Active Accounts are one table                 |
+| Contacts      | [`accountContacts.ts`](src/lib/accountContacts.ts), [`AccountContactsSection.tsx`](src/components/AccountContactsSection.tsx), [`ContactsTab.tsx`](src/components/tabs/ContactsTab.tsx) | People: `buyer` / `manager` / `owner`; email on contact row |
+| Drawers       | [`ProspectDetailDrawer.tsx`](src/components/ProspectDetailDrawer.tsx), [`AccountDetailDrawer.tsx`](src/components/AccountDetailDrawer.tsx)                                              | Notes, contacts, confirmed messages, reorder (accounts)     |
+| Conversion    | [`convertToActiveAccount.ts`](src/lib/convertToActiveAccount.ts)                                                                                                                        | Prospect → active account                                   |
 
 ```text
 prospects (id)
@@ -90,13 +90,13 @@ Store-level email is **not** a first-class `prospects` column; emails live on `a
 
 ### 2.3 Email today (Resend only)
 
-| Flow | Path | Transport |
-| ---- | ---- | --------- |
-| Wholesale confirmation | [`wholesaleOrderEmail.ts`](src/lib/wholesaleOrderEmail.ts) | Resend |
-| OGR Email Product | [`OgrProductEmailComposerModal.tsx`](src/components/OgrProductEmailComposerModal.tsx) → [`/api/staff/ogr-product-email`](src/pages/api/staff/ogr-product-email.ts) → [`sendOgrProductOutreachEmail.ts`](src/lib/sendOgrProductOutreachEmail.ts) | Resend |
-| Copy Email Card | [`copyOgrProductEmailCard.ts`](src/lib/copyOgrProductEmailCard.ts) | Clipboard (paste into Gmail/Outlook) — **not** Google API |
-| Live-chat staff alert | `sendLiveChatStaffAlert` in [`liveChat.ts`](src/lib/liveChat.ts) | Resend |
-| Default address | `CONTACT_EMAIL` in [`landing.ts`](src/data/landing.ts) | `office@justinfassio.com` |
+| Flow                   | Path                                                                                                                                                                                                                                            | Transport                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Wholesale confirmation | [`wholesaleOrderEmail.ts`](src/lib/wholesaleOrderEmail.ts)                                                                                                                                                                                      | Resend                                                    |
+| OGR Email Product      | [`OgrProductEmailComposerModal.tsx`](src/components/OgrProductEmailComposerModal.tsx) → [`/api/staff/ogr-product-email`](src/pages/api/staff/ogr-product-email.ts) → [`sendOgrProductOutreachEmail.ts`](src/lib/sendOgrProductOutreachEmail.ts) | Resend                                                    |
+| Copy Email Card        | [`copyOgrProductEmailCard.ts`](src/lib/copyOgrProductEmailCard.ts)                                                                                                                                                                              | Clipboard (paste into Gmail/Outlook) — **not** Google API |
+| Live-chat staff alert  | `sendLiveChatStaffAlert` in [`liveChat.ts`](src/lib/liveChat.ts)                                                                                                                                                                                | Resend                                                    |
+| Default address        | `CONTACT_EMAIL` in [`landing.ts`](src/data/landing.ts)                                                                                                                                                                                          | `office@justinfassio.com`                                 |
 
 Env: `RESEND_API_KEY`, optional `WHOLESALE_ORDER_EMAIL_FROM` ([`.env.example`](.env.example)).
 
@@ -109,24 +109,24 @@ Env: `RESEND_API_KEY`, optional `WHOLESALE_ORDER_EMAIL_FROM` ([`.env.example`](.
 
 ### 2.5 Auth / staff gate
 
-| Piece | Path | Role |
-| ----- | ---- | ---- |
-| Session | [`AuthProvider.tsx`](src/components/auth/AuthProvider.tsx) | Supabase session + `profiles` |
-| Client staff checks | [`auth.ts`](src/lib/auth.ts) | `isApprovedStaff` / owner |
-| API staff gate | [`agentAuth.ts`](src/lib/agentAuth.ts) — `requireApprovedStaffClient` | Bearer JWT → `is_approved_staff` |
-| App entry | `/app` → AuthGate → RepCommandCenter | Approved owner/rep only |
+| Piece               | Path                                                                  | Role                             |
+| ------------------- | --------------------------------------------------------------------- | -------------------------------- |
+| Session             | [`AuthProvider.tsx`](src/components/auth/AuthProvider.tsx)            | Supabase session + `profiles`    |
+| Client staff checks | [`auth.ts`](src/lib/auth.ts)                                          | `isApprovedStaff` / owner        |
+| API staff gate      | [`agentAuth.ts`](src/lib/agentAuth.ts) — `requireApprovedStaffClient` | Bearer JWT → `is_approved_staff` |
+| App entry           | `/app` → AuthGate → RepCommandCenter                                  | Approved owner/rep only          |
 
 ### 2.6 Schema relevant today
 
-| Table | Relevance |
-| ----- | --------- |
-| `message_threads` / `messages` | Wholesale + live chat Message Center |
-| `account_contacts` | Email matching target for Gmail association |
-| `prospects` | Account/prospect entity |
-| `calls` | Follow-up dates (calendar seed, not sync) |
-| `prospect_updates` | Sparse notes — **not** a unified timeline |
-| `profiles` | Staff users who will own Google connections |
-| **Absent** | `activities`, `tasks`, `calendar_events`, OAuth token tables, Gmail mirrors |
+| Table                          | Relevance                                                                   |
+| ------------------------------ | --------------------------------------------------------------------------- |
+| `message_threads` / `messages` | Wholesale + live chat Message Center                                        |
+| `account_contacts`             | Email matching target for Gmail association                                 |
+| `prospects`                    | Account/prospect entity                                                     |
+| `calls`                        | Follow-up dates (calendar seed, not sync)                                   |
+| `prospect_updates`             | Sparse notes — **not** a unified timeline                                   |
+| `profiles`                     | Staff users who will own Google connections                                 |
+| **Absent**                     | `activities`, `tasks`, `calendar_events`, OAuth token tables, Gmail mirrors |
 
 Migrations of note: `20260805060000_message_center.sql`, `20260805200000_live_chat.sql`, `20260803010000_account_contacts.sql`.
 
@@ -153,17 +153,17 @@ Astro routes under `src/pages/api/**` with `export const prerender = false;`. Pr
 
 Explicit non-goals / preserve list:
 
-| System | Status |
-| ------ | ------ |
-| OGR Product Email Composer + `POST /api/staff/ogr-product-email` | **Unchanged** — Resend |
-| `renderOgrProductEmailCard` / Copy Email Card | **Unchanged** |
-| Copy Product Link / public wholesale product pages | **Unchanged** |
-| Wholesale Message Center channel | **Unchanged** |
-| Live chat + StaffChatDock | **Unchanged** |
-| Wholesale order confirmation Resend path | **Unchanged** |
-| Live-chat staff alert Resend path | **Unchanged** |
-| CRM contact source of truth (`account_contacts`) | **Unchanged** — not Google Contacts |
-| Existing Call Pipeline / reorder settings | **Unchanged** (Calendar may later deep-link; not replace) |
+| System                                                           | Status                                                    |
+| ---------------------------------------------------------------- | --------------------------------------------------------- |
+| OGR Product Email Composer + `POST /api/staff/ogr-product-email` | **Unchanged** — Resend                                    |
+| `renderOgrProductEmailCard` / Copy Email Card                    | **Unchanged**                                             |
+| Copy Product Link / public wholesale product pages               | **Unchanged**                                             |
+| Wholesale Message Center channel                                 | **Unchanged**                                             |
+| Live chat + StaffChatDock                                        | **Unchanged**                                             |
+| Wholesale order confirmation Resend path                         | **Unchanged**                                             |
+| Live-chat staff alert Resend path                                | **Unchanged**                                             |
+| CRM contact source of truth (`account_contacts`)                 | **Unchanged** — not Google Contacts                       |
+| Existing Call Pipeline / reorder settings                        | **Unchanged** (Calendar may later deep-link; not replace) |
 
 Separation to document in product copy and UI:
 
@@ -246,20 +246,20 @@ Channels: All | Email | Realtime | Wholesale
 
 ### 5.2 MVP capabilities (Email channel)
 
-| Capability | MVP? | Notes |
-| ---------- | ---- | ----- |
-| Inbox / primary conversations | Yes | Gmail inbox or focused “Primary”/INBOX label; paginated |
-| Sent | Yes | Sent label view |
-| Drafts | Yes (basic) | List + open + send/discard |
-| Thread view | Yes | Subject, participants, messages in thread |
-| Compose | Yes | To / Cc optional / Subject / body (plain or simple HTML) |
-| Reply / Reply-all | Yes | In-thread reply using Gmail thread id |
-| Search | Yes (basic) | Gmail `q=` query passthrough; no custom CRM search engine |
-| Attachments download/view | Yes (basic) | Via server proxy; size limits |
-| Attachments upload on send | Phase C+ | Optional in first compose PR if low-risk |
-| Labels beyond Inbox/Sent/Drafts | Deferred | Show unread + starred if cheap; don’t manage full label UI |
-| Full offline mailbox | No | |
-| Filters / vacation / settings | No | |
+| Capability                      | MVP?        | Notes                                                      |
+| ------------------------------- | ----------- | ---------------------------------------------------------- |
+| Inbox / primary conversations   | Yes         | Gmail inbox or focused “Primary”/INBOX label; paginated    |
+| Sent                            | Yes         | Sent label view                                            |
+| Drafts                          | Yes (basic) | List + open + send/discard                                 |
+| Thread view                     | Yes         | Subject, participants, messages in thread                  |
+| Compose                         | Yes         | To / Cc optional / Subject / body (plain or simple HTML)   |
+| Reply / Reply-all               | Yes         | In-thread reply using Gmail thread id                      |
+| Search                          | Yes (basic) | Gmail `q=` query passthrough; no custom CRM search engine  |
+| Attachments download/view       | Yes (basic) | Via server proxy; size limits                              |
+| Attachments upload on send      | Phase C+    | Optional in first compose PR if low-risk                   |
+| Labels beyond Inbox/Sent/Drafts | Deferred    | Show unread + starred if cheap; don’t manage full label UI |
+| Full offline mailbox            | No          |                                                            |
+| Filters / vacation / settings   | No          |                                                            |
 
 ### 5.3 Contextual CRM surfaces
 
@@ -285,13 +285,13 @@ Unmatched threads appear only in the global Messages → Email view with “Link
 
 ### 5.4 Existing components to extend vs replace
 
-| Existing | Action |
-| -------- | ------ |
-| `MessagesTab` | Extend channel filters + Email list mode |
+| Existing                                    | Action                                                                                                                                                     |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MessagesTab`                               | Extend channel filters + Email list mode                                                                                                                   |
 | `MessagesThreadList` / `MessageThreadPanel` | Prefer **parallel** Email list/panel components (`GmailThreadList`, `GmailThreadPanel`) behind the same tab shell — avoid overloading wholesale payload UI |
-| `AccountMessagesSection` | Keep for wholesale/live_chat; add `AccountEmailSection` (or channel tabs inside) |
-| `StaffChatDock` | Unchanged (live chat only) |
-| `message_threads` / `messages` tables | **Do not** store Gmail bodies here in MVP |
+| `AccountMessagesSection`                    | Keep for wholesale/live_chat; add `AccountEmailSection` (or channel tabs inside)                                                                           |
+| `StaffChatDock`                             | Unchanged (live chat only)                                                                                                                                 |
+| `message_threads` / `messages` tables       | **Do not** store Gmail bodies here in MVP                                                                                                                  |
 
 ---
 
@@ -299,17 +299,17 @@ Unmatched threads appear only in the global Messages → Email view with “Link
 
 ### 6.1 OAuth
 
-| Item | Recommendation |
-| ---- | -------------- |
-| Flow | Authorization Code with **server-side code exchange**; staff-only start/callback routes |
-| State | **Required** — validate OAuth `state` (short TTL); reject mismatches |
-| PKCE | Use where cleanly supported by the selected Google web-server OAuth library/flow; **do not** hand-roll unnecessary OAuth cryptography or custom protocol behavior |
-| App type | Google Cloud OAuth client (Web) for `justinfassio.com` + localhost redirect |
-| Consent / audience | **Internal Google Workspace organization only** for MVP (company staff connecting company Workspace mailboxes) |
-| Connected identity | Per `profiles.id` row in `google_account_connections` |
-| App auth vs Google | Supabase continues to authenticate application staff; Google OAuth only represents the connected Workspace account |
-| MVP usage | Expect one Workspace mailbox (`office@…`) connected by owner; schema supports multiple staff later |
-| Hardcoding | **Never** hardcode `office@justinfassio.com` as the only possible connected account; defaults may suggest it in UI copy only |
+| Item                  | Recommendation                                                                                                                                                                                                             |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Flow                  | Authorization Code with **server-side code exchange**; staff-only start/callback routes                                                                                                                                    |
+| State                 | **Required** — validate OAuth `state` (short TTL); reject mismatches                                                                                                                                                       |
+| PKCE                  | Use where cleanly supported by the selected Google web-server OAuth library/flow; **do not** hand-roll unnecessary OAuth cryptography or custom protocol behavior                                                          |
+| App type              | Google Cloud OAuth client (Web) for `justinfassio.com` + localhost redirect                                                                                                                                                |
+| Consent / audience    | **Internal Google Workspace organization only** for MVP (company staff connecting company Workspace mailboxes)                                                                                                             |
+| Connected identity    | Per `profiles.id` row in `google_account_connections`                                                                                                                                                                      |
+| App auth vs Google    | Supabase continues to authenticate application staff; Google OAuth only represents the connected Workspace account                                                                                                         |
+| MVP usage             | Expect one Workspace mailbox (`office@…`) connected by owner; schema supports multiple staff later                                                                                                                         |
+| Hardcoding            | **Never** hardcode `office@justinfassio.com` as the only possible connected account; defaults may suggest it in UI copy only                                                                                               |
 | External distribution | Shipping this integration to **unrelated Google accounts** outside the company Workspace would trigger additional Google verification / security-assessment requirements — treat as a **separate future project**, not MVP |
 
 Suggested routes:
@@ -325,23 +325,23 @@ GET  /api/staff/google/connection          # status for UI
 
 **Google scope classification (Gmail):**
 
-| Scope | Classification | Notes |
-| ----- | -------------- | ----- |
-| `https://www.googleapis.com/auth/gmail.send` | **Sensitive** | Send-only capability |
-| `https://www.googleapis.com/auth/gmail.readonly` | **Restricted** | Read mailbox content |
-| `https://www.googleapis.com/auth/gmail.compose` | **Restricted** | Create/update drafts (and related compose ops) |
+| Scope                                            | Classification | Notes                                          |
+| ------------------------------------------------ | -------------- | ---------------------------------------------- |
+| `https://www.googleapis.com/auth/gmail.send`     | **Sensitive**  | Send-only capability                           |
+| `https://www.googleapis.com/auth/gmail.readonly` | **Restricted** | Read mailbox content                           |
+| `https://www.googleapis.com/auth/gmail.compose`  | **Restricted** | Create/update drafts (and related compose ops) |
 
 Because `gmail.readonly` and `gmail.compose` are Restricted, keep the MVP **internal to the company Google Workspace**. External OAuth clients serving unrelated Google accounts are out of scope (see §6.1).
 
 **Phased scope guidance (do not treat as a fixed bundle):**
 
-| Phase | Scopes | Why |
-| ----- | ------ | --- |
-| A (connect) | `openid`, `email`, `profile` | Identify Workspace account |
-| B (read) | Prefer `gmail.readonly` only | Inbox/thread/search — read-only; no CRM-link writes |
+| Phase           | Scopes                                                                               | Why                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| A (connect)     | `openid`, `email`, `profile`                                                         | Identify Workspace account                                                                                                     |
+| B (read)        | Prefer `gmail.readonly` only                                                         | Inbox/thread/search — read-only; no CRM-link writes                                                                            |
 | C (send/drafts) | **Decide at implementation** — minimum non-overlapping set for the exact ops shipped | May be `gmail.send` alone, `gmail.compose` alone, or a justified subset — **not** assumed `readonly + send + compose` together |
-| Labels/modify | **Defer** `gmail.modify` | Only if starring/archive required in MVP; prefer not |
-| Full mail | **Never** request `https://mail.google.com/` | Too broad |
+| Labels/modify   | **Defer** `gmail.modify`                                                             | Only if starring/archive required in MVP; prefer not                                                                           |
+| Full mail       | **Never** request `https://mail.google.com/`                                         | Too broad                                                                                                                      |
 
 **Scope minimization rules:**
 
@@ -353,13 +353,13 @@ Calendar scopes are separate (Section 9). Request Calendar scopes in Calendar ph
 
 ### 6.3 Tokens
 
-| Rule | Detail |
-| ---- | ------ |
-| Access token | Short-lived; server memory / request-scoped; never `PUBLIC_` |
-| Refresh token | Encrypted at rest in Supabase; decrypt only on server |
-| Browser | May know `connected: true` + Google email; **never** refresh token |
-| Encryption key | Server env e.g. `GOOGLE_TOKEN_ENCRYPTION_KEY` (not in client) |
-| Disconnect | Delete local tokens + best-effort Google revoke |
+| Rule           | Detail                                                             |
+| -------------- | ------------------------------------------------------------------ |
+| Access token   | Short-lived; server memory / request-scoped; never `PUBLIC_`       |
+| Refresh token  | Encrypted at rest in Supabase; decrypt only on server              |
+| Browser        | May know `connected: true` + Google email; **never** refresh token |
+| Encryption key | Server env e.g. `GOOGLE_TOKEN_ENCRYPTION_KEY` (not in client)      |
+| Disconnect     | Delete local tokens + best-effort Google revoke                    |
 
 ### 6.4 API / service boundaries
 
@@ -380,32 +380,32 @@ UI calls staff APIs with Bearer JWT; APIs call Google with stored refresh token.
 
 ### 6.5 Gmail identifiers
 
-| Concept | Store in CRM? | Notes |
-| ------- | ------------- | ----- |
-| `userId` (Google) | On connection row | |
-| `threadId` | Yes (link table) | Primary association key |
-| `messageId` | Optional on link history / not required MVP | |
-| HistoryId | Optional later for push sync | |
-| Labels | Ephemeral from API | |
+| Concept           | Store in CRM?                               | Notes                   |
+| ----------------- | ------------------------------------------- | ----------------------- |
+| `userId` (Google) | On connection row                           |                         |
+| `threadId`        | Yes (link table)                            | Primary association key |
+| `messageId`       | Optional on link history / not required MVP |                         |
+| HistoryId         | Optional later for push sync                |                         |
+| Labels            | Ephemeral from API                          |                         |
 
 ### 6.6 Sync strategy — **recommended: hybrid**
 
-| Approach | Verdict |
-| -------- | ------- |
-| On-demand API only | Good for freshness; weak for account drawer “recent email” without repeated list calls |
-| Full mailbox mirror in Supabase | **Rejected** for MVP — quota, privacy, sync debt |
-| **Hybrid (recommended)** | Gmail = source of truth for bodies **and** live thread headers; CRM persists **association rows** when staff confirms a link (Phase D), plus optional non-authoritative display cache fields |
+| Approach                        | Verdict                                                                                                                                                                                      |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| On-demand API only              | Good for freshness; weak for account drawer “recent email” without repeated list calls                                                                                                       |
+| Full mailbox mirror in Supabase | **Rejected** for MVP — quota, privacy, sync debt                                                                                                                                             |
+| **Hybrid (recommended)**        | Gmail = source of truth for bodies **and** live thread headers; CRM persists **association rows** when staff confirms a link (Phase D), plus optional non-authoritative display cache fields |
 
 **Persist in `gmail_thread_links`:**
 
-| Field | Role |
-| ----- | ---- |
-| `gmail_thread_id` (unique per connection) | Authoritative association key (Google id) |
-| `google_connection_id` | Authoritative association key |
-| `prospect_id` / `account_contact_id` | Authoritative CRM link (after staff confirm) |
-| `link_status` (`suggested` / `confirmed`, etc.) | Authoritative CRM workflow state |
+| Field                                                             | Role                                                           |
+| ----------------------------------------------------------------- | -------------------------------------------------------------- |
+| `gmail_thread_id` (unique per connection)                         | Authoritative association key (Google id)                      |
+| `google_connection_id`                                            | Authoritative association key                                  |
+| `prospect_id` / `account_contact_id`                              | Authoritative CRM link (after staff confirm)                   |
+| `link_status` (`suggested` / `confirmed`, etc.)                   | Authoritative CRM workflow state                               |
 | `subject`, `snippet`, `participants`, `unread`, `last_message_at` | **Non-authoritative cache only** — for drawer/list convenience |
-| timestamps | Row bookkeeping |
+| timestamps                                                        | Row bookkeeping                                                |
 
 **Cache semantics:** when a live Gmail thread differs from cached metadata, **Gmail wins**. Refresh cache fields opportunistically on thread open / after send; never treat cache as SoT. Do not invent CRM truth from stale snippets.
 
@@ -458,16 +458,16 @@ Also consider visitor/wholesale emails already known when staff opens a thread, 
 
 ### 7.3 Behaviors
 
-| Case | MVP behavior |
-| ---- | ------------ |
-| One matching contact | Show suggestion on thread open; persist only after staff confirms |
-| Multiple contacts / accounts | Show picker; no silent overwrite |
-| CC-only match | Suggest; lower confidence than From/To |
-| Unknown sender | Remain unlinked; show in Email inbox; “Link to account…” |
-| Aliases | Exact match only in MVP; alias table deferred |
-| Shared inbox addresses | Connection is the mailbox; matching still by participant emails |
-| Contact not in CRM | Allow “Add contact to account…” from thread (creates `account_contacts` only when staff chooses) |
-| Inbox list fetch | No automatic `gmail_thread_links` writes |
+| Case                         | MVP behavior                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| One matching contact         | Show suggestion on thread open; persist only after staff confirms                                |
+| Multiple contacts / accounts | Show picker; no silent overwrite                                                                 |
+| CC-only match                | Suggest; lower confidence than From/To                                                           |
+| Unknown sender               | Remain unlinked; show in Email inbox; “Link to account…”                                         |
+| Aliases                      | Exact match only in MVP; alias table deferred                                                    |
+| Shared inbox addresses       | Connection is the mailbox; matching still by participant emails                                  |
+| Contact not in CRM           | Allow “Add contact to account…” from thread (creates `account_contacts` only when staff chooses) |
+| Inbox list fetch             | No automatic `gmail_thread_links` writes                                                         |
 
 ### 7.4 Mapping UX
 
@@ -483,16 +483,16 @@ Add `TabKey` value `'calendar'` and a **Calendar** tab (not buried only inside C
 
 MVP:
 
-| Capability | MVP? |
-| ---------- | ---- |
-| View upcoming meetings/events | Yes |
-| Create event | Yes |
-| Edit / cancel event | Yes |
-| Invite CRM contacts (email) | Yes |
-| Add Google Meet | Yes (ConferenceData) |
-| Associate event ↔ account/contact | Yes (link table) |
-| Full month grid polish | Nice-to-have; agenda/list is enough for MVP |
-| Public website booking | **Deferred** (Section 15) |
+| Capability                        | MVP?                                        |
+| --------------------------------- | ------------------------------------------- |
+| View upcoming meetings/events     | Yes                                         |
+| Create event                      | Yes                                         |
+| Edit / cancel event               | Yes                                         |
+| Invite CRM contacts (email)       | Yes                                         |
+| Add Google Meet                   | Yes (ConferenceData)                        |
+| Associate event ↔ account/contact | Yes (link table)                            |
+| Full month grid polish            | Nice-to-have; agenda/list is enough for MVP |
+| Public website booking            | **Deferred** (Section 15)                   |
 
 ### 8.2 CRM workflows
 
@@ -505,15 +505,15 @@ Call Pipeline `follow_up_date` remains independent in MVP (optional later: “Cr
 
 ## 9. Calendar Technical Architecture
 
-| Item | Recommendation |
-| ---- | -------------- |
-| Source of truth | Google Calendar |
-| Scopes (current recommendation) | `https://www.googleapis.com/auth/calendar.events` (prefer over full `calendar`) |
-| Scope verification (Phase E) | Before finalizing, verify whether `calendar.events.owned` is **sufficient** for actual MVP ops (list/create/edit/cancel + attendees + Meet). Choose the **narrowest** scope that satisfies those requirements |
-| Persistence | `calendar_event_links`: `google_event_id`, `calendar_id`, connection id, `prospect_id`, `account_contact_id`, title/start/end cache, meet link |
-| Sync | On-demand list/get; write-through on create/edit/cancel |
-| Watch channels | **Defer** (same ops cost as Gmail push) |
-| Default calendar | Primary calendar of connected Workspace account |
+| Item                            | Recommendation                                                                                                                                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source of truth                 | Google Calendar                                                                                                                                                                                               |
+| Scopes (current recommendation) | `https://www.googleapis.com/auth/calendar.events` (prefer over full `calendar`)                                                                                                                               |
+| Scope verification (Phase E)    | Before finalizing, verify whether `calendar.events.owned` is **sufficient** for actual MVP ops (list/create/edit/cancel + attendees + Meet). Choose the **narrowest** scope that satisfies those requirements |
+| Persistence                     | `calendar_event_links`: `google_event_id`, `calendar_id`, connection id, `prospect_id`, `account_contact_id`, title/start/end cache, meet link                                                                |
+| Sync                            | On-demand list/get; write-through on create/edit/cancel                                                                                                                                                       |
+| Watch channels                  | **Defer** (same ops cost as Gmail push)                                                                                                                                                                       |
+| Default calendar                | Primary calendar of connected Workspace account                                                                                                                                                               |
 
 ---
 
@@ -521,12 +521,12 @@ Call Pipeline `follow_up_date` remains independent in MVP (optional later: “Cr
 
 **Defer Google Contacts for MVP.**
 
-| Concern | Decision |
-| ------- | -------- |
-| CRM source of truth | `account_contacts` remains authoritative |
-| Gmail matching | Works from `account_contacts.email` without Google Contacts sync |
-| Dual-write risk | High confusion if Google Contacts becomes a second truth |
-| Scope creep | Extra OAuth scopes + sync UX |
+| Concern             | Decision                                                         |
+| ------------------- | ---------------------------------------------------------------- |
+| CRM source of truth | `account_contacts` remains authoritative                         |
+| Gmail matching      | Works from `account_contacts.email` without Google Contacts sync |
+| Dual-write risk     | High confusion if Google Contacts becomes a second truth         |
+| Scope creep         | Extra OAuth scopes + sync UX                                     |
 
 **Revisit later** only if staff need one-click “create Google Contact from CRM” for mobile address books — as an optional export, never the reverse as CRM master.
 
@@ -538,17 +538,17 @@ Call Pipeline `follow_up_date` remains independent in MVP (optional later: “Cr
 
 **`google_account_connections`**
 
-| Column | Notes |
-| ------ | ----- |
-| `id` uuid PK | |
-| `profile_id` uuid → `profiles.id` unique | Staff owner of connection |
-| `google_sub` text | Subject from ID token |
-| `google_email` text | Connected Workspace email |
-| `refresh_token_ciphertext` text | Encrypted; never select to client |
-| `scopes` text[] | Granted scopes |
-| `token_expires_at` timestamptz null | Optional access-token cache metadata |
-| `status` text | `active` / `revoked` / `error` |
-| `created_at` / `updated_at` | |
+| Column                                   | Notes                                |
+| ---------------------------------------- | ------------------------------------ |
+| `id` uuid PK                             |                                      |
+| `profile_id` uuid → `profiles.id` unique | Staff owner of connection            |
+| `google_sub` text                        | Subject from ID token                |
+| `google_email` text                      | Connected Workspace email            |
+| `refresh_token_ciphertext` text          | Encrypted; never select to client    |
+| `scopes` text[]                          | Granted scopes                       |
+| `token_expires_at` timestamptz null      | Optional access-token cache metadata |
+| `status` text                            | `active` / `revoked` / `error`       |
+| `created_at` / `updated_at`              |                                      |
 
 RLS: approved staff can read **their own** non-secret columns; **no** client read of ciphertext. Prefer all token access via service/server paths that never return ciphertext to the browser. Practical pattern: staff APIs use user JWT for authz, then server decrypts with env key; or store tokens only accessible to service role.
 
@@ -573,21 +573,21 @@ RLS: approved staff can read **their own** non-secret columns; **no** client rea
 
 ## 12. Security Model
 
-| Topic | Requirement |
-| ----- | ----------- |
-| OAuth `state` | **Required** — validate on callback; short TTL |
-| PKCE | Use when cleanly supported by the chosen Google web-server OAuth implementation; do not hand-roll custom OAuth crypto |
-| Code exchange / refresh tokens | Secure **server-side** authorization-code exchange; encrypt refresh tokens at rest; never `PUBLIC_` / never React imports |
-| Access tokens | Ephemeral server-side |
-| Scopes | Least privilege; avoid redundant Gmail scopes; never `https://mail.google.com/`; incremental auth preferred |
-| Audience | Internal Workspace MVP; external Google-account distribution = separate verification project |
-| Staff auth | Every Google/Gmail/Calendar API route uses `requireApprovedStaffClient` (Supabase staff session). Google OAuth is only the connected mailbox credential |
-| Disconnect / revoke | Local delete + Google revoke endpoint |
-| Webhooks | N/A in MVP; if added later, verify Google signatures / channel tokens |
-| Message bodies | Treat as sensitive PII; log IDs not bodies; no client-side Google tokens; no body mirror into `message_threads` |
-| Attachments | Size limits; MIME allowlist; virus scanning deferred but don’t execute content |
-| Secrets | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_ENCRYPTION_KEY`, redirect URI — server-only |
-| CSP / Vercel | May need allowlists for Google OAuth redirects (browser navigates to Google; API calls are server-side) |
+| Topic                          | Requirement                                                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OAuth `state`                  | **Required** — validate on callback; short TTL                                                                                                          |
+| PKCE                           | Use when cleanly supported by the chosen Google web-server OAuth implementation; do not hand-roll custom OAuth crypto                                   |
+| Code exchange / refresh tokens | Secure **server-side** authorization-code exchange; encrypt refresh tokens at rest; never `PUBLIC_` / never React imports                               |
+| Access tokens                  | Ephemeral server-side                                                                                                                                   |
+| Scopes                         | Least privilege; avoid redundant Gmail scopes; never `https://mail.google.com/`; incremental auth preferred                                             |
+| Audience                       | Internal Workspace MVP; external Google-account distribution = separate verification project                                                            |
+| Staff auth                     | Every Google/Gmail/Calendar API route uses `requireApprovedStaffClient` (Supabase staff session). Google OAuth is only the connected mailbox credential |
+| Disconnect / revoke            | Local delete + Google revoke endpoint                                                                                                                   |
+| Webhooks                       | N/A in MVP; if added later, verify Google signatures / channel tokens                                                                                   |
+| Message bodies                 | Treat as sensitive PII; log IDs not bodies; no client-side Google tokens; no body mirror into `message_threads`                                         |
+| Attachments                    | Size limits; MIME allowlist; virus scanning deferred but don’t execute content                                                                          |
+| Secrets                        | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_ENCRYPTION_KEY`, redirect URI — server-only                                                   |
+| CSP / Vercel                   | May need allowlists for Google OAuth redirects (browser navigates to Google; API calls are server-side)                                                 |
 
 ---
 
@@ -848,44 +848,44 @@ npm run check.
 
 ### Existing files to extend
 
-| File | Change |
-| ---- | ------ |
-| [`src/types/index.ts`](src/types/index.ts) | Add `'calendar'` to `TabKey` |
-| [`src/components/TabNav.tsx`](src/components/TabNav.tsx) | Calendar nav item |
-| [`src/components/RepCommandCenter.tsx`](src/components/RepCommandCenter.tsx) | Mount Calendar tab; optional Google connection badge |
-| [`src/components/tabs/MessagesTab.tsx`](src/components/tabs/MessagesTab.tsx) | Email channel filter + mount Gmail panels |
-| [`src/components/AccountDetailDrawer.tsx`](src/components/AccountDetailDrawer.tsx) / [`ProspectDetailDrawer.tsx`](src/components/ProspectDetailDrawer.tsx) | Email + Schedule meeting sections |
-| [`.env.example`](.env.example) | Google OAuth + encryption key vars |
-| [`docs/product-architecture.md`](docs/product-architecture.md) | Pointer to this roadmap / transport split |
+| File                                                                                                                                                       | Change                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| [`src/types/index.ts`](src/types/index.ts)                                                                                                                 | Add `'calendar'` to `TabKey`                         |
+| [`src/components/TabNav.tsx`](src/components/TabNav.tsx)                                                                                                   | Calendar nav item                                    |
+| [`src/components/RepCommandCenter.tsx`](src/components/RepCommandCenter.tsx)                                                                               | Mount Calendar tab; optional Google connection badge |
+| [`src/components/tabs/MessagesTab.tsx`](src/components/tabs/MessagesTab.tsx)                                                                               | Email channel filter + mount Gmail panels            |
+| [`src/components/AccountDetailDrawer.tsx`](src/components/AccountDetailDrawer.tsx) / [`ProspectDetailDrawer.tsx`](src/components/ProspectDetailDrawer.tsx) | Email + Schedule meeting sections                    |
+| [`.env.example`](.env.example)                                                                                                                             | Google OAuth + encryption key vars                   |
+| [`docs/product-architecture.md`](docs/product-architecture.md)                                                                                             | Pointer to this roadmap / transport split            |
 
 ### Proposed new files (indicative)
 
-| File | Phase |
-| ---- | ----- |
-| `supabase/migrations/YYYYMMDDHHMMSS_google_account_connections.sql` | A |
-| `supabase/migrations/YYYYMMDDHHMMSS_gmail_thread_links.sql` | D |
-| `supabase/migrations/YYYYMMDDHHMMSS_calendar_event_links.sql` | F |
-| `src/lib/google/oauth.ts` | A |
-| `src/lib/google/tokenStore.ts` | A |
-| `src/lib/google/gmailClient.ts` | B–C |
-| `src/lib/google/calendarClient.ts` | E |
-| `src/lib/google/crmEmailMatch.ts` | D |
-| `src/pages/api/staff/google/oauth/start.ts` | A |
-| `src/pages/api/staff/google/oauth/callback.ts` | A |
-| `src/pages/api/staff/google/connection.ts` | A |
-| `src/pages/api/staff/google/disconnect.ts` | A |
-| `src/pages/api/staff/gmail/threads/index.ts` | B |
-| `src/pages/api/staff/gmail/threads/[threadId].ts` | B |
-| `src/pages/api/staff/gmail/send.ts` | C |
-| `src/pages/api/staff/gmail/drafts.ts` | C |
-| `src/pages/api/staff/calendar/events.ts` | E |
-| `src/components/tabs/CalendarTab.tsx` | E |
-| `src/components/google/ConnectGoogleWorkspaceCard.tsx` | A |
-| `src/components/messages/GmailThreadList.tsx` | B |
-| `src/components/messages/GmailThreadPanel.tsx` | B |
-| `src/components/messages/GmailComposeModal.tsx` | C |
-| `src/components/messages/AccountEmailSection.tsx` | D |
-| `src/test/api/google-*.test.ts` / `src/lib/google/*.test.ts` | A–F |
+| File                                                                | Phase |
+| ------------------------------------------------------------------- | ----- |
+| `supabase/migrations/YYYYMMDDHHMMSS_google_account_connections.sql` | A     |
+| `supabase/migrations/YYYYMMDDHHMMSS_gmail_thread_links.sql`         | D     |
+| `supabase/migrations/YYYYMMDDHHMMSS_calendar_event_links.sql`       | F     |
+| `src/lib/google/oauth.ts`                                           | A     |
+| `src/lib/google/tokenStore.ts`                                      | A     |
+| `src/lib/google/gmailClient.ts`                                     | B–C   |
+| `src/lib/google/calendarClient.ts`                                  | E     |
+| `src/lib/google/crmEmailMatch.ts`                                   | D     |
+| `src/pages/api/staff/google/oauth/start.ts`                         | A     |
+| `src/pages/api/staff/google/oauth/callback.ts`                      | A     |
+| `src/pages/api/staff/google/connection.ts`                          | A     |
+| `src/pages/api/staff/google/disconnect.ts`                          | A     |
+| `src/pages/api/staff/gmail/threads/index.ts`                        | B     |
+| `src/pages/api/staff/gmail/threads/[threadId].ts`                   | B     |
+| `src/pages/api/staff/gmail/send.ts`                                 | C     |
+| `src/pages/api/staff/gmail/drafts.ts`                               | C     |
+| `src/pages/api/staff/calendar/events.ts`                            | E     |
+| `src/components/tabs/CalendarTab.tsx`                               | E     |
+| `src/components/google/ConnectGoogleWorkspaceCard.tsx`              | A     |
+| `src/components/messages/GmailThreadList.tsx`                       | B     |
+| `src/components/messages/GmailThreadPanel.tsx`                      | B     |
+| `src/components/messages/GmailComposeModal.tsx`                     | C     |
+| `src/components/messages/AccountEmailSection.tsx`                   | D     |
+| `src/test/api/google-*.test.ts` / `src/lib/google/*.test.ts`        | A–F   |
 
 ### Explicitly do **not** modify for Gmail transport
 
@@ -909,48 +909,48 @@ npm run check.
 
 ## 19. Test Strategy
 
-| Area | Approach |
-| ---- | -------- |
-| OAuth | Unit-test `state` validation (and PKCE helpers if used); callback rejects bad state; unauthenticated 401 |
-| Token store | Encrypt/decrypt round-trip; ensure API responses omit ciphertext |
-| Gmail/Calendar clients | Mock HTTP; map errors (401 revoked → connection status error) |
-| Staff auth | Non-staff 403 on all `/api/staff/google|gmail|calendar/*` |
-| Matching | `crmEmailMatch` unit tests: exact, none, multi-account ambiguity |
-| UI | RTL: Email channel empty/disconnected states; compose validation |
-| Regression | Existing Message Center + OGR email API tests must stay green |
-| Manual smoke | Connect Workspace → read thread → send to self → link account → create Meet event |
+| Area                   | Approach                                                                                                 |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- |
+| OAuth                  | Unit-test `state` validation (and PKCE helpers if used); callback rejects bad state; unauthenticated 401 |
+| Token store            | Encrypt/decrypt round-trip; ensure API responses omit ciphertext                                         |
+| Gmail/Calendar clients | Mock HTTP; map errors (401 revoked → connection status error)                                            |
+| Staff auth             | Non-staff 403 on all `/api/staff/google                                                                  | gmail | calendar/*` |
+| Matching               | `crmEmailMatch` unit tests: exact, none, multi-account ambiguity                                         |
+| UI                     | RTL: Email channel empty/disconnected states; compose validation                                         |
+| Regression             | Existing Message Center + OGR email API tests must stay green                                            |
+| Manual smoke           | Connect Workspace → read thread → send to self → link account → create Meet event                        |
 
 ---
 
 ## 20. Operational Requirements
 
-| Requirement | Detail |
-| ----------- | ------ |
-| Google Cloud project | Enable Gmail API + Google Calendar API |
-| OAuth consent screen | **Internal / company Google Workspace only** for MVP; external Google-account distribution deferred (extra verification / security assessment) |
-| Gmail scope classes | Document Sensitive (`gmail.send`) vs Restricted (`gmail.readonly`, `gmail.compose`) in ops notes; minimize overlapping scopes |
-| OAuth client | Web application |
-| Redirect URLs | `http://localhost:4321/api/staff/google/oauth/callback`, production/preview HTTPS equivalents |
-| Env vars | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_ENCRYPTION_KEY`, `GOOGLE_OAUTH_REDIRECT_URI` (or derive from request origin carefully) |
-| Workspace | Mailbox used for business correspondence (e.g. office@) available to connecting staff user |
-| Vercel | Set server env for Production/Preview; never `PUBLIC_` for secrets |
-| Support | Document disconnect + reconnect when Google revokes refresh tokens |
+| Requirement          | Detail                                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Google Cloud project | Enable Gmail API + Google Calendar API                                                                                                           |
+| OAuth consent screen | **Internal / company Google Workspace only** for MVP; external Google-account distribution deferred (extra verification / security assessment)   |
+| Gmail scope classes  | Document Sensitive (`gmail.send`) vs Restricted (`gmail.readonly`, `gmail.compose`) in ops notes; minimize overlapping scopes                    |
+| OAuth client         | Web application                                                                                                                                  |
+| Redirect URLs        | `http://localhost:4321/api/staff/google/oauth/callback`, production/preview HTTPS equivalents                                                    |
+| Env vars             | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_ENCRYPTION_KEY`, `GOOGLE_OAUTH_REDIRECT_URI` (or derive from request origin carefully) |
+| Workspace            | Mailbox used for business correspondence (e.g. office@) available to connecting staff user                                                       |
+| Vercel               | Set server env for Production/Preview; never `PUBLIC_` for secrets                                                                               |
+| Support              | Document disconnect + reconnect when Google revokes refresh tokens                                                                               |
 
 ---
 
 ## 21. Risks
 
-| Risk | Mitigation |
-| ---- | ---------- |
-| Gmail API quota | On-demand + pagination; cache only link metadata; debounce refresh |
+| Risk                                               | Mitigation                                                                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Gmail API quota                                    | On-demand + pagination; cache only link metadata; debounce refresh                                                 |
 | OAuth verification / Sensitive + Restricted scopes | Keep MVP Workspace-internal; Restricted Gmail scopes block casual external apps; minimize scopes; incremental auth |
-| Token revocation | Surface reconnect CTA; mark connection `error` |
-| Sync consistency | Gmail/Calendar are SoT; treat link metadata cache as stale-ok; on conflict Gmail/Calendar win |
-| Account matching errors | Lazy suggest on thread open + confirm; no inbox auto-link; no silent account creation |
-| Privacy / PII in logs | Log thread IDs, not bodies |
-| Naming confusion Messages vs Gmail vs Resend | UI copy: Email (Gmail) vs Email Product (Resend) |
-| Overloading `message_threads` | Parallel link tables (recommended) |
-| Serverless OAuth callback quirks | Explicit redirect URI config; test localhost + preview |
+| Token revocation                                   | Surface reconnect CTA; mark connection `error`                                                                     |
+| Sync consistency                                   | Gmail/Calendar are SoT; treat link metadata cache as stale-ok; on conflict Gmail/Calendar win                      |
+| Account matching errors                            | Lazy suggest on thread open + confirm; no inbox auto-link; no silent account creation                              |
+| Privacy / PII in logs                              | Log thread IDs, not bodies                                                                                         |
+| Naming confusion Messages vs Gmail vs Resend       | UI copy: Email (Gmail) vs Email Product (Resend)                                                                   |
+| Overloading `message_threads`                      | Parallel link tables (recommended)                                                                                 |
+| Serverless OAuth callback quirks                   | Explicit redirect URI config; test localhost + preview                                                             |
 
 ---
 
@@ -988,13 +988,13 @@ After roadmap approval:
 
 Only items that genuinely need a product/ops choice before or during early phases:
 
-1. **Single consent vs incremental scopes** — One connect screen requesting Gmail+Calendar together, vs Gmail-first then Calendar upgrade. *Recommendation:* incremental (Gmail in A/B/C; add Calendar scopes at E) unless ops strongly prefers one consent.
-2. **Where “Connect Google” lives** — Messages empty state vs a small Settings panel vs both. *Recommendation:* both Messages Email empty state + a compact status in Calendar.
+1. **Single consent vs incremental scopes** — One connect screen requesting Gmail+Calendar together, vs Gmail-first then Calendar upgrade. _Recommendation:_ incremental (Gmail in A/B/C; add Calendar scopes at E) unless ops strongly prefers one consent.
+2. **Where “Connect Google” lives** — Messages empty state vs a small Settings panel vs both. _Recommendation:_ both Messages Email empty state + a compact status in Calendar.
 3. **Phase C final Gmail scope set** — Exact minimum non-overlapping scopes for send/reply/drafts (resolved during Phase C implementation; not pre-bundled).
 4. **Phase E final Calendar scope** — `calendar.events` vs `calendar.events.owned` after verification against Meet/attendee needs.
 5. **Proactive inbox-wide Gmail→CRM suggestions** — Deferred by default; revisit only after lazy/manual-first linking (Phase D) proves useful.
 6. **Preview deploy OAuth redirects** — Whether Vercel preview URLs are first-class redirect targets or localhost+production only for MVP.
-7. **Token table access pattern** — Ciphertext readable only via service role vs encrypted columns with staff RLS on non-secret fields. *Recommendation:* staff can read connection status row; ciphertext selected only in server modules that never serialize it to Response.
+7. **Token table access pattern** — Ciphertext readable only via service role vs encrypted columns with staff RLS on non-secret fields. _Recommendation:_ staff can read connection status row; ciphertext selected only in server modules that never serialize it to Response.
 8. **PKCE with chosen library** — Confirm the selected Google web-server OAuth path supports PKCE cleanly; if not, rely on confidential-client server secret + mandatory `state` (do not hand-roll PKCE).
 
 ---

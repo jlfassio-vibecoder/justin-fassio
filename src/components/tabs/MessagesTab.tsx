@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AccountDetailDrawer } from '@/components/AccountDetailDrawer';
 import { AccountOrderHistoryModal } from '@/components/AccountOrderHistoryModal';
+import { ConnectGoogleWorkspaceCard } from '@/components/google/ConnectGoogleWorkspaceCard';
 import { MessageThreadPanel } from '@/components/messages/MessageThreadPanel';
 import { MessagesThreadList } from '@/components/messages/MessagesThreadList';
 import { ProspectDetailDrawer } from '@/components/ProspectDetailDrawer';
@@ -22,8 +23,12 @@ const MAPPING_FILTERS: { key: MessageThreadFilter; label: string }[] = [
   { key: 'confirmed', label: 'Confirmed' },
 ];
 
-const CHANNEL_FILTERS: { key: MessageChannelFilter; label: string }[] = [
+/** UI channel filter — `email` is Phase A Google connection (not a message_threads channel). */
+type MessagesUiChannel = MessageChannelFilter | 'email';
+
+const CHANNEL_FILTERS: { key: MessagesUiChannel; label: string }[] = [
   { key: 'all', label: 'All channels' },
+  { key: 'email', label: 'Email' },
   { key: 'live_chat', label: 'Realtime' },
   { key: 'wholesale', label: 'Wholesale' },
 ];
@@ -46,7 +51,7 @@ export function MessagesTab({
   onSurfaceLiveChatPill,
 }: MessagesTabProps) {
   const [filter, setFilter] = useState<MessageThreadFilter>('all');
-  const [channel, setChannel] = useState<MessageChannelFilter>('all');
+  const [channel, setChannel] = useState<MessagesUiChannel>('all');
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [selected, setSelected] = useState<MessageThread | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,6 +81,19 @@ export function MessagesTab({
     let active = true;
 
     void (async () => {
+      if (channel === 'email') {
+        setThreads([]);
+        setSelected(null);
+        setError(null);
+        setLoading(false);
+        if (onNeedsMappingCountChange) {
+          const badge = await fetchNeedsMappingCount();
+          if (!active) return;
+          onNeedsMappingCountChange(badge.count);
+        }
+        return;
+      }
+
       const result = await fetchMessageThreads({ filter, channel });
       if (!active) return;
       if (result.error) {
@@ -135,8 +153,9 @@ export function MessagesTab({
         <div>
           <h2 className="font-heading m-0 text-2xl">Messages</h2>
           <p className="text-ink/65 m-0 mt-1 text-sm">
-            Wholesale requests and live chat history. Open realtime chats in floating windows to
-            reply while working other tabs. Confirm the account map so threads show on drawers.
+            Wholesale requests, live chat, and Google Workspace email connection. Open realtime
+            chats in floating windows to reply while working other tabs. Confirm the account map so
+            threads show on drawers.
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -158,29 +177,35 @@ export function MessagesTab({
               </button>
             ))}
           </div>
-          <div className="bg-surface flex items-center gap-1 rounded-full p-1">
-            {MAPPING_FILTERS.map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => {
-                  setLoading(true);
-                  setFilter(f.key);
-                }}
-                className={cn(
-                  'font-heading rounded-full px-3.5 py-1.5 text-sm',
-                  filter === f.key ? 'bg-accent text-bg' : 'text-ink/70 bg-transparent',
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
+          {channel !== 'email' ? (
+            <div className="bg-surface flex items-center gap-1 rounded-full p-1">
+              {MAPPING_FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => {
+                    setLoading(true);
+                    setFilter(f.key);
+                  }}
+                  className={cn(
+                    'font-heading rounded-full px-3.5 py-1.5 text-sm',
+                    filter === f.key ? 'bg-accent text-bg' : 'text-ink/70 bg-transparent',
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
 
-      {loading ? <p className="text-ink/60 m-0 text-sm">Loading threads…</p> : null}
-      {error ? (
+      {channel === 'email' ? <ConnectGoogleWorkspaceCard /> : null}
+
+      {channel !== 'email' && loading ? (
+        <p className="text-ink/60 m-0 text-sm">Loading threads…</p>
+      ) : null}
+      {channel !== 'email' && error ? (
         <p className="text-accent-800 m-0 text-sm" role="alert">
           {error}
         </p>
@@ -191,7 +216,7 @@ export function MessagesTab({
         </p>
       ) : null}
 
-      {!loading && !error ? (
+      {channel !== 'email' && !loading && !error ? (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
           <MessagesThreadList
             threads={threads}
