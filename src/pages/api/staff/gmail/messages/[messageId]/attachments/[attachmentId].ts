@@ -6,6 +6,7 @@ import {
   GoogleAccessTokenError,
 } from '@/lib/google/accessToken';
 import { GmailClientError } from '@/lib/google/gmailClient';
+import { gmailClientErrorJsonResponse } from '@/lib/google/gmailErrors';
 import { downloadGmailAttachment } from '@/lib/google/gmailSend';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
 
@@ -56,8 +57,11 @@ export const GET: APIRoute = async ({ request, params }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof GmailClientError) {
-      console.error('[gmail]', { workflow: 'attachment_download', error: 'gmail_failed' });
-      return json({ ok: false, error: 'Failed to download attachment' }, 502);
+      return gmailClientErrorJsonResponse(
+        'attachment_download',
+        err,
+        'Failed to download attachment',
+      );
     }
     console.error('[gmail]', { workflow: 'attachment_download', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to download attachment' }, 500);

@@ -117,9 +117,17 @@ async function gmailFetchJson<T>(params: {
   if (res.status === 204) {
     return {} as T;
   }
-  const json = (await res.json()) as T & { error?: { message?: string } };
+  let json: T & { error?: { message?: string; status?: string; errors?: { reason?: string }[] } };
+  try {
+    json = (await res.json()) as typeof json;
+  } catch {
+    throw new GmailClientError(`Gmail API error (${res.status})`, { status: res.status });
+  }
   if (!res.ok) {
-    throw new GmailClientError(json.error?.message ?? `Gmail API error (${res.status})`);
+    throw new GmailClientError(json.error?.message ?? `Gmail API error (${res.status})`, {
+      status: res.status,
+      reason: json.error?.errors?.[0]?.reason ?? json.error?.status,
+    });
   }
   return json;
 }

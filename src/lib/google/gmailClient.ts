@@ -11,9 +11,14 @@ const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const MAX_RESULTS_CAP = 25;
 
 export class GmailClientError extends Error {
-  constructor(message: string) {
+  readonly status?: number;
+  readonly reason?: string;
+
+  constructor(message: string, opts?: { status?: number; reason?: string }) {
     super(message);
     this.name = 'GmailClientError';
+    this.status = opts?.status;
+    this.reason = opts?.reason;
   }
 }
 
@@ -163,9 +168,17 @@ async function gmailFetchJson<T>(params: {
   const res = await fetchImpl(params.url, {
     headers: { Authorization: `Bearer ${params.accessToken}` },
   });
-  const json = (await res.json()) as T & { error?: { message?: string } };
+  let json: T & { error?: { message?: string; status?: string; errors?: { reason?: string }[] } };
+  try {
+    json = (await res.json()) as typeof json;
+  } catch {
+    throw new GmailClientError(`Gmail API error (${res.status})`, { status: res.status });
+  }
   if (!res.ok) {
-    throw new GmailClientError(json.error?.message ?? `Gmail API error (${res.status})`);
+    throw new GmailClientError(json.error?.message ?? `Gmail API error (${res.status})`, {
+      status: res.status,
+      reason: json.error?.errors?.[0]?.reason ?? json.error?.status,
+    });
   }
   return json;
 }

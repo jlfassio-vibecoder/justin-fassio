@@ -6,6 +6,7 @@ import {
   GoogleAccessTokenError,
 } from '@/lib/google/accessToken';
 import { GmailClientError, listGmailThreads } from '@/lib/google/gmailClient';
+import { gmailClientErrorJsonResponse } from '@/lib/google/gmailErrors';
 import type { GmailLabelFilter } from '@/lib/google/gmailTypes';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
 
@@ -65,8 +66,7 @@ export const GET: APIRoute = async ({ request }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof GmailClientError) {
-      console.error('[gmail]', { workflow: 'list_threads', error: 'gmail_failed' });
-      return json({ ok: false, error: 'Failed to load Gmail threads' }, 502);
+      return gmailClientErrorJsonResponse('list_threads', err, 'Failed to load Gmail threads');
     }
     console.error('[gmail]', { workflow: 'list_threads', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to load Gmail threads' }, 500);

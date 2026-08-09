@@ -7,6 +7,7 @@ import {
 } from '@/lib/google/accessToken';
 import { GmailClientError } from '@/lib/google/gmailClient';
 import { parseReplyRequestBody } from '@/lib/google/gmailComposeValidation';
+import { gmailClientErrorJsonResponse } from '@/lib/google/gmailErrors';
 import { GmailMimeError } from '@/lib/google/gmailMime';
 import { replyToGmailThread } from '@/lib/google/gmailSend';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
@@ -73,8 +74,7 @@ export const POST: APIRoute = async ({ request, params }) => {
       return json({ ok: false, error: err.message }, 400);
     }
     if (err instanceof GmailClientError) {
-      console.error('[gmail]', { workflow: 'reply', error: 'gmail_failed' });
-      return json({ ok: false, error: 'Failed to send Gmail reply' }, 502);
+      return gmailClientErrorJsonResponse('reply', err, 'Failed to send Gmail reply');
     }
     console.error('[gmail]', { workflow: 'reply', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to send Gmail reply' }, 500);
