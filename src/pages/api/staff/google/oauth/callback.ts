@@ -22,7 +22,12 @@ function appRedirect(origin: string, params: Record<string, string>): Response {
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
-  return Response.redirect(url.toString(), 302);
+  // Use a mutable Response (not Response.redirect): Astro appends Set-Cookie
+  // from cookies.set() and immutable redirect headers throw TypeError: immutable → 500.
+  return new Response(null, {
+    status: 302,
+    headers: { Location: url.toString() },
+  });
 }
 
 export const GET: APIRoute = async ({ request, cookies }) => {
