@@ -375,6 +375,7 @@ export async function downloadGmailAttachmentClient(params: {
   a.href = url;
   a.download = params.filename || 'attachment';
   a.click();
-  URL.revokeObjectURL(url);
+  // Defer revoke so browsers that download asynchronously are not truncated.
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   return { ok: true };
 }

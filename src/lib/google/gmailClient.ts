@@ -211,15 +211,16 @@ export async function listGmailThreads(params: {
   });
 
   const ids = (list.threads ?? []).map((t) => t.id).filter((id): id is string => Boolean(id));
-  const threads: GmailThreadSummary[] = [];
-  for (const id of ids) {
-    const detail = await fetchThreadMetadata({
-      accessToken: params.accessToken,
-      threadId: id,
-      fetchImpl: params.fetchImpl,
-    });
-    threads.push(summaryFromThread(detail));
-  }
+  const threads = await Promise.all(
+    ids.map(async (id) => {
+      const detail = await fetchThreadMetadata({
+        accessToken: params.accessToken,
+        threadId: id,
+        fetchImpl: params.fetchImpl,
+      });
+      return summaryFromThread(detail);
+    }),
+  );
 
   return {
     threads,

@@ -97,32 +97,35 @@ export function GmailThreadPanel({
             )}
             {message.attachments.length > 0 ? (
               <ul className="text-ink/60 m-0 mt-3 list-none p-0 text-xs">
-                {message.attachments.map((a) => (
-                  <li
-                    key={`${message.id}-${a.filename}-${a.attachmentId ?? 'x'}`}
-                    className="mt-1 flex flex-wrap items-center gap-2"
-                  >
-                    <span>
-                      {a.filename}
-                      {a.size > 0 ? ` (${a.size} bytes)` : ''}
-                    </span>
-                    {a.attachmentId ? (
-                      <button
-                        type="button"
-                        className="text-accent font-heading underline"
-                        onClick={() => {
-                          void downloadGmailAttachmentClient({
-                            messageId: message.id,
-                            attachmentId: a.attachmentId!,
-                            filename: a.filename,
-                          });
-                        }}
-                      >
-                        Download
-                      </button>
-                    ) : null}
-                  </li>
-                ))}
+                {message.attachments.map((a) => {
+                  const attachmentId = a.attachmentId;
+                  return (
+                    <li
+                      key={`${message.id}-${a.filename}-${attachmentId ?? 'x'}`}
+                      className="mt-1 flex flex-wrap items-center gap-2"
+                    >
+                      <span>
+                        {a.filename}
+                        {a.size > 0 ? ` (${a.size} bytes)` : ''}
+                      </span>
+                      {attachmentId ? (
+                        <button
+                          type="button"
+                          className="text-accent font-heading underline"
+                          onClick={() => {
+                            void downloadGmailAttachmentClient({
+                              messageId: message.id,
+                              attachmentId,
+                              filename: a.filename,
+                            });
+                          }}
+                        >
+                          Download
+                        </button>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             ) : null}
           </article>

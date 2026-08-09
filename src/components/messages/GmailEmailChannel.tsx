@@ -119,6 +119,8 @@ export function GmailEmailChannel() {
     }
     let active = true;
     void (async () => {
+      setDetailLoading(true);
+      setDetailError(null);
       const result = await getGmailThreadClient(selectedId);
       if (!active) return;
       if (!result.ok) {

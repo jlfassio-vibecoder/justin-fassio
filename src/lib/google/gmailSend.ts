@@ -302,16 +302,19 @@ export async function listGmailDrafts(params: {
     fetchImpl: params.fetchImpl,
   });
 
-  const drafts: GmailDraftSummary[] = [];
-  for (const entry of list.drafts ?? []) {
-    if (!entry.id) continue;
-    const detail = await gmailFetchJson<GmailDraftResource>({
-      accessToken: params.accessToken,
-      url: `${GMAIL_API}/drafts/${encodeURIComponent(entry.id)}?format=metadata`,
-      fetchImpl: params.fetchImpl,
-    });
-    drafts.push(mapDraftSummary(detail));
-  }
+  const draftIds = (list.drafts ?? [])
+    .map((entry) => entry.id)
+    .filter((id): id is string => Boolean(id));
+  const drafts = await Promise.all(
+    draftIds.map(async (id) => {
+      const detail = await gmailFetchJson<GmailDraftResource>({
+        accessToken: params.accessToken,
+        url: `${GMAIL_API}/drafts/${encodeURIComponent(id)}?format=metadata`,
+        fetchImpl: params.fetchImpl,
+      });
+      return mapDraftSummary(detail);
+    }),
+  );
   return { drafts, nextPageToken: list.nextPageToken ?? null };
 }
 
