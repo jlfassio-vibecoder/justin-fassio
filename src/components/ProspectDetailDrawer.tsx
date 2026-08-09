@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { AccountContactsSection } from '@/components/AccountContactsSection';
 import { AccountNotesEditor } from '@/components/AccountNotesEditor';
 import { ConvertAccountModal } from '@/components/ConvertAccountModal';
+import { AccountEmailSection } from '@/components/messages/AccountEmailSection';
 import { AccountMessagesSection } from '@/components/messages/AccountMessagesSection';
 import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
 import { Button } from '@/components/ui/Button';
@@ -119,6 +120,8 @@ export function ProspectDetailDrawer({
           <AccountContactsSection accountId={prospect.id} />
 
           <AccountMessagesSection prospectId={prospect.id} />
+
+          <AccountEmailSection prospectId={prospect.id} />
         </div>
 
         <div className="border-ink/10 flex flex-col gap-2 border-t px-5 py-4">
