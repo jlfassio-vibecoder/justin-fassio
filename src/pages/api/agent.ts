@@ -55,7 +55,8 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const tools = createAgentCrmTools(gate.supabase);
-  const modelMessages = convertToModelMessages(body.messages);
+  // AI SDK 6+: convertToModelMessages is async (supports async Tool.toModelOutput).
+  const modelMessages = await convertToModelMessages(body.messages);
 
   // Model strings like openai/gpt-4o route through Vercel AI Gateway (OIDC on Vercel; AI_GATEWAY_API_KEY locally).
   // Spend caps: stepCountIs(5) + maxOutputTokens; request rate: checkAgentRateLimit (per user, in-memory).

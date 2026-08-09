@@ -26,12 +26,12 @@
     "email:preview-ogr-card": "WRITE_EMAIL_PREVIEW=1 vitest run src/lib/ogrProductEmailCard.preview.test.ts"
   },
   "dependencies": {
-    "@ai-sdk/react": "^2.0.227",
+    "@ai-sdk/react": "^4.0.61",
     "@astrojs/react": "^6.0.2",
     "@astrojs/vercel": "^11.0.4",
-    "@supabase/supabase-js": "^2.111.0",
+    "@supabase/supabase-js": "^2.112.1",
     "@tailwindcss/vite": "^4.3.3",
-    "ai": "^5.0.225",
+    "ai": "^7.0.58",
     "astro": "^7.1.6",
     "lucide-react": "^1.27.0",
     "react": "^19.2.8",
@@ -46,7 +46,7 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
+    "@testing-library/user-event": "^14.6.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "ajv": "^8.20.0",
@@ -61,7 +61,7 @@
     "prettier-plugin-astro": "^0.14.1",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.65.0",
+    "typescript-eslint": "^8.66.0",
     "vitest": "^4.1.10"
   },
   "optionalDependencies": {
@@ -70,8 +70,8 @@
     "@bruits/satteri-linux-x64-gnu": "0.9.5",
     "@emnapi/core": "^1.11.3",
     "@emnapi/runtime": "^1.11.3",
-    "@emnapi/wasi-threads": "^1.2.3",
-    "@rolldown/binding-linux-x64-gnu": "1.2.1",
+    "@emnapi/wasi-threads": "^2.0.1",
+    "@rolldown/binding-linux-x64-gnu": "1.2.3",
     "@tailwindcss/oxide-linux-x64-gnu": "4.3.3",
     "lightningcss-linux-x64-gnu": "1.33.0"
   }

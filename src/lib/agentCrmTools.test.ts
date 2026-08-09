@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { clampCallLimit, createAgentCrmTools, truncateNotes } from '@/lib/agentCrmTools';
 import type { AgentSupabase } from '@/lib/agentAuth';
 
-const toolOpts = { toolCallId: 'test', messages: [] };
+/** AI SDK 7 ToolExecutionOptions requires `context` even when unused. */
+const toolOpts = { toolCallId: 'test', messages: [], context: {} };
 
 describe('clampCallLimit', () => {
   it('defaults to 12', () => {

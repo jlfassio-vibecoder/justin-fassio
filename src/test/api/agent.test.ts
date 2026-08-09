@@ -35,7 +35,7 @@ import { POST } from '@/pages/api/agent';
 describe('POST /api/agent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    convertToModelMessagesMock.mockReturnValue([]);
+    convertToModelMessagesMock.mockResolvedValue([]);
     createAgentCrmToolsMock.mockReturnValue({});
   });
 
