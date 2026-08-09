@@ -9,6 +9,7 @@ import {
   OGR_PRODUCT_EMAIL_DEFAULT_INTRO,
 } from '@/lib/ogrProductOutreachEmail';
 import {
+  isValidOgrProductEmailRecipient,
   OGR_PRODUCT_EMAIL_MAX_PROSE,
   OGR_PRODUCT_EMAIL_MAX_RECIPIENT_NAME,
   OGR_PRODUCT_EMAIL_MAX_SUBJECT,
@@ -61,7 +62,7 @@ function OgrProductEmailComposerForm({
     if (submitting) return;
 
     const trimmedTo = to.trim();
-    if (!trimmedTo || !trimmedTo.includes('@') || trimmedTo.length > MAX_TO) {
+    if (!isValidOgrProductEmailRecipient(trimmedTo)) {
       setError('A valid recipient email is required');
       return;
     }

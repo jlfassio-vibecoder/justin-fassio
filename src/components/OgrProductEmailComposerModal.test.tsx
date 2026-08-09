@@ -68,6 +68,17 @@ describe('OgrProductEmailComposerModal', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/recipient email/i);
   });
 
+  it('blocks send when to contains whitespace', async () => {
+    const user = userEvent.setup();
+    renderModal();
+    const input = screen.getByPlaceholderText('buyer@store.com');
+    await user.click(input);
+    await user.paste('buyer @example.com');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    expect(sendOgrProductEmailMock).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(/recipient email/i);
+  });
+
   it('shows Sending… and disables submit while pending', async () => {
     const user = userEvent.setup();
     let resolveSend: (value: { ok: true }) => void = () => undefined;

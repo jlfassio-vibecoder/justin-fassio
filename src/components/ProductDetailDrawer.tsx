@@ -240,7 +240,7 @@ function draftToPublicOgrProduct(item: CatalogItem, draft: Draft): PublicOgrProd
     page: item.page,
     catalogYear: item.catalogYear,
     collection: draft.collection.trim(),
-    wholesaleUsd: 0,
+    wholesaleUsd: null,
     msrpCad: parseDraftNumber(draft.msrpCad),
     isNew: draft.isNew,
     featured: draft.featured,

@@ -170,6 +170,14 @@ describe('POST /api/staff/ogr-product-email', () => {
     expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
   });
 
+  it('rejects recipient addresses with whitespace or control characters', async () => {
+    const res = await POST(
+      requestWith({ productId: PRODUCT_ID, to: 'buyer@example.com\r\nBcc: evil@example.com' }),
+    );
+    expect(res.status).toBe(400);
+    expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
+  });
+
   it('rejects client-supplied html', async () => {
     const res = await POST(
       requestWith({
@@ -311,7 +319,12 @@ describe('POST /api/staff/ogr-product-email', () => {
       html: '<p>Hi</p><div>card</div>',
       text: 'Hi\n\ncard',
     });
-    expect(sendOgrProductOutreachEmailMock.mock.calls[0]?.[0]?.html).not.toMatch(/wholesale/i);
+    // Pathnames may contain "wholesale"; assert against pricing leakage instead.
+    expect(buildPublicProductPresentationMock).toHaveBeenCalledWith(
+      expect.objectContaining({ wholesaleUsd: null }),
+    );
+    const sentHtml = String(sendOgrProductOutreachEmailMock.mock.calls[0]?.[0]?.html ?? '');
+    expect(sentHtml).not.toMatch(/wholesaleUsd|US\$\s*\d|\$\d+\.\d{2}/i);
   });
 
   it('returns 503 Email is not configured when Resend key missing', async () => {
@@ -332,6 +345,19 @@ describe('POST /api/staff/ogr-product-email', () => {
     const body = await res.json();
     expect(body.error).toBe('Failed to send email');
     expect(JSON.stringify(body)).not.toContain('secret provider detail');
+  });
+
+  it('returns actionable 502 when Resend domain is not verified', async () => {
+    sendOgrProductOutreachEmailMock.mockResolvedValue({
+      ok: false,
+      reason: 'send_failed',
+      error: 'The justinfassio.com domain is not verified. Please, add and verify your domain',
+    });
+    const res = await POST(requestWith({ productId: PRODUCT_ID, to: 'buyer@example.com' }));
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error).toMatch(/domain is not verified/i);
+    expect(body.error).toMatch(/resend\.com\/domains/i);
   });
 
   it('returns 400 when public URL cannot be built', async () => {

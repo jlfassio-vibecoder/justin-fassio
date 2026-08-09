@@ -2,10 +2,10 @@ import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { loadPublishedOgrProductForEmail } from '@/lib/loadPublishedOgrProductForEmail';
 import {
+  isValidOgrProductEmailRecipient,
   OGR_PRODUCT_EMAIL_MAX_PROSE,
   OGR_PRODUCT_EMAIL_MAX_RECIPIENT_NAME,
   OGR_PRODUCT_EMAIL_MAX_SUBJECT,
-  OGR_PRODUCT_EMAIL_MAX_TO,
 } from '@/lib/ogrProductEmailLimits';
 import { renderOgrProductOutreachEmail } from '@/lib/ogrProductOutreachEmail';
 import { buildOgrProductUrl, resolvePublicSiteOrigin } from '@/lib/productUrls';
@@ -76,7 +76,7 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const to = typeof body.to === 'string' ? body.to.trim() : '';
-  if (!to || !to.includes('@') || to.length > OGR_PRODUCT_EMAIL_MAX_TO) {
+  if (!isValidOgrProductEmailRecipient(to)) {
     return jsonError('A valid recipient email is required', 400);
   }
 
@@ -159,6 +159,20 @@ export const POST: APIRoute = async ({ request }) => {
         reason: sendResult.reason,
         error: sendResult.error,
       });
+      // Surface domain verification clearly; keep other provider detail server-only.
+      const providerMessage = sendResult.error ?? '';
+      if (/domain is not verified/i.test(providerMessage)) {
+        return jsonError(
+          'Email sender domain is not verified in Resend. Verify justinfassio.com at resend.com/domains.',
+          502,
+        );
+      }
+      if (/only send testing emails to your own email/i.test(providerMessage)) {
+        return jsonError(
+          'Resend test mode can only send to the account owner email until a domain is verified.',
+          502,
+        );
+      }
       return jsonError('Failed to send email', 502);
     }
 
