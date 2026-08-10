@@ -1220,6 +1220,76 @@ export interface Database {
           },
         ];
       };
+      gmail_thread_links: {
+        Row: {
+          id: string;
+          google_connection_id: string;
+          gmail_thread_id: string;
+          prospect_id: number | null;
+          account_contact_id: string | null;
+          link_status: string;
+          subject: string | null;
+          snippet: string | null;
+          participants: unknown;
+          unread: boolean;
+          last_message_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          google_connection_id: string;
+          gmail_thread_id: string;
+          prospect_id?: number | null;
+          account_contact_id?: string | null;
+          link_status?: string;
+          subject?: string | null;
+          snippet?: string | null;
+          participants?: unknown;
+          unread?: boolean;
+          last_message_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          google_connection_id?: string;
+          gmail_thread_id?: string;
+          prospect_id?: number | null;
+          account_contact_id?: string | null;
+          link_status?: string;
+          subject?: string | null;
+          snippet?: string | null;
+          participants?: unknown;
+          unread?: boolean;
+          last_message_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'gmail_thread_links_google_connection_id_fkey';
+            columns: ['google_connection_id'];
+            isOneToOne: false;
+            referencedRelation: 'google_account_connections';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'gmail_thread_links_prospect_id_fkey';
+            columns: ['prospect_id'];
+            isOneToOne: false;
+            referencedRelation: 'prospects';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'gmail_thread_links_account_contact_id_fkey';
+            columns: ['account_contact_id'];
+            isOneToOne: false;
+            referencedRelation: 'account_contacts';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       buyer_cart_items: {
         Row: {
           id: string;

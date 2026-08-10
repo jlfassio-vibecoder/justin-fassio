@@ -3,6 +3,8 @@ import type {
   GmailThreadDetail,
   GmailThreadSummary,
 } from '@/lib/google/gmailTypes';
+import type { CrmEmailMatch } from '@/lib/google/crmEmailMatch';
+import type { GmailThreadLinkPublic } from '@/lib/google/gmailThreadLinks';
 import type { GmailDraftDetail, GmailDraftSummary } from '@/lib/google/gmailSend';
 import { supabase } from '@/lib/supabase';
 
@@ -378,4 +380,132 @@ export async function downloadGmailAttachmentClient(params: {
   // Defer revoke so browsers that download asynchronously are not truncated.
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   return { ok: true };
+}
+
+export type GmailThreadLinkStateResult =
+  | {
+      ok: true;
+      threadId: string;
+      participants: string[];
+      suggestions: CrmEmailMatch[];
+      link: GmailThreadLinkPublic | null;
+    }
+  | ({ ok: false; error: string } & GateFlags);
+
+export async function getGmailThreadLinkStateClient(
+  threadId: string,
+): Promise<GmailThreadLinkStateResult> {
+  const token = await staffBearer();
+  if (!token) return { ok: false, error: 'Not signed in' };
+
+  const res = await fetch(`/api/staff/gmail/threads/${encodeURIComponent(threadId)}/link`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = (await res.json()) as {
+    ok?: boolean;
+    threadId?: string;
+    participants?: string[];
+    suggestions?: CrmEmailMatch[];
+    link?: GmailThreadLinkPublic | null;
+    error?: string;
+  } & GateFlags;
+  if (!res.ok || !body.ok) {
+    return {
+      ok: false,
+      error: body.error ?? 'Failed to load Gmail link state',
+      ...gateFromBody(body),
+    };
+  }
+  return {
+    ok: true,
+    threadId: body.threadId ?? threadId,
+    participants: body.participants ?? [],
+    suggestions: body.suggestions ?? [],
+    link: body.link ?? null,
+  };
+}
+
+export async function confirmGmailThreadLinkClient(params: {
+  threadId: string;
+  prospectId: number;
+  accountContactId?: string | null;
+}): Promise<
+  { ok: true; link: GmailThreadLinkPublic } | ({ ok: false; error: string } & GateFlags)
+> {
+  const token = await staffBearer();
+  if (!token) return { ok: false, error: 'Not signed in' };
+
+  const res = await fetch(`/api/staff/gmail/threads/${encodeURIComponent(params.threadId)}/link`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      prospectId: params.prospectId,
+      accountContactId: params.accountContactId ?? null,
+    }),
+  });
+  const body = (await res.json()) as {
+    ok?: boolean;
+    link?: GmailThreadLinkPublic;
+    error?: string;
+  } & GateFlags;
+  if (!res.ok || !body.ok || !body.link) {
+    return {
+      ok: false,
+      error: body.error ?? 'Failed to link Gmail thread',
+      ...gateFromBody(body),
+    };
+  }
+  return { ok: true, link: body.link };
+}
+
+export async function unlinkGmailThreadClient(
+  threadId: string,
+): Promise<{ ok: true } | ({ ok: false; error: string } & GateFlags)> {
+  const token = await staffBearer();
+  if (!token) return { ok: false, error: 'Not signed in' };
+
+  const res = await fetch(`/api/staff/gmail/threads/${encodeURIComponent(threadId)}/link`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = (await res.json()) as { ok?: boolean; error?: string } & GateFlags;
+  if (!res.ok || !body.ok) {
+    return {
+      ok: false,
+      error: body.error ?? 'Failed to unlink Gmail thread',
+      ...gateFromBody(body),
+    };
+  }
+  return { ok: true };
+}
+
+export async function listGmailLinksForProspectClient(
+  prospectId: number,
+): Promise<
+  { ok: true; links: GmailThreadLinkPublic[] } | ({ ok: false; error: string } & GateFlags)
+> {
+  const token = await staffBearer();
+  if (!token) return { ok: false, error: 'Not signed in' };
+
+  const url = new URL('/api/staff/gmail/links', window.location.origin);
+  url.searchParams.set('prospectId', String(prospectId));
+  const res = await fetch(url.pathname + url.search, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = (await res.json()) as {
+    ok?: boolean;
+    links?: GmailThreadLinkPublic[];
+    error?: string;
+  } & GateFlags;
+  if (!res.ok || !body.ok || !body.links) {
+    return {
+      ok: false,
+      error: body.error ?? 'Failed to load Gmail links',
+      ...gateFromBody(body),
+    };
+  }
+  return { ok: true, links: body.links };
 }

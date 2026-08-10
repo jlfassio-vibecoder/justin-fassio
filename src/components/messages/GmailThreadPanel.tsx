@@ -1,3 +1,4 @@
+import { GmailThreadLinkForm } from '@/components/messages/GmailThreadLinkForm';
 import { Button } from '@/components/ui/Button';
 import type { GmailMessageView, GmailThreadDetail } from '@/lib/google/gmailTypes';
 import { downloadGmailAttachmentClient } from '@/lib/gmailClientBrowser';
@@ -22,6 +23,7 @@ export type GmailThreadPanelProps = {
   loading: boolean;
   error: string | null;
   canCompose?: boolean;
+  showCrmLink?: boolean;
   onReply?: (mode: 'reply' | 'reply_all', message: GmailMessageView) => void;
 };
 
@@ -30,6 +32,7 @@ export function GmailThreadPanel({
   loading,
   error,
   canCompose = false,
+  showCrmLink = true,
   onReply,
 }: GmailThreadPanelProps) {
   if (loading && !thread) {
@@ -69,6 +72,8 @@ export function GmailThreadPanel({
           </div>
         ) : null}
       </div>
+
+      {showCrmLink ? <GmailThreadLinkForm key={thread.id} threadId={thread.id} /> : null}
 
       <div className="flex flex-col gap-4">
         {thread.messages.map((message) => (
