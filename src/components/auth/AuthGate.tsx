@@ -12,11 +12,31 @@ import { AiAssistProvider } from '@/lib/AiAssistProvider';
 import { supabase } from '@/lib/supabase';
 import { isApprovedOwner, isApprovedStaff } from '@/lib/auth';
 import { pingAuthorizedServer } from '@/lib/serverPing';
+import type { TabKey } from '@/types';
+
+const TAB_KEYS: TabKey[] = [
+  'catalog',
+  'dashboard',
+  'calls',
+  'prospects',
+  'accounts',
+  'contacts',
+  'insights',
+  'messages',
+  'calendar',
+];
+
+function tabFromSearch(): TabKey | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const raw = new URLSearchParams(window.location.search).get('tab');
+  return TAB_KEYS.find((key) => key === raw);
+}
 
 function AuthGateInner() {
   const { loading, session, user, profile, configured } = useAuth();
   const [pingBusy, setPingBusy] = useState(false);
   const [pingStatus, setPingStatus] = useState<string | null>(null);
+  const [defaultTab] = useState<TabKey | undefined>(() => tabFromSearch());
 
   useEffect(() => {
     if (!loading && configured && !session) {
@@ -111,7 +131,7 @@ function AuthGateInner() {
             Sign out
           </Button>
         </div>
-        <RepCommandCenter />
+        <RepCommandCenter defaultTab={defaultTab} />
       </div>
     </AiAssistProvider>
   );

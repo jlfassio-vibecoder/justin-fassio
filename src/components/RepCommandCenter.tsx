@@ -10,6 +10,7 @@ import { ActiveAccountsTab } from '@/components/tabs/ActiveAccountsTab';
 import { ContactsTab } from '@/components/tabs/ContactsTab';
 import { InsightsTab } from '@/components/tabs/InsightsTab';
 import { StaffChatDock } from '@/components/messages/StaffChatDock';
+import { CalendarTab } from '@/components/tabs/CalendarTab';
 import { MessagesTab } from '@/components/tabs/MessagesTab';
 import { useLandedCostCalculator } from '@/hooks/useLandedCostCalculator';
 import { useStaffLiveChatInbox } from '@/hooks/useStaffLiveChatInbox';
@@ -322,6 +323,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                 }}
               />
             )}
+            {activeTab === 'calendar' && <CalendarTab />}
             {activeTab === 'insights' && (
               <InsightsTab marginRangeDisplay={marginRangeDisplay} reloadToken={callsReloadToken} />
             )}

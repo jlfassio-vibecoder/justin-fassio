@@ -31,8 +31,10 @@ export type StartGoogleOAuthResult =
   { ok: true; authorizeUrl: string } | { ok: false; error: string };
 
 export type StartGoogleOAuthOptions = {
-  /** Default identity. gmail_readonly = Phase B; gmail_compose = Phase C. */
-  scopes?: 'identity' | 'gmail_readonly' | 'gmail_compose';
+  /** Default identity. gmail_readonly = B; gmail_compose = C; calendar_events = E. */
+  scopes?: 'identity' | 'gmail_readonly' | 'gmail_compose' | 'calendar_events';
+  /** Where OAuth callback should land (`/app?tab=`). */
+  returnTab?: 'messages' | 'calendar';
 };
 
 export async function startGoogleOAuth(
@@ -47,7 +49,10 @@ export async function startGoogleOAuth(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ scopes: options.scopes ?? 'identity' }),
+    body: JSON.stringify({
+      scopes: options.scopes ?? 'identity',
+      returnTab: options.returnTab,
+    }),
   });
   const body = (await res.json()) as { ok?: boolean; authorizeUrl?: string; error?: string };
   if (!res.ok || !body.ok || !body.authorizeUrl) {

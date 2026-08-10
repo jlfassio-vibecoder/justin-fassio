@@ -1,5 +1,6 @@
 import {
   getGoogleClientCredentials,
+  scopesIncludeCalendarEvents,
   scopesIncludeGmailCompose,
   scopesIncludeGmailReadonly,
 } from '@/lib/google/config';
@@ -21,6 +22,7 @@ export class GoogleAccessTokenError extends Error {
     | 'not_connected'
     | 'needs_gmail_readonly'
     | 'needs_gmail_compose'
+    | 'needs_calendar_events'
     | 'revoked'
     | 'misconfigured'
     | 'refresh_failed';
@@ -47,8 +49,10 @@ async function markConnectionError(profileId: string, admin: AdminClient): Promi
 
 export async function getGoogleAccessTokenForProfile(params: {
   profileId: string;
+  /** Defaults to true unless explicitly false (Calendar-only callers must set false). */
   requireGmailReadonly?: boolean;
   requireGmailCompose?: boolean;
+  requireCalendarEvents?: boolean;
   client?: AdminClient | null;
   fetchImpl?: typeof fetch;
 }): Promise<{ accessToken: string; connection: GoogleConnectionRow }> {
@@ -85,6 +89,13 @@ export async function getGoogleAccessTokenForProfile(params: {
     throw new GoogleAccessTokenError(
       'needs_gmail_compose',
       'Gmail send/drafts access has not been granted',
+    );
+  }
+
+  if (params.requireCalendarEvents && !scopesIncludeCalendarEvents(connection.scopes)) {
+    throw new GoogleAccessTokenError(
+      'needs_calendar_events',
+      'Google Calendar access has not been granted',
     );
   }
 
@@ -151,13 +162,19 @@ export function accessTokenErrorToHttp(err: GoogleAccessTokenError): {
       body: { ok: false, error: err.message, needsGmailCompose: true },
     };
   }
+  if (err.code === 'needs_calendar_events') {
+    return {
+      status: 409,
+      body: { ok: false, error: err.message, needsCalendarEvents: true },
+    };
+  }
   if (err.code === 'revoked') {
     return { status: 409, body: { ok: false, error: err.message, needsReconnect: true } };
   }
   if (err.code === 'misconfigured') {
     return { status: 500, body: { ok: false, error: err.message } };
   }
-  return { status: 502, body: { ok: false, error: 'Failed to authorize Gmail request' } };
+  return { status: 502, body: { ok: false, error: 'Failed to authorize Google request' } };
 }
 
 /** Re-export for callers that catch GoogleOAuthError from adjacent helpers. */

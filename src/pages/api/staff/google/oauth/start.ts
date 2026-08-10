@@ -12,6 +12,8 @@ import {
   GOOGLE_OAUTH_STATE_COOKIE,
   OAuthStateError,
   oauthStateCookieOptions,
+  parseReturnTab,
+  type GoogleOAuthReturnTab,
 } from '@/lib/google/oauthState';
 
 export const prerender = false;
@@ -28,6 +30,7 @@ function parseScopePreset(body: unknown): GoogleOAuthScopePreset {
   const scopes = (body as { scopes?: unknown }).scopes;
   if (scopes === 'gmail_compose') return 'gmail_compose';
   if (scopes === 'gmail_readonly') return 'gmail_readonly';
+  if (scopes === 'calendar_events') return 'calendar_events';
   return 'identity';
 }
 
@@ -40,10 +43,15 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
 
   let preset: GoogleOAuthScopePreset = 'identity';
+  let returnTab: GoogleOAuthReturnTab | undefined;
   try {
     const text = await request.text();
     if (text.trim()) {
-      preset = parseScopePreset(JSON.parse(text) as unknown);
+      const body = JSON.parse(text) as unknown;
+      preset = parseScopePreset(body);
+      if (body != null && typeof body === 'object') {
+        returnTab = parseReturnTab((body as { returnTab?: unknown }).returnTab);
+      }
     }
   } catch {
     return json({ ok: false, error: 'Invalid JSON body' }, 400);
@@ -51,7 +59,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   try {
     const origin = new URL(request.url).origin;
-    const state = createOAuthState(gate.userId);
+    const state = createOAuthState(gate.userId, Date.now(), { returnTab });
     cookies.set(GOOGLE_OAUTH_STATE_COOKIE, state, oauthStateCookieOptions());
     const authorizeUrl = buildGoogleAuthorizeUrl({
       state,

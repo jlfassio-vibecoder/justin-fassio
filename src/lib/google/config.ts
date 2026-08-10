@@ -10,7 +10,16 @@ export const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.reado
  */
 export const GMAIL_COMPOSE_SCOPE = 'https://www.googleapis.com/auth/gmail.compose';
 
-export type GoogleOAuthScopePreset = 'identity' | 'gmail_readonly' | 'gmail_compose';
+/**
+ * Phase E Calendar (events on calendars the user owns).
+ * Chosen over calendar.events: MVP uses the connected primary calendar only (always owned).
+ * Google Events:insert authorizes this scope for create/edit/delete including conferenceData (Meet).
+ * Narrower than calendar.events (all accessible calendars) and full calendar. Do not request full calendar.
+ */
+export const CALENDAR_EVENTS_OWNED_SCOPE = 'https://www.googleapis.com/auth/calendar.events.owned';
+
+export type GoogleOAuthScopePreset =
+  'identity' | 'gmail_readonly' | 'gmail_compose' | 'calendar_events';
 
 export function scopesForPreset(preset: GoogleOAuthScopePreset): string[] {
   if (preset === 'gmail_compose') {
@@ -18,6 +27,9 @@ export function scopesForPreset(preset: GoogleOAuthScopePreset): string[] {
   }
   if (preset === 'gmail_readonly') {
     return [...GOOGLE_PHASE_A_SCOPES, GMAIL_READONLY_SCOPE];
+  }
+  if (preset === 'calendar_events') {
+    return [...GOOGLE_PHASE_A_SCOPES, CALENDAR_EVENTS_OWNED_SCOPE];
   }
   return [...GOOGLE_PHASE_A_SCOPES];
 }
@@ -42,6 +54,12 @@ export function scopesIncludeGmailReadonly(scopes: string[] | null | undefined):
 export function scopesIncludeGmailCompose(scopes: string[] | null | undefined): boolean {
   if (!scopes?.length) return false;
   return scopeMatches(scopes, GMAIL_COMPOSE_SCOPE, 'gmail.compose');
+}
+
+/** True if stored scopes include calendar.events.owned (full URI or bare name). */
+export function scopesIncludeCalendarEvents(scopes: string[] | null | undefined): boolean {
+  if (!scopes?.length) return false;
+  return scopeMatches(scopes, CALENDAR_EVENTS_OWNED_SCOPE, 'calendar.events.owned');
 }
 
 export type GoogleOAuthConfig = {

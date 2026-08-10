@@ -6,7 +6,8 @@ export type TabKey =
   | 'accounts'
   | 'contacts'
   | 'insights'
-  | 'messages';
+  | 'messages'
+  | 'calendar';
 
 export type LineKey = 'ogr' | 'bkg';
 
