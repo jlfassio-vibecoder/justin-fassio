@@ -35,6 +35,7 @@ export function GmailEmailChannel() {
   const [connection, setConnection] = useState<GoogleConnectionPublic | null>(null);
   const [connLoading, setConnLoading] = useState(true);
   const [connError, setConnError] = useState<string | null>(null);
+  const [connReloadToken, setConnReloadToken] = useState(0);
 
   const [label, setLabel] = useState<GmailLabelFilter>('INBOX');
   const [searchInput, setSearchInput] = useState('');
@@ -54,6 +55,7 @@ export function GmailEmailChannel() {
   useEffect(() => {
     let active = true;
     void (async () => {
+      setConnLoading(true);
       const result = await fetchGoogleConnection();
       if (!active) return;
       if (!result.ok) {
@@ -69,7 +71,7 @@ export function GmailEmailChannel() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [connReloadToken]);
 
   useEffect(() => {
     if (!connection?.connected || !connection.hasGmailReadonly) return;
@@ -87,16 +89,8 @@ export function GmailEmailChannel() {
         setNextPageToken(null);
         setListError(result.error);
         setListLoading(false);
-        if (result.needsGmailReadonly || result.needsConnect) {
-          setConnection((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  hasGmailReadonly: result.needsGmailReadonly ? false : prev.hasGmailReadonly,
-                  connected: result.needsConnect ? false : prev.connected,
-                }
-              : prev,
-          );
+        if (result.needsGmailReadonly || result.needsConnect || result.needsReconnect) {
+          setConnReloadToken((n) => n + 1);
         }
         return;
       }

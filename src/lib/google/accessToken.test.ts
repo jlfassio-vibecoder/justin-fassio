@@ -18,7 +18,11 @@ vi.mock('@/lib/supabaseAdmin', () => ({
 }));
 
 import { encryptRefreshToken } from '@/lib/google/tokenCrypto';
-import { getGoogleAccessTokenForProfile, GoogleAccessTokenError } from '@/lib/google/accessToken';
+import {
+  accessTokenErrorToHttp,
+  getGoogleAccessTokenForProfile,
+  GoogleAccessTokenError,
+} from '@/lib/google/accessToken';
 
 describe('getGoogleAccessTokenForProfile', () => {
   const key = randomBytes(32).toString('base64');
@@ -103,5 +107,65 @@ describe('getGoogleAccessTokenForProfile', () => {
     });
     expect(result.accessToken).toBe('access-1');
     expect(JSON.stringify({ accessToken: result.accessToken })).not.toContain('refresh');
+  });
+
+  it('maps status=error to revoked needsReconnect', async () => {
+    loadConnectionForProfileMock.mockResolvedValue({
+      id: 'c1',
+      profile_id: 'p1',
+      google_sub: 'sub',
+      google_email: 'a@b.com',
+      refresh_token_ciphertext: encryptRefreshToken('refresh', key),
+      scopes: ['openid', 'https://www.googleapis.com/auth/gmail.readonly'],
+      status: 'error',
+      created_at: '',
+      updated_at: '',
+    });
+
+    await expect(getGoogleAccessTokenForProfile({ profileId: 'p1' })).rejects.toMatchObject({
+      code: 'revoked',
+    });
+  });
+
+  it('maps invalid_grant refresh to revoked', async () => {
+    loadConnectionForProfileMock.mockResolvedValue({
+      id: 'c1',
+      profile_id: 'p1',
+      google_sub: 'sub',
+      google_email: 'a@b.com',
+      refresh_token_ciphertext: encryptRefreshToken('refresh', key),
+      scopes: ['openid', 'https://www.googleapis.com/auth/gmail.readonly'],
+      status: 'active',
+      created_at: '',
+      updated_at: '',
+    });
+
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ error: 'invalid_grant', error_description: 'Token revoked' }),
+          {
+            status: 400,
+          },
+        ),
+    );
+
+    await expect(
+      getGoogleAccessTokenForProfile({
+        profileId: 'p1',
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      }),
+    ).rejects.toMatchObject({ code: 'revoked' });
+  });
+});
+
+describe('accessTokenErrorToHttp', () => {
+  it('maps revoked to needsReconnect', () => {
+    const mapped = accessTokenErrorToHttp(
+      new GoogleAccessTokenError('revoked', 'Google authorization was revoked'),
+    );
+    expect(mapped.status).toBe(409);
+    expect(mapped.body).toMatchObject({ ok: false, needsReconnect: true });
+    expect(JSON.stringify(mapped.body)).not.toMatch(/refresh_token|ciphertext/i);
   });
 });

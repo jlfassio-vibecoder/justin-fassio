@@ -22,6 +22,16 @@ describe('gmailClientErrorToClientMessage', () => {
     expect(mapped.error).toMatch(/reconnect/i);
   });
 
+  it('maps quota / rate limit to 429 copy', () => {
+    const err = new GmailClientError('Rate Limit Exceeded', {
+      status: 429,
+      reason: 'rateLimitExceeded',
+    });
+    const mapped = gmailClientErrorToClientMessage(err, 'fallback');
+    expect(mapped.httpStatus).toBe(429);
+    expect(mapped.error).toMatch(/rate limit/i);
+  });
+
   it('keeps generic fallback for unknown errors', () => {
     const err = new GmailClientError('Something odd', { status: 500 });
     expect(gmailClientErrorToClientMessage(err, 'Failed to send Gmail message')).toEqual({

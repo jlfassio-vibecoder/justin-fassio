@@ -11,6 +11,7 @@ import {
   getCalendarEvent,
   updateCalendarEvent,
 } from '@/lib/google/calendarClient';
+import { calendarClientErrorJsonResponse } from '@/lib/google/calendarErrors';
 import {
   CalendarEventLinkError,
   deleteCalendarEventLink,
@@ -92,8 +93,7 @@ export const GET: APIRoute = async ({ request, params }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof CalendarClientError) {
-      console.error('[calendar]', { workflow: 'get_event', error: 'calendar_failed' });
-      return json({ ok: false, error: 'Failed to load calendar event' }, 502);
+      return calendarClientErrorJsonResponse('get_event', err, 'Failed to load calendar event');
     }
     console.error('[calendar]', { workflow: 'get_event', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to load calendar event' }, 500);
@@ -168,8 +168,11 @@ export const PATCH: APIRoute = async ({ request, params }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof CalendarClientError) {
-      console.error('[calendar]', { workflow: 'update_event', error: 'calendar_failed' });
-      return json({ ok: false, error: 'Failed to update calendar event' }, 502);
+      return calendarClientErrorJsonResponse(
+        'update_event',
+        err,
+        'Failed to update calendar event',
+      );
     }
     console.error('[calendar]', { workflow: 'update_event', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to update calendar event' }, 500);
@@ -203,8 +206,11 @@ export const DELETE: APIRoute = async ({ request, params }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof CalendarClientError) {
-      console.error('[calendar]', { workflow: 'cancel_event', error: 'calendar_failed' });
-      return json({ ok: false, error: 'Failed to cancel calendar event' }, 502);
+      return calendarClientErrorJsonResponse(
+        'cancel_event',
+        err,
+        'Failed to cancel calendar event',
+      );
     }
     console.error('[calendar]', { workflow: 'cancel_event', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to cancel calendar event' }, 500);

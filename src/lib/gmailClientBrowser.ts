@@ -471,11 +471,22 @@ export async function unlinkGmailThreadClient(
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
-  const body = (await res.json()) as { ok?: boolean; error?: string } & GateFlags;
+  const body = (await res.json()) as {
+    ok?: boolean;
+    deleted?: boolean;
+    error?: string;
+  } & GateFlags;
   if (!res.ok || !body.ok) {
     return {
       ok: false,
       error: body.error ?? 'Failed to unlink Gmail thread',
+      ...gateFromBody(body),
+    };
+  }
+  if (body.deleted === false) {
+    return {
+      ok: false,
+      error: 'Gmail thread link was not found for this Google connection',
       ...gateFromBody(body),
     };
   }

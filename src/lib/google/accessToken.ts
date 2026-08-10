@@ -74,7 +74,19 @@ export async function getGoogleAccessTokenForProfile(params: {
     throw err;
   }
 
-  if (!connection || connection.status !== 'active') {
+  if (!connection) {
+    throw new GoogleAccessTokenError('not_connected', 'Google Workspace is not connected');
+  }
+
+  // Revoked/invalid grants mark status=error but keep the row for reconnect UX.
+  if (connection.status === 'error' || connection.status === 'revoked') {
+    throw new GoogleAccessTokenError(
+      'revoked',
+      'Google authorization was revoked; reconnect Google Workspace',
+    );
+  }
+
+  if (connection.status !== 'active') {
     throw new GoogleAccessTokenError('not_connected', 'Google Workspace is not connected');
   }
 

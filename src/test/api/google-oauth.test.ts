@@ -340,4 +340,24 @@ describe('Google OAuth staff APIs', () => {
     expect(deleteGoogleConnectionMock).toHaveBeenCalledWith('profile-1', {});
     expect(revokeGoogleTokenMock).toHaveBeenCalledWith({ token: 'refresh-1' });
   });
+
+  it('returns opaque error when disconnect fails', async () => {
+    requireApprovedStaffClientMock.mockResolvedValue({
+      ok: true,
+      userId: 'profile-1',
+      supabase: {},
+    });
+    getServiceRoleClientMock.mockReturnValue({});
+    deleteGoogleConnectionMock.mockRejectedValue(new Error('db boom with ciphertext secrets'));
+
+    const res = await disconnectPOST(
+      ctx({
+        request: new Request('http://localhost/api/staff/google/disconnect', { method: 'POST' }),
+      }) as unknown as Parameters<typeof disconnectPOST>[0],
+    );
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toEqual({ ok: false, error: 'Failed to disconnect Google Workspace' });
+    expect(JSON.stringify(body)).not.toMatch(/ciphertext|boom|refresh/i);
+  });
 });

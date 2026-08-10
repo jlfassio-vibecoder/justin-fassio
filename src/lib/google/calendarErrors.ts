@@ -1,26 +1,26 @@
-import { GmailClientError } from '@/lib/google/gmailClient';
+import { CalendarClientError } from '@/lib/google/calendarClient';
 
-/** Safe log fields only — never include tokens, raw MIME, or full response bodies. */
-export function logGmailClientFailure(workflow: string, err: GmailClientError): void {
-  console.error('[gmail]', {
+/** Safe log fields only — never include tokens or full Google payloads. */
+export function logCalendarClientFailure(workflow: string, err: CalendarClientError): void {
+  console.error('[calendar]', {
     workflow,
-    error: 'gmail_failed',
+    error: 'calendar_failed',
     status: err.status ?? null,
-    reason: err.reason ?? null,
     message: truncateSafe(err.message),
   });
 }
 
-export function gmailClientErrorJsonResponse(
+export function calendarClientErrorJsonResponse(
   workflow: string,
-  err: GmailClientError,
+  err: CalendarClientError,
   fallback: string,
 ): Response {
-  logGmailClientFailure(workflow, err);
-  const mapped = gmailClientErrorToClientMessage(err, fallback);
+  logCalendarClientFailure(workflow, err);
+  const mapped = calendarClientErrorToClientMessage(err, fallback);
   const status = mapped.httpStatus ?? 502;
   const body: Record<string, unknown> = { error: mapped.error };
   if (mapped.needsReconnect) body.needsReconnect = true;
+  if (mapped.needsCalendarEvents) body.needsCalendarEvents = true;
   if (mapped.retryAfterSeconds != null) body.retryAfterSeconds = mapped.retryAfterSeconds;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (mapped.retryAfterSeconds != null) {
@@ -38,38 +38,36 @@ function truncateSafe(message: string, max = 240): string {
   return `${trimmed.slice(0, max)}…`;
 }
 
-function isQuotaOrRateLimit(err: GmailClientError, text: string, reason: string): boolean {
+function isQuotaOrRateLimit(err: CalendarClientError, text: string): boolean {
   return (
     err.status === 429 ||
-    reason.includes('ratelimitexceeded') ||
-    reason.includes('quotaexceeded') ||
-    reason.includes('usageratelimitexceeded') ||
     text.includes('rate limit') ||
     text.includes('quota exceeded') ||
     text.includes('quotaexceeded') ||
-    text.includes('ratelimitexceeded')
+    text.includes('ratelimitexceeded') ||
+    text.includes('usageratelimitexceeded')
   );
 }
 
 /**
- * Staff-facing message for known Gmail provider failures.
+ * Staff-facing message for known Calendar provider failures.
  * Keep generic for unknown cases (avoid leaking internals).
  */
-export function gmailClientErrorToClientMessage(
-  err: GmailClientError,
+export function calendarClientErrorToClientMessage(
+  err: CalendarClientError,
   fallback: string,
 ): {
   error: string;
   needsReconnect?: boolean;
+  needsCalendarEvents?: boolean;
   httpStatus?: number;
   retryAfterSeconds?: number;
 } {
   const text = err.message.toLowerCase();
-  const reason = (err.reason ?? '').toLowerCase();
 
-  if (isQuotaOrRateLimit(err, text, reason)) {
+  if (isQuotaOrRateLimit(err, text)) {
     return {
-      error: 'Google Gmail rate limit reached. Wait a moment and try again.',
+      error: 'Google Calendar rate limit reached. Wait a moment and try again.',
       httpStatus: 429,
     };
   }
@@ -78,11 +76,11 @@ export function gmailClientErrorToClientMessage(
     text.includes('has not been used in project') ||
     text.includes('is disabled') ||
     text.includes('access not configured') ||
-    reason.includes('access_not_configured')
+    text.includes('accessnotconfigured')
   ) {
     return {
       error:
-        'Gmail API is not enabled for this Google Cloud project. Enable the Gmail API, then retry.',
+        'Google Calendar API is not enabled for this Google Cloud project. Enable the Calendar API, then retry.',
     };
   }
 
@@ -90,20 +88,20 @@ export function gmailClientErrorToClientMessage(
     text.includes('insufficient authentication scopes') ||
     text.includes('insufficientpermissions') ||
     text.includes('access_token_scope_insufficient') ||
-    reason.includes('access_token_scope_insufficient') ||
     err.status === 401
   ) {
     return {
       error:
-        'Google rejected Gmail access. Disconnect and reconnect Google Workspace, then grant Gmail again.',
+        'Google rejected Calendar access. Disconnect and reconnect Google Workspace, then grant Calendar again.',
       needsReconnect: true,
+      needsCalendarEvents: true,
     };
   }
 
   if (err.status === 403 && (text.includes('forbidden') || text.includes('permission'))) {
     return {
       error:
-        'Gmail permission was denied. Confirm the Workspace account can use Gmail and that Gmail scopes were granted.',
+        'Calendar permission was denied. Confirm the Workspace account can use Calendar and that Calendar scopes were granted.',
       needsReconnect: true,
     };
   }

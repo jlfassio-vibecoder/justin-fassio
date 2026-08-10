@@ -840,7 +840,7 @@ No new features. Verify Resend OGR + Message Center wholesale/live chat still wo
 npm run check.
 ```
 
-- [ ] Phase G merged
+- [x] Phase G merged
 
 ---
 
@@ -924,17 +924,17 @@ npm run check.
 
 ## 20. Operational Requirements
 
-| Requirement          | Detail                                                                                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Google Cloud project | Enable Gmail API + Google Calendar API                                                                                                           |
-| OAuth consent screen | **Internal / company Google Workspace only** for MVP; external Google-account distribution deferred (extra verification / security assessment)   |
-| Gmail scope classes  | Document Sensitive (`gmail.send`) vs Restricted (`gmail.readonly`, `gmail.compose`) in ops notes; minimize overlapping scopes                    |
-| OAuth client         | Web application                                                                                                                                  |
-| Redirect URLs        | `http://localhost:4321/api/staff/google/oauth/callback`, production/preview HTTPS equivalents                                                    |
-| Env vars             | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_ENCRYPTION_KEY`, `GOOGLE_OAUTH_REDIRECT_URI` (or derive from request origin carefully) |
-| Workspace            | Mailbox used for business correspondence (e.g. office@) available to connecting staff user                                                       |
-| Vercel               | Set server env for Production/Preview; never `PUBLIC_` for secrets                                                                               |
-| Support              | Document disconnect + reconnect when Google revokes refresh tokens                                                                               |
+| Requirement          | Detail                                                                                                                                                                        |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Google Cloud project | Enable Gmail API + Google Calendar API                                                                                                                                        |
+| OAuth consent screen | **Internal / company Google Workspace only** for MVP; external Google-account distribution deferred (extra verification / security assessment)                                |
+| Gmail scope classes  | Document Sensitive (`gmail.send`) vs Restricted (`gmail.readonly`, `gmail.compose`) in ops notes; minimize overlapping scopes                                                 |
+| OAuth client         | Web application                                                                                                                                                               |
+| Redirect URLs        | `http://localhost:4321/api/staff/google/oauth/callback`, production/preview HTTPS equivalents                                                                                 |
+| Env vars             | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_ENCRYPTION_KEY`, `GOOGLE_OAUTH_REDIRECT_URI` (or derive from request origin carefully)                              |
+| Workspace            | Mailbox used for business correspondence (e.g. office@) available to connecting staff user                                                                                    |
+| Vercel               | Set server env for Production/Preview; never `PUBLIC_` for secrets                                                                                                            |
+| Support              | When Google revokes a refresh token, Email/Calendar show reconnect. Prefer Reconnect; if it fails, Disconnect then connect again. Never expect refresh tokens in the browser. |
 
 ---
 
@@ -956,16 +956,16 @@ npm run check.
 
 ## 22. Acceptance Criteria (MVP complete)
 
-- [ ] Approved staff can connect and disconnect a Google Workspace account; refresh token never appears in browser network payloads
-- [ ] Messages → Email lists Inbox/Sent/Drafts and opens threads from Gmail
-- [ ] Staff can compose and reply via Gmail
-- [ ] Threads can be linked to a prospect/account via contact email matching or manual link
-- [ ] Account/Prospect drawers show contextual linked email threads
-- [ ] Calendar tab lists upcoming Google events; staff can create/edit/cancel with optional Meet + CRM contact invitees
-- [ ] Events can be associated to account/contact
-- [ ] Wholesale Message Center, live chat, OGR Email Product (Resend), Copy Email Card, Copy Product Link still work unchanged
-- [ ] `npm run check` passes; security review of token storage done
-- [ ] `.env.example` + this roadmap phases checked off through G
+- [x] Approved staff can connect and disconnect a Google Workspace account; refresh token never appears in browser network payloads
+- [x] Messages → Email lists Inbox/Sent/Drafts and opens threads from Gmail
+- [x] Staff can compose and reply via Gmail
+- [x] Threads can be linked to a prospect/account via contact email matching or manual link
+- [x] Account/Prospect drawers show contextual linked email threads
+- [x] Calendar tab lists upcoming Google events; staff can create/edit/cancel with optional Meet + CRM contact invitees
+- [x] Events can be associated to account/contact
+- [x] Wholesale Message Center, live chat, OGR Email Product (Resend), Copy Email Card, Copy Product Link still work unchanged
+- [x] `npm run check` passes; security review of token storage done
+- [x] `.env.example` + this roadmap phases checked off through G
 
 ---
 

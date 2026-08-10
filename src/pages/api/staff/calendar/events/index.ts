@@ -10,6 +10,7 @@ import {
   createCalendarEvent,
   listUpcomingEvents,
 } from '@/lib/google/calendarClient';
+import { calendarClientErrorJsonResponse } from '@/lib/google/calendarErrors';
 import {
   CalendarEventLinkError,
   PRIMARY_CALENDAR_ID,
@@ -97,8 +98,7 @@ export const GET: APIRoute = async ({ request }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof CalendarClientError) {
-      console.error('[calendar]', { workflow: 'list_events', error: 'calendar_failed' });
-      return json({ ok: false, error: 'Failed to load calendar events' }, 502);
+      return calendarClientErrorJsonResponse('list_events', err, 'Failed to load calendar events');
     }
     console.error('[calendar]', { workflow: 'list_events', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to load calendar events' }, 500);
@@ -155,8 +155,11 @@ export const POST: APIRoute = async ({ request }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof CalendarClientError) {
-      console.error('[calendar]', { workflow: 'create_event', error: 'calendar_failed' });
-      return json({ ok: false, error: 'Failed to create calendar event' }, 502);
+      return calendarClientErrorJsonResponse(
+        'create_event',
+        err,
+        'Failed to create calendar event',
+      );
     }
     console.error('[calendar]', { workflow: 'create_event', error: 'unexpected' });
     return json({ ok: false, error: 'Failed to create calendar event' }, 500);

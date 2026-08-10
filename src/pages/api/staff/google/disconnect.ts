@@ -28,9 +28,8 @@ export const POST: APIRoute = async ({ request }) => {
       await revokeGoogleToken({ token: refreshToken });
     }
     return json({ ok: true, disconnected: deleted });
-  } catch (err) {
+  } catch {
     console.error('[googleOAuth]', { workflow: 'disconnect', error: 'disconnect_failed' });
-    const message = err instanceof Error ? err.message : 'Failed to disconnect';
-    return json({ ok: false, error: message }, 500);
+    return json({ ok: false, error: 'Failed to disconnect Google Workspace' }, 500);
   }
 };
