@@ -69,6 +69,7 @@ export function GmailThreadLinkForm({ threadId, onLinked, onUnlinked }: GmailThr
           setHits([]);
           return;
         }
+        setError(null);
         setHits(result.data);
       })();
     }, 220);

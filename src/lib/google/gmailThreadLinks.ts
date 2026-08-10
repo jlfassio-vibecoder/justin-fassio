@@ -98,6 +98,19 @@ export async function upsertConfirmedGmailThreadLink(params: {
   accountContactId?: string | null;
   cache?: GmailThreadLinkCache;
 }): Promise<GmailThreadLinkRow> {
+  const accountContactId = params.accountContactId?.trim() || null;
+  if (accountContactId) {
+    const { data: contact, error: contactError } = await params.client
+      .from('account_contacts')
+      .select('id, account_id')
+      .eq('id', accountContactId)
+      .maybeSingle();
+    if (contactError) throw new GmailThreadLinkError(contactError.message);
+    if (!contact || contact.account_id !== params.prospectId) {
+      throw new GmailThreadLinkError('accountContactId does not belong to prospectId');
+    }
+  }
+
   const { data, error } = await params.client
     .from('gmail_thread_links')
     .upsert(
@@ -105,7 +118,7 @@ export async function upsertConfirmedGmailThreadLink(params: {
         google_connection_id: params.googleConnectionId,
         gmail_thread_id: params.gmailThreadId,
         prospect_id: params.prospectId,
-        account_contact_id: params.accountContactId ?? null,
+        account_contact_id: accountContactId,
         link_status: 'confirmed',
         subject: params.cache?.subject ?? null,
         snippet: params.cache?.snippet ?? null,

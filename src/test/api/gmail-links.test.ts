@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const requireApprovedStaffClientMock = vi.fn();
 const getServiceRoleClientMock = vi.fn();
 const getGoogleAccessTokenForProfileMock = vi.fn();
+const loadConnectionForProfileMock = vi.fn();
 const getGmailThreadMock = vi.fn();
 const matchParticipantsToCrmMock = vi.fn();
 const getGmailThreadLinkMock = vi.fn();
@@ -26,6 +27,15 @@ vi.mock('@/lib/google/accessToken', async () => {
     ...actual,
     getGoogleAccessTokenForProfile: (...args: unknown[]) =>
       getGoogleAccessTokenForProfileMock(...args),
+  };
+});
+
+vi.mock('@/lib/google/tokenStore', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/lib/google/tokenStore')>('@/lib/google/tokenStore');
+  return {
+    ...actual,
+    loadConnectionForProfile: (...args: unknown[]) => loadConnectionForProfileMock(...args),
   };
 });
 
@@ -91,6 +101,12 @@ describe('Gmail thread link staff APIs', () => {
         google_email: 'office@example.com',
         scopes: ['gmail.readonly'],
       },
+    });
+    loadConnectionForProfileMock.mockResolvedValue({
+      id: 'conn-1',
+      profile_id: 'profile-1',
+      google_email: 'office@example.com',
+      status: 'active',
     });
   });
 
@@ -218,7 +234,7 @@ describe('Gmail thread link staff APIs', () => {
     );
   });
 
-  it('unlinks on DELETE', async () => {
+  it('unlinks on DELETE without refreshing Google tokens', async () => {
     deleteGmailThreadLinkMock.mockResolvedValue(true);
     const res = await linkDELETE(
       ctx({
@@ -229,7 +245,11 @@ describe('Gmail thread link staff APIs', () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(deleteGmailThreadLinkMock).toHaveBeenCalled();
+    expect(loadConnectionForProfileMock).toHaveBeenCalled();
+    expect(getGoogleAccessTokenForProfileMock).not.toHaveBeenCalled();
+    expect(deleteGmailThreadLinkMock).toHaveBeenCalledWith(
+      expect.objectContaining({ googleConnectionId: 'conn-1', gmailThreadId: 'thr-1' }),
+    );
   });
 
   it('lists confirmed links for prospect', async () => {

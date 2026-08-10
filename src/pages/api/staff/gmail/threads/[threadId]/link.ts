@@ -14,6 +14,7 @@ import {
   toPublicGmailThreadLink,
   upsertConfirmedGmailThreadLink,
 } from '@/lib/google/gmailThreadLinks';
+import { GoogleTokenStoreError, loadConnectionForProfile } from '@/lib/google/tokenStore';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
 
 export const prerender = false;
@@ -156,11 +157,14 @@ export const DELETE: APIRoute = async ({ request, params }) => {
   if (!admin) return json({ ok: false, error: 'Server misconfigured' }, 500);
 
   try {
-    const { connection } = await getGoogleAccessTokenForProfile({
-      profileId: gate.userId,
-      requireGmailReadonly: true,
-      client: admin,
-    });
+    // Unlink only needs connection id — do not refresh Google tokens.
+    const connection = await loadConnectionForProfile(gate.userId, admin);
+    if (!connection) {
+      return json(
+        { ok: false, error: 'Google Workspace is not connected', code: 'not_connected' },
+        409,
+      );
+    }
     const deleted = await deleteGmailThreadLink({
       client: gate.supabase,
       googleConnectionId: connection.id,
@@ -168,9 +172,8 @@ export const DELETE: APIRoute = async ({ request, params }) => {
     });
     return json({ ok: true, deleted });
   } catch (err) {
-    if (err instanceof GoogleAccessTokenError) {
-      const mapped = accessTokenErrorToHttp(err);
-      return json(mapped.body, mapped.status);
+    if (err instanceof GoogleTokenStoreError) {
+      return json({ ok: false, error: 'Server misconfigured' }, 500);
     }
     if (err instanceof GmailThreadLinkError) {
       return json({ ok: false, error: err.message }, 500);
