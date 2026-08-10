@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { AccountContactsSection } from '@/components/AccountContactsSection';
 import { AccountNotesEditor } from '@/components/AccountNotesEditor';
+import { AccountCalendarSection } from '@/components/calendar/AccountCalendarSection';
+import { ScheduleMeetingModal } from '@/components/calendar/ScheduleMeetingModal';
 import { AccountEmailSection } from '@/components/messages/AccountEmailSection';
 import { AccountMessagesSection } from '@/components/messages/AccountMessagesSection';
 import { Button } from '@/components/ui/Button';
@@ -145,6 +147,8 @@ export function AccountDetailDrawer({
 }: AccountDetailDrawerProps) {
   const [demoteBusy, setDemoteBusy] = useState(false);
   const [demoteError, setDemoteError] = useState<string | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
 
   if (!account) return null;
   const current = account;
@@ -304,6 +308,13 @@ export function AccountDetailDrawer({
           <AccountMessagesSection key={`messages-${account.id}`} prospectId={account.id} />
 
           <AccountEmailSection key={`email-${account.id}`} prospectId={account.id} />
+
+          <AccountCalendarSection
+            key={`calendar-${account.id}`}
+            prospectId={account.id}
+            refreshKey={calendarRefreshKey}
+            onScheduleMeeting={() => setScheduleOpen(true)}
+          />
         </div>
 
         <div className="border-ink/10 flex flex-col gap-2 border-t px-5 py-4">
@@ -335,6 +346,14 @@ export function AccountDetailDrawer({
           </Button>
         </div>
       </aside>
+
+      <ScheduleMeetingModal
+        open={scheduleOpen}
+        prospectId={account.id}
+        prospectName={account.name}
+        onClose={() => setScheduleOpen(false)}
+        onCreated={() => setCalendarRefreshKey((n) => n + 1)}
+      />
     </>
   );
 }

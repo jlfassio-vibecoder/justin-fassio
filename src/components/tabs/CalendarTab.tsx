@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { CalendarAgenda } from '@/components/calendar/CalendarAgenda';
-import { CalendarEventForm } from '@/components/calendar/CalendarEventForm';
+import {
+  CalendarEventForm,
+  type CalendarEventFormSubmit,
+} from '@/components/calendar/CalendarEventForm';
+import { CalendarEventLinkForm } from '@/components/calendar/CalendarEventLinkForm';
 import { ConnectGoogleWorkspaceCard } from '@/components/google/ConnectGoogleWorkspaceCard';
 import { Button } from '@/components/ui/Button';
 import {
@@ -11,11 +15,7 @@ import {
   updateCalendarEventClient,
 } from '@/lib/calendarClientBrowser';
 import type { GoogleConnectionPublic } from '@/lib/google/connectionTypes';
-import type {
-  CalendarEventDetail,
-  CalendarEventSummary,
-  CalendarEventWriteInput,
-} from '@/lib/google/calendarTypes';
+import type { CalendarEventDetail, CalendarEventSummary } from '@/lib/google/calendarTypes';
 import { fetchGoogleConnection } from '@/lib/googleConnectionClient';
 
 export function CalendarTab() {
@@ -93,7 +93,7 @@ export function CalendarTab() {
     setDetail(result.event);
   }
 
-  async function handleCreate(input: CalendarEventWriteInput) {
+  async function handleCreate(input: CalendarEventFormSubmit) {
     setFormBusy(true);
     setFormError(null);
     const result = await createCalendarEventClient(input);
@@ -102,13 +102,19 @@ export function CalendarTab() {
       setFormError(result.error);
       return;
     }
+    if (result.linkError) {
+      setFormError(`Event created, but CRM link failed: ${result.linkError}`);
+      setSelectedId(result.event.id);
+      setReloadToken((n) => n + 1);
+      return;
+    }
     setFormMode('closed');
     setDetail(null);
     setSelectedId(result.event.id);
     setReloadToken((n) => n + 1);
   }
 
-  async function handleUpdate(input: CalendarEventWriteInput) {
+  async function handleUpdate(input: CalendarEventFormSubmit) {
     if (!selectedId) return;
     setFormBusy(true);
     setFormError(null);
@@ -119,6 +125,9 @@ export function CalendarTab() {
       return;
     }
     setDetail(result.event);
+    if (result.linkError) {
+      setFormError(`Event updated, but CRM link failed: ${result.linkError}`);
+    }
     setReloadToken((n) => n + 1);
   }
 
@@ -190,8 +199,8 @@ export function CalendarTab() {
         <section className="border-ink/10 bg-surface rounded-md border p-4">
           {formMode === 'closed' ? (
             <p className="text-ink/55 m-0 text-sm">
-              Select an event to edit, or create a new one. Attendee emails are freeform; CRM
-              association comes in a later phase.
+              Select an event to edit, or create a new one. Optionally link events to CRM
+              prospects/accounts when creating or from the edit panel.
             </p>
           ) : null}
           {formMode === 'create' ? (
@@ -199,6 +208,7 @@ export function CalendarTab() {
               mode="create"
               busy={formBusy}
               error={formError}
+              showCrmAssociation
               onSubmit={(input) => void handleCreate(input)}
               onCancel={() => {
                 setFormMode('closed');
@@ -208,19 +218,22 @@ export function CalendarTab() {
           ) : null}
           {formMode === 'edit' ? (
             detail ? (
-              <CalendarEventForm
-                key={detail.id}
-                mode="edit"
-                initial={detail}
-                busy={formBusy}
-                error={formError}
-                onSubmit={(input) => void handleUpdate(input)}
-                onCancel={() => {
-                  setFormMode('closed');
-                  setFormError(null);
-                }}
-                onDelete={() => void handleDelete()}
-              />
+              <div className="flex flex-col gap-4">
+                <CalendarEventForm
+                  key={detail.id}
+                  mode="edit"
+                  initial={detail}
+                  busy={formBusy}
+                  error={formError}
+                  onSubmit={(input) => void handleUpdate(input)}
+                  onCancel={() => {
+                    setFormMode('closed');
+                    setFormError(null);
+                  }}
+                  onDelete={() => void handleDelete()}
+                />
+                <CalendarEventLinkForm eventId={detail.id} />
+              </div>
             ) : (
               <p className="text-ink/60 m-0 text-sm">{formError ?? 'Loading event…'}</p>
             )

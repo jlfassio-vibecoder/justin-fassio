@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { AccountContactsSection } from '@/components/AccountContactsSection';
 import { AccountNotesEditor } from '@/components/AccountNotesEditor';
+import { AccountCalendarSection } from '@/components/calendar/AccountCalendarSection';
+import { ScheduleMeetingModal } from '@/components/calendar/ScheduleMeetingModal';
 import { ConvertAccountModal } from '@/components/ConvertAccountModal';
 import { AccountEmailSection } from '@/components/messages/AccountEmailSection';
 import { AccountMessagesSection } from '@/components/messages/AccountMessagesSection';
@@ -34,6 +36,8 @@ export function ProspectDetailDrawer({
   onTaxonomySaved,
 }: ProspectDetailDrawerProps) {
   const [convertOpen, setConvertOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
 
   if (!prospect) return null;
 
@@ -122,6 +126,12 @@ export function ProspectDetailDrawer({
           <AccountMessagesSection prospectId={prospect.id} />
 
           <AccountEmailSection prospectId={prospect.id} />
+
+          <AccountCalendarSection
+            prospectId={prospect.id}
+            refreshKey={calendarRefreshKey}
+            onScheduleMeeting={() => setScheduleOpen(true)}
+          />
         </div>
 
         <div className="border-ink/10 flex flex-col gap-2 border-t px-5 py-4">
@@ -151,6 +161,14 @@ export function ProspectDetailDrawer({
           onConverted?.();
           onClose();
         }}
+      />
+
+      <ScheduleMeetingModal
+        open={scheduleOpen}
+        prospectId={prospect.id}
+        prospectName={prospect.name}
+        onClose={() => setScheduleOpen(false)}
+        onCreated={() => setCalendarRefreshKey((n) => n + 1)}
       />
     </>
   );

@@ -812,7 +812,7 @@ calendar_event_links; invite account_contacts; associate events to prospects/acc
 Schedule meeting from drawers. Public booking still deferred. npm run check.
 ```
 
-- [ ] Phase F merged
+- [x] Phase F merged
 
 ---
 

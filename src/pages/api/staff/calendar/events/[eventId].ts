@@ -12,6 +12,15 @@ import {
   updateCalendarEvent,
 } from '@/lib/google/calendarClient';
 import {
+  CalendarEventLinkError,
+  deleteCalendarEventLink,
+  PRIMARY_CALENDAR_ID,
+  refreshCalendarEventLinkCache,
+  toPublicCalendarEventLink,
+  upsertConfirmedCalendarEventLink,
+} from '@/lib/google/calendarEventLinks';
+import type { CalendarEventDetail } from '@/lib/google/calendarTypes';
+import {
   CalendarValidationError,
   parseCalendarEventWriteBody,
 } from '@/lib/google/calendarValidation';
@@ -39,6 +48,31 @@ async function withCalendarToken(profileId: string) {
 
 function eventIdFromParams(params: { eventId?: string | string[] }): string {
   return typeof params.eventId === 'string' ? params.eventId.trim() : '';
+}
+
+function parseOptionalProspectId(body: unknown): number | null {
+  if (body == null || typeof body !== 'object') return null;
+  const raw = (body as { prospectId?: unknown }).prospectId;
+  if (raw == null || raw === '') return null;
+  const prospectId = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(prospectId) || prospectId <= 0) return null;
+  return prospectId;
+}
+
+function parseOptionalContactId(body: unknown): string | null {
+  if (body == null || typeof body !== 'object') return null;
+  const raw = (body as { accountContactId?: unknown }).accountContactId;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
+}
+
+function cacheFromEvent(event: CalendarEventDetail) {
+  return {
+    title: event.title,
+    startAt: event.start || null,
+    endAt: event.end || null,
+    meetUrl: event.meetUrl,
+    attendees: event.attendees.map((a) => a.email),
+  };
 }
 
 export const GET: APIRoute = async ({ request, params }) => {
@@ -82,9 +116,49 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 
   try {
     const input = parseCalendarEventWriteBody(body);
-    const { accessToken } = await withCalendarToken(gate.userId);
+    const prospectId = parseOptionalProspectId(body);
+    const accountContactId = parseOptionalContactId(body);
+    const { accessToken, connection } = await withCalendarToken(gate.userId);
     const event = await updateCalendarEvent({ accessToken, eventId, input });
-    return json({ ok: true, event });
+    const cache = cacheFromEvent(event);
+
+    if (prospectId != null) {
+      try {
+        const row = await upsertConfirmedCalendarEventLink({
+          client: gate.supabase,
+          googleConnectionId: connection.id,
+          googleEventId: eventId,
+          prospectId,
+          accountContactId,
+          calendarId: PRIMARY_CALENDAR_ID,
+          cache,
+        });
+        return json({ ok: true, event, link: toPublicCalendarEventLink(row) });
+      } catch (linkErr) {
+        const linkError =
+          linkErr instanceof CalendarEventLinkError
+            ? linkErr.message
+            : 'Failed to save CRM calendar link';
+        return json({ ok: true, event, linkError });
+      }
+    }
+
+    try {
+      const refreshed = await refreshCalendarEventLinkCache({
+        client: gate.supabase,
+        googleConnectionId: connection.id,
+        googleEventId: eventId,
+        calendarId: PRIMARY_CALENDAR_ID,
+        cache,
+      });
+      return json({
+        ok: true,
+        event,
+        link: refreshed ? toPublicCalendarEventLink(refreshed) : null,
+      });
+    } catch {
+      return json({ ok: true, event });
+    }
   } catch (err) {
     if (err instanceof CalendarValidationError) {
       return json({ ok: false, error: err.message }, 400);
@@ -110,8 +184,18 @@ export const DELETE: APIRoute = async ({ request, params }) => {
   if (!eventId) return json({ ok: false, error: 'eventId is required' }, 400);
 
   try {
-    const { accessToken } = await withCalendarToken(gate.userId);
+    const { accessToken, connection } = await withCalendarToken(gate.userId);
     await cancelCalendarEvent({ accessToken, eventId });
+    try {
+      await deleteCalendarEventLink({
+        client: gate.supabase,
+        googleConnectionId: connection.id,
+        googleEventId: eventId,
+        calendarId: PRIMARY_CALENDAR_ID,
+      });
+    } catch {
+      // best-effort: Google cancel already succeeded
+    }
     return json({ ok: true, deleted: true });
   } catch (err) {
     if (err instanceof GoogleAccessTokenError) {
