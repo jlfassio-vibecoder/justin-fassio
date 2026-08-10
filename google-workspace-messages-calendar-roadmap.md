@@ -766,9 +766,9 @@ Do not overload message_threads. npm run check.
 
 **Scope verification (required in this phase):**
 
-- Current roadmap recommendation remains `calendar.events`.
-- Before locking the consent request, verify whether `calendar.events.owned` is sufficient for list/create/edit/cancel, attendees, and Meet.
-- Choose the **narrowest** scope that satisfies those MVP operations; document the choice.
+- **Locked for Phase E:** `https://www.googleapis.com/auth/calendar.events.owned`.
+- Justification: MVP uses the connected staff primary calendar only (always owned); Events:insert documents this scope for create/edit/delete including Meet `conferenceData`. Narrower than `calendar.events` / full `calendar`.
+- If Meet/attendee write fails under `.owned` in smoke, bump to `calendar.events` (do not request full `calendar`).
 
 **Deliverables:**
 

@@ -10,4 +10,6 @@ export type GoogleConnectionPublic = {
   hasGmailReadonly: boolean;
   /** True when stored scopes include gmail.compose (Phase C). */
   hasGmailCompose: boolean;
+  /** True when stored scopes include calendar.events.owned (Phase E). */
+  hasCalendarEvents: boolean;
 };

@@ -58,6 +58,28 @@ describe('getGoogleAccessTokenForProfile', () => {
     ).rejects.toMatchObject({ code: 'needs_gmail_readonly' });
   });
 
+  it('rejects when Calendar events scope is missing', async () => {
+    loadConnectionForProfileMock.mockResolvedValue({
+      id: 'c1',
+      profile_id: 'p1',
+      google_sub: 'sub',
+      google_email: 'a@b.com',
+      refresh_token_ciphertext: encryptRefreshToken('refresh', key),
+      scopes: ['openid', 'https://www.googleapis.com/auth/gmail.readonly'],
+      status: 'active',
+      created_at: '',
+      updated_at: '',
+    });
+
+    await expect(
+      getGoogleAccessTokenForProfile({
+        profileId: 'p1',
+        requireGmailReadonly: false,
+        requireCalendarEvents: true,
+      }),
+    ).rejects.toMatchObject({ code: 'needs_calendar_events' });
+  });
+
   it('refreshes access token when readonly scope is present', async () => {
     loadConnectionForProfileMock.mockResolvedValue({
       id: 'c1',

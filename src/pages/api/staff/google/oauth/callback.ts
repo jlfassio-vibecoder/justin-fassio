@@ -16,9 +16,13 @@ import { getServiceRoleClient } from '@/lib/supabaseAdmin';
 
 export const prerender = false;
 
-function appRedirect(origin: string, params: Record<string, string>): Response {
+function appRedirect(
+  origin: string,
+  params: Record<string, string>,
+  tab: 'messages' | 'calendar' = 'messages',
+): Response {
   const url = new URL('/app', origin);
-  url.searchParams.set('tab', 'messages');
+  url.searchParams.set('tab', tab);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
@@ -53,10 +57,11 @@ export const GET: APIRoute = async ({ request, cookies }) => {
     }
 
     const statePayload = verifyOAuthState(stateQuery);
+    const returnTab = statePayload.returnTab ?? 'messages';
     const admin = getServiceRoleClient();
     if (!admin) {
       clearStateCookie();
-      return appRedirect(origin, { google: 'error', reason: 'server_misconfigured' });
+      return appRedirect(origin, { google: 'error', reason: 'server_misconfigured' }, returnTab);
     }
 
     const tokens = await exchangeAuthorizationCode({ code, requestOrigin: origin });
@@ -73,7 +78,7 @@ export const GET: APIRoute = async ({ request, cookies }) => {
         client: admin,
       });
       clearStateCookie();
-      return appRedirect(origin, { google: 'connected' });
+      return appRedirect(origin, { google: 'connected' }, returnTab);
     }
 
     // Re-auth sometimes omits refresh_token; keep existing token if same Google subject.
@@ -89,13 +94,13 @@ export const GET: APIRoute = async ({ request, cookies }) => {
         .eq('profile_id', statePayload.profileId);
       clearStateCookie();
       if (error) {
-        return appRedirect(origin, { google: 'error', reason: 'store_failed' });
+        return appRedirect(origin, { google: 'error', reason: 'store_failed' }, returnTab);
       }
-      return appRedirect(origin, { google: 'connected' });
+      return appRedirect(origin, { google: 'connected' }, returnTab);
     }
 
     clearStateCookie();
-    return appRedirect(origin, { google: 'error', reason: 'missing_refresh_token' });
+    return appRedirect(origin, { google: 'error', reason: 'missing_refresh_token' }, returnTab);
   } catch (err) {
     clearStateCookie();
     if (err instanceof OAuthStateError) {

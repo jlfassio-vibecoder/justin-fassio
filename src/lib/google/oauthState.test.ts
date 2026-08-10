@@ -19,6 +19,12 @@ describe('oauthState', () => {
     expect(payload.exp).toBeGreaterThan(1_000_000);
   });
 
+  it('round-trips returnTab=calendar', () => {
+    const state = createOAuthState('profile-1', 1_000_000, { returnTab: 'calendar' });
+    const payload = verifyOAuthState(state, 'profile-1', 1_000_100);
+    expect(payload.returnTab).toBe('calendar');
+  });
+
   it('rejects expired state', () => {
     const state = createOAuthState('profile-1', 1_000_000);
     expect(() => verifyOAuthState(state, undefined, 1_000_000 + 11 * 60 * 1000)).toThrow(

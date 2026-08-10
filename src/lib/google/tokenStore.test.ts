@@ -27,6 +27,7 @@ describe('tokenStore public mapping', () => {
       scopes: ['openid', 'email', 'profile'],
       hasGmailReadonly: false,
       hasGmailCompose: false,
+      hasCalendarEvents: false,
     });
     expect(JSON.stringify(pub)).not.toContain('SECRET_CIPHERTEXT');
     expect(JSON.stringify(pub)).not.toContain('refresh_token');
@@ -41,6 +42,7 @@ describe('tokenStore public mapping', () => {
       scopes: [],
       hasGmailReadonly: false,
       hasGmailCompose: false,
+      hasCalendarEvents: false,
     });
   });
 
@@ -64,5 +66,13 @@ describe('tokenStore public mapping', () => {
     });
     expect(pub.hasGmailReadonly).toBe(true);
     expect(pub.hasGmailCompose).toBe(true);
+  });
+
+  it('sets hasCalendarEvents when owned scope is present', () => {
+    const pub = toPublicConnection({
+      ...row,
+      scopes: ['openid', 'https://www.googleapis.com/auth/calendar.events.owned'],
+    });
+    expect(pub.hasCalendarEvents).toBe(true);
   });
 });

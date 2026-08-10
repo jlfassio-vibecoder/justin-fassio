@@ -1,5 +1,6 @@
 import {
   Building2,
+  Calendar,
   Gauge,
   Home,
   Lightbulb,
@@ -30,6 +31,7 @@ const tabs: { key: TabKey; label: string; icon: typeof Package }[] = [
   { key: 'accounts', label: 'Active Accounts', icon: Building2 },
   { key: 'contacts', label: 'Contacts', icon: Users },
   { key: 'messages', label: 'Messages', icon: MessageSquare },
+  { key: 'calendar', label: 'Calendar', icon: Calendar },
   { key: 'insights', label: 'Buyer Insights', icon: Lightbulb },
 ];
 

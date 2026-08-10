@@ -3,10 +3,13 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 const STATE_TTL_MS = 10 * 60 * 1000;
 export const GOOGLE_OAUTH_STATE_COOKIE = 'google_oauth_state';
 
+export type GoogleOAuthReturnTab = 'messages' | 'calendar';
+
 export type GoogleOAuthStatePayload = {
   profileId: string;
   nonce: string;
   exp: number;
+  returnTab?: GoogleOAuthReturnTab;
 };
 
 export class OAuthStateError extends Error {
@@ -30,7 +33,16 @@ function sign(body: string): string {
   return createHmac('sha256', signingSecret()).update(body).digest('base64url');
 }
 
-export function createOAuthState(profileId: string, nowMs = Date.now()): string {
+export function parseReturnTab(value: unknown): GoogleOAuthReturnTab | undefined {
+  if (value === 'calendar' || value === 'messages') return value;
+  return undefined;
+}
+
+export function createOAuthState(
+  profileId: string,
+  nowMs = Date.now(),
+  options?: { returnTab?: GoogleOAuthReturnTab },
+): string {
   if (!profileId) {
     throw new OAuthStateError('profileId is required');
   }
@@ -39,6 +51,8 @@ export function createOAuthState(profileId: string, nowMs = Date.now()): string 
     nonce: randomBytes(16).toString('base64url'),
     exp: nowMs + STATE_TTL_MS,
   };
+  const returnTab = parseReturnTab(options?.returnTab);
+  if (returnTab) payload.returnTab = returnTab;
   const body = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
   return `${body}.${sign(body)}`;
 }
@@ -75,6 +89,9 @@ export function verifyOAuthState(
     typeof payload.exp !== 'number'
   ) {
     throw new OAuthStateError('Invalid OAuth state payload shape');
+  }
+  if (payload.returnTab !== undefined && parseReturnTab(payload.returnTab) == null) {
+    throw new OAuthStateError('Invalid OAuth state returnTab');
   }
   if (payload.exp < nowMs) {
     throw new OAuthStateError('OAuth state has expired');

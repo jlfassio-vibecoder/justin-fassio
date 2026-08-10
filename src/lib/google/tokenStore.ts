@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { scopesIncludeGmailCompose, scopesIncludeGmailReadonly } from '@/lib/google/config';
+import {
+  scopesIncludeCalendarEvents,
+  scopesIncludeGmailCompose,
+  scopesIncludeGmailReadonly,
+} from '@/lib/google/config';
 import type { GoogleConnectionPublic } from '@/lib/google/connectionTypes';
 import { decryptRefreshToken, encryptRefreshToken } from '@/lib/google/tokenCrypto';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
@@ -35,6 +39,7 @@ export function toPublicConnection(
       scopes: [],
       hasGmailReadonly: false,
       hasGmailCompose: false,
+      hasCalendarEvents: false,
     };
   }
   const status =
@@ -49,6 +54,7 @@ export function toPublicConnection(
     scopes,
     hasGmailReadonly: scopesIncludeGmailReadonly(scopes),
     hasGmailCompose: scopesIncludeGmailCompose(scopes),
+    hasCalendarEvents: scopesIncludeCalendarEvents(scopes),
   };
 }
 
