@@ -11,6 +11,13 @@ import {
   listUpcomingEvents,
 } from '@/lib/google/calendarClient';
 import {
+  CalendarEventLinkError,
+  PRIMARY_CALENDAR_ID,
+  toPublicCalendarEventLink,
+  upsertConfirmedCalendarEventLink,
+} from '@/lib/google/calendarEventLinks';
+import type { CalendarEventDetail } from '@/lib/google/calendarTypes';
+import {
   CalendarValidationError,
   parseCalendarEventWriteBody,
 } from '@/lib/google/calendarValidation';
@@ -34,6 +41,31 @@ async function withCalendarToken(profileId: string) {
     requireCalendarEvents: true,
     client: admin,
   });
+}
+
+function parseOptionalProspectId(body: unknown): number | null {
+  if (body == null || typeof body !== 'object') return null;
+  const raw = (body as { prospectId?: unknown }).prospectId;
+  if (raw == null || raw === '') return null;
+  const prospectId = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(prospectId) || prospectId <= 0) return null;
+  return prospectId;
+}
+
+function parseOptionalContactId(body: unknown): string | null {
+  if (body == null || typeof body !== 'object') return null;
+  const raw = (body as { accountContactId?: unknown }).accountContactId;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
+}
+
+function cacheFromEvent(event: CalendarEventDetail) {
+  return {
+    title: event.title,
+    startAt: event.start || null,
+    endAt: event.end || null,
+    meetUrl: event.meetUrl,
+    attendees: event.attendees.map((a) => a.email),
+  };
 }
 
 export const GET: APIRoute = async ({ request }) => {
@@ -86,9 +118,34 @@ export const POST: APIRoute = async ({ request }) => {
 
   try {
     const input = parseCalendarEventWriteBody(body);
-    const { accessToken } = await withCalendarToken(gate.userId);
+    const prospectId = parseOptionalProspectId(body);
+    const accountContactId = parseOptionalContactId(body);
+    const { accessToken, connection } = await withCalendarToken(gate.userId);
     const event = await createCalendarEvent({ accessToken, input });
-    return json({ ok: true, event });
+
+    if (prospectId == null) {
+      return json({ ok: true, event });
+    }
+
+    try {
+      const row = await upsertConfirmedCalendarEventLink({
+        client: gate.supabase,
+        googleConnectionId: connection.id,
+        googleEventId: event.id,
+        prospectId,
+        accountContactId,
+        calendarId: PRIMARY_CALENDAR_ID,
+        cache: cacheFromEvent(event),
+      });
+      return json({ ok: true, event, link: toPublicCalendarEventLink(row) });
+    } catch (linkErr) {
+      const linkError =
+        linkErr instanceof CalendarEventLinkError
+          ? linkErr.message
+          : 'Failed to save CRM calendar link';
+      console.error('[calendar]', { workflow: 'create_event_link', error: 'link_failed' });
+      return json({ ok: true, event, linkError });
+    }
   } catch (err) {
     if (err instanceof CalendarValidationError) {
       return json({ ok: false, error: err.message }, 400);
