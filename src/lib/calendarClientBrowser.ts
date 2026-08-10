@@ -141,7 +141,12 @@ export async function updateCalendarEventClient(
   eventId: string,
   input: CreateCalendarEventClientInput,
 ): Promise<
-  | { ok: true; event: CalendarEventDetail; link?: CalendarEventLinkPublic | null }
+  | {
+      ok: true;
+      event: CalendarEventDetail;
+      link?: CalendarEventLinkPublic | null;
+      linkError?: string;
+    }
   | ({ ok: false; error: string } & GateFlags)
 > {
   const token = await staffBearer();
@@ -159,6 +164,7 @@ export async function updateCalendarEventClient(
     ok?: boolean;
     event?: CalendarEventDetail;
     link?: CalendarEventLinkPublic | null;
+    linkError?: string;
     error?: string;
   } & GateFlags;
   if (!res.ok || !body.ok || !body.event) {
@@ -168,7 +174,12 @@ export async function updateCalendarEventClient(
       ...gateFromBody(body),
     };
   }
-  return { ok: true, event: body.event, link: body.link ?? null };
+  return {
+    ok: true,
+    event: body.event,
+    link: body.link ?? null,
+    linkError: body.linkError,
+  };
 }
 
 export async function cancelCalendarEventClient(
@@ -270,11 +281,22 @@ export async function unlinkCalendarEventClient(
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
-  const body = (await res.json()) as { ok?: boolean; error?: string } & GateFlags;
+  const body = (await res.json()) as {
+    ok?: boolean;
+    deleted?: boolean;
+    error?: string;
+  } & GateFlags;
   if (!res.ok || !body.ok) {
     return {
       ok: false,
       error: body.error ?? 'Failed to unlink calendar event',
+      ...gateFromBody(body),
+    };
+  }
+  if (body.deleted === false) {
+    return {
+      ok: false,
+      error: 'Calendar event link was not found for this Google connection',
       ...gateFromBody(body),
     };
   }

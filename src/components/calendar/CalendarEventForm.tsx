@@ -189,7 +189,8 @@ export function CalendarEventForm({
       setSelectedContactIds(defaultsIds);
       const emails = contactsWithEmail(result.data)
         .filter((c) => defaultsIds.includes(c.id))
-        .map((c) => c.email!.trim());
+        .map((c) => (c.email ?? '').trim())
+        .filter(Boolean);
       if (emails.length > 0) {
         setAttendeesText((prev) => mergeEmails(parseAttendeeEmails(prev), emails).join(', '));
       }

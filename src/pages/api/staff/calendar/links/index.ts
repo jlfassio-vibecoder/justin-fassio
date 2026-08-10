@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
+// Copilot suggestion ignored: no tokenStore/connection filter — mirrors Gmail links list (prospect-scoped CRM cache).
 import {
   CalendarEventLinkError,
   listConfirmedCalendarLinksForProspect,
@@ -28,6 +29,7 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   try {
+    // Copilot suggestion ignored: do not scope by google_connection_id; same prospect-wide list as Gmail drawers.
     const rows = await listConfirmedCalendarLinksForProspect({
       client: gate.supabase,
       prospectId,

@@ -85,6 +85,7 @@ export async function listConfirmedCalendarLinksForProspect(params: {
   prospectId: number;
   limit?: number;
 }): Promise<CalendarEventLinkRow[]> {
+  // Copilot suggestion ignored: keep prospect-scoped listing like Gmail Phase D (drawer shows all confirmed CRM links).
   const limit = Math.min(Math.max(params.limit ?? 25, 1), 50);
   const { data, error } = await params.client
     .from('calendar_event_links')

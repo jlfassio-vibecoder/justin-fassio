@@ -125,6 +125,9 @@ export function CalendarTab() {
       return;
     }
     setDetail(result.event);
+    if (result.linkError) {
+      setFormError(`Event updated, but CRM link failed: ${result.linkError}`);
+    }
     setReloadToken((n) => n + 1);
   }
 
