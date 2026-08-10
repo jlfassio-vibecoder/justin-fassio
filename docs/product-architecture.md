@@ -618,3 +618,20 @@ Do not report the work as complete until:
 * The submission appears correctly in the authenticated CRM.  
 * Desktop and mobile layouts have been visually tested.
 
+## Messaging & Calendar transports
+
+Staff messaging and scheduling use **separate transports**. Do not collapse them into one inbox model.
+
+| Surface | Transport | CRM storage |
+| --- | --- | --- |
+| Messages → **Email (Gmail)** | Google Gmail API (source of truth) | `google_account_connections` + `gmail_thread_links` metadata only |
+| Messages → wholesale / live chat | Existing `message_threads` | Unchanged Message Center model |
+| **Email Product (OGR)** / order mail | Resend | Unchanged Resend send paths |
+| **Calendar** tab + drawer meetings | Google Calendar API (source of truth) | `calendar_event_links` association + cache only |
+
+Google remains authoritative for mailbox and calendar content. CRM stores encrypted refresh tokens server-side and confirmed link metadata (subject/snippet/title/times)—never a full Gmail or Calendar mirror.
+
+Full design, phases A–G, security, and smoke checklist: [`google-workspace-messages-calendar-roadmap.md`](../google-workspace-messages-calendar-roadmap.md).
+
+**Support:** If Google revokes the refresh token, staff see a reconnect CTA on Email and Calendar. Prefer **Reconnect**; if that fails, **Disconnect** then connect again.
+

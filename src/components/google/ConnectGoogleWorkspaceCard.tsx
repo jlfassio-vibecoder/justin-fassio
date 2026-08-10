@@ -77,6 +77,11 @@ export function ConnectGoogleWorkspaceCard({
     connection?.connected && connection.hasGmailReadonly && !connection.hasGmailCompose,
   );
   const needsCalendarGrant = Boolean(connection?.connected && !connection.hasCalendarEvents);
+  const needsReconnect = Boolean(
+    connection &&
+    !connection.connected &&
+    (connection.status === 'error' || connection.status === 'revoked'),
+  );
 
   if (purpose === 'calendar') {
     return (
@@ -143,7 +148,21 @@ export function ConnectGoogleWorkspaceCard({
 
         {!loading && !connection?.connected ? (
           <div className="flex flex-col gap-3">
-            <p className="text-ink/70 m-0 text-sm">No Google Workspace account connected yet.</p>
+            {needsReconnect ? (
+              <>
+                <p className="text-ink m-0 text-sm">
+                  Google authorization for{' '}
+                  <span className="font-medium">{connection?.googleEmail ?? 'Workspace'}</span> was
+                  revoked or expired.
+                </p>
+                <p className="text-ink/70 m-0 text-sm">
+                  Reconnect Google Workspace to restore Calendar. If reconnect fails, disconnect
+                  first, then connect again.
+                </p>
+              </>
+            ) : (
+              <p className="text-ink/70 m-0 text-sm">No Google Workspace account connected yet.</p>
+            )}
             <div>
               <Button
                 type="button"
@@ -152,9 +171,22 @@ export function ConnectGoogleWorkspaceCard({
                 onClick={() => void handleConnect('calendar_events')}
               >
                 <Link2 strokeWidth={2.75} className="size-4" aria-hidden />
-                Connect Google Workspace
+                {needsReconnect ? 'Reconnect Google Workspace' : 'Connect Google Workspace'}
               </Button>
             </div>
+            {needsReconnect ? (
+              <div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => void handleDisconnect()}
+                >
+                  <Link2Off strokeWidth={2.75} className="size-4" aria-hidden />
+                  Disconnect
+                </Button>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -255,18 +287,45 @@ export function ConnectGoogleWorkspaceCard({
 
       {!loading && !connection?.connected ? (
         <div className="flex flex-col gap-3">
-          <p className="text-ink/70 m-0 text-sm">No Google Workspace account connected yet.</p>
+          {needsReconnect ? (
+            <>
+              <p className="text-ink m-0 text-sm">
+                Google authorization for{' '}
+                <span className="font-medium">{connection?.googleEmail ?? 'Workspace'}</span> was
+                revoked or expired.
+              </p>
+              <p className="text-ink/70 m-0 text-sm">
+                Reconnect Google Workspace to restore Gmail. If reconnect fails, disconnect first,
+                then connect again.
+              </p>
+            </>
+          ) : (
+            <p className="text-ink/70 m-0 text-sm">No Google Workspace account connected yet.</p>
+          )}
           <div>
             <Button
               type="button"
               variant="primary"
               disabled={busy}
-              onClick={() => void handleConnect('identity')}
+              onClick={() => void handleConnect(needsReconnect ? 'gmail_readonly' : 'identity')}
             >
               <Link2 strokeWidth={2.75} className="size-4" aria-hidden />
-              Connect Google Workspace
+              {needsReconnect ? 'Reconnect Google Workspace' : 'Connect Google Workspace'}
             </Button>
           </div>
+          {needsReconnect ? (
+            <div>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => void handleDisconnect()}
+              >
+                <Link2Off strokeWidth={2.75} className="size-4" aria-hidden />
+                Disconnect
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

@@ -14,6 +14,7 @@ import {
   upsertConfirmedCalendarEventLink,
 } from '@/lib/google/calendarEventLinks';
 import { getCalendarEvent, CalendarClientError } from '@/lib/google/calendarClient';
+import { calendarClientErrorJsonResponse } from '@/lib/google/calendarErrors';
 import { GoogleTokenStoreError, loadConnectionForProfile } from '@/lib/google/tokenStore';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
 
@@ -128,8 +129,11 @@ export const POST: APIRoute = async ({ request, params }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof CalendarClientError) {
-      console.error('[calendar]', { workflow: 'event_link_confirm', error: 'calendar_failed' });
-      return json({ ok: false, error: 'Failed to link calendar event' }, 502);
+      return calendarClientErrorJsonResponse(
+        'event_link_confirm',
+        err,
+        'Failed to link calendar event',
+      );
     }
     if (err instanceof CalendarEventLinkError) {
       return json({ ok: false, error: err.message }, 400);

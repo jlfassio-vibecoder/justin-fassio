@@ -7,6 +7,7 @@ import {
 } from '@/lib/google/accessToken';
 import { extractThreadParticipants, matchParticipantsToCrm } from '@/lib/google/crmEmailMatch';
 import { GmailClientError, getGmailThread } from '@/lib/google/gmailClient';
+import { gmailClientErrorJsonResponse } from '@/lib/google/gmailErrors';
 import {
   deleteGmailThreadLink,
   getGmailThreadLink,
@@ -64,8 +65,7 @@ export const GET: APIRoute = async ({ request, params }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof GmailClientError) {
-      console.error('[gmail]', { workflow: 'thread_link_get', error: 'gmail_failed' });
-      return json({ ok: false, error: 'Failed to load Gmail link' }, 502);
+      return gmailClientErrorJsonResponse('thread_link_get', err, 'Failed to load Gmail link');
     }
     if (err instanceof GmailThreadLinkError) {
       return json({ ok: false, error: err.message }, 500);
@@ -135,8 +135,11 @@ export const POST: APIRoute = async ({ request, params }) => {
       return json(mapped.body, mapped.status);
     }
     if (err instanceof GmailClientError) {
-      console.error('[gmail]', { workflow: 'thread_link_confirm', error: 'gmail_failed' });
-      return json({ ok: false, error: 'Failed to link Gmail thread' }, 502);
+      return gmailClientErrorJsonResponse(
+        'thread_link_confirm',
+        err,
+        'Failed to link Gmail thread',
+      );
     }
     if (err instanceof GmailThreadLinkError) {
       return json({ ok: false, error: err.message }, 400);
