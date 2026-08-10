@@ -42,19 +42,29 @@ export function parseCalendarEventWriteBody(body: unknown): CalendarEventWriteIn
     if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
       throw new CalendarValidationError('all-day start/end must be YYYY-MM-DD');
     }
+    // Google all-day end.date is exclusive, so end must be after start.
+    if (end <= start) {
+      throw new CalendarValidationError('end must be after start');
+    }
   } else {
     if (Number.isNaN(Date.parse(start)) || Number.isNaN(Date.parse(end))) {
       throw new CalendarValidationError('start and end must be valid ISO datetimes');
     }
+    if (Date.parse(end) <= Date.parse(start)) {
+      throw new CalendarValidationError('end must be after start');
+    }
   }
+
+  const description = typeof raw.description === 'string' ? raw.description.trim() || null : null;
+  const location = typeof raw.location === 'string' ? raw.location.trim() || null : null;
 
   return {
     title,
     start,
     end,
     allDay,
-    description: typeof raw.description === 'string' ? raw.description : null,
-    location: typeof raw.location === 'string' ? raw.location : null,
+    description,
+    location,
     attendeeEmails: normalizeEmails(raw.attendeeEmails),
     createMeet: raw.createMeet === true,
   };

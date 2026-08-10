@@ -17,6 +17,25 @@ function fromLocalInputValue(value: string, allDay: boolean): string {
   return d.toISOString();
 }
 
+/** Keep start/end usable when switching between date and datetime-local inputs. */
+function convertLocalForAllDayToggle(
+  value: string,
+  toAllDay: boolean,
+  role: 'start' | 'end',
+): string {
+  const datePart = value.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return value;
+  if (toAllDay) return datePart;
+  return role === 'start' ? `${datePart}T09:00` : `${datePart}T09:30`;
+}
+
+function nextCalendarDate(yyyyMmDd: string): string {
+  const d = new Date(`${yyyyMmDd}T12:00:00`);
+  d.setDate(d.getDate() + 1);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 function defaultStartEnd(): { start: string; end: string } {
   const start = new Date();
   start.setMinutes(0, 0, 0);
@@ -110,7 +129,22 @@ export function CalendarEventForm({
       </label>
 
       <label className="text-ink/70 flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
+        <input
+          type="checkbox"
+          checked={allDay}
+          onChange={(e) => {
+            const next = e.target.checked;
+            setAllDay(next);
+            const nextStart = convertLocalForAllDayToggle(startLocal, next, 'start');
+            let nextEnd = convertLocalForAllDayToggle(endLocal, next, 'end');
+            // Google all-day end is exclusive — keep end after start when toggling on.
+            if (next && nextEnd <= nextStart) {
+              nextEnd = nextCalendarDate(nextStart);
+            }
+            setStartLocal(nextStart);
+            setEndLocal(nextEnd);
+          }}
+        />
         All day
       </label>
 

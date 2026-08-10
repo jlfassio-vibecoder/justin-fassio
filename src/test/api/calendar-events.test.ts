@@ -5,6 +5,8 @@ const getServiceRoleClientMock = vi.fn();
 const getGoogleAccessTokenForProfileMock = vi.fn();
 const listUpcomingEventsMock = vi.fn();
 const createCalendarEventMock = vi.fn();
+const getCalendarEventMock = vi.fn();
+const updateCalendarEventMock = vi.fn();
 const cancelCalendarEventMock = vi.fn();
 
 vi.mock('@/lib/agentAuth', () => ({
@@ -34,12 +36,18 @@ vi.mock('@/lib/google/calendarClient', async () => {
     ...actual,
     listUpcomingEvents: (...args: unknown[]) => listUpcomingEventsMock(...args),
     createCalendarEvent: (...args: unknown[]) => createCalendarEventMock(...args),
+    getCalendarEvent: (...args: unknown[]) => getCalendarEventMock(...args),
+    updateCalendarEvent: (...args: unknown[]) => updateCalendarEventMock(...args),
     cancelCalendarEvent: (...args: unknown[]) => cancelCalendarEventMock(...args),
   };
 });
 
 import { GoogleAccessTokenError } from '@/lib/google/accessToken';
-import { DELETE as eventDELETE } from '@/pages/api/staff/calendar/events/[eventId]';
+import {
+  DELETE as eventDELETE,
+  GET as eventGET,
+  PATCH as eventPATCH,
+} from '@/pages/api/staff/calendar/events/[eventId]';
 import { GET as listGET, POST as createPOST } from '@/pages/api/staff/calendar/events/index';
 
 function ctx(partial: Record<string, unknown>) {
@@ -155,6 +163,84 @@ describe('Calendar events staff APIs', () => {
     const body = await res.json();
     expect(body.event.id).toBe('ev-new');
     expect(createCalendarEventMock).toHaveBeenCalled();
+  });
+
+  it('gets an event by id', async () => {
+    getCalendarEventMock.mockResolvedValue({
+      id: 'ev-1',
+      title: 'Call',
+      start: '2026-08-10T15:00:00Z',
+      end: '2026-08-10T15:30:00Z',
+      allDay: false,
+      status: 'confirmed',
+      meetUrl: null,
+      attendees: [],
+      htmlLink: null,
+      description: null,
+      location: null,
+    });
+    const res = await eventGET(
+      ctx({
+        params: { eventId: 'ev-1' },
+        request: new Request('http://localhost/api/staff/calendar/events/ev-1'),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.event.id).toBe('ev-1');
+    expect(getCalendarEventMock).toHaveBeenCalledWith(expect.objectContaining({ eventId: 'ev-1' }));
+  });
+
+  it('patches an event', async () => {
+    updateCalendarEventMock.mockResolvedValue({
+      id: 'ev-1',
+      title: 'Updated',
+      start: '2026-08-10T16:00:00Z',
+      end: '2026-08-10T16:30:00Z',
+      allDay: false,
+      status: 'confirmed',
+      meetUrl: null,
+      attendees: [],
+      htmlLink: null,
+      description: null,
+      location: null,
+    });
+    const res = await eventPATCH(
+      ctx({
+        params: { eventId: 'ev-1' },
+        request: new Request('http://localhost/api/staff/calendar/events/ev-1', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: 'Updated',
+            start: '2026-08-10T16:00:00Z',
+            end: '2026-08-10T16:30:00Z',
+          }),
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.event.title).toBe('Updated');
+  });
+
+  it('rejects invalid PATCH body', async () => {
+    const res = await eventPATCH(
+      ctx({
+        params: { eventId: 'ev-1' },
+        request: new Request('http://localhost/api/staff/calendar/events/ev-1', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: 'Updated',
+            start: '2026-08-10T16:30:00Z',
+            end: '2026-08-10T16:00:00Z',
+          }),
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateCalendarEventMock).not.toHaveBeenCalled();
   });
 
   it('cancels an event', async () => {
