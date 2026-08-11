@@ -33,10 +33,17 @@ describe('sendOgrProductEmail', () => {
       data: { session: { access_token: 'tok' } },
     });
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+      new Response(
+        JSON.stringify({
+          ok: true,
+          systemMessageId: 'sm-1',
+          resendEmailId: 're_123',
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
     );
 
     const result = await sendOgrProductEmail({
@@ -46,9 +53,15 @@ describe('sendOgrProductEmail', () => {
       subject: 'Custom subject',
       introText: 'Custom intro',
       closingText: 'Custom close',
+      prospectId: 42,
+      accountContactId: 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
     });
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({
+      ok: true,
+      systemMessageId: 'sm-1',
+      resendEmailId: 're_123',
+    });
     expect(fetch).toHaveBeenCalledOnce();
     const [url, init] = vi.mocked(fetch).mock.calls[0]!;
     expect(url).toBe('/api/staff/ogr-product-email');
@@ -58,7 +71,7 @@ describe('sendOgrProductEmail', () => {
         'Content-Type': 'application/json',
       }),
     );
-    const body = JSON.parse(String(init?.body)) as Record<string, string>;
+    const body = JSON.parse(String(init?.body)) as Record<string, string | number>;
     expect(body).toEqual({
       productId: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
       to: 'buyer@example.com',
@@ -66,6 +79,8 @@ describe('sendOgrProductEmail', () => {
       subject: 'Custom subject',
       introText: 'Custom intro',
       closingText: 'Custom close',
+      prospectId: 42,
+      accountContactId: 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
     });
     expect(body).not.toHaveProperty('html');
     expect(body).not.toHaveProperty('from');
@@ -89,5 +104,23 @@ describe('sendOgrProductEmail', () => {
       to: 'buyer@example.com',
     });
     expect(result).toEqual({ ok: false, error: 'Email is not configured' });
+  });
+
+  it('passes through logged false when persist failed after send', async () => {
+    getSessionMock.mockResolvedValue({
+      data: { session: { access_token: 'tok' } },
+    });
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, resendEmailId: 're_123', logged: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const result = await sendOgrProductEmail({
+      productId: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      to: 'buyer@example.com',
+    });
+    expect(result).toEqual({ ok: true, resendEmailId: 're_123', logged: false });
   });
 });

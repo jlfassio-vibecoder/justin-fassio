@@ -44,7 +44,7 @@ describe('sendOgrProductOutreachEmail', () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
-  it('sends html and text once on success', async () => {
+  it('sends html and text once on success and returns resendEmailId', async () => {
     sendMock.mockResolvedValue({ data: { id: 'msg_1' }, error: null });
     const { sendOgrProductOutreachEmail } = await import('@/lib/sendOgrProductOutreachEmail');
     const result = await sendOgrProductOutreachEmail(
@@ -56,7 +56,7 @@ describe('sendOgrProductOutreachEmail', () => {
       },
       { apiKey: 're_test_key', from: 'test@example.com' },
     );
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, resendEmailId: 'msg_1' });
     expect(sendMock).toHaveBeenCalledOnce();
     expect(sendMock).toHaveBeenCalledWith({
       from: 'test@example.com',
@@ -64,6 +64,25 @@ describe('sendOgrProductOutreachEmail', () => {
       subject: 'Old Guys Rule — American Revival',
       html: '<p>Card</p>',
       text: 'Plain card',
+    });
+  });
+
+  it('returns send_failed when Resend succeeds without an email id', async () => {
+    sendMock.mockResolvedValue({ data: null, error: null });
+    const { sendOgrProductOutreachEmail } = await import('@/lib/sendOgrProductOutreachEmail');
+    const result = await sendOgrProductOutreachEmail(
+      {
+        to: 'buyer@example.com',
+        subject: 'Hello',
+        html: '<p>Hi</p>',
+        text: 'Hi',
+      },
+      { apiKey: 're_test_key', from: 'test@example.com' },
+    );
+    expect(result).toEqual({
+      ok: false,
+      reason: 'send_failed',
+      error: 'Missing Resend email id',
     });
   });
 

@@ -8,6 +8,8 @@ const renderOgrProductOutreachEmailMock = vi.fn();
 const buildPublicProductPresentationMock = vi.fn();
 const buildOgrProductUrlMock = vi.fn();
 const resolvePublicSiteOriginMock = vi.fn();
+const resolveProductOutreachCrmAssociationMock = vi.fn();
+const insertProductOutreachSystemMessageMock = vi.fn();
 
 vi.mock('@/lib/agentAuth', () => ({
   requireApprovedStaffClient: (...args: unknown[]) => requireApprovedStaffClientMock(...args),
@@ -36,9 +38,17 @@ vi.mock('@/lib/productUrls', () => ({
   resolvePublicSiteOrigin: (...args: unknown[]) => resolvePublicSiteOriginMock(...args),
 }));
 
+vi.mock('@/lib/systemMessages', () => ({
+  resolveProductOutreachCrmAssociation: (...args: unknown[]) =>
+    resolveProductOutreachCrmAssociationMock(...args),
+  insertProductOutreachSystemMessage: (...args: unknown[]) =>
+    insertProductOutreachSystemMessageMock(...args),
+}));
+
 import { POST } from '@/pages/api/staff/ogr-product-email';
 
 const PRODUCT_ID = 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
+const CONTACT_ID = 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
 
 const publishedProduct: PublicOgrProduct = {
   id: PRODUCT_ID,
@@ -132,7 +142,18 @@ describe('POST /api/staff/ogr-product-email', () => {
       html: '<p>Hi</p><div>card</div>',
       text: 'Hi\n\ncard',
     });
-    sendOgrProductOutreachEmailMock.mockResolvedValue({ ok: true });
+    sendOgrProductOutreachEmailMock.mockResolvedValue({
+      ok: true,
+      resendEmailId: 're_123',
+    });
+    resolveProductOutreachCrmAssociationMock.mockResolvedValue({
+      ok: true,
+      association: { prospectId: null, accountContactId: null },
+    });
+    insertProductOutreachSystemMessageMock.mockResolvedValue({
+      ok: true,
+      id: 'sm-1',
+    });
   });
 
   it('returns 401 without calling send when unauthenticated', async () => {
@@ -281,7 +302,7 @@ describe('POST /api/staff/ogr-product-email', () => {
     expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
   });
 
-  it('sends composed html+text once on success via Phase A composer', async () => {
+  it('sends composed html+text once on success and persists a system message', async () => {
     const res = await POST(
       requestWith({
         productId: PRODUCT_ID,
@@ -293,9 +314,17 @@ describe('POST /api/staff/ogr-product-email', () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true });
+    expect(await res.json()).toEqual({
+      ok: true,
+      systemMessageId: 'sm-1',
+      resendEmailId: 're_123',
+    });
 
     expect(loadPublishedOgrProductForEmailMock).toHaveBeenCalledWith(expect.anything(), PRODUCT_ID);
+    expect(resolveProductOutreachCrmAssociationMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ toEmail: 'buyer@example.com' }),
+    );
     expect(buildPublicProductPresentationMock).toHaveBeenCalledWith(publishedProduct);
     expect(resolvePublicSiteOriginMock).toHaveBeenCalled();
     expect(buildOgrProductUrlMock).toHaveBeenCalledWith(
@@ -319,12 +348,113 @@ describe('POST /api/staff/ogr-product-email', () => {
       html: '<p>Hi</p><div>card</div>',
       text: 'Hi\n\ncard',
     });
+    expect(insertProductOutreachSystemMessageMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        catalogItemId: PRODUCT_ID,
+        resendEmailId: 're_123',
+        toEmail: 'buyer@example.com',
+        toName: 'Sam',
+        subject: 'Old Guys Rule — American Revival',
+        sentBy: 'user-1',
+        prospectId: null,
+        accountContactId: null,
+        payload: expect.objectContaining({
+          sku: 'OG2513',
+          name: 'American Revival',
+          slug: 'american-revival',
+          productHref: 'https://justinfassio.com/old-guys-rule-wholesale/american-revival',
+        }),
+      }),
+    );
     // Pathnames may contain "wholesale"; assert against pricing leakage instead.
     expect(buildPublicProductPresentationMock).toHaveBeenCalledWith(
       expect.objectContaining({ wholesaleUsd: null }),
     );
     const sentHtml = String(sendOgrProductOutreachEmailMock.mock.calls[0]?.[0]?.html ?? '');
     expect(sentHtml).not.toMatch(/wholesaleUsd|US\$\s*\d|\$\d+\.\d{2}/i);
+  });
+
+  it('persists CRM FKs from unique email match', async () => {
+    resolveProductOutreachCrmAssociationMock.mockResolvedValue({
+      ok: true,
+      association: { prospectId: 42, accountContactId: CONTACT_ID },
+    });
+
+    const res = await POST(requestWith({ productId: PRODUCT_ID, to: 'buyer@example.com' }));
+    expect(res.status).toBe(200);
+    expect(insertProductOutreachSystemMessageMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        prospectId: 42,
+        accountContactId: CONTACT_ID,
+      }),
+    );
+  });
+
+  it('returns 400 and does not send when CRM ids are invalid', async () => {
+    resolveProductOutreachCrmAssociationMock.mockResolvedValue({
+      ok: false,
+      error: 'Account contact does not belong to the given prospect',
+    });
+
+    const res = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        prospectId: 42,
+        accountContactId: CONTACT_ID,
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'Account contact does not belong to the given prospect',
+    });
+    expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
+    expect(insertProductOutreachSystemMessageMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when only prospectId is provided', async () => {
+    resolveProductOutreachCrmAssociationMock.mockResolvedValue({
+      ok: false,
+      error: 'prospectId and accountContactId must be provided together',
+    });
+    const res = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        prospectId: 42,
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'prospectId and accountContactId must be provided together',
+    });
+    expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
+    expect(insertProductOutreachSystemMessageMock).not.toHaveBeenCalled();
+  });
+
+  it('does not insert when Resend fails', async () => {
+    sendOgrProductOutreachEmailMock.mockResolvedValue({ ok: false, reason: 'not_configured' });
+    const res = await POST(requestWith({ productId: PRODUCT_ID, to: 'buyer@example.com' }));
+    expect(res.status).toBe(503);
+    expect(insertProductOutreachSystemMessageMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 ok when persist fails after send', async () => {
+    insertProductOutreachSystemMessageMock.mockResolvedValue({
+      ok: false,
+      error: 'insert failed',
+    });
+    const res = await POST(requestWith({ productId: PRODUCT_ID, to: 'buyer@example.com' }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      resendEmailId: 're_123',
+      logged: false,
+    });
   });
 
   it('returns 503 Email is not configured when Resend key missing', async () => {

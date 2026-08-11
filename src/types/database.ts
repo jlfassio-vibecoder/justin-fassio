@@ -1363,6 +1363,130 @@ export interface Database {
           },
         ];
       };
+      system_messages: {
+        Row: {
+          id: string;
+          message_type: string;
+          origin: string;
+          status: string;
+          catalog_item_id: string | null;
+          resend_email_id: string | null;
+          to_email: string;
+          to_name: string | null;
+          subject: string;
+          prospect_id: number | null;
+          account_contact_id: string | null;
+          sent_by: string | null;
+          queued_at: string | null;
+          sent_at: string | null;
+          delivered_at: string | null;
+          opened_at: string | null;
+          clicked_at: string | null;
+          bounced_at: string | null;
+          failed_at: string | null;
+          complained_at: string | null;
+          open_count: number;
+          click_count: number;
+          last_event_at: string | null;
+          failure_reason: string | null;
+          payload: unknown;
+          scheduled_for: string | null;
+          automation_run_id: string | null;
+          sequence_id: string | null;
+          sequence_step: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          message_type: string;
+          origin: string;
+          status: string;
+          catalog_item_id?: string | null;
+          resend_email_id?: string | null;
+          to_email: string;
+          to_name?: string | null;
+          subject?: string;
+          prospect_id?: number | null;
+          account_contact_id?: string | null;
+          sent_by?: string | null;
+          queued_at?: string | null;
+          sent_at?: string | null;
+          delivered_at?: string | null;
+          opened_at?: string | null;
+          clicked_at?: string | null;
+          bounced_at?: string | null;
+          failed_at?: string | null;
+          complained_at?: string | null;
+          open_count?: number;
+          click_count?: number;
+          last_event_at?: string | null;
+          failure_reason?: string | null;
+          payload?: unknown;
+          scheduled_for?: string | null;
+          automation_run_id?: string | null;
+          sequence_id?: string | null;
+          sequence_step?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          message_type?: string;
+          origin?: string;
+          status?: string;
+          catalog_item_id?: string | null;
+          resend_email_id?: string | null;
+          to_email?: string;
+          to_name?: string | null;
+          subject?: string;
+          prospect_id?: number | null;
+          account_contact_id?: string | null;
+          sent_by?: string | null;
+          queued_at?: string | null;
+          sent_at?: string | null;
+          delivered_at?: string | null;
+          opened_at?: string | null;
+          clicked_at?: string | null;
+          bounced_at?: string | null;
+          failed_at?: string | null;
+          complained_at?: string | null;
+          open_count?: number;
+          click_count?: number;
+          last_event_at?: string | null;
+          failure_reason?: string | null;
+          payload?: unknown;
+          scheduled_for?: string | null;
+          automation_run_id?: string | null;
+          sequence_id?: string | null;
+          sequence_step?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'system_messages_catalog_item_id_fkey',
+            columns: ['catalog_item_id'];
+            isOneToOne: false;
+            referencedRelation: 'catalog_items';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'system_messages_prospect_id_fkey',
+            columns: ['prospect_id'];
+            isOneToOne: false;
+            referencedRelation: 'prospects';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'system_messages_account_contact_id_fkey',
+            columns: ['account_contact_id'];
+            isOneToOne: false;
+            referencedRelation: 'account_contacts';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       buyer_cart_items: {
         Row: {
           id: string;
@@ -1596,4 +1720,7 @@ export type AccountReorderSettingsInsert =
 export type AccountContact = Database['public']['Tables']['account_contacts']['Row'];
 export type AccountContactInsert = Database['public']['Tables']['account_contacts']['Insert'];
 export type AccountContactUpdate = Database['public']['Tables']['account_contacts']['Update'];
+export type SystemMessage = Database['public']['Tables']['system_messages']['Row'];
+export type SystemMessageInsert = Database['public']['Tables']['system_messages']['Insert'];
+export type SystemMessageUpdate = Database['public']['Tables']['system_messages']['Update'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];
