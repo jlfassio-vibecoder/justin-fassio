@@ -24,13 +24,21 @@ const SAMPLE: ProductOutreachHistoryItem = {
   toEmail: 'buyer@example.com',
   toName: 'Sam',
   subject: 'Old Guys Rule — American Revival',
-  status: 'sent',
+  status: 'delivered',
   sentAt: '2026-08-11T15:00:00.000Z',
   prospectId: 42,
   accountContactId: 'c1',
   prospectName: 'Kelowna Golf',
   contactName: 'Sam Buyer',
   createdAt: '2026-08-11T15:00:00.000Z',
+  openCount: 2,
+  clickCount: 1,
+  openedAt: '2026-08-11T15:10:00.000Z',
+  clickedAt: '2026-08-11T15:11:00.000Z',
+  deliveredAt: '2026-08-11T15:01:00.000Z',
+  bouncedAt: null,
+  failedAt: null,
+  failureReason: null,
 };
 
 describe('ProductEmailHistory', () => {
@@ -48,14 +56,15 @@ describe('ProductEmailHistory', () => {
     expect(fetchProductOutreachHistoryMock).toHaveBeenCalledWith(PRODUCT_ID);
   });
 
-  it('renders recipient, status, CRM, and time', async () => {
+  it('renders recipient, status, CRM, engagement, and time', async () => {
     fetchProductOutreachHistoryMock.mockResolvedValue({ data: [SAMPLE], error: null });
     render(<ProductEmailHistory catalogItemId={PRODUCT_ID} />);
     await waitFor(() => {
       expect(screen.getByText('Sam · buyer@example.com')).toBeInTheDocument();
     });
-    expect(screen.getByText(/Sent/)).toBeInTheDocument();
+    expect(screen.getByText(/Delivered/)).toBeInTheDocument();
     expect(screen.getByText(/Kelowna Golf · Sam Buyer/)).toBeInTheDocument();
+    expect(screen.getByText('Opens 2 · Clicks 1')).toBeInTheDocument();
     expect(screen.getByText('Old Guys Rule — American Revival')).toBeInTheDocument();
   });
 

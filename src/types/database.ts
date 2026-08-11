@@ -1487,6 +1487,47 @@ export interface Database {
           },
         ];
       };
+      system_message_events: {
+        Row: {
+          id: string;
+          system_message_id: string;
+          resend_email_id: string | null;
+          resend_event_id: string;
+          event_type: string;
+          occurred_at: string;
+          payload: unknown;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          system_message_id: string;
+          resend_email_id?: string | null;
+          resend_event_id: string;
+          event_type: string;
+          occurred_at: string;
+          payload?: unknown;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          system_message_id?: string;
+          resend_email_id?: string | null;
+          resend_event_id?: string;
+          event_type?: string;
+          occurred_at?: string;
+          payload?: unknown;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'system_message_events_system_message_id_fkey',
+            columns: ['system_message_id'];
+            isOneToOne: false;
+            referencedRelation: 'system_messages';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       buyer_cart_items: {
         Row: {
           id: string;
@@ -1723,4 +1764,7 @@ export type AccountContactUpdate = Database['public']['Tables']['account_contact
 export type SystemMessage = Database['public']['Tables']['system_messages']['Row'];
 export type SystemMessageInsert = Database['public']['Tables']['system_messages']['Insert'];
 export type SystemMessageUpdate = Database['public']['Tables']['system_messages']['Update'];
+export type SystemMessageEvent = Database['public']['Tables']['system_message_events']['Row'];
+export type SystemMessageEventInsert = Database['public']['Tables']['system_message_events']['Insert'];
+export type SystemMessageEventUpdate = Database['public']['Tables']['system_message_events']['Update'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];

@@ -154,17 +154,17 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonError(loaded.message, 404);
   }
 
-  const crm = await resolveProductOutreachCrmAssociation(gate.supabase, {
-    prospectId: prospectIdResult.value,
-    accountContactId: accountContactIdResult.value,
-    toEmail: to,
-  });
-  if (!crm.ok) {
-    return jsonError(crm.error, 400);
-  }
-
   let productHref: string;
   try {
+    const crm = await resolveProductOutreachCrmAssociation(gate.supabase, {
+      prospectId: prospectIdResult.value,
+      accountContactId: accountContactIdResult.value,
+      toEmail: to,
+    });
+    if (!crm.ok) {
+      return jsonError(crm.error, 400);
+    }
+
     const presentation = buildPublicProductPresentation(loaded.product);
     const origin = resolvePublicSiteOrigin({
       requestOrigin: new URL(request.url).origin,

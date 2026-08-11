@@ -99,6 +99,13 @@ export function ProductEmailHistory({ catalogItemId, reloadToken = 0 }: ProductE
                 <span className="text-ink/40"> · </span>
                 {formatCrm(item)}
               </p>
+              <p className="text-ink/55 m-0 mt-0.5 text-xs">
+                Opens {item.openCount} · Clicks {item.clickCount}
+              </p>
+              {item.failureReason &&
+              (item.status === 'bounced' || item.status === 'failed') ? (
+                <p className="text-accent-800 m-0 mt-0.5 text-xs">{item.failureReason}</p>
+              ) : null}
               {item.subject.trim() ? (
                 <p className="text-ink/50 m-0 mt-0.5 truncate text-xs">{item.subject}</p>
               ) : null}

@@ -8,7 +8,7 @@ export const SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH = 'product_outreach' as const;
 export const SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL = 'manual_product_email' as const;
 
 export const PRODUCT_OUTREACH_HISTORY_SELECT =
-  'id, to_email, to_name, subject, status, sent_at, prospect_id, account_contact_id, created_at' as const;
+  'id, to_email, to_name, subject, status, sent_at, prospect_id, account_contact_id, created_at, open_count, click_count, opened_at, clicked_at, delivered_at, bounced_at, failed_at, failure_reason' as const;
 
 export const PRODUCT_OUTREACH_HISTORY_LIMIT = 50;
 
@@ -24,6 +24,14 @@ export type ProductOutreachHistoryItem = {
   prospectName: string | null;
   contactName: string | null;
   createdAt: string;
+  openCount: number;
+  clickCount: number;
+  openedAt: string | null;
+  clickedAt: string | null;
+  deliveredAt: string | null;
+  bouncedAt: string | null;
+  failedAt: string | null;
+  failureReason: string | null;
 };
 
 export type ProductOutreachCrmAssociation = {
@@ -205,6 +213,14 @@ function mapHistoryRow(row: {
   prospect_id: number | null;
   account_contact_id: string | null;
   created_at: string;
+  open_count: number;
+  click_count: number;
+  opened_at: string | null;
+  clicked_at: string | null;
+  delivered_at: string | null;
+  bounced_at: string | null;
+  failed_at: string | null;
+  failure_reason: string | null;
 }): ProductOutreachHistoryItem {
   return {
     id: row.id,
@@ -218,6 +234,14 @@ function mapHistoryRow(row: {
     prospectName: null,
     contactName: null,
     createdAt: row.created_at,
+    openCount: row.open_count,
+    clickCount: row.click_count,
+    openedAt: row.opened_at,
+    clickedAt: row.clicked_at,
+    deliveredAt: row.delivered_at,
+    bouncedAt: row.bounced_at,
+    failedAt: row.failed_at,
+    failureReason: row.failure_reason,
   };
 }
 
