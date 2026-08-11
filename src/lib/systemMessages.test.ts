@@ -1,12 +1,22 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
+
+const fromMock = vi.fn();
+
+vi.mock('@/lib/supabase', () => ({
+  supabase: {
+    from: (...args: unknown[]) => fromMock(...args),
+  },
+}));
+
 import {
+  fetchProductOutreachHistory,
   insertProductOutreachSystemMessage,
   matchUniqueAccountContactByEmail,
   normalizeSystemMessageEmail,
   resolveProductOutreachCrmAssociation,
 } from '@/lib/systemMessages';
-import type { Database } from '@/types/database';
 
 type DbClient = SupabaseClient<Database>;
 
@@ -261,5 +271,141 @@ describe('insertProductOutreachSystemMessage', () => {
       },
     });
     expect(result).toEqual({ ok: false, error: 'rls denied' });
+  });
+});
+
+describe('fetchProductOutreachHistory', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function mockHistoryQuery(result: { data: unknown; error: unknown }) {
+    const limit = vi.fn().mockResolvedValue(result);
+    const order = vi.fn().mockReturnValue({ limit });
+    const eqCatalog = vi.fn().mockReturnValue({ order });
+    const eqType = vi.fn().mockReturnValue({ eq: eqCatalog });
+    const select = vi.fn().mockReturnValue({ eq: eqType });
+    return { select, eqType, eqCatalog, order, limit };
+  }
+
+  it('returns empty list when no rows', async () => {
+    const chain = mockHistoryQuery({ data: [], error: null });
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'system_messages') return chain;
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const result = await fetchProductOutreachHistory('b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22');
+    expect(result).toEqual({ data: [], error: null });
+    expect(chain.eqType).toHaveBeenCalledWith('message_type', 'product_outreach');
+    expect(chain.eqCatalog).toHaveBeenCalledWith(
+      'catalog_item_id',
+      'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+    );
+    expect(chain.order).toHaveBeenCalledWith('sent_at', {
+      ascending: false,
+      nullsFirst: false,
+    });
+    expect(chain.limit).toHaveBeenCalledWith(50);
+  });
+
+  it('maps rows and enriches CRM names', async () => {
+    const chain = mockHistoryQuery({
+      data: [
+        {
+          id: 'sm-1',
+          to_email: 'buyer@example.com',
+          to_name: 'Sam',
+          subject: 'Hello',
+          status: 'sent',
+          sent_at: '2026-08-11T12:00:00.000Z',
+          prospect_id: 42,
+          account_contact_id: 'c1',
+          created_at: '2026-08-11T12:00:00.000Z',
+        },
+        {
+          id: 'sm-2',
+          to_email: 'other@example.com',
+          to_name: null,
+          subject: 'Hi',
+          status: 'sent',
+          sent_at: '2026-08-10T12:00:00.000Z',
+          prospect_id: null,
+          account_contact_id: null,
+          created_at: '2026-08-10T12:00:00.000Z',
+        },
+      ],
+      error: null,
+    });
+
+    const prospectsIn = vi.fn().mockResolvedValue({
+      data: [{ id: 42, name: 'Kelowna Golf' }],
+      error: null,
+    });
+    const contactsIn = vi.fn().mockResolvedValue({
+      data: [{ id: 'c1', full_name: 'Sam Buyer' }],
+      error: null,
+    });
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'system_messages') return chain;
+      if (table === 'prospects') {
+        return { select: () => ({ in: prospectsIn }) };
+      }
+      if (table === 'account_contacts') {
+        return { select: () => ({ in: contactsIn }) };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const result = await fetchProductOutreachHistory('b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22');
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual([
+      {
+        id: 'sm-1',
+        toEmail: 'buyer@example.com',
+        toName: 'Sam',
+        subject: 'Hello',
+        status: 'sent',
+        sentAt: '2026-08-11T12:00:00.000Z',
+        prospectId: 42,
+        accountContactId: 'c1',
+        prospectName: 'Kelowna Golf',
+        contactName: 'Sam Buyer',
+        createdAt: '2026-08-11T12:00:00.000Z',
+      },
+      {
+        id: 'sm-2',
+        toEmail: 'other@example.com',
+        toName: null,
+        subject: 'Hi',
+        status: 'sent',
+        sentAt: '2026-08-10T12:00:00.000Z',
+        prospectId: null,
+        accountContactId: null,
+        prospectName: null,
+        contactName: null,
+        createdAt: '2026-08-10T12:00:00.000Z',
+      },
+    ]);
+    expect(prospectsIn).toHaveBeenCalledWith('id', [42]);
+    expect(contactsIn).toHaveBeenCalledWith('id', ['c1']);
+  });
+
+  it('returns error when the query fails', async () => {
+    const chain = mockHistoryQuery({ data: null, error: { message: 'permission denied' } });
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'system_messages') return chain;
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const result = await fetchProductOutreachHistory('b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22');
+    expect(result).toEqual({ data: [], error: 'permission denied' });
+  });
+
+  it('returns error for blank catalog item id', async () => {
+    const result = await fetchProductOutreachHistory('  ');
+    expect(result).toEqual({ data: [], error: 'A catalog item id is required' });
+    expect(fromMock).not.toHaveBeenCalled();
   });
 });

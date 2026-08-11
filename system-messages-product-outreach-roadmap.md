@@ -399,7 +399,7 @@ Each phase should fit a **single focused implementation plan** (schema + code + 
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Persist System Messages + basic CRM | Done |
-| 2 | Product Drawer history | Not started |
+| 2 | Product Drawer history | Done |
 | 3 | Resend webhooks + events | Not started |
 | 4 | Wholesale → System UX | Not started |
 | 5 | Account surface + composer polish | Not started |

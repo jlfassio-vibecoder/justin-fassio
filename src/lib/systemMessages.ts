@@ -1,10 +1,30 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import type { Database, SystemMessageInsert } from '@/types/database';
 
 type DbClient = SupabaseClient<Database>;
 
 export const SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH = 'product_outreach' as const;
 export const SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL = 'manual_product_email' as const;
+
+export const PRODUCT_OUTREACH_HISTORY_SELECT =
+  'id, to_email, to_name, subject, status, sent_at, prospect_id, account_contact_id, created_at' as const;
+
+export const PRODUCT_OUTREACH_HISTORY_LIMIT = 50;
+
+export type ProductOutreachHistoryItem = {
+  id: string;
+  toEmail: string;
+  toName: string | null;
+  subject: string;
+  status: string;
+  sentAt: string | null;
+  prospectId: number | null;
+  accountContactId: string | null;
+  prospectName: string | null;
+  contactName: string | null;
+  createdAt: string;
+};
 
 export type ProductOutreachCrmAssociation = {
   prospectId: number | null;
@@ -173,4 +193,116 @@ export async function insertProductOutreachSystemMessage(
   }
 
   return { ok: true, id: data.id };
+}
+
+function mapHistoryRow(row: {
+  id: string;
+  to_email: string;
+  to_name: string | null;
+  subject: string;
+  status: string;
+  sent_at: string | null;
+  prospect_id: number | null;
+  account_contact_id: string | null;
+  created_at: string;
+}): ProductOutreachHistoryItem {
+  return {
+    id: row.id,
+    toEmail: row.to_email,
+    toName: row.to_name,
+    subject: row.subject,
+    status: row.status,
+    sentAt: row.sent_at,
+    prospectId: row.prospect_id,
+    accountContactId: row.account_contact_id,
+    prospectName: null,
+    contactName: null,
+    createdAt: row.created_at,
+  };
+}
+
+/**
+ * Staff browser fetch of product_outreach System Messages for a catalog item.
+ * RLS restricts to approved staff. Does not include Copy Email Card activity.
+ */
+export async function fetchProductOutreachHistory(
+  catalogItemId: string,
+): Promise<{ data: ProductOutreachHistoryItem[]; error: string | null }> {
+  const trimmedId = catalogItemId.trim();
+  if (!trimmedId) {
+    return { data: [], error: 'A catalog item id is required' };
+  }
+
+  const { data, error } = await supabase
+    .from('system_messages')
+    .select(PRODUCT_OUTREACH_HISTORY_SELECT)
+    .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
+    .eq('catalog_item_id', trimmedId)
+    .order('sent_at', { ascending: false, nullsFirst: false })
+    .limit(PRODUCT_OUTREACH_HISTORY_LIMIT);
+
+  if (error) {
+    return { data: [], error: error.message };
+  }
+
+  const rows = (data ?? []).map(mapHistoryRow);
+  if (rows.length === 0) {
+    return { data: [], error: null };
+  }
+
+  const prospectIds = [
+    ...new Set(
+      rows
+        .map((r) => r.prospectId)
+        .filter((id): id is number => typeof id === 'number' && Number.isFinite(id)),
+    ),
+  ];
+  const contactIds = [
+    ...new Set(
+      rows
+        .map((r) => r.accountContactId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    ),
+  ];
+
+  const [prospectsResult, contactsResult] = await Promise.all([
+    prospectIds.length
+      ? supabase.from('prospects').select('id, name').in('id', prospectIds)
+      : Promise.resolve({ data: [] as Array<{ id: number; name: string }>, error: null }),
+    contactIds.length
+      ? supabase.from('account_contacts').select('id, full_name').in('id', contactIds)
+      : Promise.resolve({
+          data: [] as Array<{ id: string; full_name: string }>,
+          error: null,
+        }),
+  ]);
+
+  if (prospectsResult.error) {
+    return { data: [], error: prospectsResult.error.message };
+  }
+  if (contactsResult.error) {
+    return { data: [], error: contactsResult.error.message };
+  }
+
+  const prospectNameById = new Map<number, string>();
+  for (const p of prospectsResult.data ?? []) {
+    prospectNameById.set(p.id, p.name);
+  }
+  const contactNameById = new Map<string, string>();
+  for (const c of contactsResult.data ?? []) {
+    contactNameById.set(c.id, c.full_name);
+  }
+
+  return {
+    data: rows.map((row) => ({
+      ...row,
+      prospectName:
+        row.prospectId != null ? (prospectNameById.get(row.prospectId) ?? null) : null,
+      contactName:
+        row.accountContactId != null
+          ? (contactNameById.get(row.accountContactId) ?? null)
+          : null,
+    })),
+    error: null,
+  };
 }

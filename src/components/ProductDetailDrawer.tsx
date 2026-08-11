@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { OgrProductEmailComposerModal } from '@/components/OgrProductEmailComposerModal';
+import { ProductEmailHistory } from '@/components/product/ProductEmailHistory';
 import {
   ATTRIBUTE_REGISTRY,
   type AttributeGroup,
@@ -360,6 +361,7 @@ function ProductDetailDrawerInner({
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [emailSendState, setEmailSendState] = useState<'idle' | 'sent'>('idle');
   const emailSendTimerRef = useRef<number | null>(null);
+  const [emailHistoryReloadToken, setEmailHistoryReloadToken] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -1788,6 +1790,10 @@ function ProductDetailDrawerInner({
                   Email Card still work from the slug.
                 </p>
               ) : null}
+              <ProductEmailHistory
+                catalogItemId={item.id}
+                reloadToken={emailHistoryReloadToken}
+              />
             </div>
           </Section>
 
@@ -1999,6 +2005,7 @@ function ProductDetailDrawerInner({
         onClose={() => setEmailModalOpen(false)}
         onSent={() => {
           setEmailSendState('sent');
+          setEmailHistoryReloadToken((n) => n + 1);
           if (emailSendTimerRef.current != null) {
             window.clearTimeout(emailSendTimerRef.current);
           }
