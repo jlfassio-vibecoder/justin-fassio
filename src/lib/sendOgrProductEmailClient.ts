@@ -7,9 +7,13 @@ export type SendOgrProductEmailInput = {
   subject?: string;
   introText?: string;
   closingText?: string;
+  prospectId?: number;
+  accountContactId?: string;
 };
 
-export type SendOgrProductEmailResult = { ok: true } | { ok: false; error: string };
+export type SendOgrProductEmailResult =
+  | { ok: true; systemMessageId?: string; resendEmailId?: string; logged?: boolean }
+  | { ok: false; error: string };
 
 /**
  * Client call to POST /api/staff/ogr-product-email with the current session Bearer token.
@@ -24,7 +28,7 @@ export async function sendOgrProductEmail(
     return { ok: false, error: 'Not signed in' };
   }
 
-  const body: Record<string, string> = {
+  const body: Record<string, string | number> = {
     productId: input.productId,
     to: input.to,
   };
@@ -40,6 +44,12 @@ export async function sendOgrProductEmail(
   if (input.closingText != null && input.closingText.trim()) {
     body.closingText = input.closingText.trim();
   }
+  if (input.prospectId != null) {
+    body.prospectId = input.prospectId;
+  }
+  if (input.accountContactId != null && input.accountContactId.trim()) {
+    body.accountContactId = input.accountContactId.trim();
+  }
 
   const res = await fetch('/api/staff/ogr-product-email', {
     method: 'POST',
@@ -50,7 +60,13 @@ export async function sendOgrProductEmail(
     body: JSON.stringify(body),
   });
 
-  let payload: { ok?: boolean; error?: string } = {};
+  let payload: {
+    ok?: boolean;
+    error?: string;
+    systemMessageId?: string;
+    resendEmailId?: string;
+    logged?: boolean;
+  } = {};
   try {
     payload = (await res.json()) as typeof payload;
   } catch {
@@ -61,5 +77,12 @@ export async function sendOgrProductEmail(
     return { ok: false, error: payload.error || `Send failed (${res.status})` };
   }
 
-  return { ok: true };
+  return {
+    ok: true,
+    ...(typeof payload.systemMessageId === 'string'
+      ? { systemMessageId: payload.systemMessageId }
+      : {}),
+    ...(typeof payload.resendEmailId === 'string' ? { resendEmailId: payload.resendEmailId } : {}),
+    ...(payload.logged === false ? { logged: false } : {}),
+  };
 }

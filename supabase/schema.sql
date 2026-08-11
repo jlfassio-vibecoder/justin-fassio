@@ -1628,3 +1628,287 @@ create policy "approved staff full access" on calendar_event_links
   for all to authenticated
   using (public.is_approved_staff())
   with check (public.is_approved_staff());
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- system_messages — staff-only outbound System Messages ledger (product outreach).
+-- See migrations/20260811120000_system_messages.sql.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists system_messages (
+  id uuid primary key default gen_random_uuid(),
+  message_type text not null
+    check (message_type in ('product_outreach')),
+  -- Copilot suggestion ignored: keep origin allowlist narrow until agent/automation origins ship (avoids speculative values).
+  origin text not null
+    check (origin in ('manual_product_email')),
+  status text not null
+    check (status in (
+      'draft',
+      'queued',
+      'scheduled',
+      'sending',
+      'sent',
+      'delivered',
+      'opened',
+      'clicked',
+      'bounced',
+      'failed',
+      'cancelled',
+      'complained'
+    )),
+  catalog_item_id uuid references catalog_items (id) on delete set null,
+  resend_email_id text,
+  to_email text not null,
+  to_name text,
+  subject text not null default '',
+  prospect_id integer references prospects (id) on delete set null,
+  account_contact_id uuid references account_contacts (id) on delete set null,
+  sent_by uuid references auth.users (id) on delete set null,
+  queued_at timestamptz,
+  sent_at timestamptz,
+  delivered_at timestamptz,
+  opened_at timestamptz,
+  clicked_at timestamptz,
+  bounced_at timestamptz,
+  failed_at timestamptz,
+  complained_at timestamptz,
+  open_count integer not null default 0,
+  click_count integer not null default 0,
+  last_event_at timestamptz,
+  failure_reason text,
+  payload jsonb not null default '{}'::jsonb,
+  scheduled_for timestamptz,
+  automation_run_id uuid,
+  sequence_id uuid,
+  sequence_step integer,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists system_messages_resend_email_id_uidx
+  on system_messages (resend_email_id)
+  where resend_email_id is not null;
+
+create index if not exists system_messages_message_type_created_at_idx
+  on system_messages (message_type, created_at desc);
+
+create index if not exists system_messages_catalog_item_sent_at_idx
+  on system_messages (catalog_item_id, sent_at desc nulls last);
+
+create index if not exists system_messages_prospect_sent_at_idx
+  on system_messages (prospect_id, sent_at desc nulls last);
+
+create index if not exists system_messages_status_created_at_idx
+  on system_messages (status, created_at desc);
+
+create index if not exists system_messages_to_email_idx
+  on system_messages (to_email);
+
+drop trigger if exists system_messages_set_updated_at on system_messages;
+create trigger system_messages_set_updated_at
+  before update on system_messages
+  for each row execute function set_updated_at();
+
+alter table system_messages enable row level security;
+
+drop policy if exists "approved staff full access" on system_messages;
+create policy "approved staff full access" on system_messages
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- system_message_events — Resend webhook event ledger (Phase 3).
+-- See migrations/20260811140000_system_message_events.sql.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists system_message_events (
+  id uuid primary key default gen_random_uuid(),
+  system_message_id uuid not null references system_messages (id) on delete cascade,
+  resend_email_id text,
+  resend_event_id text not null,
+  event_type text not null,
+  occurred_at timestamptz not null,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  constraint system_message_events_resend_event_id_uidx unique (resend_event_id)
+);
+
+create index if not exists system_message_events_system_message_created_at_idx
+  on system_message_events (system_message_id, created_at);
+
+create index if not exists system_message_events_resend_email_id_idx
+  on system_message_events (resend_email_id)
+  where resend_email_id is not null;
+
+alter table system_message_events enable row level security;
+
+drop policy if exists "approved staff full access" on system_message_events;
+create policy "approved staff full access" on system_message_events
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+-- Atomic Resend webhook apply (see migrations/20260811150000_apply_resend_system_message_event.sql).
+create or replace function public.apply_resend_system_message_event(
+  p_resend_email_id text,
+  p_resend_event_id text,
+  p_event_type text,
+  p_occurred_at timestamptz,
+  p_payload jsonb default '{}'::jsonb,
+  p_failure_reason text default null
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_msg public.system_messages%rowtype;
+  v_event_id uuid;
+  v_new_status text;
+  v_last_event_at timestamptz;
+begin
+  if p_resend_email_id is null or length(trim(p_resend_email_id)) = 0 then
+    return jsonb_build_object('status', 'unknown_email');
+  end if;
+  if p_resend_event_id is null or length(trim(p_resend_event_id)) = 0 then
+    return jsonb_build_object('status', 'error', 'error', 'missing_resend_event_id');
+  end if;
+
+  select *
+  into v_msg
+  from public.system_messages
+  where resend_email_id = p_resend_email_id
+  for update;
+
+  if not found then
+    return jsonb_build_object('status', 'unknown_email');
+  end if;
+
+  insert into public.system_message_events (
+    system_message_id,
+    resend_email_id,
+    resend_event_id,
+    event_type,
+    occurred_at,
+    payload
+  ) values (
+    v_msg.id,
+    p_resend_email_id,
+    p_resend_event_id,
+    p_event_type,
+    p_occurred_at,
+    coalesce(p_payload, '{}'::jsonb)
+  )
+  on conflict (resend_event_id) do nothing
+  returning id into v_event_id;
+
+  if v_event_id is null then
+    return jsonb_build_object(
+      'status', 'duplicate',
+      'system_message_id', v_msg.id
+    );
+  end if;
+
+  v_new_status := v_msg.status;
+  v_last_event_at := case
+    when v_msg.last_event_at is null or v_msg.last_event_at < p_occurred_at then p_occurred_at
+    else v_msg.last_event_at
+  end;
+
+  if p_event_type = 'email.sent' then
+    if v_msg.status not in ('bounced', 'failed', 'complained')
+       and v_msg.status in ('draft', 'queued', 'sending') then
+      v_new_status := 'sent';
+    end if;
+    update public.system_messages
+    set
+      status = v_new_status,
+      sent_at = coalesce(sent_at, p_occurred_at),
+      last_event_at = v_last_event_at
+    where id = v_msg.id;
+
+  elsif p_event_type = 'email.delivered' then
+    if v_msg.status not in ('bounced', 'failed', 'complained') then
+      v_new_status := 'delivered';
+      update public.system_messages
+      set
+        status = v_new_status,
+        delivered_at = coalesce(delivered_at, p_occurred_at),
+        last_event_at = v_last_event_at
+      where id = v_msg.id;
+    else
+      update public.system_messages
+      set
+        delivered_at = coalesce(delivered_at, p_occurred_at),
+        last_event_at = v_last_event_at
+      where id = v_msg.id;
+    end if;
+
+  elsif p_event_type = 'email.opened' then
+    update public.system_messages
+    set
+      open_count = open_count + 1,
+      opened_at = coalesce(opened_at, p_occurred_at),
+      last_event_at = v_last_event_at
+    where id = v_msg.id;
+
+  elsif p_event_type = 'email.clicked' then
+    update public.system_messages
+    set
+      click_count = click_count + 1,
+      clicked_at = coalesce(clicked_at, p_occurred_at),
+      last_event_at = v_last_event_at
+    where id = v_msg.id;
+
+  elsif p_event_type = 'email.bounced' then
+    update public.system_messages
+    set
+      status = 'bounced',
+      bounced_at = coalesce(bounced_at, p_occurred_at),
+      failure_reason = coalesce(p_failure_reason, failure_reason),
+      last_event_at = v_last_event_at
+    where id = v_msg.id;
+
+  elsif p_event_type = 'email.failed' then
+    update public.system_messages
+    set
+      status = case
+        when status in ('bounced', 'complained') then status
+        else 'failed'
+      end,
+      failed_at = coalesce(failed_at, p_occurred_at),
+      failure_reason = case
+        when status = 'bounced' and failure_reason is not null then failure_reason
+        else coalesce(p_failure_reason, failure_reason)
+      end,
+      last_event_at = v_last_event_at
+    where id = v_msg.id;
+
+  elsif p_event_type = 'email.complained' then
+    update public.system_messages
+    set
+      status = 'complained',
+      complained_at = coalesce(complained_at, p_occurred_at),
+      last_event_at = v_last_event_at
+    where id = v_msg.id;
+
+  else
+    update public.system_messages
+    set last_event_at = v_last_event_at
+    where id = v_msg.id;
+  end if;
+
+  return jsonb_build_object(
+    'status', 'applied',
+    'system_message_id', v_msg.id
+  );
+end;
+$$;
+
+revoke all on function public.apply_resend_system_message_event(
+  text, text, text, timestamptz, jsonb, text
+) from public;
+
+grant execute on function public.apply_resend_system_message_event(
+  text, text, text, timestamptz, jsonb, text
+) to service_role;

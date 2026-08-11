@@ -9,7 +9,8 @@ export type SendOgrProductOutreachEmailPayload = {
 };
 
 export type SendOgrProductOutreachEmailResult =
-  { ok: true } | { ok: false; reason: 'not_configured' | 'send_failed'; error?: string };
+  | { ok: true; resendEmailId: string }
+  | { ok: false; reason: 'not_configured' | 'send_failed'; error?: string };
 
 /**
  * Transport-only Resend send for OGR product outreach.
@@ -32,7 +33,7 @@ export async function sendOgrProductOutreachEmail(
 
   try {
     const resend = new Resend(apiKey);
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from,
       to: payload.to,
       subject: payload.subject,
@@ -46,7 +47,15 @@ export async function sendOgrProductOutreachEmail(
       });
       return { ok: false, reason: 'send_failed', error: error.message };
     }
-    return { ok: true };
+    const resendEmailId = typeof data?.id === 'string' ? data.id.trim() : '';
+    if (!resendEmailId) {
+      console.error('[ogrProductOutreachEmail]', {
+        workflow: 'resend_send',
+        error: 'Missing Resend email id',
+      });
+      return { ok: false, reason: 'send_failed', error: 'Missing Resend email id' };
+    }
+    return { ok: true, resendEmailId };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown email error';
     console.error('[ogrProductOutreachEmail]', {
