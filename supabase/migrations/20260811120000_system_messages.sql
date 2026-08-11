@@ -5,6 +5,7 @@ create table if not exists system_messages (
   id uuid primary key default gen_random_uuid(),
   message_type text not null
     check (message_type in ('product_outreach')),
+  -- Copilot suggestion ignored: keep origin allowlist narrow until agent/automation origins ship (avoids speculative values).
   origin text not null
     check (origin in ('manual_product_email')),
   status text not null

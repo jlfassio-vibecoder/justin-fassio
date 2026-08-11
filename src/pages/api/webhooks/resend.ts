@@ -17,8 +17,7 @@ function json(body: unknown, status: number): Response {
 }
 
 function webhookSecret(): string | null {
-  const secret =
-    import.meta.env.RESEND_WEBHOOK_SECRET ?? process.env.RESEND_WEBHOOK_SECRET ?? null;
+  const secret = import.meta.env.RESEND_WEBHOOK_SECRET ?? process.env.RESEND_WEBHOOK_SECRET ?? null;
   if (!secret || secret === 'whsec_xxxxxxxxx') return null;
   return secret;
 }

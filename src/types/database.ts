@@ -1465,21 +1465,21 @@ export interface Database {
         };
         Relationships: [
           {
-            foreignKeyName: 'system_messages_catalog_item_id_fkey',
+            foreignKeyName: 'system_messages_catalog_item_id_fkey';
             columns: ['catalog_item_id'];
             isOneToOne: false;
             referencedRelation: 'catalog_items';
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'system_messages_prospect_id_fkey',
+            foreignKeyName: 'system_messages_prospect_id_fkey';
             columns: ['prospect_id'];
             isOneToOne: false;
             referencedRelation: 'prospects';
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'system_messages_account_contact_id_fkey',
+            foreignKeyName: 'system_messages_account_contact_id_fkey';
             columns: ['account_contact_id'];
             isOneToOne: false;
             referencedRelation: 'account_contacts';
@@ -1520,7 +1520,7 @@ export interface Database {
         };
         Relationships: [
           {
-            foreignKeyName: 'system_message_events_system_message_id_fkey',
+            foreignKeyName: 'system_message_events_system_message_id_fkey';
             columns: ['system_message_id'];
             isOneToOne: false;
             referencedRelation: 'system_messages';
@@ -1735,6 +1735,17 @@ export interface Database {
           public_showroom_path: string | null;
         }[];
       };
+      apply_resend_system_message_event: {
+        Args: {
+          p_resend_email_id: string;
+          p_resend_event_id: string;
+          p_event_type: string;
+          p_occurred_at: string;
+          p_payload?: unknown;
+          p_failure_reason?: string | null;
+        };
+        Returns: unknown;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
@@ -1765,6 +1776,8 @@ export type SystemMessage = Database['public']['Tables']['system_messages']['Row
 export type SystemMessageInsert = Database['public']['Tables']['system_messages']['Insert'];
 export type SystemMessageUpdate = Database['public']['Tables']['system_messages']['Update'];
 export type SystemMessageEvent = Database['public']['Tables']['system_message_events']['Row'];
-export type SystemMessageEventInsert = Database['public']['Tables']['system_message_events']['Insert'];
-export type SystemMessageEventUpdate = Database['public']['Tables']['system_message_events']['Update'];
+export type SystemMessageEventInsert =
+  Database['public']['Tables']['system_message_events']['Insert'];
+export type SystemMessageEventUpdate =
+  Database['public']['Tables']['system_message_events']['Update'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];

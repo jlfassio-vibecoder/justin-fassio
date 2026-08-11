@@ -9,9 +9,7 @@ vi.mock('@/lib/supabaseAdmin', () => ({
 }));
 
 vi.mock('@/lib/resendWebhook', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/resendWebhook')>(
-    '@/lib/resendWebhook',
-  );
+  const actual = await vi.importActual<typeof import('@/lib/resendWebhook')>('@/lib/resendWebhook');
   return {
     ...actual,
     verifyResendWebhook: (...args: unknown[]) => verifyResendWebhookMock(...args),

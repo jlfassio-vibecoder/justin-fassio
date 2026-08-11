@@ -1791,8 +1791,8 @@ function ProductDetailDrawerInner({
                 </p>
               ) : null}
               <ProductEmailHistory
+                key={`${item.id}-${emailHistoryReloadToken}`}
                 catalogItemId={item.id}
-                reloadToken={emailHistoryReloadToken}
               />
             </div>
           </Section>

@@ -101,8 +101,7 @@ export async function matchUniqueAccountContactByEmail(
 }
 
 export type ResolveProductOutreachCrmResult =
-  | { ok: true; association: ProductOutreachCrmAssociation }
-  | { ok: false; error: string };
+  { ok: true; association: ProductOutreachCrmAssociation } | { ok: false; error: string };
 
 /**
  * Resolve CRM links for a product outreach send.
@@ -163,8 +162,7 @@ export async function resolveProductOutreachCrmAssociation(
 }
 
 export type InsertProductOutreachSystemMessageResult =
-  | { ok: true; id: string }
-  | { ok: false; error: string };
+  { ok: true; id: string } | { ok: false; error: string };
 
 export async function insertProductOutreachSystemMessage(
   client: DbClient,
@@ -320,12 +318,9 @@ export async function fetchProductOutreachHistory(
   return {
     data: rows.map((row) => ({
       ...row,
-      prospectName:
-        row.prospectId != null ? (prospectNameById.get(row.prospectId) ?? null) : null,
+      prospectName: row.prospectId != null ? (prospectNameById.get(row.prospectId) ?? null) : null,
       contactName:
-        row.accountContactId != null
-          ? (contactNameById.get(row.accountContactId) ?? null)
-          : null,
+        row.accountContactId != null ? (contactNameById.get(row.accountContactId) ?? null) : null,
     })),
     error: null,
   };

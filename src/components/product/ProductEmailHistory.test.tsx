@@ -5,13 +5,11 @@ import type { ProductOutreachHistoryItem } from '@/lib/systemMessages';
 const fetchProductOutreachHistoryMock = vi.fn();
 
 vi.mock('@/lib/systemMessages', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/systemMessages')>(
-    '@/lib/systemMessages',
-  );
+  const actual =
+    await vi.importActual<typeof import('@/lib/systemMessages')>('@/lib/systemMessages');
   return {
     ...actual,
-    fetchProductOutreachHistory: (...args: unknown[]) =>
-      fetchProductOutreachHistoryMock(...args),
+    fetchProductOutreachHistory: (...args: unknown[]) => fetchProductOutreachHistoryMock(...args),
   };
 });
 
@@ -79,17 +77,15 @@ describe('ProductEmailHistory', () => {
     });
   });
 
-  it('refetches when reloadToken changes', async () => {
+  it('refetches when remounted with a new key after send', async () => {
     fetchProductOutreachHistoryMock.mockResolvedValue({ data: [], error: null });
-    const { rerender } = render(
-      <ProductEmailHistory catalogItemId={PRODUCT_ID} reloadToken={0} />,
-    );
+    const { rerender } = render(<ProductEmailHistory key="0" catalogItemId={PRODUCT_ID} />);
     await waitFor(() => {
       expect(fetchProductOutreachHistoryMock).toHaveBeenCalledTimes(1);
     });
 
     fetchProductOutreachHistoryMock.mockResolvedValue({ data: [SAMPLE], error: null });
-    rerender(<ProductEmailHistory catalogItemId={PRODUCT_ID} reloadToken={1} />);
+    rerender(<ProductEmailHistory key="1" catalogItemId={PRODUCT_ID} />);
     await waitFor(() => {
       expect(fetchProductOutreachHistoryMock).toHaveBeenCalledTimes(2);
       expect(screen.getByText('Sam · buyer@example.com')).toBeInTheDocument();

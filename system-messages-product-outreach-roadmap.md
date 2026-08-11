@@ -29,14 +29,14 @@ This document is the working reference for the epic. Update it when phases ship 
 
 ## 2. Current state (audit summary)
 
-| Area | Today |
-|------|--------|
-| Product Email send | `ProductDetailDrawer` → `OgrProductEmailComposerModal` → `POST /api/staff/ogr-product-email` → Resend; `{ ok: true }` only; **no DB write**; **no Resend id**. |
-| Copy Email Card | Clipboard only — must remain unlogged. |
-| Resend | Ad-hoc clients; no webhooks; no `RESEND_WEBHOOK_SECRET`. |
-| Messages → Wholesale | `message_threads.channel = 'wholesale'` — inbound form threads only. |
-| Gmail | Separate UI + `gmail_thread_links` — must stay isolated. |
-| Message Center schema | `channel` ∈ `{wholesale, live_chat}`; no product-outreach kind; buyers can read linked threads. |
+| Area                  | Today                                                                                                                                                          |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Product Email send    | `ProductDetailDrawer` → `OgrProductEmailComposerModal` → `POST /api/staff/ogr-product-email` → Resend; `{ ok: true }` only; **no DB write**; **no Resend id**. |
+| Copy Email Card       | Clipboard only — must remain unlogged.                                                                                                                         |
+| Resend                | Ad-hoc clients; no webhooks; no `RESEND_WEBHOOK_SECRET`.                                                                                                       |
+| Messages → Wholesale  | `message_threads.channel = 'wholesale'` — inbound form threads only.                                                                                           |
+| Gmail                 | Separate UI + `gmail_thread_links` — must stay isolated.                                                                                                       |
+| Message Center schema | `channel` ∈ `{wholesale, live_chat}`; no product-outreach kind; buyers can read linked threads.                                                                |
 
 Do **not** overload `message_threads` / `messages` for this ledger (buyer RLS risk, wrong shape, inbound pollution). Parallel staff-only tables, same pattern class as `gmail_thread_links`.
 
@@ -48,39 +48,39 @@ Do **not** overload `message_threads` / `messages` for this ledger (buyer RLS ri
 
 One row per System Message. Product Email sends are rows with `message_type = 'product_outreach'`.
 
-| Column | Type | Notes |
-|--------|------|--------|
-| `id` | uuid PK | |
-| `message_type` | text not null | Check: `'product_outreach'` for now. Extend later (`order_confirmation`, etc.) without new tables. |
-| `origin` | text not null | Check: `'manual_product_email'` for current composer path. Future: e.g. `'agent_outreach'`, `'automation'`. |
-| `status` | text not null | See §3.3. Default `'queued'` at insert-before-send, or `'sent'` if insert-after-success (Phase 1 chooses one path and documents it). |
-| `catalog_item_id` | uuid null FK → `catalog_items` | Required for `product_outreach`; nullable for future non-product types. |
-| `resend_email_id` | text null | Unique when set. From Resend `data.id`. |
-| `to_email` | text not null | Normalized recipient. |
-| `to_name` | text null | |
-| `subject` | text not null default `''` | |
-| `prospect_id` | integer null FK → `prospects` | CRM account/prospect when known. |
-| `account_contact_id` | uuid null FK → `account_contacts` | CRM contact when known. |
-| `sent_by` | uuid null FK → `auth.users` / profiles | Staff actor for manual sends; null allowed for future system actors if needed. |
-| `queued_at` | timestamptz null | When entered queue (manual send: same moment as create). |
-| `sent_at` | timestamptz null | When Resend accepted the send. |
-| `delivered_at` | timestamptz null | First delivery event. |
-| `opened_at` | timestamptz null | First open. |
-| `clicked_at` | timestamptz null | First click. |
-| `bounced_at` | timestamptz null | |
-| `failed_at` | timestamptz null | |
-| `complained_at` | timestamptz null | Optional if Resend emits complaint events. |
-| `open_count` | integer not null default 0 | |
-| `click_count` | integer not null default 0 | |
-| `last_event_at` | timestamptz null | |
-| `failure_reason` | text null | Bounce/fail detail. |
-| `payload` | jsonb not null default `{}` | Lean snapshot: sku, product name, slug, from address, intro/closing truncated or hashed — avoid huge HTML. |
-| `scheduled_for` | timestamptz null | **Future-safe only** — unused in this epic. |
-| `automation_run_id` | uuid null | **Future-safe only** — no FK until automation exists. |
-| `sequence_id` | uuid null | **Future-safe only** — no FK. |
-| `sequence_step` | integer null | **Future-safe only**. |
-| `created_at` | timestamptz not null default now() | |
-| `updated_at` | timestamptz not null default now() | |
+| Column               | Type                                   | Notes                                                                                                                                |
+| -------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`                 | uuid PK                                |                                                                                                                                      |
+| `message_type`       | text not null                          | Check: `'product_outreach'` for now. Extend later (`order_confirmation`, etc.) without new tables.                                   |
+| `origin`             | text not null                          | Check: `'manual_product_email'` for current composer path. Future: e.g. `'agent_outreach'`, `'automation'`.                          |
+| `status`             | text not null                          | See §3.3. Default `'queued'` at insert-before-send, or `'sent'` if insert-after-success (Phase 1 chooses one path and documents it). |
+| `catalog_item_id`    | uuid null FK → `catalog_items`         | Required for `product_outreach`; nullable for future non-product types.                                                              |
+| `resend_email_id`    | text null                              | Unique when set. From Resend `data.id`.                                                                                              |
+| `to_email`           | text not null                          | Normalized recipient.                                                                                                                |
+| `to_name`            | text null                              |                                                                                                                                      |
+| `subject`            | text not null default `''`             |                                                                                                                                      |
+| `prospect_id`        | integer null FK → `prospects`          | CRM account/prospect when known.                                                                                                     |
+| `account_contact_id` | uuid null FK → `account_contacts`      | CRM contact when known.                                                                                                              |
+| `sent_by`            | uuid null FK → `auth.users` / profiles | Staff actor for manual sends; null allowed for future system actors if needed.                                                       |
+| `queued_at`          | timestamptz null                       | When entered queue (manual send: same moment as create).                                                                             |
+| `sent_at`            | timestamptz null                       | When Resend accepted the send.                                                                                                       |
+| `delivered_at`       | timestamptz null                       | First delivery event.                                                                                                                |
+| `opened_at`          | timestamptz null                       | First open.                                                                                                                          |
+| `clicked_at`         | timestamptz null                       | First click.                                                                                                                         |
+| `bounced_at`         | timestamptz null                       |                                                                                                                                      |
+| `failed_at`          | timestamptz null                       |                                                                                                                                      |
+| `complained_at`      | timestamptz null                       | Optional if Resend emits complaint events.                                                                                           |
+| `open_count`         | integer not null default 0             |                                                                                                                                      |
+| `click_count`        | integer not null default 0             |                                                                                                                                      |
+| `last_event_at`      | timestamptz null                       |                                                                                                                                      |
+| `failure_reason`     | text null                              | Bounce/fail detail.                                                                                                                  |
+| `payload`            | jsonb not null default `{}`            | Lean snapshot: sku, product name, slug, from address, intro/closing truncated or hashed — avoid huge HTML.                           |
+| `scheduled_for`      | timestamptz null                       | **Future-safe only** — unused in this epic.                                                                                          |
+| `automation_run_id`  | uuid null                              | **Future-safe only** — no FK until automation exists.                                                                                |
+| `sequence_id`        | uuid null                              | **Future-safe only** — no FK.                                                                                                        |
+| `sequence_step`      | integer null                           | **Future-safe only**.                                                                                                                |
+| `created_at`         | timestamptz not null default now()     |                                                                                                                                      |
+| `updated_at`         | timestamptz not null default now()     |                                                                                                                                      |
 
 **Indexes (recommended)**
 
@@ -98,16 +98,16 @@ One row per System Message. Product Email sends are rows with `message_type = 'p
 
 ### 3.2 Event ledger: `system_message_events`
 
-| Column | Type | Notes |
-|--------|------|--------|
-| `id` | uuid PK | |
-| `system_message_id` | uuid not null FK → `system_messages` on delete cascade | |
-| `resend_email_id` | text null | Denormalized for lookup. |
-| `resend_event_id` | text not null **unique** | Primary idempotency key (Svix / Resend event id). |
-| `event_type` | text not null | `email.sent`, `email.delivered`, `email.opened`, `email.clicked`, `email.bounced`, `email.failed`, `email.complained` (align to Resend). |
-| `occurred_at` | timestamptz not null | |
-| `payload` | jsonb not null default `{}` | Trimmed raw event. |
-| `created_at` | timestamptz not null default now() | |
+| Column              | Type                                                   | Notes                                                                                                                                    |
+| ------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                | uuid PK                                                |                                                                                                                                          |
+| `system_message_id` | uuid not null FK → `system_messages` on delete cascade |                                                                                                                                          |
+| `resend_email_id`   | text null                                              | Denormalized for lookup.                                                                                                                 |
+| `resend_event_id`   | text not null **unique**                               | Primary idempotency key (Svix / Resend event id).                                                                                        |
+| `event_type`        | text not null                                          | `email.sent`, `email.delivered`, `email.opened`, `email.clicked`, `email.bounced`, `email.failed`, `email.complained` (align to Resend). |
+| `occurred_at`       | timestamptz not null                                   |                                                                                                                                          |
+| `payload`           | jsonb not null default `{}`                            | Trimmed raw event.                                                                                                                       |
+| `created_at`        | timestamptz not null default now()                     |                                                                                                                                          |
 
 **RLS:** staff-only, same as parent.
 
@@ -117,19 +117,19 @@ Duplicate webhook deliveries: insert conflicts on `resend_event_id` → no-op (d
 
 Allowlist for `system_messages.status`:
 
-| Status | Meaning | Used in this epic? |
-|--------|---------|-------------------|
-| `draft` | Composed but not queued | Reserved — no draft UI now |
-| `queued` | Accepted by app, awaiting provider send | Optional on insert-before-send |
-| `scheduled` | Waiting until `scheduled_for` | Reserved — no scheduler now |
-| `sending` | In-flight to Resend | Optional thin state |
-| `sent` | Resend accepted (`resend_email_id` set) | Yes |
-| `delivered` | Provider delivered | Yes (webhook) |
-| `opened` | At least one open (optional rollup status) | Prefer **counters + `opened_at`**; status may stay `delivered` or advance to `opened` — pick one rule in Phase 3 and stick to it |
-| `clicked` | At least one click (same note) | Prefer counters; do not require exclusive status |
-| `bounced` | Hard/soft bounce terminal-ish | Yes (webhook) |
-| `failed` | Send or provider failure | Yes |
-| `cancelled` | Reserved for future cancel-before-send | Reserved |
+| Status      | Meaning                                    | Used in this epic?                                                                                                               |
+| ----------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `draft`     | Composed but not queued                    | Reserved — no draft UI now                                                                                                       |
+| `queued`    | Accepted by app, awaiting provider send    | Optional on insert-before-send                                                                                                   |
+| `scheduled` | Waiting until `scheduled_for`              | Reserved — no scheduler now                                                                                                      |
+| `sending`   | In-flight to Resend                        | Optional thin state                                                                                                              |
+| `sent`      | Resend accepted (`resend_email_id` set)    | Yes                                                                                                                              |
+| `delivered` | Provider delivered                         | Yes (webhook)                                                                                                                    |
+| `opened`    | At least one open (optional rollup status) | Prefer **counters + `opened_at`**; status may stay `delivered` or advance to `opened` — pick one rule in Phase 3 and stick to it |
+| `clicked`   | At least one click (same note)             | Prefer counters; do not require exclusive status                                                                                 |
+| `bounced`   | Hard/soft bounce terminal-ish              | Yes (webhook)                                                                                                                    |
+| `failed`    | Send or provider failure                   | Yes                                                                                                                              |
+| `cancelled` | Reserved for future cancel-before-send     | Reserved                                                                                                                         |
 
 **Recommended rule for this epic**
 
@@ -150,10 +150,10 @@ Thin activity note when `prospect_id` is set — **not** required for Phase 1; d
 
 ## 4. Origin & message_type conventions
 
-| Field | Current Product Email | Future (not built now) |
-|-------|----------------------|-------------------------|
-| `message_type` | `product_outreach` | Other system types as needed |
-| `origin` | `manual_product_email` | e.g. `agent_outreach`, `automation`, `sequence` |
+| Field          | Current Product Email  | Future (not built now)                          |
+| -------------- | ---------------------- | ----------------------------------------------- |
+| `message_type` | `product_outreach`     | Other system types as needed                    |
+| `origin`       | `manual_product_email` | e.g. `agent_outreach`, `automation`, `sequence` |
 
 All app Product Email sends in this epic set:
 
@@ -222,13 +222,13 @@ Resend → POST /api/webhooks/resend
 
 ## 8. UX summary
 
-| Surface | Behavior |
-|---------|----------|
-| **Product Drawer** | Sent history for `catalog_item_id` + `message_type = product_outreach`: recipient, account/contact if linked, when, status, open/click after webhooks. |
-| **Messages → Wholesale** | Keep Wholesale channel. Secondary mode: **Inbound** (existing threads) \| **System** (`system_messages`). System has no reply/mapping UI. |
-| **Account / Prospect drawers** | Product outreach section for `prospect_id`. Separate from Gmail and inbound Message Center. |
-| **Gmail / Realtime** | Unchanged; System never listed under Email. |
-| **All channels** | Prefer excluding System rows in v1 (avoid mixing conversation threads with ledger). |
+| Surface                        | Behavior                                                                                                                                               |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Product Drawer**             | Sent history for `catalog_item_id` + `message_type = product_outreach`: recipient, account/contact if linked, when, status, open/click after webhooks. |
+| **Messages → Wholesale**       | Keep Wholesale channel. Secondary mode: **Inbound** (existing threads) \| **System** (`system_messages`). System has no reply/mapping UI.              |
+| **Account / Prospect drawers** | Product outreach section for `prospect_id`. Separate from Gmail and inbound Message Center.                                                            |
+| **Gmail / Realtime**           | Unchanged; System never listed under Email.                                                                                                            |
+| **All channels**               | Prefer excluding System rows in v1 (avoid mixing conversation threads with ledger).                                                                    |
 
 ---
 
@@ -340,39 +340,39 @@ Each phase should fit a **single focused implementation plan** (schema + code + 
 
 ### Create
 
-| Path | Phase |
-|------|-------|
-| `supabase/migrations/*_system_messages.sql` | 1 |
-| `supabase/migrations/*_system_message_events.sql` | 3 |
-| `src/lib/systemMessages.ts` | 1–2 |
-| `src/lib/systemMessages.test.ts` | 1–2 |
-| `src/lib/matchContactByEmail.ts` (or under `systemMessages`) | 1 |
-| `src/lib/resendWebhook.ts` | 3 |
-| `src/lib/resendWebhook.test.ts` | 3 |
-| `src/pages/api/webhooks/resend.ts` | 3 |
-| `src/test/api/resend-webhook.test.ts` | 3 |
-| `src/components/product/ProductEmailHistory.tsx` (name flexible) | 2 |
-| `src/components/messages/SystemMessagesList.tsx` | 4 |
-| `src/components/messages/SystemMessagePanel.tsx` | 4 |
-| `src/components/messages/AccountProductOutreachSection.tsx` | 5 |
+| Path                                                             | Phase |
+| ---------------------------------------------------------------- | ----- |
+| `supabase/migrations/*_system_messages.sql`                      | 1     |
+| `supabase/migrations/*_system_message_events.sql`                | 3     |
+| `src/lib/systemMessages.ts`                                      | 1–2   |
+| `src/lib/systemMessages.test.ts`                                 | 1–2   |
+| `src/lib/matchContactByEmail.ts` (or under `systemMessages`)     | 1     |
+| `src/lib/resendWebhook.ts`                                       | 3     |
+| `src/lib/resendWebhook.test.ts`                                  | 3     |
+| `src/pages/api/webhooks/resend.ts`                               | 3     |
+| `src/test/api/resend-webhook.test.ts`                            | 3     |
+| `src/components/product/ProductEmailHistory.tsx` (name flexible) | 2     |
+| `src/components/messages/SystemMessagesList.tsx`                 | 4     |
+| `src/components/messages/SystemMessagePanel.tsx`                 | 4     |
+| `src/components/messages/AccountProductOutreachSection.tsx`      | 5     |
 
 ### Modify
 
-| Path | Phase |
-|------|-------|
-| `src/lib/sendOgrProductOutreachEmail.ts` | 1 |
-| `src/pages/api/staff/ogr-product-email.ts` | 1 |
-| `src/lib/sendOgrProductEmailClient.ts` | 1 |
-| `src/test/api/ogr-product-email.test.ts` | 1 |
-| `src/components/ProductDetailDrawer.tsx` | 2 |
-| `src/components/OgrProductEmailComposerModal.tsx` | 5 (optional hint); 1 only if request shape needs ids |
-| `src/components/tabs/MessagesTab.tsx` | 4 |
-| `src/components/AccountDetailDrawer.tsx` / `ProspectDetailDrawer.tsx` | 5 |
-| `src/types/database.ts` | 1, 3 |
-| `supabase/schema.sql` | 1, 3 |
-| `.env.example` | 3 |
-| `docs/product-architecture.md` | 6 |
-| `ogr-product-email-composer-roadmap.md` | 6 |
+| Path                                                                  | Phase                                                |
+| --------------------------------------------------------------------- | ---------------------------------------------------- |
+| `src/lib/sendOgrProductOutreachEmail.ts`                              | 1                                                    |
+| `src/pages/api/staff/ogr-product-email.ts`                            | 1                                                    |
+| `src/lib/sendOgrProductEmailClient.ts`                                | 1                                                    |
+| `src/test/api/ogr-product-email.test.ts`                              | 1                                                    |
+| `src/components/ProductDetailDrawer.tsx`                              | 2                                                    |
+| `src/components/OgrProductEmailComposerModal.tsx`                     | 5 (optional hint); 1 only if request shape needs ids |
+| `src/components/tabs/MessagesTab.tsx`                                 | 4                                                    |
+| `src/components/AccountDetailDrawer.tsx` / `ProspectDetailDrawer.tsx` | 5                                                    |
+| `src/types/database.ts`                                               | 1, 3                                                 |
+| `supabase/schema.sql`                                                 | 1, 3                                                 |
+| `.env.example`                                                        | 3                                                    |
+| `docs/product-architecture.md`                                        | 6                                                    |
+| `ogr-product-email-composer-roadmap.md`                               | 6                                                    |
 
 ### Preserve
 
@@ -396,11 +396,11 @@ Each phase should fit a **single focused implementation plan** (schema + code + 
 
 ## 12. Phase tracker
 
-| Phase | Name | Status |
-|-------|------|--------|
-| 1 | Persist System Messages + basic CRM | Done |
-| 2 | Product Drawer history | Done |
-| 3 | Resend webhooks + events | Done |
-| 4 | Wholesale → System UX | Not started |
-| 5 | Account surface + composer polish | Not started |
-| 6 | Docs sync | Not started |
+| Phase | Name                                | Status      |
+| ----- | ----------------------------------- | ----------- |
+| 1     | Persist System Messages + basic CRM | Done        |
+| 2     | Product Drawer history              | Done        |
+| 3     | Resend webhooks + events            | Done        |
+| 4     | Wholesale → System UX               | Not started |
+| 5     | Account surface + composer polish   | Not started |
+| 6     | Docs sync                           | Not started |

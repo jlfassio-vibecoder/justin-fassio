@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import {
-  fetchProductOutreachHistory,
-  type ProductOutreachHistoryItem,
-} from '@/lib/systemMessages';
+import { fetchProductOutreachHistory, type ProductOutreachHistoryItem } from '@/lib/systemMessages';
 
 export type ProductEmailHistoryProps = {
   catalogItemId: string;
-  reloadToken?: number;
+};
+
+type HistoryState = {
+  items: ProductOutreachHistoryItem[];
+  loading: boolean;
+  error: string | null;
 };
 
 function formatWhen(iso: string | null): string {
@@ -40,34 +42,46 @@ function formatCrm(item: ProductOutreachHistoryItem): string {
   return parts.length > 0 ? parts.join(' · ') : 'Unlinked';
 }
 
-export function ProductEmailHistory({ catalogItemId, reloadToken = 0 }: ProductEmailHistoryProps) {
-  const [items, setItems] = useState<ProductOutreachHistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+/**
+ * Remount with a new `key` (catalog item + reload token) to reset loading state
+ * without synchronous setState inside the effect.
+ */
+export function ProductEmailHistory({ catalogItemId }: ProductEmailHistoryProps) {
+  const [state, setState] = useState<HistoryState>({
+    items: [],
+    loading: true,
+    error: null,
+  });
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError(null);
 
     void (async () => {
       const result = await fetchProductOutreachHistory(catalogItemId);
       if (!active) return;
+
       if (result.error) {
-        setItems([]);
-        setError(result.error);
-        setLoading(false);
+        setState({
+          items: [],
+          loading: false,
+          error: result.error,
+        });
         return;
       }
-      setItems(result.data);
-      setError(null);
-      setLoading(false);
+
+      setState({
+        items: result.data,
+        loading: false,
+        error: null,
+      });
     })();
 
     return () => {
       active = false;
     };
-  }, [catalogItemId, reloadToken]);
+  }, [catalogItemId]);
+
+  const { items, loading, error } = state;
 
   return (
     <div className="sm:col-span-2">
@@ -102,8 +116,7 @@ export function ProductEmailHistory({ catalogItemId, reloadToken = 0 }: ProductE
               <p className="text-ink/55 m-0 mt-0.5 text-xs">
                 Opens {item.openCount} · Clicks {item.clickCount}
               </p>
-              {item.failureReason &&
-              (item.status === 'bounced' || item.status === 'failed') ? (
+              {item.failureReason && (item.status === 'bounced' || item.status === 'failed') ? (
                 <p className="text-accent-800 m-0 mt-0.5 text-xs">{item.failureReason}</p>
               ) : null}
               {item.subject.trim() ? (

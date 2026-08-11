@@ -115,9 +115,7 @@ export function normalizeResendWebhookEvent(parsed: unknown): NormalizedResendWe
   if (!emailId) return null;
 
   const createdAt =
-    pickString(root.created_at) ??
-    pickString(data.created_at) ??
-    new Date().toISOString();
+    pickString(root.created_at) ?? pickString(data.created_at) ?? new Date().toISOString();
 
   let failureReason: string | null = null;
   const bounce = asRecord(data.bounce);
@@ -179,7 +177,11 @@ export function computeSystemMessageWebhookPatch(
       if (!current.sent_at) patch.sent_at = event.occurredAt;
       if (!terminal && current.status !== 'delivered') {
         // Keep existing sent/queued; do not regress delivered.
-        if (current.status === 'draft' || current.status === 'queued' || current.status === 'sending') {
+        if (
+          current.status === 'draft' ||
+          current.status === 'queued' ||
+          current.status === 'sending'
+        ) {
           patch.status = 'sent';
         }
       }
@@ -245,56 +247,47 @@ export type ApplyResendSystemMessageEventResult =
   | { ok: false; error: string };
 
 /**
- * Idempotent apply: insert event by unique svix id, then patch system_messages.
+ * Idempotent apply via DB RPC: FOR UPDATE + unique event insert + atomic open/click increments.
  * Service-role client required (webhook has no staff JWT).
+ * `computeSystemMessageWebhookPatch` remains for unit tests of patch semantics.
  */
 export async function applyResendSystemMessageEvent(
   admin: DbClient,
   input: ApplyResendSystemMessageEventInput,
 ): Promise<ApplyResendSystemMessageEventResult> {
-  const { data: message, error: lookupError } = await admin
-    .from('system_messages')
-    .select(
-      'id, status, sent_at, delivered_at, opened_at, clicked_at, bounced_at, failed_at, complained_at, open_count, click_count, last_event_at, failure_reason',
-    )
-    .eq('resend_email_id', input.event.emailId)
-    .maybeSingle();
-
-  if (lookupError) {
-    return { ok: false, error: lookupError.message };
-  }
-  if (!message) {
-    return { ok: true, duplicate: false, unknownEmail: true };
-  }
-
-  const { error: insertError } = await admin.from('system_message_events').insert({
-    system_message_id: message.id,
-    resend_email_id: input.event.emailId,
-    resend_event_id: input.resendEventId,
-    event_type: input.event.type,
-    occurred_at: input.event.occurredAt,
-    payload: input.event.payload,
+  const { data, error } = await admin.rpc('apply_resend_system_message_event', {
+    p_resend_email_id: input.event.emailId,
+    p_resend_event_id: input.resendEventId,
+    p_event_type: input.event.type,
+    p_occurred_at: input.event.occurredAt,
+    p_payload: input.event.payload,
+    p_failure_reason: input.event.failureReason,
   });
 
-  if (insertError) {
-    const code = 'code' in insertError ? String(insertError.code) : '';
-    const isDuplicate =
-      code === '23505' || /duplicate|unique/i.test(insertError.message ?? '');
-    if (isDuplicate) {
-      return { ok: true, duplicate: true };
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  const result = asRecord(data);
+  const status = result ? pickString(result.status) : null;
+
+  if (status === 'unknown_email') {
+    return { ok: true, duplicate: false, unknownEmail: true };
+  }
+  if (status === 'duplicate') {
+    return { ok: true, duplicate: true };
+  }
+  if (status === 'applied') {
+    const systemMessageId = result ? pickString(result.system_message_id) : null;
+    if (!systemMessageId) {
+      return { ok: false, error: 'RPC applied without system_message_id' };
     }
-    return { ok: false, error: insertError.message };
+    return { ok: true, duplicate: false, systemMessageId };
   }
 
-  const patch = computeSystemMessageWebhookPatch(message, input.event);
-  const { error: updateError } = await admin
-    .from('system_messages')
-    .update(patch)
-    .eq('id', message.id);
-
-  if (updateError) {
-    return { ok: false, error: updateError.message };
-  }
-
-  return { ok: true, duplicate: false, systemMessageId: message.id };
+  const rpcError = result ? pickString(result.error) : null;
+  return {
+    ok: false,
+    error: rpcError ?? `Unexpected RPC status: ${status ?? 'null'}`,
+  };
 }
