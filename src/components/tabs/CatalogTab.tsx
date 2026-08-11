@@ -24,7 +24,13 @@ import {
   minOrderTotalBreakdown,
   retailKeystoneBreakdown,
 } from '@/lib/retailPricing';
+import {
+  fetchProductEngagementAlerts,
+  markProductEngagementSeen,
+  type ProductEngagementAlertKind,
+} from '@/lib/systemMessages';
 
+const ENGAGEMENT_ALERT_POLL_MS = 60_000;
 function catalogThumbSrc(item: CatalogItem): string | null {
   const src = resolvePrimaryImageSrc(item);
   if (!src) return null;
@@ -127,6 +133,9 @@ export function CatalogTab({
   const [activeLine, setActiveLine] = useState<LinePortfolio | null>(null);
   const [lineEditOpen, setLineEditOpen] = useState(false);
   const [lineLoadError, setLineLoadError] = useState<string | null>(null);
+  const [engagementAlerts, setEngagementAlerts] = useState<
+    Record<string, ProductEngagementAlertKind>
+  >({});
 
   useEffect(() => {
     let active = true;
@@ -143,6 +152,60 @@ export function CatalogTab({
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadEngagementAlerts() {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      const result = await fetchProductEngagementAlerts();
+      if (!active || result.error) return;
+      setEngagementAlerts(result.data);
+    }
+
+    void loadEngagementAlerts();
+
+    function onFocus() {
+      void loadEngagementAlerts();
+    }
+
+    function onVisibilityChange() {
+      if (!document.hidden) void loadEngagementAlerts();
+    }
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    const pollId = window.setInterval(() => {
+      void loadEngagementAlerts();
+    }, ENGAGEMENT_ALERT_POLL_MS);
+
+    return () => {
+      active = false;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.clearInterval(pollId);
+    };
+  }, []);
+
+  function openProduct(sku: string) {
+    const item = catalog.find((row) => row.sku === sku);
+    setSelectedSku(sku);
+    if (!item) return;
+
+    setEngagementAlerts((prev) => {
+      if (!(item.id in prev)) return prev;
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
+
+    void markProductEngagementSeen(item.id).then((result) => {
+      if (result.error) {
+        void fetchProductEngagementAlerts().then((alerts) => {
+          if (!alerts.error) setEngagementAlerts(alerts.data);
+        });
+      }
+    });
+  }
   const pricedFactors = useMemo(
     () => factorsWithSettings(factors, supplierTerms),
     [factors, supplierTerms],
@@ -658,11 +721,11 @@ export function CatalogTab({
                     tabIndex={0}
                     role="button"
                     aria-label={`Open details for ${item.sku}`}
-                    onClick={() => setSelectedSku(item.sku)}
+                    onClick={() => openProduct(item.sku)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        setSelectedSku(item.sku);
+                        openProduct(item.sku);
                       }
                     }}
                   >
@@ -682,9 +745,14 @@ export function CatalogTab({
                     </td>
                     <td className="border-ink/[0.08] min-w-[180px] border-b p-2">
                       <div className="font-semibold">{item.name}</div>
-                      <div className="mt-0.5 flex gap-1">
+                      <div className="mt-0.5 flex flex-wrap gap-1">
                         {item.isNew && <Tag variant="accent">New</Tag>}
                         {item.isNameDrop && <Tag variant="accent-2">Name Drop</Tag>}
+                        {engagementAlerts[item.id] === 'clicked' ? (
+                          <Tag variant="accent">Clicked</Tag>
+                        ) : engagementAlerts[item.id] === 'opened' ? (
+                          <Tag variant="outline">Opened</Tag>
+                        ) : null}
                       </div>
                     </td>
                     <td className="border-ink/[0.08] border-b p-2">{item.cat}</td>
@@ -713,7 +781,7 @@ export function CatalogTab({
                               {
                                 id: 'details',
                                 label: 'Details',
-                                onSelect: () => setSelectedSku(item.sku),
+                                onSelect: () => openProduct(item.sku),
                               },
                             ],
                           },
@@ -734,7 +802,7 @@ export function CatalogTab({
         factors={pricedFactors}
         supplierTerms={supplierTerms}
         onClose={() => setSelectedSku(null)}
-        onNavigate={(sku) => setSelectedSku(sku)}
+        onNavigate={(sku) => openProduct(sku)}
         onSaved={(updated) => {
           onCatalogChange?.(catalog.map((row) => (row.id === updated.id ? updated : row)));
           setSelectedSku(updated.sku);

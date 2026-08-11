@@ -1668,6 +1668,9 @@ create table if not exists system_messages (
   delivered_at timestamptz,
   opened_at timestamptz,
   clicked_at timestamptz,
+  last_opened_at timestamptz,
+  last_clicked_at timestamptz,
+  last_engagement_received_at timestamptz,
   bounced_at timestamptz,
   failed_at timestamptz,
   complained_at timestamptz,
@@ -1702,6 +1705,18 @@ create index if not exists system_messages_status_created_at_idx
 
 create index if not exists system_messages_to_email_idx
   on system_messages (to_email);
+
+create index if not exists system_messages_last_opened_at_idx
+  on system_messages (last_opened_at)
+  where last_opened_at is not null;
+
+create index if not exists system_messages_last_clicked_at_idx
+  on system_messages (last_clicked_at)
+  where last_clicked_at is not null;
+
+create index if not exists system_messages_last_engagement_received_at_idx
+  on system_messages (last_engagement_received_at)
+  where last_engagement_received_at is not null;
 
 drop trigger if exists system_messages_set_updated_at on system_messages;
 create trigger system_messages_set_updated_at
@@ -1747,7 +1762,25 @@ create policy "approved staff full access" on system_message_events
   using (public.is_approved_staff())
   with check (public.is_approved_staff());
 
--- Atomic Resend webhook apply (see migrations/20260811150000_apply_resend_system_message_event.sql).
+-- ─────────────────────────────────────────────────────────────────────────
+-- product_outreach_engagement_seen — per-product staff cursor for Line Sheet alerts.
+-- See migrations/20260811160000_product_engagement_alerts.sql.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists product_outreach_engagement_seen (
+  catalog_item_id uuid primary key references catalog_items (id) on delete cascade,
+  seen_at timestamptz not null default now()
+);
+
+alter table product_outreach_engagement_seen enable row level security;
+
+drop policy if exists "approved staff full access" on product_outreach_engagement_seen;
+create policy "approved staff full access" on product_outreach_engagement_seen
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+-- Atomic Resend webhook apply (see migrations/20260811150000_apply_resend_system_message_event.sql
+-- and 20260811160000_product_engagement_alerts.sql for last_* engagement fields).
 create or replace function public.apply_resend_system_message_event(
   p_resend_email_id text,
   p_resend_event_id text,
@@ -1849,6 +1882,11 @@ begin
     set
       open_count = open_count + 1,
       opened_at = coalesce(opened_at, p_occurred_at),
+      last_opened_at = case
+        when last_opened_at is null or last_opened_at < p_occurred_at then p_occurred_at
+        else last_opened_at
+      end,
+      last_engagement_received_at = clock_timestamp(),
       last_event_at = v_last_event_at
     where id = v_msg.id;
 
@@ -1857,6 +1895,11 @@ begin
     set
       click_count = click_count + 1,
       clicked_at = coalesce(clicked_at, p_occurred_at),
+      last_clicked_at = case
+        when last_clicked_at is null or last_clicked_at < p_occurred_at then p_occurred_at
+        else last_clicked_at
+      end,
+      last_engagement_received_at = clock_timestamp(),
       last_event_at = v_last_event_at
     where id = v_msg.id;
 

@@ -401,6 +401,7 @@ Each phase should fit a **single focused implementation plan** (schema + code + 
 | 1     | Persist System Messages + basic CRM | Done        |
 | 2     | Product Drawer history              | Done        |
 | 3     | Resend webhooks + events            | Done        |
+| 3.5   | Unseen Line Sheet engagement alerts | Done        |
 | 4     | Wholesale → System UX               | Not started |
 | 5     | Account surface + composer polish   | Not started |
 | 6     | Docs sync                           | Not started |
