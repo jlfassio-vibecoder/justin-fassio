@@ -388,6 +388,7 @@ export async function fetchProductEngagementAlerts(): Promise<{
   error: string | null;
 }> {
   const [messagesResult, seenResult] = await Promise.all([
+    // Copilot suggestion ignored: a grouped RPC/view would add schema surface; polls already filter to engaged product-outreach rows and aggregate client-side.
     supabase
       .from('system_messages')
       .select('catalog_item_id, last_opened_at, last_clicked_at, last_engagement_received_at')

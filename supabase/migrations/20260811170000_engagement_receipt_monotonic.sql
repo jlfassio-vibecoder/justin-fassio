@@ -6,6 +6,7 @@ alter table public.system_messages
   add column if not exists last_engagement_received_at timestamptz;
 
 -- Backfill receipt from existing provider engagement times so current alerts stay coherent.
+-- Copilot suggestion ignored: PostgreSQL GREATEST ignores NULLs, so open-only or click-only rows still backfill.
 update public.system_messages
 set last_engagement_received_at = greatest(last_opened_at, last_clicked_at)
 where last_engagement_received_at is null

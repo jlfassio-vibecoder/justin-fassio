@@ -1763,7 +1763,7 @@ create policy "approved staff full access" on system_message_events
   with check (public.is_approved_staff());
 
 -- ─────────────────────────────────────────────────────────────────────────
--- product_outreach_engagement_seen — per-product staff cursor for Line Sheet alerts.
+-- product_outreach_engagement_seen — shared staff cursor per catalog item (not per user).
 -- See migrations/20260811160000_product_engagement_alerts.sql.
 -- ─────────────────────────────────────────────────────────────────────────
 create table if not exists product_outreach_engagement_seen (
