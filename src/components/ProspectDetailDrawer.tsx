@@ -8,6 +8,7 @@ import { ConvertAccountModal } from '@/components/ConvertAccountModal';
 import { AccountEmailSection } from '@/components/messages/AccountEmailSection';
 import { AccountMessagesSection } from '@/components/messages/AccountMessagesSection';
 import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
+import { OutreachLeadStateChip } from '@/components/OutreachLeadStateChip';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
 import { primaryRetailChannelLabel, type Prospect, updateProspectTaxonomy } from '@/lib/prospects';
@@ -80,6 +81,7 @@ export function ProspectDetailDrawer({
               {prospect.territoryName ? ` · ${prospect.territoryName}` : ''}
             </span>
           </div>
+          <OutreachLeadStateChip prospectId={prospect.id} />
 
           <dl className="m-0 grid gap-3 text-sm">
             <div>

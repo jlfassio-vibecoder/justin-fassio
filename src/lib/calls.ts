@@ -1,4 +1,10 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
 import { supabase } from '@/lib/supabase';
+import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
+import { AGENT_OUTREACH_PREP_TZ } from '@/lib/outreachSelectionConstants';
+
+type Client = SupabaseClient<Database>;
 
 export const CALL_SELECT =
   'id, prospect_id, contact_name, outcome, pmf_score, order_value_cad, call_date, notes, objection_tags' as const;
@@ -30,4 +36,35 @@ export async function fetchCalls(limit = 500): Promise<{
   }
 
   return { data: (data ?? []) as CallRow[], error: null };
+}
+
+/**
+ * Thin Phase 3 helper: prospects with calls.follow_up_date <= today (Vancouver).
+ * Does not change CALL_SELECT / Dashboard fetch shape. Read-only; no log-call UI.
+ */
+export async function fetchDueCallFollowUps(
+  client: Client,
+  options?: { asOf?: Date; prospectIds?: number[] },
+): Promise<Set<number>> {
+  const today = formatOutreachPreparationDate(options?.asOf ?? new Date(), AGENT_OUTREACH_PREP_TZ);
+  let query = client
+    .from('calls')
+    .select('prospect_id, follow_up_date')
+    .not('follow_up_date', 'is', null)
+    .lte('follow_up_date', today);
+
+  if (options?.prospectIds && options.prospectIds.length > 0) {
+    query = query.in('prospect_id', options.prospectIds);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  const due = new Set<number>();
+  for (const row of data ?? []) {
+    if (typeof row.prospect_id === 'number' && Number.isFinite(row.prospect_id)) {
+      due.add(row.prospect_id);
+    }
+  }
+  return due;
 }
