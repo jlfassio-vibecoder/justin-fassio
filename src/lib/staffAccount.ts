@@ -1,6 +1,6 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { CONTACT_EMAIL } from '@/data/landing';
 import { isValidOgrProductEmailRecipient } from '@/lib/ogrProductEmailLimits';
-import { isUsableStaffDisplayName } from '@/lib/ogrProductEmailSender';
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/types/database';
 
@@ -18,6 +18,31 @@ export type StaffAccountResult = { ok: true } | { ok: false; error: string };
 
 export function normalizeStaffDisplayName(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
+}
+
+function emailLocalPart(email: string | null | undefined): string | null {
+  const trimmed = (email ?? '').trim().toLowerCase();
+  if (!trimmed || !trimmed.includes('@')) return null;
+  const local = trimmed.split('@')[0]?.trim() ?? '';
+  return local || null;
+}
+
+/** Reject blank names, emails, and mailbox local-parts (e.g. `office`). */
+export function isUsableStaffDisplayName(
+  value: string | null | undefined,
+  emails: Array<string | null | undefined> = [],
+): boolean {
+  const name = normalizeStaffDisplayName(value ?? '');
+  if (!name) return false;
+  if (name.includes('@')) return false;
+  const normalized = name.toLowerCase();
+  for (const email of [...emails, CONTACT_EMAIL]) {
+    const local = emailLocalPart(email);
+    if (local && normalized === local) return false;
+    const full = (email ?? '').trim().toLowerCase();
+    if (full && normalized === full) return false;
+  }
+  return true;
 }
 
 export function validateStaffDisplayName(

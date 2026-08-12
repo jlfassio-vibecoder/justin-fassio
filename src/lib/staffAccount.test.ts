@@ -30,6 +30,7 @@ vi.mock('@/lib/supabase', () => ({
 import {
   STAFF_AVATAR_MAX_BYTES,
   createStaffAvatarSignedUrl,
+  isUsableStaffDisplayName,
   pendingAuthEmail,
   removeStaffAvatar,
   requestStaffEmailChange,
@@ -61,6 +62,8 @@ describe('validateStaffDisplayName', () => {
     expect(validateStaffDisplayName('alex@example.com').ok).toBe(false);
     expect(validateStaffDisplayName('office', ['office@justinfassio.com']).ok).toBe(false);
     expect(validateStaffDisplayName('Office').ok).toBe(false);
+    expect(isUsableStaffDisplayName('office')).toBe(false);
+    expect(isUsableStaffDisplayName('Alex Rivera')).toBe(true);
   });
 });
 
