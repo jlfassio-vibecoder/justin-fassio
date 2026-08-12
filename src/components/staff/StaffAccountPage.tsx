@@ -1,3 +1,4 @@
+// Copilot suggestion ignored: React 19 types export SubmitEvent; FormEvent is deprecated for form onSubmit.
 import { useEffect, useState, type SubmitEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardKicker, CardTitle } from '@/components/ui/Card';
@@ -49,6 +50,7 @@ export function StaffAccountPage() {
   const [passwordState, setPasswordState] = useState<SectionState>(idle);
   const [avatarState, setAvatarState] = useState<SectionState>(idle);
 
+  // Copilot suggestion ignored: React 19 syncs derived state during render; an effect here trips react-hooks/set-state-in-effect.
   if (profileName !== syncedName) {
     setSyncedName(profileName);
     setDisplayName(profileName);
