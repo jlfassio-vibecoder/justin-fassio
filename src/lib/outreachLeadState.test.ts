@@ -130,6 +130,27 @@ describe('attributeConfirmedReply', () => {
     expect(result.attributed).toBe(true);
     expect(result.confidence).toBe('confirmed_link_after_send');
   });
+
+  it('compares reply vs send times numerically across offset formats', () => {
+    const result = attributeConfirmedReply({
+      messages: [
+        msg({
+          id: '1',
+          to_email: 'buyer@example.com',
+          sent_at: '2026-08-01T12:00:00+00:00',
+        }),
+      ],
+      confirmedLinks: [
+        {
+          link_status: 'confirmed',
+          participants: ['buyer@example.com'],
+          account_contact_id: null,
+          last_message_at: '2026-08-01T13:00:00.000Z',
+        },
+      ],
+    });
+    expect(result.attributed).toBe(true);
+  });
 });
 
 describe('evaluateLeadState', () => {

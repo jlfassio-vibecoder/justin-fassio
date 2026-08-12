@@ -65,6 +65,19 @@ describe('GET /api/staff/outreach/leads', () => {
     expect(body.leads).toHaveLength(1);
   });
 
+  it('lists hot leads', async () => {
+    const res = await GET({
+      request: new Request('http://localhost/api/staff/outreach/leads?kind=hot'),
+      url: new URL('http://localhost/api/staff/outreach/leads?kind=hot'),
+    } as never);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.kind).toBe('hot');
+    expect(listHotLeadsMock).toHaveBeenCalled();
+    expect(body.leads).toHaveLength(1);
+  });
+
   it('lists call_today leads', async () => {
     const res = await GET({
       request: new Request('http://localhost/api/staff/outreach/leads?kind=call_today'),

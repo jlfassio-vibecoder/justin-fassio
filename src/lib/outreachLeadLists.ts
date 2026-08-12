@@ -12,7 +12,10 @@ import {
   type OutreachMessageRow,
   type ProspectOutreachEngagement,
 } from '@/lib/outreachEngagementAggregate';
-import { listConfirmedLinksForProspect } from '@/lib/google/gmailThreadLinks';
+import {
+  listConfirmedLinksForProspect,
+  type GmailThreadLinkRow,
+} from '@/lib/google/gmailThreadLinks';
 import { OUTREACH_LEAD_RULES_VERSION } from '@/lib/outreachLeadRules';
 import {
   evaluateLeadState,
@@ -42,6 +45,49 @@ export type OutreachLeadKind = 'warm' | 'hot' | 'call_today';
 
 const MESSAGE_SELECT =
   'id, prospect_id, to_email, catalog_item_id, sent_at, open_count, click_count, last_opened_at, last_clicked_at, bounced_at, complained_at, status, account_contact_id';
+
+/** Matches listConfirmedLinksForProspect default cap, applied per prospect after batch fetch. */
+const CONFIRMED_LINKS_PER_PROSPECT = 25;
+
+function mapConfirmedLinkForAttribution(l: GmailThreadLinkRow) {
+  return {
+    link_status: l.link_status,
+    participants: Array.isArray(l.participants)
+      ? l.participants.filter((p): p is string => typeof p === 'string')
+      : null,
+    account_contact_id: l.account_contact_id,
+    last_message_at: l.last_message_at,
+  };
+}
+
+/**
+ * One query for all confirmed Gmail links across prospect ids, grouped in memory.
+ * Caps each prospect at CONFIRMED_LINKS_PER_PROSPECT (same default as listConfirmedLinksForProspect).
+ */
+async function loadConfirmedLinksByProspectIds(
+  client: Client,
+  prospectIds: number[],
+): Promise<Map<number, GmailThreadLinkRow[]>> {
+  const out = new Map<number, GmailThreadLinkRow[]>();
+  if (prospectIds.length === 0) return out;
+
+  const { data, error } = await client
+    .from('gmail_thread_links')
+    .select('*')
+    .in('prospect_id', prospectIds)
+    .eq('link_status', 'confirmed')
+    .order('last_message_at', { ascending: false, nullsFirst: false });
+  if (error) throw new Error(error.message);
+
+  for (const row of data ?? []) {
+    if (typeof row.prospect_id !== 'number' || !Number.isFinite(row.prospect_id)) continue;
+    const bucket = out.get(row.prospect_id) ?? [];
+    if (bucket.length >= CONFIRMED_LINKS_PER_PROSPECT) continue;
+    bucket.push(row);
+    out.set(row.prospect_id, bucket);
+  }
+  return out;
+}
 
 /**
  * Build unique-email → prospectId map from account_contacts.
@@ -180,14 +226,7 @@ export async function getOutreachLeadForProspect(params: {
   });
   const reply = attributeConfirmedReply({
     messages,
-    confirmedLinks: confirmedLinks.map((l) => ({
-      link_status: l.link_status,
-      participants: Array.isArray(l.participants)
-        ? l.participants.filter((p): p is string => typeof p === 'string')
-        : null,
-      account_contact_id: l.account_contact_id,
-      last_message_at: l.last_message_at,
-    })),
+    confirmedLinks: confirmedLinks.map(mapConfirmedLinkForAttribution),
   });
   const engagement = aggregateProspectOutreachEngagement({
     prospectId: params.prospectId,
@@ -274,6 +313,11 @@ export async function listOutreachLeads(
 
   const prospectIds = [...byProspect.keys()];
   const meta = await loadProspectMeta(client, prospectIds);
+  const prospectIdsWithMessages = prospectIds.filter((id) => {
+    const bucket = byProspect.get(id);
+    return Boolean(bucket && bucket.messages.length > 0);
+  });
+  const linksByProspect = await loadConfirmedLinksByProspectIds(client, prospectIdsWithMessages);
   const rows: OutreachLeadRow[] = [];
 
   for (const prospectId of prospectIds) {
@@ -282,18 +326,10 @@ export async function listOutreachLeads(
     const prospect = meta.get(prospectId);
     if (!prospect) continue;
 
-    const confirmedLinks =
-      bucket.messages.length > 0 ? await listConfirmedLinksForProspect({ client, prospectId }) : [];
+    const confirmedLinks = linksByProspect.get(prospectId) ?? [];
     const reply = attributeConfirmedReply({
       messages: bucket.messages,
-      confirmedLinks: confirmedLinks.map((l) => ({
-        link_status: l.link_status,
-        participants: Array.isArray(l.participants)
-          ? l.participants.filter((p): p is string => typeof p === 'string')
-          : null,
-        account_contact_id: l.account_contact_id,
-        last_message_at: l.last_message_at,
-      })),
+      confirmedLinks: confirmedLinks.map(mapConfirmedLinkForAttribution),
     });
     const engagement = aggregateProspectOutreachEngagement({
       prospectId,

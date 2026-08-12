@@ -38,7 +38,7 @@ function daysBetween(iso: string | null, asOf: Date): number | null {
   return (asOf.getTime() - ms) / MS_PER_DAY;
 }
 
-/** Recency anchor: last click, else last open, else attributed reply time. */
+/** Recency anchor: most recent of last click, last open, and attributed reply time. */
 export function engagementRecencyIso(engagement: ProspectOutreachEngagement): string | null {
   const candidates = [
     engagement.lastClickedAt,
@@ -46,7 +46,13 @@ export function engagementRecencyIso(engagement: ProspectOutreachEngagement): st
     engagement.reply.attributed ? engagement.reply.lastMessageAt : null,
   ].filter((v): v is string => typeof v === 'string' && v.length > 0);
   if (candidates.length === 0) return null;
-  return candidates.reduce((a, b) => (a > b ? a : b));
+  return candidates.reduce((a, b) => {
+    const aMs = Date.parse(a);
+    const bMs = Date.parse(b);
+    if (!Number.isFinite(aMs)) return Number.isFinite(bMs) ? b : a;
+    if (!Number.isFinite(bMs)) return a;
+    return aMs >= bMs ? a : b;
+  });
 }
 
 /**

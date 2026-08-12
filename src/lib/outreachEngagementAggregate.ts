@@ -60,7 +60,11 @@ export type AttributedReplyInput = {
 function maxIso(a: string | null, b: string | null): string | null {
   if (!a) return b;
   if (!b) return a;
-  return a > b ? a : b;
+  const aMs = Date.parse(a);
+  const bMs = Date.parse(b);
+  if (!Number.isFinite(aMs)) return Number.isFinite(bMs) ? b : a;
+  if (!Number.isFinite(bMs)) return a;
+  return aMs >= bMs ? a : b;
 }
 
 /**
@@ -148,7 +152,8 @@ export function attributeConfirmedReply(params: {
 }): AttributedReplyInput {
   const sent = params.messages.filter((m) => m.sent_at != null);
   const latestSentAt = sent.reduce<string | null>((acc, m) => maxIso(acc, m.sent_at), null);
-  if (!latestSentAt) {
+  const latestSentMs = latestSentAt ? Date.parse(latestSentAt) : Number.NaN;
+  if (!latestSentAt || !Number.isFinite(latestSentMs)) {
     return { attributed: false, confidence: 'none', lastMessageAt: null };
   }
 
@@ -165,7 +170,8 @@ export function attributeConfirmedReply(params: {
   for (const link of params.confirmedLinks) {
     if (link.link_status !== 'confirmed') continue;
     const lastMsg = link.last_message_at;
-    if (!lastMsg || lastMsg <= latestSentAt) continue;
+    const lastMsgMs = lastMsg ? Date.parse(lastMsg) : Number.NaN;
+    if (!lastMsg || !Number.isFinite(lastMsgMs) || lastMsgMs <= latestSentMs) continue;
 
     const participants = Array.isArray(link.participants) ? link.participants : [];
     const participantMatch = participants.some((p) => {
