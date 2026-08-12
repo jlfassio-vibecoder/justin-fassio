@@ -7,6 +7,7 @@ import { renderOgrProductEmailCard } from '@/lib/ogrProductEmailCard';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 
 const HREF = 'https://justinfassio.com/old-guys-rule-wholesale/american-revival-og2513';
+const CATALOG_HREF = 'https://justinfassio.com/old-guys-rule-wholesale';
 
 function fixture(): PublicOgrProduct {
   return {
@@ -41,8 +42,12 @@ function fixture(): PublicOgrProduct {
 describe('ogrProductEmailCard preview', () => {
   it('renders a browser-openable preview when WRITE_EMAIL_PREVIEW=1', () => {
     const presentation = buildPublicProductPresentation(fixture(), { salesVolumeRank: 3 });
-    const card = renderOgrProductEmailCard(presentation, { href: HREF });
+    const card = renderOgrProductEmailCard(presentation, {
+      href: HREF,
+      catalogHref: CATALOG_HREF,
+    });
     expect(card).toContain('American Revival');
+    expect(card).toContain('View Catalog');
 
     if (process.env.WRITE_EMAIL_PREVIEW !== '1') return;
 

@@ -8,10 +8,12 @@ import { renderOgrProductEmailCard } from '@/lib/ogrProductEmailCard';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 
 const HREF = 'https://justinfassio.com/old-guys-rule-wholesale/american-revival-og2513';
+const CATALOG_HREF = 'https://justinfassio.com/old-guys-rule-wholesale';
 const PLAIN = buildOgrProductEmailCardPlainText({
   productName: 'American Revival',
   tagline: 'Great American Revival',
   productHref: HREF,
+  catalogHref: CATALOG_HREF,
 });
 
 function fixture(partial: Partial<PublicOgrProduct> = {}): PublicOgrProduct {
@@ -51,7 +53,7 @@ afterEach(() => {
 });
 
 describe('buildOgrProductEmailCardPlainText', () => {
-  it('includes brand, name, tagline, and URL', () => {
+  it('includes brand, name, tagline, and both CTA URLs', () => {
     expect(PLAIN).toBe(
       [
         'Old Guys Rule — American Revival',
@@ -60,6 +62,8 @@ describe('buildOgrProductEmailCardPlainText', () => {
         '',
         'View Details:',
         HREF,
+        'View Catalog:',
+        CATALOG_HREF,
       ].join('\n'),
     );
   });
@@ -70,16 +74,30 @@ describe('buildOgrProductEmailCardPlainText', () => {
         productName: 'American Revival',
         tagline: '  ',
         productHref: HREF,
+        catalogHref: CATALOG_HREF,
       }),
-    ).toBe(['Old Guys Rule — American Revival', '', 'View Details:', HREF].join('\n'));
+    ).toBe(
+      [
+        'Old Guys Rule — American Revival',
+        '',
+        'View Details:',
+        HREF,
+        'View Catalog:',
+        CATALOG_HREF,
+      ].join('\n'),
+    );
   });
 });
 
 describe('copyOgrProductEmailCardToClipboard', () => {
   it('writes rich html and plain when ClipboardItem is available', async () => {
     const presentation = buildPublicProductPresentation(fixture());
-    const html = renderOgrProductEmailCard(presentation, { href: HREF });
+    const html = renderOgrProductEmailCard(presentation, {
+      href: HREF,
+      catalogHref: CATALOG_HREF,
+    });
     expect(html).toContain(HREF);
+    expect(html).toContain(CATALOG_HREF);
     expect(html).not.toContain('wholesaleUsd');
 
     const write = vi.fn().mockResolvedValue(undefined);

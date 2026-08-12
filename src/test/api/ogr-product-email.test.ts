@@ -7,6 +7,7 @@ const sendOgrProductOutreachEmailMock = vi.fn();
 const renderOgrProductOutreachEmailMock = vi.fn();
 const buildPublicProductPresentationMock = vi.fn();
 const buildOgrProductUrlMock = vi.fn();
+const buildOgrCollectionUrlMock = vi.fn();
 const resolvePublicSiteOriginMock = vi.fn();
 const resolveProductOutreachCrmAssociationMock = vi.fn();
 const insertProductOutreachSystemMessageMock = vi.fn();
@@ -35,6 +36,7 @@ vi.mock('@/lib/publicProductPresentation', () => ({
 
 vi.mock('@/lib/productUrls', () => ({
   buildOgrProductUrl: (...args: unknown[]) => buildOgrProductUrlMock(...args),
+  buildOgrCollectionUrl: (...args: unknown[]) => buildOgrCollectionUrlMock(...args),
   resolvePublicSiteOrigin: (...args: unknown[]) => resolvePublicSiteOriginMock(...args),
 }));
 
@@ -153,6 +155,7 @@ describe('POST /api/staff/ogr-product-email', () => {
     buildOgrProductUrlMock.mockReturnValue(
       'https://justinfassio.com/old-guys-rule-wholesale/american-revival',
     );
+    buildOgrCollectionUrlMock.mockReturnValue('https://justinfassio.com/old-guys-rule-wholesale');
     renderOgrProductOutreachEmailMock.mockReturnValue({
       subject: 'Old Guys Rule — American Revival',
       html: '<p>Hi</p><div>card</div>',
@@ -365,9 +368,11 @@ describe('POST /api/staff/ogr-product-email', () => {
       'american-revival',
       'https://justinfassio.com',
     );
+    expect(buildOgrCollectionUrlMock).toHaveBeenCalledWith('https://justinfassio.com');
     expect(renderOgrProductOutreachEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({
         productHref: 'https://justinfassio.com/old-guys-rule-wholesale/american-revival',
+        catalogHref: 'https://justinfassio.com/old-guys-rule-wholesale',
         signatureName: 'Justin',
         recipientName: 'Sam',
         subject: 'Custom subject',

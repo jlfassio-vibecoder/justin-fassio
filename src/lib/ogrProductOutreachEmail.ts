@@ -27,6 +27,8 @@ export type OgrProductOutreachEmailInput = {
   presentation: PublicProductPresentation;
   /** Absolute http(s) product URL — same validation as card href. */
   productHref: string;
+  /** Absolute http(s) wholesale collection URL — same validation as card catalogHref. */
+  catalogHref: string;
   recipientName?: string | null;
   subject?: string | null;
   /** Defaults when omitted/blank. */
@@ -96,6 +98,7 @@ function buildText(input: {
   signatureName: string;
   presentation: PublicProductPresentation;
   productHref: string;
+  catalogHref: string;
 }): string {
   const { presentation } = input;
   const lines: string[] = [
@@ -116,6 +119,8 @@ function buildText(input: {
     '',
     'View Details:',
     input.productHref,
+    'View Catalog:',
+    input.catalogHref,
     '',
     input.closing,
     '',
@@ -133,6 +138,7 @@ export function renderOgrProductOutreachEmail(
   input: OgrProductOutreachEmailInput,
 ): OgrProductOutreachEmail {
   const productHref = requireAbsoluteHttpUrl(input.productHref, 'productHref');
+  const catalogHref = requireAbsoluteHttpUrl(input.catalogHref, 'catalogHref');
   const signatureName = input.signatureName.trim();
   if (!signatureName) {
     throw new Error('signatureName is required');
@@ -145,11 +151,19 @@ export function renderOgrProductOutreachEmail(
   const closing = resolveProse(input.closingText, OGR_PRODUCT_EMAIL_DEFAULT_CLOSING);
   const greeting = buildGreeting(input.recipientName);
 
-  const cardHtml = renderOgrProductEmailCard(presentation, { href: productHref });
+  const cardHtml = renderOgrProductEmailCard(presentation, { href: productHref, catalogHref });
 
   return {
     subject,
     html: buildHtml({ greeting, intro, closing, signatureName, cardHtml }),
-    text: buildText({ greeting, intro, closing, signatureName, presentation, productHref }),
+    text: buildText({
+      greeting,
+      intro,
+      closing,
+      signatureName,
+      presentation,
+      productHref,
+      catalogHref,
+    }),
   };
 }

@@ -10,7 +10,11 @@ import {
 } from '@/lib/ogrProductEmailLimits';
 import { renderOgrProductOutreachEmail } from '@/lib/ogrProductOutreachEmail';
 import { resolveStaffOutreachSenderNames } from '@/lib/ogrProductEmailSender';
-import { buildOgrProductUrl, resolvePublicSiteOrigin } from '@/lib/productUrls';
+import {
+  buildOgrCollectionUrl,
+  buildOgrProductUrl,
+  resolvePublicSiteOrigin,
+} from '@/lib/productUrls';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import { sendOgrProductOutreachEmail } from '@/lib/sendOgrProductOutreachEmail';
 import {
@@ -172,6 +176,7 @@ export const POST: APIRoute = async ({ request }) => {
       requestOrigin: new URL(request.url).origin,
     });
     productHref = buildOgrProductUrl(presentation.slug, origin);
+    const catalogHref = buildOgrCollectionUrl(origin);
 
     const [{ data: profile }, { data: userData }] = await Promise.all([
       gate.supabase
@@ -196,6 +201,7 @@ export const POST: APIRoute = async ({ request }) => {
     const message = renderOgrProductOutreachEmail({
       presentation,
       productHref,
+      catalogHref,
       signatureName: sender.signatureName,
       recipientName: recipientNameResult.value,
       subject: subjectResult.value,
