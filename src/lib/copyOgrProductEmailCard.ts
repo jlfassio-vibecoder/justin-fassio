@@ -7,6 +7,7 @@ export function buildOgrProductEmailCardPlainText(input: {
   productName: string;
   tagline?: string | null;
   productHref: string;
+  catalogHref: string;
 }): string {
   const name = input.productName.trim() || OGR_PUBLIC_BRAND_NAME;
   const tagline = (input.tagline ?? '').trim();
@@ -14,7 +15,12 @@ export function buildOgrProductEmailCardPlainText(input: {
   if (tagline) {
     lines.push(tagline, '');
   }
-  lines.push('View Details:', input.productHref.trim());
+  lines.push(
+    'View Details:',
+    input.productHref.trim(),
+    'View Catalog:',
+    input.catalogHref.trim(),
+  );
   return lines.join('\n');
 }
 

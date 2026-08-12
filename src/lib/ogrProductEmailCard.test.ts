@@ -7,6 +7,7 @@ import {
 } from '@/lib/publicProductPresentation';
 
 const HREF = 'https://justinfassio.com/old-guys-rule-wholesale/american-revival-og2513';
+const CATALOG_HREF = 'https://justinfassio.com/old-guys-rule-wholesale';
 
 function fixture(partial: Partial<PublicOgrProduct> = {}): PublicOgrProduct {
   return {
@@ -39,10 +40,22 @@ function fixture(partial: Partial<PublicOgrProduct> = {}): PublicOgrProduct {
   };
 }
 
+function renderCard(
+  presentation: ReturnType<typeof buildPublicProductPresentation>,
+  options: { href?: string; catalogHref?: string; imageUrl?: string | null; ctaLabel?: string } = {},
+) {
+  return renderOgrProductEmailCard(presentation, {
+    href: options.href ?? HREF,
+    catalogHref: options.catalogHref ?? CATALOG_HREF,
+    imageUrl: options.imageUrl,
+    ctaLabel: options.ctaLabel,
+  });
+}
+
 describe('renderOgrProductEmailCard', () => {
-  it('renders a complete featured card with image, badges, meta, tagline, and CTA', () => {
+  it('renders a complete featured card with image, badges, meta, tagline, and dual CTAs', () => {
     const presentation = buildPublicProductPresentation(fixture(), { salesVolumeRank: 3 });
-    const html = renderOgrProductEmailCard(presentation, { href: HREF });
+    const html = renderCard(presentation);
 
     expect(html).toContain('role="presentation"');
     expect(html).toContain('Old Guys Rule');
@@ -58,8 +71,12 @@ describe('renderOgrProductEmailCard', () => {
     expect(html).toContain('New');
     expect(html).toContain('Featured');
     expect(html).toContain('View Details');
+    expect(html).toContain('View Catalog');
     expect(html).toContain('justinfassio.com');
     expect(html).toContain(`href="${HREF}"`);
+    expect(html).toContain(`href="${CATALOG_HREF}"`);
+    expect(html).toContain('border:1px solid #111111');
+    expect(html).toContain('width:8px');
     expect(html).toContain('https://oldguysrule.com/cdn/shop/files/GAV1_2000x.jpg');
     expect(html).toContain('width="560"');
     expect(html).toContain('display:block');
@@ -78,23 +95,22 @@ describe('renderOgrProductEmailCard', () => {
     const presentation = buildPublicProductPresentation(
       fixture({ primaryImageUrl: '/relative.jpg' }),
     );
-    const html = renderOgrProductEmailCard(presentation, { href: HREF });
+    const html = renderCard(presentation);
     expect(html).not.toContain('<img');
     expect(html).toContain('American Revival');
     expect(html).toContain('View Details');
+    expect(html).toContain('View Catalog');
   });
 
   it('omits img for relative or javascript imageUrl overrides', () => {
     const presentation = buildPublicProductPresentation(fixture());
     expect(
-      renderOgrProductEmailCard(presentation, {
-        href: HREF,
+      renderCard(presentation, {
         imageUrl: '/relative.jpg',
       }),
     ).not.toContain('<img');
     expect(
-      renderOgrProductEmailCard(presentation, {
-        href: HREF,
+      renderCard(presentation, {
         imageUrl: 'javascript:alert(1)',
       }),
     ).not.toContain('<img');
@@ -102,8 +118,7 @@ describe('renderOgrProductEmailCard', () => {
 
   it('uses override imageUrl when absolute', () => {
     const presentation = buildPublicProductPresentation(fixture());
-    const html = renderOgrProductEmailCard(presentation, {
-      href: HREF,
+    const html = renderCard(presentation, {
       imageUrl: 'https://cdn.example/override.jpg',
     });
     expect(html).toContain('https://cdn.example/override.jpg');
@@ -112,7 +127,7 @@ describe('renderOgrProductEmailCard', () => {
 
   it('omits best-seller badge without rank', () => {
     const presentation = buildPublicProductPresentation(fixture());
-    const html = renderOgrProductEmailCard(presentation, { href: HREF });
+    const html = renderCard(presentation);
     expect(html).not.toContain('Best Seller');
     expect(html).toContain('New');
     expect(html).toContain('Featured');
@@ -120,7 +135,7 @@ describe('renderOgrProductEmailCard', () => {
 
   it('omits empty tagline block', () => {
     const presentation = buildPublicProductPresentation(fixture({ tagline: '' }));
-    const html = renderOgrProductEmailCard(presentation, { href: HREF });
+    const html = renderCard(presentation);
     expect(html).not.toContain('Great American Revival');
   });
 
@@ -134,8 +149,7 @@ describe('renderOgrProductEmailCard', () => {
         color: `Blue "Heather"`,
       }),
     );
-    const html = renderOgrProductEmailCard(presentation, {
-      href: HREF,
+    const html = renderCard(presentation, {
       ctaLabel: `View "Details" & more`,
     });
     expect(html).toContain('A &amp; B &lt;C&gt; &quot;D&quot; &#39;E&#39;');
@@ -144,21 +158,27 @@ describe('renderOgrProductEmailCard', () => {
     expect(html).not.toContain('<script>');
   });
 
-  it('throws when href is not absolute http(s)', () => {
+  it('throws when href or catalogHref is not absolute http(s)', () => {
     const presentation = buildPublicProductPresentation(fixture());
-    expect(() => renderOgrProductEmailCard(presentation, { href: '/relative' })).toThrow(
-      /absolute http\(s\)/i,
-    );
-    expect(() => renderOgrProductEmailCard(presentation, { href: 'javascript:alert(1)' })).toThrow(
-      /absolute http\(s\)/i,
-    );
+    expect(() =>
+      renderOgrProductEmailCard(presentation, { href: '/relative', catalogHref: CATALOG_HREF }),
+    ).toThrow(/absolute http\(s\)/i);
+    expect(() =>
+      renderOgrProductEmailCard(presentation, {
+        href: 'javascript:alert(1)',
+        catalogHref: CATALOG_HREF,
+      }),
+    ).toThrow(/absolute http\(s\)/i);
+    expect(() =>
+      renderOgrProductEmailCard(presentation, { href: HREF, catalogHref: '/relative' }),
+    ).toThrow(/absolute http\(s\)/i);
   });
 
   it('never leaks wholesale or forbidden presentation keys', () => {
     const presentation = buildPublicProductPresentation(fixture({ wholesaleUsd: 13 }), {
       salesVolumeRank: 1,
     });
-    const html = renderOgrProductEmailCard(presentation, { href: HREF });
+    const html = renderCard(presentation);
     expect(html).not.toContain('wholesaleUsd');
     expect(html).not.toMatch(/US\$13/);
     expect(html).not.toContain('buyer');
@@ -169,10 +189,12 @@ describe('renderOgrProductEmailCard', () => {
     }
   });
 
-  it('links image, title, and CTA separately to the same href', () => {
+  it('links image, title, and Details CTA to product href; Catalog CTA to collection', () => {
     const presentation = buildPublicProductPresentation(fixture());
-    const html = renderOgrProductEmailCard(presentation, { href: HREF });
+    const html = renderCard(presentation);
     const hrefMatches = html.match(new RegExp(`href="${HREF}"`, 'g')) ?? [];
+    const catalogMatches = html.match(new RegExp(`href="${CATALOG_HREF}"`, 'g')) ?? [];
     expect(hrefMatches.length).toBeGreaterThanOrEqual(3);
+    expect(catalogMatches.length).toBe(1);
   });
 });

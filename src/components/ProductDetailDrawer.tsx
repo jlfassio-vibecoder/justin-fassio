@@ -27,7 +27,7 @@ import {
 } from '@/lib/landedCost';
 import { patchCatalogItem } from '@/lib/updateCatalogItemClient';
 import type { CatalogItemPatch } from '@/lib/updateCatalogItem';
-import { tryBuildOgrProductUrl } from '@/lib/productUrls';
+import { buildOgrCollectionUrl, tryBuildOgrProductUrl } from '@/lib/productUrls';
 import {
   buildOgrProductEmailCardPlainText,
   copyOgrProductEmailCardToClipboard,
@@ -395,8 +395,9 @@ function ProductDetailDrawerInner({
     if (typeof window === 'undefined') return '';
     const href = tryBuildOgrProductUrl(draft.publicSlug, window.location.origin);
     if (!href) return '';
+    const catalogHref = buildOgrCollectionUrl(window.location.origin);
     const presentation = buildPublicProductPresentation(draftToPublicOgrProduct(item, draft));
-    return renderOgrProductEmailCard(presentation, { href });
+    return renderOgrProductEmailCard(presentation, { href, catalogHref });
   }, [emailModalOpen, draft, item]);
 
   const dirty = useMemo(() => {
@@ -1730,11 +1731,13 @@ function ProductDetailDrawerInner({
                       const presentation = buildPublicProductPresentation(
                         draftToPublicOgrProduct(item, draft),
                       );
-                      const html = renderOgrProductEmailCard(presentation, { href });
+                      const catalogHref = buildOgrCollectionUrl(window.location.origin);
+                      const html = renderOgrProductEmailCard(presentation, { href, catalogHref });
                       const plainText = buildOgrProductEmailCardPlainText({
                         productName: presentation.name,
                         tagline: presentation.tagline,
                         productHref: href,
+                        catalogHref,
                       });
                       void copyOgrProductEmailCardToClipboard({ html, plainText })
                         .then((mode) => {

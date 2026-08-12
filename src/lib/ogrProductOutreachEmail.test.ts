@@ -7,6 +7,7 @@ import {
 } from '@/lib/publicProductPresentation';
 
 const HREF = 'https://justinfassio.com/old-guys-rule-wholesale/american-revival-og2513';
+const CATALOG_HREF = 'https://justinfassio.com/old-guys-rule-wholesale';
 
 function fixture(partial: Partial<PublicOgrProduct> = {}): PublicOgrProduct {
   return {
@@ -43,6 +44,7 @@ function render(
   partial: Partial<PublicOgrProduct> = {},
   options: {
     productHref?: string;
+    catalogHref?: string;
     recipientName?: string | null;
     subject?: string | null;
     introText?: string | null;
@@ -54,6 +56,7 @@ function render(
   return renderOgrProductOutreachEmail({
     presentation,
     productHref: options.productHref ?? HREF,
+    catalogHref: options.catalogHref ?? CATALOG_HREF,
     signatureName: options.signatureName ?? 'Alex Rivera',
     recipientName: options.recipientName,
     subject: options.subject,
@@ -77,6 +80,8 @@ describe('renderOgrProductOutreachEmail', () => {
     expect(result.text).toContain('OLD GUYS RULE');
     expect(result.text).toContain('View Details:');
     expect(result.text).toContain(HREF);
+    expect(result.text).toContain('View Catalog:');
+    expect(result.text).toContain(CATALOG_HREF);
   });
 
   it('accepts custom subject and greets by recipient name', () => {
@@ -86,12 +91,14 @@ describe('renderOgrProductOutreachEmail', () => {
     expect(result.text.startsWith('Hi Sarah,')).toBe(true);
   });
 
-  it('embeds the Phase 5 product card with absolute href', () => {
+  it('embeds the Phase 5 product card with absolute product and catalog hrefs', () => {
     const result = render();
     expect(result.html).toContain('role="presentation"');
     expect(result.html).toContain('View Details');
+    expect(result.html).toContain('View Catalog');
     expect(result.html).toContain('American Revival');
     expect(result.html).toContain(`href="${HREF}"`);
+    expect(result.html).toContain(`href="${CATALOG_HREF}"`);
     expect(result.html).toContain('#3 Best Seller');
   });
 
@@ -143,12 +150,13 @@ describe('renderOgrProductOutreachEmail', () => {
     }
   });
 
-  it('throws on invalid productHref or empty signatureName', () => {
+  it('throws on invalid productHref/catalogHref or empty signatureName', () => {
     const presentation = buildPublicProductPresentation(fixture());
     expect(() =>
       renderOgrProductOutreachEmail({
         presentation,
         productHref: '/relative',
+        catalogHref: CATALOG_HREF,
         signatureName: 'Justin',
       }),
     ).toThrow(/absolute http\(s\)/i);
@@ -156,6 +164,15 @@ describe('renderOgrProductOutreachEmail', () => {
       renderOgrProductOutreachEmail({
         presentation,
         productHref: HREF,
+        catalogHref: '/relative',
+        signatureName: 'Justin',
+      }),
+    ).toThrow(/absolute http\(s\)/i);
+    expect(() =>
+      renderOgrProductOutreachEmail({
+        presentation,
+        productHref: HREF,
+        catalogHref: CATALOG_HREF,
         signatureName: '   ',
       }),
     ).toThrow(/signatureName/i);
@@ -166,6 +183,7 @@ describe('renderOgrProductOutreachEmail', () => {
     const input = {
       presentation,
       productHref: HREF,
+      catalogHref: CATALOG_HREF,
       recipientName: 'Sam',
       signatureName: 'Justin Fassio',
     };

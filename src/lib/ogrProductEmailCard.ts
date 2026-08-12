@@ -6,6 +6,7 @@ import {
 } from '@/lib/publicProductPresentation';
 
 const DEFAULT_CTA_LABEL = 'View Details';
+const CATALOG_CTA_LABEL = 'View Catalog';
 // Copilot suggestion ignored: Phase 5 intentionally attributes justinfassio.com, not the href host.
 const DOMAIN_ATTRIBUTION = 'justinfassio.com';
 const FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
@@ -14,6 +15,8 @@ const CARD_MAX_WIDTH = 560;
 export type OgrProductEmailCardOptions = {
   /** Absolute http(s) product CTA URL. Required. Tracking/UTM belong upstream. */
   href: string;
+  /** Absolute http(s) wholesale collection CTA URL. Required. */
+  catalogHref: string;
   /**
    * Absolute http(s) image URL. If omitted, use presentation.primaryImageUrl when absolute.
    * Invalid / relative / non-http(s) → omit img (text-only card).
@@ -78,9 +81,12 @@ export function renderOgrProductEmailCard(
   options: OgrProductEmailCardOptions,
 ): string {
   const href = requireAbsoluteHttpUrl(options.href, 'href');
+  const catalogHref = requireAbsoluteHttpUrl(options.catalogHref, 'catalogHref');
   const safeHref = escapeHtml(href);
+  const safeCatalogHref = escapeHtml(catalogHref);
   const ctaLabel = (options.ctaLabel ?? DEFAULT_CTA_LABEL).trim() || DEFAULT_CTA_LABEL;
   const safeCta = escapeHtml(ctaLabel);
+  const safeCatalogCta = escapeHtml(CATALOG_CTA_LABEL);
   const brand = escapeHtml(OGR_PUBLIC_BRAND_NAME);
   const name = escapeHtml(presentation.name.trim() || OGR_PUBLIC_BRAND_NAME);
   const meta = buildMetaLine(presentation);
@@ -142,6 +148,10 @@ export function renderOgrProductEmailCard(
         <tr>
           <td style="background-color:#111111;padding:12px 20px;">
             <a href="${safeHref}" style="display:inline-block;color:#ffffff;font-size:14px;line-height:1.2;font-weight:600;text-decoration:none;font-family:${FONT_STACK};">${safeCta}</a>
+          </td>
+          <td style="width:8px;font-size:0;line-height:0;">&nbsp;</td>
+          <td style="border:1px solid #111111;padding:11px 19px;">
+            <a href="${safeCatalogHref}" style="display:inline-block;color:#111111;font-size:14px;line-height:1.2;font-weight:600;text-decoration:none;font-family:${FONT_STACK};">${safeCatalogCta}</a>
           </td>
         </tr>
       </table>
