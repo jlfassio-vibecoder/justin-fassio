@@ -401,6 +401,7 @@ function buildGenerationMeta(
     model: OGR_OUTREACH_DRAFT_MODEL,
     preparationDate: target.preparationDate,
     selectionReasons: target.selectionReasons,
+    primaryChannel: target.primaryChannel,
     fallback: copy.fallback,
     introWordCount: copy.introWordCount,
     closingWordCount: copy.closingWordCount,

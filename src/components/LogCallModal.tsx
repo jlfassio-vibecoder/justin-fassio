@@ -335,6 +335,7 @@ export function LogCallModal({
         prospect={convertProspect}
         prefillAmountCad={convertPrefillCad}
         catalog={catalog}
+        defaultConversionSource="call"
         onClose={handleClose}
         onConverted={() => {
           onConverted?.();
