@@ -4,6 +4,10 @@ import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Textarea } from '@/components/ui/Input';
 import {
+  sendAgentProductOutreachDraft,
+  updateAgentProductOutreachDraftClient,
+} from '@/lib/agentProductOutreachDraftClient';
+import {
   defaultOgrProductEmailSubject,
   OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
   OGR_PRODUCT_EMAIL_DEFAULT_INTRO,
@@ -22,6 +26,15 @@ const MAX_RECIPIENT_NAME = OGR_PRODUCT_EMAIL_MAX_RECIPIENT_NAME;
 const MAX_SUBJECT = OGR_PRODUCT_EMAIL_MAX_SUBJECT;
 const MAX_PROSE = OGR_PRODUCT_EMAIL_MAX_PROSE;
 
+export type OgrProductEmailComposerDraft = {
+  id: string;
+  to: string;
+  toName: string;
+  subject: string;
+  introText: string;
+  closingText: string;
+};
+
 export type OgrProductEmailComposerModalProps = {
   open: boolean;
   onClose: () => void;
@@ -30,6 +43,8 @@ export type OgrProductEmailComposerModalProps = {
   productName: string;
   /** Already-rendered Phase 5 card fragment (not the full outreach document). */
   cardHtml: string;
+  /** When set, opens in agent-draft review mode (PATCH then send-draft). */
+  draft?: OgrProductEmailComposerDraft | null;
 };
 
 function buildCardPreviewSrcDoc(cardHtml: string): string {
@@ -43,12 +58,18 @@ function OgrProductEmailComposerForm({
   productId,
   productName,
   cardHtml,
+  draft,
 }: Omit<OgrProductEmailComposerModalProps, 'open'>) {
-  const [to, setTo] = useState('');
-  const [recipientName, setRecipientName] = useState('');
-  const [subject, setSubject] = useState(() => defaultOgrProductEmailSubject(productName));
-  const [introText, setIntroText] = useState(OGR_PRODUCT_EMAIL_DEFAULT_INTRO);
-  const [closingText, setClosingText] = useState(OGR_PRODUCT_EMAIL_DEFAULT_CLOSING);
+  const isDraftReview = draft != null;
+  const [to, setTo] = useState(draft?.to ?? '');
+  const [recipientName, setRecipientName] = useState(draft?.toName ?? '');
+  const [subject, setSubject] = useState(
+    () => draft?.subject ?? defaultOgrProductEmailSubject(productName),
+  );
+  const [introText, setIntroText] = useState(draft?.introText ?? OGR_PRODUCT_EMAIL_DEFAULT_INTRO);
+  const [closingText, setClosingText] = useState(
+    draft?.closingText ?? OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +85,10 @@ function OgrProductEmailComposerForm({
     const trimmedTo = to.trim();
     if (!isValidOgrProductEmailRecipient(trimmedTo)) {
       setError('A valid recipient email is required');
+      return;
+    }
+    if (isDraftReview && !recipientName.trim()) {
+      setError('Recipient name is required for agent drafts');
       return;
     }
     if (recipientName.trim().length > MAX_RECIPIENT_NAME) {
@@ -86,6 +111,28 @@ function OgrProductEmailComposerForm({
     setError(null);
     setSubmitting(true);
     try {
+      if (isDraftReview && draft) {
+        const updated = await updateAgentProductOutreachDraftClient(draft.id, {
+          to: trimmedTo,
+          toName: recipientName.trim(),
+          subject: subject.trim(),
+          introText: introText.trim(),
+          closingText: closingText.trim(),
+        });
+        if (!updated.ok) {
+          setError(updated.error);
+          return;
+        }
+        const sent = await sendAgentProductOutreachDraft(draft.id);
+        if (!sent.ok) {
+          setError(sent.error);
+          return;
+        }
+        onSent();
+        onClose();
+        return;
+      }
+
       const result = await sendOgrProductEmail({
         productId,
         to: trimmedTo,
@@ -118,7 +165,7 @@ function OgrProductEmailComposerForm({
         onSubmit={(e) => void handleSubmit(e)}
       >
         <div className="flex items-center justify-between gap-3">
-          <DialogTitle>Email Product</DialogTitle>
+          <DialogTitle>{isDraftReview ? 'Review Product Email' : 'Email Product'}</DialogTitle>
           <button
             type="button"
             onClick={handleClose}
@@ -131,7 +178,9 @@ function OgrProductEmailComposerForm({
         </div>
 
         <p className="text-ink/65 m-0 text-sm">
-          Send a single-product outreach email. From address and signature are set on the server.
+          {isDraftReview
+            ? 'Review this agent draft, edit if needed, then send. From address and signature are set on the server from your staff profile.'
+            : 'Send a single-product outreach email. From address and signature are set on the server.'}
         </p>
 
         <Field>
@@ -149,7 +198,7 @@ function OgrProductEmailComposerForm({
         </Field>
 
         <Field>
-          <FieldLabel>Recipient name (optional)</FieldLabel>
+          <FieldLabel>{isDraftReview ? 'Recipient name' : 'Recipient name (optional)'}</FieldLabel>
           <Input
             id="ogr-email-recipient-name"
             value={recipientName}
@@ -237,16 +286,18 @@ export function OgrProductEmailComposerModal({
   productId,
   productName,
   cardHtml,
+  draft = null,
 }: OgrProductEmailComposerModalProps) {
   if (!open) return null;
   return (
     <OgrProductEmailComposerForm
-      key={productId}
+      key={draft?.id ?? productId}
       onClose={onClose}
       onSent={onSent}
       productId={productId}
       productName={productName}
       cardHtml={cardHtml}
+      draft={draft}
     />
   );
 }
