@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
+import { CONTACT_EMAIL } from '@/data/landing';
 import { loadPublishedOgrProductForEmail } from '@/lib/loadPublishedOgrProductForEmail';
 import {
   isValidOgrProductEmailRecipient,
@@ -8,6 +9,7 @@ import {
   OGR_PRODUCT_EMAIL_MAX_SUBJECT,
 } from '@/lib/ogrProductEmailLimits';
 import { renderOgrProductOutreachEmail } from '@/lib/ogrProductOutreachEmail';
+import { resolveStaffOutreachSenderNames } from '@/lib/ogrProductEmailSender';
 import { buildOgrProductUrl, resolvePublicSiteOrigin } from '@/lib/productUrls';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import { sendOgrProductOutreachEmail } from '@/lib/sendOgrProductOutreachEmail';
@@ -171,21 +173,30 @@ export const POST: APIRoute = async ({ request }) => {
     });
     productHref = buildOgrProductUrl(presentation.slug, origin);
 
-    const { data: profile } = await gate.supabase
-      .from('profiles')
-      .select('display_name')
-      .eq('id', gate.userId)
-      .maybeSingle();
+    const [{ data: profile }, { data: userData }] = await Promise.all([
+      gate.supabase
+        .from('profiles')
+        .select('display_name, email')
+        .eq('id', gate.userId)
+        .maybeSingle(),
+      gate.supabase.auth.getUser(),
+    ]);
 
-    const signatureName =
-      typeof profile?.display_name === 'string' && profile.display_name.trim()
-        ? profile.display_name.trim()
-        : 'Justin Fassio';
+    const metadata = userData.user?.user_metadata ?? {};
+    const sender = resolveStaffOutreachSenderNames({
+      displayName: typeof profile?.display_name === 'string' ? profile.display_name : null,
+      additionalNames: [
+        typeof metadata.full_name === 'string' ? metadata.full_name : null,
+        typeof metadata.name === 'string' ? metadata.name : null,
+        typeof metadata.display_name === 'string' ? metadata.display_name : null,
+      ],
+      emails: [profile?.email, userData.user?.email, CONTACT_EMAIL],
+    });
 
     const message = renderOgrProductOutreachEmail({
       presentation,
       productHref,
-      signatureName,
+      signatureName: sender.signatureName,
       recipientName: recipientNameResult.value,
       subject: subjectResult.value,
       introText: introResult.value,
@@ -197,6 +208,7 @@ export const POST: APIRoute = async ({ request }) => {
       subject: message.subject,
       html: message.html,
       text: message.text,
+      fromDisplayName: sender.fromDisplayName,
     });
 
     if (!sendResult.ok) {

@@ -54,7 +54,7 @@ function render(
   return renderOgrProductOutreachEmail({
     presentation,
     productHref: options.productHref ?? HREF,
-    signatureName: options.signatureName ?? 'Justin Fassio',
+    signatureName: options.signatureName ?? 'Alex Rivera',
     recipientName: options.recipientName,
     subject: options.subject,
     introText: options.introText,
@@ -69,9 +69,12 @@ describe('renderOgrProductOutreachEmail', () => {
     expect(result.html).toContain('<p>Hi,</p>');
     expect(result.html).toContain('strong fit for your store');
     expect(result.html).toContain('pricing or availability');
-    expect(result.html).toContain('— Justin Fassio');
+    expect(result.html).toContain('— Alex Rivera');
     expect(result.html).toContain('justinfassio.com');
+    expect(result.html).toContain('background-color:#111111');
+    expect(result.html).toContain('Wholesale');
     expect(result.text).toContain('Hi,');
+    expect(result.text).toContain('OLD GUYS RULE');
     expect(result.text).toContain('View Details:');
     expect(result.text).toContain(HREF);
   });
