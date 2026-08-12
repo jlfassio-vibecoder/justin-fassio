@@ -40,13 +40,15 @@ async function staffFetch(
     return { ok: false, error: 'Not signed in' };
   }
 
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+  if (init.body != null && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
   const res = await fetch(path, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(init.headers ?? {}),
-    },
+    headers,
   });
 
   let payload: Record<string, unknown>;

@@ -96,11 +96,19 @@ export function filterPublicOgrProducts(
 /** Staff sales ranks use public_sort_order below 9000 (10, 20, …). Fallback published items sit at 9000+. */
 const SALES_RANK_FALLBACK_FLOOR = 9000;
 
+/** Minimal fields needed for absolute sales-volume ranking. */
+export type SalesVolumeRankable = {
+  id: string;
+  publicSortOrder: number;
+  name: string;
+  sku: string;
+};
+
 /**
  * Absolute YTD sales-volume ranks (#1 = highest) for catalog items staff ranked via public_sort_order.
  * Unranked / fallback items are omitted.
  */
-export function salesVolumeRankByProductId(products: PublicOgrProduct[]): Map<string, number> {
+export function salesVolumeRankByProductId(products: SalesVolumeRankable[]): Map<string, number> {
   const ranked = products
     .filter((p) => p.publicSortOrder > 0 && p.publicSortOrder < SALES_RANK_FALLBACK_FLOOR)
     .sort(
