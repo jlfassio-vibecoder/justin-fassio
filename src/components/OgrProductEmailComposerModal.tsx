@@ -96,8 +96,18 @@ function OgrProductEmailComposerForm({
 
   async function handleRegenerate() {
     if (!draft || busy) return;
-    if (!draft.prospectId || !draft.accountContactId || !draft.catalogItemId) {
+    if (draft.prospectId == null || !draft.accountContactId || !draft.catalogItemId) {
       setError('Draft is missing CRM associations required to regenerate');
+      return;
+    }
+    const prospectName = draft.prospectName?.trim() ?? '';
+    if (!prospectName) {
+      setError('Prospect name is required to regenerate');
+      return;
+    }
+    const toEmail = (to.trim() || draft.to).trim();
+    if (!isValidOgrProductEmailRecipient(toEmail)) {
+      setError('A valid recipient email is required to regenerate');
       return;
     }
     setError(null);
@@ -108,9 +118,9 @@ function OgrProductEmailComposerForm({
         target: {
           preparationDate: formatOutreachPreparationDate(),
           prospectId: draft.prospectId,
-          prospectName: draft.prospectName?.trim() || productName,
+          prospectName,
           accountContactId: draft.accountContactId,
-          toEmail: to.trim() || draft.to,
+          toEmail,
           toName: recipientName.trim() || draft.toName,
           primaryChannel: null,
           secondaryChannels: [],

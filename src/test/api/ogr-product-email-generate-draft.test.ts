@@ -144,4 +144,24 @@ describe('POST /api/staff/ogr-product-email/generate-draft', () => {
     );
     expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
   });
+
+  it('rejects invalid recipient email on target', async () => {
+    const res = await POST(
+      requestWith({
+        target: { ...target, toEmail: 'not-an-email' },
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(generateOgrProductOutreachDraftMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-UUID accountContactId', async () => {
+    const res = await POST(
+      requestWith({
+        target: { ...target, accountContactId: 'not-a-uuid' },
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(generateOgrProductOutreachDraftMock).not.toHaveBeenCalled();
+  });
 });

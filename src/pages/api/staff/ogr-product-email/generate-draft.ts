@@ -6,7 +6,14 @@ import {
   generateOgrProductOutreachDrafts,
   OGR_OUTREACH_BATCH_HTTP_MAX,
 } from '@/lib/generateOgrProductOutreachDraft';
-import { jsonError, jsonOk, rejectUnsupportedSendFields } from '@/lib/ogrProductEmailDraftApi';
+import {
+  jsonError,
+  jsonOk,
+  rejectUnsupportedSendFields,
+  requireAccountContactId,
+  requireProductId,
+  requireRecipientEmail,
+} from '@/lib/ogrProductEmailDraftApi';
 import type { SelectedOutreachTarget } from '@/lib/outreachSelectTargets';
 
 export const prerender = false;
@@ -39,18 +46,26 @@ function parseTarget(
   if (typeof t.prospectName !== 'string' || !t.prospectName.trim()) {
     return { ok: false, error: 'target.prospectName is required' };
   }
-  if (typeof t.accountContactId !== 'string' || !t.accountContactId.trim()) {
-    return { ok: false, error: 'target.accountContactId is required' };
+
+  const accountContactId = requireAccountContactId(t.accountContactId);
+  if (!accountContactId.ok) {
+    return { ok: false, error: `target.${accountContactId.error}` };
   }
-  if (typeof t.toEmail !== 'string' || !t.toEmail.trim()) {
-    return { ok: false, error: 'target.toEmail is required' };
+
+  const toEmail = requireRecipientEmail(t.toEmail);
+  if (!toEmail.ok) {
+    return { ok: false, error: `target.${toEmail.error}` };
   }
+
   if (typeof t.toName !== 'string' || !t.toName.trim()) {
     return { ok: false, error: 'target.toName is required' };
   }
-  if (typeof t.catalogItemId !== 'string' || !t.catalogItemId.trim()) {
-    return { ok: false, error: 'target.catalogItemId is required' };
+
+  const catalogItemId = requireProductId(t.catalogItemId);
+  if (!catalogItemId.ok) {
+    return { ok: false, error: 'target.catalogItemId must be a valid UUID' };
   }
+
   if (typeof t.productSku !== 'string' || typeof t.productName !== 'string') {
     return { ok: false, error: 'target product fields are required' };
   }
@@ -70,8 +85,8 @@ function parseTarget(
       preparationDate: t.preparationDate.trim(),
       prospectId: t.prospectId,
       prospectName: t.prospectName.trim(),
-      accountContactId: t.accountContactId.trim(),
-      toEmail: t.toEmail.trim(),
+      accountContactId: accountContactId.value,
+      toEmail: toEmail.value,
       toName: t.toName.trim(),
       primaryChannel:
         typeof t.primaryChannel === 'string'
@@ -80,7 +95,7 @@ function parseTarget(
       secondaryChannels: Array.isArray(t.secondaryChannels)
         ? (t.secondaryChannels as SelectedOutreachTarget['secondaryChannels'])
         : [],
-      catalogItemId: t.catalogItemId.trim(),
+      catalogItemId: catalogItemId.value,
       productSku: t.productSku,
       productName: t.productName,
       productSlug: t.productSlug,
