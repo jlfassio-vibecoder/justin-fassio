@@ -325,3 +325,116 @@ export async function fetchProductOutreachHistory(
     error: null,
   };
 }
+
+export type ProductEngagementAlertKind = 'opened' | 'clicked';
+
+export type ProductEngagementMessageRow = {
+  catalog_item_id: string | null;
+  last_opened_at: string | null;
+  last_clicked_at: string | null;
+  last_engagement_received_at: string | null;
+};
+
+/**
+ * Derive per-product Line Sheet alert kinds.
+ * Unseen when system receipt time is after the product seen cursor.
+ * Badge kind uses provider occurrence timestamps; clicks win when both exist.
+ */
+export function deriveProductEngagementAlerts(
+  messages: ProductEngagementMessageRow[],
+  seenByCatalogItemId: Record<string, string | null | undefined>,
+): Record<string, ProductEngagementAlertKind> {
+  const result: Record<string, ProductEngagementAlertKind> = {};
+
+  for (const msg of messages) {
+    const catalogItemId = msg.catalog_item_id?.trim();
+    if (!catalogItemId) continue;
+
+    const seenRaw = seenByCatalogItemId[catalogItemId];
+    const seenMs =
+      typeof seenRaw === 'string' && seenRaw.length > 0
+        ? Date.parse(seenRaw)
+        : Number.NEGATIVE_INFINITY;
+    const receiptMs = msg.last_engagement_received_at
+      ? Date.parse(msg.last_engagement_received_at)
+      : Number.NEGATIVE_INFINITY;
+
+    if (!(Number.isFinite(receiptMs) && receiptMs > seenMs)) continue;
+
+    const clickMs = msg.last_clicked_at
+      ? Date.parse(msg.last_clicked_at)
+      : Number.NEGATIVE_INFINITY;
+    const openMs = msg.last_opened_at ? Date.parse(msg.last_opened_at) : Number.NEGATIVE_INFINITY;
+    const kind: ProductEngagementAlertKind =
+      Number.isFinite(clickMs) && (!Number.isFinite(openMs) || clickMs >= openMs)
+        ? 'clicked'
+        : 'opened';
+
+    if (kind === 'clicked') {
+      result[catalogItemId] = 'clicked';
+    } else if (result[catalogItemId] !== 'clicked') {
+      result[catalogItemId] = 'opened';
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Staff browser fetch of unseen Product Email engagement alerts for the Line Sheet.
+ */
+export async function fetchProductEngagementAlerts(): Promise<{
+  data: Record<string, ProductEngagementAlertKind>;
+  error: string | null;
+}> {
+  const [messagesResult, seenResult] = await Promise.all([
+    // Copilot suggestion ignored: a grouped RPC/view would add schema surface; polls already filter to engaged product-outreach rows and aggregate client-side.
+    supabase
+      .from('system_messages')
+      .select('catalog_item_id, last_opened_at, last_clicked_at, last_engagement_received_at')
+      .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
+      .not('catalog_item_id', 'is', null)
+      .not('last_engagement_received_at', 'is', null),
+    supabase.from('product_outreach_engagement_seen').select('catalog_item_id, seen_at'),
+  ]);
+
+  if (messagesResult.error) {
+    return { data: {}, error: messagesResult.error.message };
+  }
+  if (seenResult.error) {
+    return { data: {}, error: seenResult.error.message };
+  }
+
+  const seenByCatalogItemId: Record<string, string> = {};
+  for (const row of seenResult.data ?? []) {
+    seenByCatalogItemId[row.catalog_item_id] = row.seen_at;
+  }
+
+  return {
+    data: deriveProductEngagementAlerts(messagesResult.data ?? [], seenByCatalogItemId),
+    error: null,
+  };
+}
+
+/**
+ * Mark product outreach engagement as seen for a catalog item (Product Drawer open).
+ * Does not modify open_count / click_count or message history rows.
+ */
+export async function markProductEngagementSeen(
+  catalogItemId: string,
+): Promise<{ error: string | null }> {
+  const trimmedId = catalogItemId.trim();
+  if (!trimmedId) {
+    return { error: 'A catalog item id is required' };
+  }
+
+  const { error } = await supabase.from('product_outreach_engagement_seen').upsert(
+    {
+      catalog_item_id: trimmedId,
+      seen_at: new Date().toISOString(),
+    },
+    { onConflict: 'catalog_item_id' },
+  );
+
+  return { error: error?.message ?? null };
+}

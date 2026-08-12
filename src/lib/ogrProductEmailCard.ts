@@ -119,12 +119,19 @@ export function renderOgrProductEmailCard(
 
   return `
 <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:${CARD_MAX_WIDTH}px;width:100%;border:1px solid #e5e5e5;background-color:#ffffff;border-collapse:collapse;">
+  <tr>
+    <td style="padding:18px 16px;background-color:#111111;text-align:center;border-bottom:3px solid #c4a35a;">
+      <p style="margin:0;font-size:20px;line-height:1.2;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#ffffff;font-family:${FONT_STACK};">
+        ${brand}
+      </p>
+      <p style="margin:6px 0 0 0;font-size:11px;line-height:1.3;letter-spacing:0.06em;text-transform:uppercase;color:#d9d9d9;font-family:${FONT_STACK};">
+        Wholesale
+      </p>
+    </td>
+  </tr>
   ${imageBlock}
   <tr>
     <td style="padding:20px 16px;font-family:${FONT_STACK};">
-      <p style="margin:0 0 6px 0;font-size:11px;line-height:1.3;letter-spacing:0.08em;text-transform:uppercase;color:#888888;font-family:${FONT_STACK};">
-        ${brand}
-      </p>
       ${badgeBlock}
       <p style="margin:0 0 8px 0;font-size:20px;line-height:1.3;font-weight:700;color:#111111;font-family:${FONT_STACK};">
         <a href="${safeHref}" style="color:#111111;text-decoration:none;">${name}</a>

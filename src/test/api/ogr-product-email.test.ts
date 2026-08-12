@@ -88,18 +88,34 @@ function requestWith(body: unknown) {
   } as Parameters<typeof POST>[0];
 }
 
-function mockStaffGate() {
+function mockStaffGate(
+  profile: { display_name: string | null; email?: string | null } = {
+    display_name: 'Justin Fassio',
+    email: 'office@justinfassio.com',
+  },
+  userMetadata: Record<string, unknown> = {},
+) {
   const maybeSingle = vi.fn().mockResolvedValue({
-    data: { display_name: 'Justin Fassio' },
+    data: profile,
     error: null,
   });
   const eq = vi.fn().mockReturnValue({ maybeSingle });
   const select = vi.fn().mockReturnValue({ eq });
   const from = vi.fn().mockReturnValue({ select });
+  const getUser = vi.fn().mockResolvedValue({
+    data: {
+      user: {
+        id: 'user-1',
+        email: profile.email ?? 'office@justinfassio.com',
+        user_metadata: userMetadata,
+      },
+    },
+    error: null,
+  });
   requireApprovedStaffClientMock.mockResolvedValue({
     ok: true,
     userId: 'user-1',
-    supabase: { from },
+    supabase: { from, auth: { getUser } },
   });
 }
 
@@ -257,24 +273,42 @@ describe('POST /api/staff/ogr-product-email', () => {
     expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
   });
 
-  it('falls back signature to Justin Fassio when profile display_name is blank', async () => {
-    const maybeSingle = vi.fn().mockResolvedValue({
-      data: { display_name: '   ' },
-      error: null,
-    });
-    const eq = vi.fn().mockReturnValue({ maybeSingle });
-    const select = vi.fn().mockReturnValue({ eq });
-    const from = vi.fn().mockReturnValue({ select });
-    requireApprovedStaffClientMock.mockResolvedValue({
-      ok: true,
-      userId: 'user-1',
-      supabase: { from },
-    });
+  it('falls back sender names to Old Guys Rule when profile display_name is blank', async () => {
+    mockStaffGate({ display_name: '   ', email: 'office@justinfassio.com' });
 
     const res = await POST(requestWith({ productId: PRODUCT_ID, to: 'buyer@example.com' }));
     expect(res.status).toBe(200);
     expect(renderOgrProductOutreachEmailMock).toHaveBeenCalledWith(
-      expect.objectContaining({ signatureName: 'Justin Fassio' }),
+      expect.objectContaining({ signatureName: 'Old Guys Rule' }),
+    );
+    expect(sendOgrProductOutreachEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ fromDisplayName: 'Old Guys Rule' }),
+    );
+  });
+
+  it('ignores display_name that is just the email local-part (office)', async () => {
+    mockStaffGate({ display_name: 'office', email: 'office@justinfassio.com' });
+
+    const res = await POST(requestWith({ productId: PRODUCT_ID, to: 'buyer@example.com' }));
+    expect(res.status).toBe(200);
+    expect(sendOgrProductOutreachEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ fromDisplayName: 'Old Guys Rule' }),
+    );
+    expect(sendOgrProductOutreachEmailMock.mock.calls[0]?.[0]).not.toEqual(
+      expect.objectContaining({ fromDisplayName: 'office' }),
+    );
+  });
+
+  it('uses profile display name for From and first name for signature', async () => {
+    mockStaffGate({ display_name: 'Alex Rivera', email: 'alex@example.com' });
+
+    const res = await POST(requestWith({ productId: PRODUCT_ID, to: 'buyer@example.com' }));
+    expect(res.status).toBe(200);
+    expect(renderOgrProductOutreachEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ signatureName: 'Alex' }),
+    );
+    expect(sendOgrProductOutreachEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ fromDisplayName: 'Alex Rivera' }),
     );
   });
 
@@ -334,7 +368,7 @@ describe('POST /api/staff/ogr-product-email', () => {
     expect(renderOgrProductOutreachEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({
         productHref: 'https://justinfassio.com/old-guys-rule-wholesale/american-revival',
-        signatureName: 'Justin Fassio',
+        signatureName: 'Justin',
         recipientName: 'Sam',
         subject: 'Custom subject',
         introText: 'Custom intro',
@@ -347,6 +381,7 @@ describe('POST /api/staff/ogr-product-email', () => {
       subject: 'Old Guys Rule — American Revival',
       html: '<p>Hi</p><div>card</div>',
       text: 'Hi\n\ncard',
+      fromDisplayName: 'Justin Fassio',
     });
     expect(insertProductOutreachSystemMessageMock).toHaveBeenCalledWith(
       expect.anything(),

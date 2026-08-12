@@ -11,8 +11,11 @@ vi.mock('@/lib/supabase', () => ({
 }));
 
 import {
+  deriveProductEngagementAlerts,
+  fetchProductEngagementAlerts,
   fetchProductOutreachHistory,
   insertProductOutreachSystemMessage,
+  markProductEngagementSeen,
   matchUniqueAccountContactByEmail,
   normalizeSystemMessageEmail,
   resolveProductOutreachCrmAssociation,
@@ -438,6 +441,194 @@ describe('fetchProductOutreachHistory', () => {
   it('returns error for blank catalog item id', async () => {
     const result = await fetchProductOutreachHistory('  ');
     expect(result).toEqual({ data: [], error: 'A catalog item id is required' });
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('deriveProductEngagementAlerts', () => {
+  it('returns opened for unseen opens', () => {
+    expect(
+      deriveProductEngagementAlerts(
+        [
+          {
+            catalog_item_id: 'p1',
+            last_opened_at: '2026-08-11T12:00:00.000Z',
+            last_clicked_at: null,
+            last_engagement_received_at: '2026-08-11T12:00:05.000Z',
+          },
+        ],
+        {},
+      ),
+    ).toEqual({ p1: 'opened' });
+  });
+
+  it('prioritizes clicked over opened', () => {
+    expect(
+      deriveProductEngagementAlerts(
+        [
+          {
+            catalog_item_id: 'p1',
+            last_opened_at: '2026-08-11T12:00:00.000Z',
+            last_clicked_at: '2026-08-11T12:05:00.000Z',
+            last_engagement_received_at: '2026-08-11T12:05:05.000Z',
+          },
+        ],
+        {},
+      ),
+    ).toEqual({ p1: 'clicked' });
+  });
+
+  it('clears when seen_at is at or after receipt time', () => {
+    expect(
+      deriveProductEngagementAlerts(
+        [
+          {
+            catalog_item_id: 'p1',
+            last_opened_at: '2026-08-11T12:00:00.000Z',
+            last_clicked_at: '2026-08-11T12:05:00.000Z',
+            last_engagement_received_at: '2026-08-11T12:05:05.000Z',
+          },
+        ],
+        { p1: '2026-08-11T12:05:05.000Z' },
+      ),
+    ).toEqual({});
+  });
+
+  it('re-alerts after a later receipt when previously seen', () => {
+    expect(
+      deriveProductEngagementAlerts(
+        [
+          {
+            catalog_item_id: 'p1',
+            last_opened_at: '2026-08-11T13:00:00.000Z',
+            last_clicked_at: null,
+            last_engagement_received_at: '2026-08-11T13:00:10.000Z',
+          },
+        ],
+        { p1: '2026-08-11T12:00:00.000Z' },
+      ),
+    ).toEqual({ p1: 'opened' });
+  });
+
+  it('alerts when a delayed older open is received after the drawer was opened', () => {
+    expect(
+      deriveProductEngagementAlerts(
+        [
+          {
+            catalog_item_id: 'p1',
+            // Provider occurrence is older than seen_at…
+            last_opened_at: '2026-08-11T11:00:00.000Z',
+            last_clicked_at: null,
+            // …but system receipt is newer, so the alert returns.
+            last_engagement_received_at: '2026-08-11T13:00:00.000Z',
+          },
+        ],
+        { p1: '2026-08-11T12:00:00.000Z' },
+      ),
+    ).toEqual({ p1: 'opened' });
+  });
+
+  it('keeps clicked when another message only has an open', () => {
+    expect(
+      deriveProductEngagementAlerts(
+        [
+          {
+            catalog_item_id: 'p1',
+            last_opened_at: '2026-08-11T12:00:00.000Z',
+            last_clicked_at: '2026-08-11T12:01:00.000Z',
+            last_engagement_received_at: '2026-08-11T12:01:05.000Z',
+          },
+          {
+            catalog_item_id: 'p1',
+            last_opened_at: '2026-08-11T14:00:00.000Z',
+            last_clicked_at: null,
+            last_engagement_received_at: '2026-08-11T14:00:05.000Z',
+          },
+        ],
+        {},
+      ),
+    ).toEqual({ p1: 'clicked' });
+  });
+});
+
+describe('fetchProductEngagementAlerts', () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+  });
+
+  it('aggregates messages and seen cursors', async () => {
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'system_messages') {
+        return {
+          select: () => ({
+            eq: () => ({
+              not: () => ({
+                not: () =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        catalog_item_id: 'p1',
+                        last_opened_at: '2026-08-11T12:00:00.000Z',
+                        last_clicked_at: null,
+                        last_engagement_received_at: '2026-08-11T12:00:05.000Z',
+                      },
+                      {
+                        catalog_item_id: 'p2',
+                        last_opened_at: '2026-08-11T11:00:00.000Z',
+                        last_clicked_at: '2026-08-11T11:30:00.000Z',
+                        last_engagement_received_at: '2026-08-11T11:30:05.000Z',
+                      },
+                    ],
+                    error: null,
+                  }),
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === 'product_outreach_engagement_seen') {
+        return {
+          select: () =>
+            Promise.resolve({
+              data: [{ catalog_item_id: 'p2', seen_at: '2026-08-11T12:00:00.000Z' }],
+              error: null,
+            }),
+        };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const result = await fetchProductEngagementAlerts();
+    expect(result).toEqual({ data: { p1: 'opened' }, error: null });
+  });
+});
+
+describe('markProductEngagementSeen', () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+  });
+
+  it('upserts seen_at for the catalog item', async () => {
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'product_outreach_engagement_seen') {
+        return { upsert };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const result = await markProductEngagementSeen('p1');
+    expect(result).toEqual({ error: null });
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ catalog_item_id: 'p1' }), {
+      onConflict: 'catalog_item_id',
+    });
+    const payload = upsert.mock.calls[0]?.[0] as { seen_at: string };
+    expect(typeof payload.seen_at).toBe('string');
+  });
+
+  it('returns error for blank catalog item id', async () => {
+    const result = await markProductEngagementSeen('  ');
+    expect(result).toEqual({ error: 'A catalog item id is required' });
     expect(fromMock).not.toHaveBeenCalled();
   });
 });

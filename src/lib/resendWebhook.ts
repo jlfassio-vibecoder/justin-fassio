@@ -34,6 +34,9 @@ export type SystemMessageWebhookCurrent = Pick<
   | 'delivered_at'
   | 'opened_at'
   | 'clicked_at'
+  | 'last_opened_at'
+  | 'last_clicked_at'
+  | 'last_engagement_received_at'
   | 'bounced_at'
   | 'failed_at'
   | 'complained_at'
@@ -162,6 +165,7 @@ function maxIso(a: string | null | undefined, b: string): string {
 export function computeSystemMessageWebhookPatch(
   current: SystemMessageWebhookCurrent,
   event: Pick<NormalizedResendWebhookEvent, 'type' | 'occurredAt' | 'failureReason'>,
+  options?: { receivedAt?: string },
 ): SystemMessageWebhookPatch {
   const patch: SystemMessageWebhookPatch = {
     status: current.status,
@@ -171,6 +175,7 @@ export function computeSystemMessageWebhookPatch(
   };
 
   const terminal = TERMINAL_STATUSES.has(current.status);
+  const receivedAt = options?.receivedAt ?? new Date().toISOString();
 
   switch (event.type) {
     case 'email.sent': {
@@ -200,11 +205,15 @@ export function computeSystemMessageWebhookPatch(
     case 'email.opened': {
       patch.open_count = current.open_count + 1;
       if (!current.opened_at) patch.opened_at = event.occurredAt;
+      patch.last_opened_at = maxIso(current.last_opened_at, event.occurredAt);
+      patch.last_engagement_received_at = receivedAt;
       break;
     }
     case 'email.clicked': {
       patch.click_count = current.click_count + 1;
       if (!current.clicked_at) patch.clicked_at = event.occurredAt;
+      patch.last_clicked_at = maxIso(current.last_clicked_at, event.occurredAt);
+      patch.last_engagement_received_at = receivedAt;
       break;
     }
     case 'email.bounced': {

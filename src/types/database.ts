@@ -1382,6 +1382,9 @@ export interface Database {
           delivered_at: string | null;
           opened_at: string | null;
           clicked_at: string | null;
+          last_opened_at: string | null;
+          last_clicked_at: string | null;
+          last_engagement_received_at: string | null;
           bounced_at: string | null;
           failed_at: string | null;
           complained_at: string | null;
@@ -1415,6 +1418,9 @@ export interface Database {
           delivered_at?: string | null;
           opened_at?: string | null;
           clicked_at?: string | null;
+          last_opened_at?: string | null;
+          last_clicked_at?: string | null;
+          last_engagement_received_at?: string | null;
           bounced_at?: string | null;
           failed_at?: string | null;
           complained_at?: string | null;
@@ -1448,6 +1454,9 @@ export interface Database {
           delivered_at?: string | null;
           opened_at?: string | null;
           clicked_at?: string | null;
+          last_opened_at?: string | null;
+          last_clicked_at?: string | null;
+          last_engagement_received_at?: string | null;
           bounced_at?: string | null;
           failed_at?: string | null;
           complained_at?: string | null;
@@ -1524,6 +1533,29 @@ export interface Database {
             columns: ['system_message_id'];
             isOneToOne: false;
             referencedRelation: 'system_messages';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      product_outreach_engagement_seen: {
+        Row: {
+          catalog_item_id: string;
+          seen_at: string;
+        };
+        Insert: {
+          catalog_item_id: string;
+          seen_at?: string;
+        };
+        Update: {
+          catalog_item_id?: string;
+          seen_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'product_outreach_engagement_seen_catalog_item_id_fkey';
+            columns: ['catalog_item_id'];
+            isOneToOne: true;
+            referencedRelation: 'catalog_items';
             referencedColumns: ['id'];
           },
         ];
@@ -1780,4 +1812,6 @@ export type SystemMessageEventInsert =
   Database['public']['Tables']['system_message_events']['Insert'];
 export type SystemMessageEventUpdate =
   Database['public']['Tables']['system_message_events']['Update'];
+export type ProductOutreachEngagementSeen =
+  Database['public']['Tables']['product_outreach_engagement_seen']['Row'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];

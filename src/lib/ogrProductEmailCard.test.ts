@@ -46,6 +46,11 @@ describe('renderOgrProductEmailCard', () => {
 
     expect(html).toContain('role="presentation"');
     expect(html).toContain('Old Guys Rule');
+    expect(html).toContain('Wholesale');
+    expect(html).toContain('background-color:#111111');
+    expect(html).toContain('border-bottom:3px solid #c4a35a');
+    expect(html).toContain('font-size:20px');
+    expect(html).toContain('letter-spacing:0.14em');
     expect(html).toContain('American Revival');
     expect(html).toContain('OG2513 · Short Sleeve Tees · Graphite Heather');
     expect(html).toContain('Great American Revival');
@@ -63,6 +68,10 @@ describe('renderOgrProductEmailCard', () => {
     expect(html).not.toContain('<script');
     expect(html).not.toContain('Typical Canadian retail');
     expect(html).not.toContain('Fishing');
+    // Brand lives in the masthead, not as a tiny gray eyebrow above the product name.
+    expect(html).not.toContain(
+      'font-size:11px;line-height:1.3;letter-spacing:0.08em;text-transform:uppercase;color:#888888',
+    );
   });
 
   it('omits img when primary is not absolute and imageUrl is omitted', () => {

@@ -32,7 +32,7 @@ export type OgrProductOutreachEmailInput = {
   /** Defaults when omitted/blank. */
   introText?: string | null;
   closingText?: string | null;
-  /** Visible signature name (caller: profile display_name or "Justin Fassio"). */
+  /** Visible signature name (caller: first name from staff profile display_name). */
   signatureName: string;
 };
 
@@ -103,7 +103,9 @@ function buildText(input: {
     '',
     input.intro,
     '',
-    OGR_PUBLIC_BRAND_NAME,
+    '─'.repeat(24),
+    OGR_PUBLIC_BRAND_NAME.toUpperCase(),
+    '─'.repeat(24),
     presentation.name,
   ];
   const meta = buildMetaLine(presentation);
