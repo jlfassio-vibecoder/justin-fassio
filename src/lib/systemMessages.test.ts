@@ -286,7 +286,8 @@ describe('fetchProductOutreachHistory', () => {
 
   function mockHistoryQuery(result: { data: unknown; error: unknown }) {
     const limit = vi.fn().mockResolvedValue(result);
-    const order = vi.fn().mockReturnValue({ limit });
+    const order = vi.fn();
+    order.mockReturnValue({ order, limit });
     const eqCatalog = vi.fn().mockReturnValue({ order });
     const eqType = vi.fn().mockReturnValue({ eq: eqCatalog });
     const select = vi.fn().mockReturnValue({ eq: eqType });
@@ -307,7 +308,10 @@ describe('fetchProductOutreachHistory', () => {
       'catalog_item_id',
       'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
     );
-    expect(chain.order).toHaveBeenCalledWith('created_at', {
+    expect(chain.order).toHaveBeenNthCalledWith(1, 'sent_at', {
+      ascending: false,
+    });
+    expect(chain.order).toHaveBeenNthCalledWith(2, 'created_at', {
       ascending: false,
     });
     expect(chain.limit).toHaveBeenCalledWith(50);

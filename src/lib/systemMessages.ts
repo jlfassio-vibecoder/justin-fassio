@@ -415,6 +415,7 @@ export async function listAgentProductOutreachDrafts(
     .select(AGENT_PRODUCT_OUTREACH_DRAFT_SELECT)
     .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
     .eq('origin', SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL)
+    .order('sent_at', { ascending: false, nullsFirst: true })
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -791,6 +792,7 @@ export async function fetchProductOutreachHistory(
     .select(PRODUCT_OUTREACH_HISTORY_SELECT)
     .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
     .eq('catalog_item_id', trimmedId)
+    .order('sent_at', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(PRODUCT_OUTREACH_HISTORY_LIMIT);
 
