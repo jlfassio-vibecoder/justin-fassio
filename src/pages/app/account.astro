@@ -1,0 +1,10 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { AuthGate } from '@/components/auth/AuthGate';
+
+export const prerender = false;
+---
+
+<Layout title="Account — Justin Fassio">
+  <AuthGate client:load page="account" />
+</Layout>

@@ -716,6 +716,7 @@ create table if not exists profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   email text,
   display_name text,
+  avatar_path text, -- private staff-avatars object path; signed URLs are UI-only
   role text not null default 'rep' check (role in ('owner', 'rep', 'buyer')),
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   prospect_id integer references prospects (id) on delete set null,

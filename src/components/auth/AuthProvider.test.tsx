@@ -1,24 +1,36 @@
 import { useContext } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Session } from '@supabase/supabase-js';
 import { AuthContext } from '@/components/auth/auth-context';
 import type { Profile } from '@/types/database';
 
-const { getSessionMock, onAuthStateChangeMock, maybeSingleMock, fromMock, unsubscribeMock } =
-  vi.hoisted(() => {
-    const maybeSingleMock = vi.fn();
-    const eqMock = vi.fn(() => ({ maybeSingle: maybeSingleMock }));
-    const selectMock = vi.fn(() => ({ eq: eqMock }));
-    const fromMock = vi.fn(() => ({ select: selectMock }));
-    return {
-      getSessionMock: vi.fn(),
-      onAuthStateChangeMock: vi.fn(),
-      maybeSingleMock,
-      fromMock,
-      unsubscribeMock: vi.fn(),
-    };
-  });
+const {
+  getSessionMock,
+  onAuthStateChangeMock,
+  maybeSingleMock,
+  fromMock,
+  unsubscribeMock,
+  updateMock,
+  updateEqMock,
+} = vi.hoisted(() => {
+  const maybeSingleMock = vi.fn();
+  const eqMock = vi.fn(() => ({ maybeSingle: maybeSingleMock }));
+  const selectMock = vi.fn(() => ({ eq: eqMock }));
+  const updateEqMock = vi.fn(() => Promise.resolve({ error: null }));
+  const updateMock = vi.fn(() => ({ eq: updateEqMock }));
+  const fromMock = vi.fn(() => ({ select: selectMock, update: updateMock }));
+  return {
+    getSessionMock: vi.fn(),
+    onAuthStateChangeMock: vi.fn(),
+    maybeSingleMock,
+    fromMock,
+    unsubscribeMock: vi.fn(),
+    updateMock,
+    updateEqMock,
+  };
+});
 
 vi.mock('@/lib/supabase', () => ({
   isSupabaseConfigured: true,
@@ -41,8 +53,13 @@ function AuthProbe() {
       <span data-testid="loading">{String(auth.loading)}</span>
       <span data-testid="configured">{String(auth.configured)}</span>
       <span data-testid="email">{auth.user?.email ?? ''}</span>
+      <span data-testid="profile-email">{auth.profile?.email ?? ''}</span>
+      <span data-testid="display-name">{auth.profile?.display_name ?? ''}</span>
       <span data-testid="role">{auth.profile?.role ?? ''}</span>
       <span data-testid="status">{auth.profile?.status ?? ''}</span>
+      <button type="button" onClick={() => void auth.reloadProfile()}>
+        Reload profile
+      </button>
     </div>
   );
 }
@@ -51,6 +68,7 @@ const PROFILE: Profile = {
   id: 'u1',
   email: 'owner@example.com',
   display_name: 'Owner',
+  avatar_path: null,
   role: 'owner',
   status: 'approved',
   prospect_id: null,
@@ -96,6 +114,52 @@ describe('AuthProvider', () => {
     expect(screen.getByTestId('email').textContent).toBe('owner@example.com');
     expect(screen.getByTestId('role').textContent).toBe('owner');
     expect(screen.getByTestId('status').textContent).toBe('approved');
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it('copies confirmed Auth email onto profiles.email when they differ', async () => {
+    getSessionMock.mockResolvedValue({ data: { session: sessionFor('confirmed@example.com') } });
+    maybeSingleMock.mockResolvedValue({
+      data: { ...PROFILE, email: 'old@example.com' },
+      error: null,
+    });
+
+    render(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('profile-email').textContent).toBe('confirmed@example.com');
+    });
+    expect(updateMock).toHaveBeenCalledWith({ email: 'confirmed@example.com' });
+    expect(updateEqMock).toHaveBeenCalledWith('id', 'u1');
+  });
+
+  it('reloadProfile re-reads the staff profile', async () => {
+    const user = userEvent.setup();
+    getSessionMock.mockResolvedValue({ data: { session: sessionFor('owner@example.com') } });
+    maybeSingleMock.mockResolvedValueOnce({ data: PROFILE, error: null }).mockResolvedValueOnce({
+      data: { ...PROFILE, display_name: 'Alex Rivera' },
+      error: null,
+    });
+
+    render(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('display-name').textContent).toBe('Owner');
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Reload profile' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('display-name').textContent).toBe('Alex Rivera');
+    });
   });
 
   it('TOKEN_REFRESHED updates session without hanging', async () => {
