@@ -98,6 +98,11 @@ interface CatalogTabProps {
   keystoneMarginRate: number;
   setKeystoneMarginRate: (rate: number) => void;
   marginRangeDisplay: string;
+  /** Deep-link: open product drawer for this SKU. */
+  deepLinkSku?: string | null;
+  /** Deep-link: open agent draft review once drawer is open. */
+  deepLinkDraftId?: string | null;
+  onDeepLinkConsumed?: () => void;
 }
 
 export function CatalogTab({
@@ -120,6 +125,9 @@ export function CatalogTab({
   keystoneMarginRate,
   setKeystoneMarginRate,
   marginRangeDisplay,
+  deepLinkSku = null,
+  deepLinkDraftId = null,
+  onDeepLinkConsumed,
 }: CatalogTabProps) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('ALL');
@@ -131,6 +139,8 @@ export function CatalogTab({
   const [orderPieces, setOrderPieces] = useState(MIN_ORDER_PIECES);
   const [shippingCadOverride, setShippingCadOverride] = useState<number | null>(null);
   const [selectedSku, setSelectedSku] = useState<string | null>(null);
+  const [reviewDraftId, setReviewDraftId] = useState<string | null>(null);
+  const [appliedDeepLinkSku, setAppliedDeepLinkSku] = useState<string | null>(null);
   const [activeLine, setActiveLine] = useState<LinePortfolio | null>(null);
   const [lineEditOpen, setLineEditOpen] = useState(false);
   const [lineLoadError, setLineLoadError] = useState<string | null>(null);
@@ -213,6 +223,17 @@ export function CatalogTab({
       }
     });
   }
+
+  const pendingSku = deepLinkSku?.trim() || null;
+  const pendingDraftKey = `${pendingSku ?? ''}:${deepLinkDraftId?.trim() ?? ''}`;
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
+  if (pendingSku && pendingDraftKey !== appliedDeepLinkSku) {
+    setAppliedDeepLinkSku(pendingDraftKey);
+    setSelectedSku(pendingSku);
+    setReviewDraftId(deepLinkDraftId?.trim() || null);
+    queueMicrotask(() => onDeepLinkConsumed?.());
+  }
+
   const pricedFactors = useMemo(
     () => factorsWithSettings(factors, supplierTerms),
     [factors, supplierTerms],
@@ -817,7 +838,11 @@ export function CatalogTab({
         items={filteredCatalog}
         factors={pricedFactors}
         supplierTerms={supplierTerms}
-        onClose={() => setSelectedSku(null)}
+        initialReviewDraftId={reviewDraftId}
+        onClose={() => {
+          setSelectedSku(null);
+          setReviewDraftId(null);
+        }}
         onNavigate={(sku) => openProduct(sku)}
         onSaved={(updated) => {
           onCatalogChange?.(catalog.map((row) => (row.id === updated.id ? updated : row)));

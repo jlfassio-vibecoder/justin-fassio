@@ -349,8 +349,10 @@ export async function produceOutreachCopy(ctx: SafeOutreachPromptContext): Promi
 
 export type GenerateOgrProductOutreachDraftInput = {
   target: SelectedOutreachTarget;
-  userId: string;
+  /** When empty/null, draft is inserted with sent_by null (cron without actor env). */
+  userId: string | null;
   existingDraftId?: string;
+  automationRunId?: string | null;
 };
 
 export type GenerateOgrProductOutreachDraftResult =
@@ -417,10 +419,9 @@ export async function generateOgrProductOutreachDraft(
   client: DbClient,
   input: GenerateOgrProductOutreachDraftInput,
 ): Promise<GenerateOgrProductOutreachDraftResult> {
-  const { target, userId } = input;
-  if (!userId.trim()) {
-    return { ok: false, error: 'userId is required' };
-  }
+  const { target } = input;
+  const userId = typeof input.userId === 'string' ? input.userId.trim() : '';
+  const sentBy = userId || null;
 
   const crm = await requireExplicitProductOutreachCrmAssociation(client, {
     prospectId: target.prospectId,
@@ -506,8 +507,9 @@ export async function generateOgrProductOutreachDraft(
     closingText: copy.closingText,
     prospectId: target.prospectId,
     accountContactId: target.accountContactId,
-    sentBy: userId,
+    sentBy,
     payload,
+    automationRunId: input.automationRunId ?? null,
   });
   if (!inserted.ok) return { ok: false, error: inserted.error };
 
@@ -523,8 +525,9 @@ export async function generateOgrProductOutreachDraft(
 
 export type GenerateOgrProductOutreachDraftsInput = {
   targets: SelectedOutreachTarget[];
-  userId: string;
+  userId: string | null;
   regenerate?: boolean;
+  automationRunId?: string | null;
 };
 
 export type GenerateOgrProductOutreachDraftsResult = {
@@ -561,6 +564,7 @@ export async function generateOgrProductOutreachDrafts(
     const generated = await generateOgrProductOutreachDraft(client, {
       target,
       userId: input.userId,
+      automationRunId: input.automationRunId,
     });
     if (!generated.ok) {
       results.push({ prospectId: target.prospectId, error: generated.error });

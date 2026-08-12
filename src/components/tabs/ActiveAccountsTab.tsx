@@ -32,6 +32,8 @@ interface ActiveAccountsTabProps {
   onLogCall: (account: Prospect) => void;
   onNotesSaved?: (id: number, notes: string | null) => void;
   onProspectUpdated?: (prospect: Prospect) => void;
+  deepLinkAccountId?: number | null;
+  onDeepLinkConsumed?: () => void;
 }
 
 function formatCad(amount: number): string {
@@ -58,6 +60,8 @@ export function ActiveAccountsTab({
   onLogCall,
   onNotesSaved,
   onProspectUpdated,
+  deepLinkAccountId = null,
+  onDeepLinkConsumed,
 }: ActiveAccountsTabProps) {
   const { openAssist } = useAiAssist();
   const [territoryCode, setTerritoryCode] = useState(BC_TERRITORY_CODE);
@@ -78,6 +82,15 @@ export function ActiveAccountsTab({
   const [settingsReloadToken, setSettingsReloadToken] = useState(0);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [appliedDeepLinkAccountId, setAppliedDeepLinkAccountId] = useState<number | null>(null);
+
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
+  if (deepLinkAccountId != null && deepLinkAccountId !== appliedDeepLinkAccountId) {
+    const match = accounts.find((a) => a.id === deepLinkAccountId);
+    setAppliedDeepLinkAccountId(deepLinkAccountId);
+    if (match) setDetailAccount(match);
+    queueMicrotask(() => onDeepLinkConsumed?.());
+  }
 
   const todayIso = formatLocalIsoDate(new Date());
 

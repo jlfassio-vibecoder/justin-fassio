@@ -46,6 +46,26 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   if (!catalogItemId && prospectId == null) {
+    const scope = url.searchParams.get('scope')?.trim();
+    if (scope === 'prep') {
+      const automationRunId = url.searchParams.get('automationRunId')?.trim() || undefined;
+      const preparationDate = url.searchParams.get('preparationDate')?.trim() || undefined;
+      const listed = await listAgentProductOutreachDrafts(gate.supabase, {
+        statuses: status.includes(',')
+          ? status
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : undefined,
+        status: status.includes(',') ? undefined : status,
+        automationRunId,
+        preparationDate,
+        prepScope: true,
+        limit: 25,
+      });
+      if (!listed.ok) return jsonError(listed.error, 500);
+      return jsonOk({ drafts: listed.drafts.map(serializeAgentDraft) });
+    }
     return jsonError('catalogItemId or prospectId is required', 400);
   }
 

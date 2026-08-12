@@ -1,4 +1,5 @@
 export type TabKey =
+  | 'briefing'
   | 'catalog'
   | 'dashboard'
   | 'calls'
