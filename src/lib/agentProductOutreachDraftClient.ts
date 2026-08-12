@@ -195,3 +195,64 @@ export async function sendAgentProductOutreachDraft(
     ...(payload.logged === false ? { logged: false } : {}),
   };
 }
+
+export async function generateAgentProductOutreachDraft(input: {
+  target: {
+    preparationDate: string;
+    prospectId: number;
+    prospectName: string;
+    accountContactId: string;
+    toEmail: string;
+    toName: string;
+    primaryChannel: string | null;
+    secondaryChannels: string[];
+    catalogItemId: string;
+    productSku: string;
+    productName: string;
+    productSlug: string;
+    productIsNew: boolean;
+    productSalesRank: number | null;
+    selectionReasons: {
+      priority: string | null;
+      fitScore: number | null;
+      channelMatch: boolean;
+      productFit: 'channel_intersect' | 'global_fallback';
+      exclusionsChecked: true;
+    };
+  };
+  existingDraftId?: string;
+}): Promise<
+  | {
+      ok: true;
+      systemMessageId: string;
+      subject: string;
+      introText: string;
+      closingText: string;
+      fallback: string;
+    }
+  | ApiFail
+> {
+  const result = await staffFetch('/api/staff/ogr-product-email/generate-draft', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if ('ok' in result && result.ok === false) return result;
+  const { res, payload } = result as {
+    res: Response;
+    payload: Record<string, unknown>;
+  };
+  if (!res.ok || !payload.ok || typeof payload.systemMessageId !== 'string') {
+    return {
+      ok: false,
+      error: typeof payload.error === 'string' ? payload.error : `Generate failed (${res.status})`,
+    };
+  }
+  return {
+    ok: true,
+    systemMessageId: payload.systemMessageId,
+    subject: typeof payload.subject === 'string' ? payload.subject : '',
+    introText: typeof payload.introText === 'string' ? payload.introText : '',
+    closingText: typeof payload.closingText === 'string' ? payload.closingText : '',
+    fallback: typeof payload.fallback === 'string' ? payload.fallback : 'none',
+  };
+}

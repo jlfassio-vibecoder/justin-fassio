@@ -366,6 +366,13 @@ function ProductDetailDrawerInner({
     subject: string;
     introText: string;
     closingText: string;
+    prospectId: number;
+    accountContactId: string;
+    catalogItemId: string;
+    prospectName?: string;
+    productSku?: string;
+    productSlug?: string;
+    productIsNew?: boolean;
   } | null>(null);
   const [emailSendState, setEmailSendState] = useState<'idle' | 'sent'>('idle');
   const emailSendTimerRef = useRef<number | null>(null);
@@ -1808,6 +1815,13 @@ function ProductDetailDrawerInner({
                 key={`${item.id}-${emailHistoryReloadToken}`}
                 catalogItemId={item.id}
                 onReviewDraft={(historyItem) => {
+                  if (
+                    historyItem.prospectId == null ||
+                    !historyItem.accountContactId ||
+                    !historyItem.catalogItemId
+                  ) {
+                    return;
+                  }
                   setEmailReviewDraft({
                     id: historyItem.id,
                     to: historyItem.toEmail,
@@ -1815,6 +1829,13 @@ function ProductDetailDrawerInner({
                     subject: historyItem.subject,
                     introText: historyItem.introText ?? '',
                     closingText: historyItem.closingText ?? '',
+                    prospectId: historyItem.prospectId,
+                    accountContactId: historyItem.accountContactId,
+                    catalogItemId: historyItem.catalogItemId,
+                    prospectName: historyItem.prospectName ?? undefined,
+                    productSku: item.sku,
+                    productSlug: draft.publicSlug ?? undefined,
+                    productIsNew: draft.isNew,
                   });
                   setEmailModalOpen(true);
                 }}
@@ -2038,6 +2059,9 @@ function ProductDetailDrawerInner({
             window.clearTimeout(emailSendTimerRef.current);
           }
           emailSendTimerRef.current = window.setTimeout(() => setEmailSendState('idle'), 2000);
+        }}
+        onDraftCancelled={() => {
+          setEmailHistoryReloadToken((n) => n + 1);
         }}
         productId={item.id}
         productName={draft.name.trim()}

@@ -861,3 +861,62 @@ describe('fetchPendingAgentProductOutreachProspectIds', () => {
     }
   });
 });
+
+describe('buildProductOutreachPayload', () => {
+  it('preserves generation metadata', async () => {
+    const { buildProductOutreachPayload } = await import('@/lib/systemMessages');
+    const payload = buildProductOutreachPayload(
+      {
+        sku: 'OG1',
+        name: 'Tee',
+        slug: 'tee',
+        productHref: 'https://example.com/p',
+      },
+      {
+        promptVersion: 'v1',
+        model: 'openai/gpt-4o',
+        preparationDate: '2026-08-12',
+        selectionReasons: {
+          priority: null,
+          fitScore: null,
+          channelMatch: true,
+          productFit: 'channel_intersect',
+          exclusionsChecked: true,
+        },
+        fallback: 'none',
+        introWordCount: 12,
+        closingWordCount: 8,
+        generatedAt: '2026-08-12T12:00:00Z',
+      },
+    );
+    expect(payload.generation?.promptVersion).toBe('v1');
+    expect(payload.sku).toBe('OG1');
+  });
+});
+
+describe('fetchPendingAgentDraftCountsByCatalogItemId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('aggregates pending draft counts by catalog item', async () => {
+    const chain = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      in: vi.fn(() => chain),
+      not: vi.fn(async () => ({
+        data: [{ catalog_item_id: 'p1' }, { catalog_item_id: 'p1' }, { catalog_item_id: 'p2' }],
+        error: null,
+      })),
+    };
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'system_messages') return chain;
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const { fetchPendingAgentDraftCountsByCatalogItemId } = await import('@/lib/systemMessages');
+    const result = await fetchPendingAgentDraftCountsByCatalogItemId();
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual({ p1: 2, p2: 1 });
+  });
+});

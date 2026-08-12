@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Textarea } from '@/components/ui/Input';
 import {
+  cancelAgentProductOutreachDraftClient,
+  generateAgentProductOutreachDraft,
   sendAgentProductOutreachDraft,
   updateAgentProductOutreachDraftClient,
 } from '@/lib/agentProductOutreachDraftClient';
@@ -19,6 +21,7 @@ import {
   OGR_PRODUCT_EMAIL_MAX_SUBJECT,
   OGR_PRODUCT_EMAIL_MAX_TO,
 } from '@/lib/ogrProductEmailLimits';
+import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { sendOgrProductEmail } from '@/lib/sendOgrProductEmailClient';
 
 const MAX_TO = OGR_PRODUCT_EMAIL_MAX_TO;
@@ -33,12 +36,21 @@ export type OgrProductEmailComposerDraft = {
   subject: string;
   introText: string;
   closingText: string;
+  prospectId: number;
+  accountContactId: string;
+  catalogItemId: string;
+  prospectName?: string;
+  productSku?: string;
+  productSlug?: string;
+  productIsNew?: boolean;
 };
 
 export type OgrProductEmailComposerModalProps = {
   open: boolean;
   onClose: () => void;
   onSent: () => void;
+  /** Called after cancel draft so parent can refresh history. */
+  onDraftCancelled?: () => void;
   productId: string;
   productName: string;
   /** Already-rendered Phase 5 card fragment (not the full outreach document). */
@@ -55,6 +67,7 @@ function buildCardPreviewSrcDoc(cardHtml: string): string {
 function OgrProductEmailComposerForm({
   onClose,
   onSent,
+  onDraftCancelled,
   productId,
   productName,
   cardHtml,
@@ -71,16 +84,83 @@ function OgrProductEmailComposerForm({
     draft?.closingText ?? OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
   );
   const [submitting, setSubmitting] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const busy = submitting || regenerating;
+
   function handleClose() {
-    if (submitting) return;
+    if (busy) return;
     onClose();
+  }
+
+  async function handleRegenerate() {
+    if (!draft || busy) return;
+    if (!draft.prospectId || !draft.accountContactId || !draft.catalogItemId) {
+      setError('Draft is missing CRM associations required to regenerate');
+      return;
+    }
+    setError(null);
+    setRegenerating(true);
+    try {
+      const generated = await generateAgentProductOutreachDraft({
+        existingDraftId: draft.id,
+        target: {
+          preparationDate: formatOutreachPreparationDate(),
+          prospectId: draft.prospectId,
+          prospectName: draft.prospectName?.trim() || productName,
+          accountContactId: draft.accountContactId,
+          toEmail: to.trim() || draft.to,
+          toName: recipientName.trim() || draft.toName,
+          primaryChannel: null,
+          secondaryChannels: [],
+          catalogItemId: draft.catalogItemId,
+          productSku: draft.productSku ?? '',
+          productName,
+          productSlug: draft.productSlug ?? '',
+          productIsNew: draft.productIsNew ?? false,
+          productSalesRank: null,
+          selectionReasons: {
+            priority: null,
+            fitScore: null,
+            channelMatch: false,
+            productFit: 'global_fallback',
+            exclusionsChecked: true,
+          },
+        },
+      });
+      if (!generated.ok) {
+        setError(generated.error);
+        return;
+      }
+      setSubject(generated.subject || subject);
+      setIntroText(generated.introText || introText);
+      setClosingText(generated.closingText || closingText);
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  async function handleCancelDraft() {
+    if (!draft || busy) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const cancelled = await cancelAgentProductOutreachDraftClient(draft.id);
+      if (!cancelled.ok) {
+        setError(cancelled.error);
+        return;
+      }
+      onDraftCancelled?.();
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (submitting) return;
+    if (busy) return;
 
     const trimmedTo = to.trim();
     if (!isValidOgrProductEmailRecipient(trimmedTo)) {
@@ -156,7 +236,7 @@ function OgrProductEmailComposerForm({
     <DialogBackdrop
       open
       onClose={() => {
-        if (!submitting) onClose();
+        if (!busy) onClose();
       }}
     >
       <form
@@ -169,7 +249,7 @@ function OgrProductEmailComposerForm({
           <button
             type="button"
             onClick={handleClose}
-            disabled={submitting}
+            disabled={busy}
             className="text-ink/60 hover:text-ink rounded p-1 disabled:opacity-50"
             aria-label="Close"
           >
@@ -192,7 +272,7 @@ function OgrProductEmailComposerForm({
             onChange={(e) => setTo(e.target.value)}
             placeholder="buyer@store.com"
             maxLength={MAX_TO}
-            disabled={submitting}
+            disabled={busy}
             autoFocus
           />
         </Field>
@@ -205,7 +285,7 @@ function OgrProductEmailComposerForm({
             onChange={(e) => setRecipientName(e.target.value)}
             placeholder="Sam"
             maxLength={MAX_RECIPIENT_NAME}
-            disabled={submitting}
+            disabled={busy}
           />
         </Field>
 
@@ -216,7 +296,7 @@ function OgrProductEmailComposerForm({
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             maxLength={MAX_SUBJECT}
-            disabled={submitting}
+            disabled={busy}
           />
         </Field>
 
@@ -228,7 +308,7 @@ function OgrProductEmailComposerForm({
             onChange={(e) => setIntroText(e.target.value)}
             rows={3}
             maxLength={MAX_PROSE}
-            disabled={submitting}
+            disabled={busy}
           />
         </Field>
 
@@ -240,7 +320,7 @@ function OgrProductEmailComposerForm({
             onChange={(e) => setClosingText(e.target.value)}
             rows={2}
             maxLength={MAX_PROSE}
-            disabled={submitting}
+            disabled={busy}
           />
         </Field>
 
@@ -266,11 +346,32 @@ function OgrProductEmailComposerForm({
           </p>
         ) : null}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="secondary" onClick={handleClose} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={submitting}>
+        <div className="flex flex-wrap justify-end gap-2 pt-1">
+          {isDraftReview ? (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void handleCancelDraft()}
+                disabled={busy}
+              >
+                Cancel draft
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void handleRegenerate()}
+                disabled={busy}
+              >
+                {regenerating ? 'Regenerating…' : 'Regenerate copy'}
+              </Button>
+            </>
+          ) : (
+            <Button type="button" variant="secondary" onClick={handleClose} disabled={busy}>
+              Cancel
+            </Button>
+          )}
+          <Button type="submit" disabled={busy}>
             {submitting ? 'Sending…' : 'Send'}
           </Button>
         </div>
@@ -283,6 +384,7 @@ export function OgrProductEmailComposerModal({
   open,
   onClose,
   onSent,
+  onDraftCancelled,
   productId,
   productName,
   cardHtml,
@@ -294,6 +396,7 @@ export function OgrProductEmailComposerModal({
       key={draft?.id ?? productId}
       onClose={onClose}
       onSent={onSent}
+      onDraftCancelled={onDraftCancelled}
       productId={productId}
       productName={productName}
       cardHtml={cardHtml}
