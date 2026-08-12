@@ -133,8 +133,8 @@ export const POST: APIRoute = async ({ request }) => {
     subject,
     introText,
     closingText,
-    prospectId: crm.association.prospectId as number,
-    accountContactId: crm.association.accountContactId as string,
+    prospectId: crm.association.prospectId,
+    accountContactId: crm.association.accountContactId,
     sentBy: gate.userId,
     payload: {
       sku: presentation.sku,

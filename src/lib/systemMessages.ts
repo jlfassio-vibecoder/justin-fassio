@@ -179,12 +179,26 @@ export async function requireExplicitProductOutreachCrmAssociation(
     prospectId: number;
     accountContactId: string;
   },
-): Promise<ResolveProductOutreachCrmResult> {
-  return resolveProductOutreachCrmAssociation(client, {
+): Promise<
+  | { ok: true; association: { prospectId: number; accountContactId: string } }
+  | { ok: false; error: string }
+> {
+  const result = await resolveProductOutreachCrmAssociation(client, {
     prospectId: input.prospectId,
     accountContactId: input.accountContactId,
     toEmail: '',
   });
+  if (!result.ok) return result;
+  if (result.association.prospectId == null || result.association.accountContactId == null) {
+    return { ok: false, error: 'prospectId and accountContactId are required' };
+  }
+  return {
+    ok: true,
+    association: {
+      prospectId: result.association.prospectId,
+      accountContactId: result.association.accountContactId,
+    },
+  };
 }
 
 export type InsertProductOutreachSystemMessageResult =

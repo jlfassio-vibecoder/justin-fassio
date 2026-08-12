@@ -49,7 +49,7 @@ async function staffFetch(
     },
   });
 
-  let payload: Record<string, unknown> = {};
+  let payload: Record<string, unknown>;
   try {
     payload = (await res.json()) as Record<string, unknown>;
   } catch {
