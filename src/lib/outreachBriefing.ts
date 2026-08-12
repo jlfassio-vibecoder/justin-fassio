@@ -260,15 +260,24 @@ export async function assembleOutreachBriefing(params: {
   const run = runLookup.run;
   const banner = prepBannerMessage({ sellingDate, run });
 
-  let draftsListed = await listAgentProductOutreachDrafts(client, {
-    statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
-    automationRunId: run?.id,
-    prepScope: true,
-    limit: 25,
-  });
+  // Only filter by automationRunId when a run exists; otherwise preparationDate alone.
+  // Querying without either returns unrelated pending drafts and skips the fallback.
+  let draftsListed = run?.id
+    ? await listAgentProductOutreachDrafts(client, {
+        statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
+        automationRunId: run.id,
+        prepScope: true,
+        limit: 25,
+      })
+    : await listAgentProductOutreachDrafts(client, {
+        statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
+        preparationDate: sellingDate,
+        prepScope: true,
+        limit: 25,
+      });
   if (!draftsListed.ok) return { ok: false, error: draftsListed.error };
 
-  if (draftsListed.drafts.length === 0) {
+  if (run?.id && draftsListed.drafts.length === 0) {
     draftsListed = await listAgentProductOutreachDrafts(client, {
       statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
       preparationDate: sellingDate,

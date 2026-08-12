@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase';
 import type { OutreachBriefingDto } from '@/lib/outreachBriefing';
 import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
 
+const ICON_STROKE = 2.75;
+
 type AgentBriefingTabProps = {
   onOpenDraft: (args: { sku: string; draftId: string }) => void;
   onOpenProspect: (args: { prospectId: number; accountStatus?: string }) => void;
@@ -167,7 +169,11 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
     <section className="flex flex-col gap-5" data-screen-label="briefing">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <ClipboardList className="text-accent-700 h-5 w-5" aria-hidden />
+          <ClipboardList
+            className="text-accent-700 h-5 w-5"
+            strokeWidth={ICON_STROKE}
+            aria-hidden
+          />
           <h2 className="text-ink m-0 text-lg font-semibold">Daily Agent Briefing</h2>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -177,7 +183,7 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
             onClick={() => setReloadToken((n) => n + 1)}
             disabled={loading}
           >
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" strokeWidth={ICON_STROKE} aria-hidden />
             Refresh
           </Button>
           <Button type="button" onClick={() => void runPrepNow()} disabled={prepBusy || loading}>

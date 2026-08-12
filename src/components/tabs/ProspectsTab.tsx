@@ -82,6 +82,7 @@ export function ProspectsTab({
   } | null>(null);
   const [appliedDeepLinkProspectId, setAppliedDeepLinkProspectId] = useState<number | null>(null);
 
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (deepLinkProspectId != null && deepLinkProspectId !== appliedDeepLinkProspectId) {
     const match = prospects.find((p) => p.id === deepLinkProspectId);
     setAppliedDeepLinkProspectId(deepLinkProspectId);

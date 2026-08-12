@@ -19,7 +19,6 @@ import {
   zonedLocalToUtcIso,
 } from '@/lib/outreachSellingDays';
 import {
-  listAgentProductOutreachDrafts,
   SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL,
   SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH,
 } from '@/lib/systemMessages';
@@ -116,32 +115,60 @@ async function updateRun(
 
 /**
  * Count pending agent drafts already counting toward a preparation date.
+ * Paginates system_messages and unions payload.preparationDate matches with
+ * automation_run_id stamps for that date (avoids list-cap undercount).
  */
 export async function countPendingDraftsForPreparationDate(
   client: Client,
   preparationDate: string,
 ): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
-  const listed = await listAgentProductOutreachDrafts(client, {
-    statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
-    prepScope: true,
-    limit: 100,
-  });
-  if (!listed.ok) return { ok: false, error: listed.error };
-
-  const byPrep = listed.drafts.filter(
-    (d) => d.payload.generation?.preparationDate === preparationDate,
-  );
-  if (byPrep.length > 0) {
-    return { ok: true, count: byPrep.length };
-  }
-
-  // Fallback: drafts stamped with any run for this date
   const runLookup = await getOutreachAutomationRunByDate(client, preparationDate);
   if (!runLookup.ok) return { ok: false, error: runLookup.error };
-  if (!runLookup.run) return { ok: true, count: 0 };
+  const runId = runLookup.run?.id ?? null;
 
-  const stamped = listed.drafts.filter((d) => d.automationRunId === runLookup.run!.id);
-  return { ok: true, count: stamped.length };
+  const pageSize = 100;
+  const maxRows = 2000;
+  const seen = new Set<string>();
+  let offset = 0;
+
+  while (offset < maxRows) {
+    const { data, error } = await client
+      .from('system_messages')
+      .select('id, automation_run_id, payload')
+      .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
+      .eq('origin', SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL)
+      .in('status', [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES])
+      .order('created_at', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) return { ok: false, error: error.message };
+
+    const rows = data ?? [];
+    for (const row of rows) {
+      const payload =
+        row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
+          ? (row.payload as Record<string, unknown>)
+          : {};
+      const generation =
+        payload.generation &&
+        typeof payload.generation === 'object' &&
+        !Array.isArray(payload.generation)
+          ? (payload.generation as Record<string, unknown>)
+          : null;
+      const prep =
+        typeof generation?.preparationDate === 'string' ? generation.preparationDate : null;
+      const matchesPrep = prep === preparationDate;
+      const matchesRun = runId != null && row.automation_run_id === runId;
+      if (matchesPrep || matchesRun) {
+        seen.add(row.id);
+      }
+    }
+
+    if (rows.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return { ok: true, count: seen.size };
 }
 
 export type RunOutreachNightlyPrepInput = {

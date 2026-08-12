@@ -226,6 +226,7 @@ export function CatalogTab({
 
   const pendingSku = deepLinkSku?.trim() || null;
   const pendingDraftKey = `${pendingSku ?? ''}:${deepLinkDraftId?.trim() ?? ''}`;
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (pendingSku && pendingDraftKey !== appliedDeepLinkSku) {
     setAppliedDeepLinkSku(pendingDraftKey);
     setSelectedSku(pendingSku);

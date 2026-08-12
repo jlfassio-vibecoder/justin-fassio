@@ -84,6 +84,7 @@ export function ActiveAccountsTab({
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [appliedDeepLinkAccountId, setAppliedDeepLinkAccountId] = useState<number | null>(null);
 
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (deepLinkAccountId != null && deepLinkAccountId !== appliedDeepLinkAccountId) {
     const match = accounts.find((a) => a.id === deepLinkAccountId);
     setAppliedDeepLinkAccountId(deepLinkAccountId);

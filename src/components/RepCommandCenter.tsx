@@ -75,6 +75,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   const [deepLinkAccountId, setDeepLinkAccountId] = useState<number | null>(null);
 
   // URL prospectId may belong to an active account — remap once directory is loaded.
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (deepLinkProspectId != null && prospects.length > 0) {
     const match = prospects.find((p) => p.id === deepLinkProspectId);
     if (match?.accountStatus === 'active_account') {

@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const loadOutreachGoalDashboardSnapshotMock = vi.fn();
 const selectOutreachTargetsMock = vi.fn();
 const generateOgrProductOutreachDraftsMock = vi.fn();
-const listAgentProductOutreachDraftsMock = vi.fn();
 const allocateChannelsForDayMock = vi.fn();
 
 vi.mock('@/lib/outreachGoalDashboard', () => ({
@@ -25,8 +24,6 @@ vi.mock('@/lib/generateOgrProductOutreachDraft', () => ({
 }));
 
 vi.mock('@/lib/systemMessages', () => ({
-  listAgentProductOutreachDrafts: (...args: unknown[]) =>
-    listAgentProductOutreachDraftsMock(...args),
   SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL: 'agent_product_email',
   SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH: 'product_outreach',
 }));
@@ -50,13 +47,26 @@ import { runOutreachNightlyPrep } from '@/lib/outreachNightlyPrep';
 function makeClient(overrides?: {
   existingRun?: Record<string, unknown> | null;
   insertError?: { message: string } | null;
+  pendingMessageRows?: Array<Record<string, unknown>>;
 }) {
   const existingRun = overrides?.existingRun ?? null;
   const runStore: { row: Record<string, unknown> | null } = {
     row: existingRun ? { ...existingRun } : null,
   };
+  const pendingRows = overrides?.pendingMessageRows ?? [];
 
   const from = vi.fn((table: string) => {
+    if (table === 'system_messages') {
+      const chain: Record<string, unknown> = {};
+      const self = () => chain;
+      chain.select = self;
+      chain.eq = self;
+      chain.in = self;
+      chain.order = self;
+      chain.range = async () => ({ data: pendingRows, error: null });
+      return chain;
+    }
+
     if (table !== 'outreach_automation_runs') {
       throw new Error(`unexpected table ${table}`);
     }
@@ -145,7 +155,6 @@ describe('runOutreachNightlyPrep', () => {
       channelOrder: ['grocery'],
       slotsByChannel: { grocery: 3 },
     });
-    listAgentProductOutreachDraftsMock.mockResolvedValue({ ok: true, drafts: [] });
     selectOutreachTargetsMock.mockResolvedValue({
       ok: true,
       targets: [
@@ -257,27 +266,25 @@ describe('runOutreachNightlyPrep', () => {
   });
 
   it('succeeds with already_at_pace when pending meets capacity', async () => {
-    listAgentProductOutreachDraftsMock.mockResolvedValue({
-      ok: true,
-      drafts: [
+    const client = makeClient({
+      pendingMessageRows: [
         {
           id: 'a',
+          automation_run_id: null,
           payload: { generation: { preparationDate: '2026-08-13' } },
-          automationRunId: null,
         },
         {
           id: 'b',
+          automation_run_id: null,
           payload: { generation: { preparationDate: '2026-08-13' } },
-          automationRunId: null,
         },
         {
           id: 'c',
+          automation_run_id: null,
           payload: { generation: { preparationDate: '2026-08-13' } },
-          automationRunId: null,
         },
       ],
     });
-    const client = makeClient();
     const result = await runOutreachNightlyPrep({
       client: client as never,
       trigger: 'cron',
