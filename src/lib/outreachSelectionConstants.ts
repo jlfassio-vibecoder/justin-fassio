@@ -1,0 +1,19 @@
+/**
+ * Phase 1 agent outreach selection constants.
+ * Bounce/complaint suppression and cooldown are query-derived from system_messages (no new schema in v1).
+ * Line Sheet bestseller badge remains BEST_SELLER_BADGE_MAX_RANK (32) — do not reuse that for outreach.
+ */
+
+export const AGENT_OUTREACH_TOP_RANK_LIMIT = 30;
+
+/** Calendar days since last successful product_outreach sent_at before re-contact. */
+export const AGENT_OUTREACH_COOLDOWN_DAYS = 14;
+
+/** Prep-day identity for one-target-per-prospect-per-day. */
+export const AGENT_OUTREACH_PREP_TZ = 'America/Vancouver';
+
+/** Agent draft statuses that block selecting the same prospect again. */
+export const AGENT_OUTREACH_PENDING_DRAFT_STATUSES = ['draft', 'queued', 'scheduled'] as const;
+
+/** Fallback floor used by salesVolumeRankByProductId — keep in sync with wholesaleFilters. */
+export const AGENT_OUTREACH_SALES_RANK_FALLBACK_FLOOR = 9000;

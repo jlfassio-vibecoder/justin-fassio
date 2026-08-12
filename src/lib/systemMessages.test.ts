@@ -755,3 +755,105 @@ describe('insertAgentProductOutreachDraft', () => {
     expect(result).toEqual({ ok: false, error: 'toName is required' });
   });
 });
+
+describe('fetchLatestProductOutreachSend', () => {
+  it('returns latest sent row for prospect', async () => {
+    const { fetchLatestProductOutreachSend } = await import('@/lib/systemMessages');
+    const chain = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      not: vi.fn(() => chain),
+      order: vi.fn(() => chain),
+      limit: vi.fn(() => chain),
+      or: vi.fn(() => chain),
+      maybeSingle: vi.fn(async () => ({
+        data: {
+          id: 'sm-1',
+          prospect_id: 42,
+          to_email: 'buyer@example.com',
+          sent_at: '2026-08-01T12:00:00Z',
+        },
+        error: null,
+      })),
+    };
+    const client = {
+      from: vi.fn(() => chain),
+    } as unknown as DbClient;
+
+    const result = await fetchLatestProductOutreachSend(client, { prospectId: 42 });
+    expect(result).toEqual({
+      ok: true,
+      row: {
+        id: 'sm-1',
+        prospectId: 42,
+        toEmail: 'buyer@example.com',
+        sentAt: '2026-08-01T12:00:00Z',
+      },
+    });
+  });
+
+  it('requires prospectId or toEmail', async () => {
+    const { fetchLatestProductOutreachSend } = await import('@/lib/systemMessages');
+    const client = { from: vi.fn() } as unknown as DbClient;
+    await expect(fetchLatestProductOutreachSend(client, {})).resolves.toEqual({
+      ok: false,
+      error: 'prospectId or toEmail is required',
+    });
+  });
+});
+
+describe('isProductOutreachRecipientSuppressed', () => {
+  it('reports suppressed when a bounce row exists', async () => {
+    const { isProductOutreachRecipientSuppressed } = await import('@/lib/systemMessages');
+    const chain = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      or: vi.fn(() => chain),
+      limit: vi.fn(() => chain),
+      maybeSingle: vi.fn(async () => ({
+        data: { id: 'sm-b', status: 'bounced', bounced_at: '2026-01-01T00:00:00Z' },
+        error: null,
+      })),
+    };
+    const client = { from: vi.fn(() => chain) } as unknown as DbClient;
+    await expect(
+      isProductOutreachRecipientSuppressed(client, { toEmail: 'Buyer@Example.com' }),
+    ).resolves.toEqual({ ok: true, suppressed: true });
+  });
+
+  it('reports not suppressed when no matching row', async () => {
+    const { isProductOutreachRecipientSuppressed } = await import('@/lib/systemMessages');
+    const chain = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      or: vi.fn(() => chain),
+      limit: vi.fn(() => chain),
+      maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+    };
+    const client = { from: vi.fn(() => chain) } as unknown as DbClient;
+    await expect(
+      isProductOutreachRecipientSuppressed(client, { toEmail: 'clean@example.com' }),
+    ).resolves.toEqual({ ok: true, suppressed: false });
+  });
+});
+
+describe('fetchPendingAgentProductOutreachProspectIds', () => {
+  it('collects distinct prospect ids', async () => {
+    const { fetchPendingAgentProductOutreachProspectIds } = await import('@/lib/systemMessages');
+    const chain = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      in: vi.fn(() => chain),
+      not: vi.fn(async () => ({
+        data: [{ prospect_id: 1 }, { prospect_id: 2 }, { prospect_id: 1 }],
+        error: null,
+      })),
+    };
+    const client = { from: vi.fn(() => chain) } as unknown as DbClient;
+    const result = await fetchPendingAgentProductOutreachProspectIds(client);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect([...result.prospectIds].sort()).toEqual([1, 2]);
+    }
+  });
+});

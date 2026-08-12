@@ -399,21 +399,30 @@ export async function listAgentProductOutreachDrafts(
   input: {
     catalogItemId?: string;
     prospectId?: number;
+    /** Single status filter (default `draft` when `statuses` omitted). */
     status?: string;
+    /** When set, overrides `status` and filters with `.in()`. */
+    statuses?: string[];
     limit?: number;
   } = {},
 ): Promise<{ ok: true; drafts: AgentProductOutreachDraftRow[] } | { ok: false; error: string }> {
-  const status = (input.status ?? 'draft').trim() || 'draft';
   const limit = Math.min(Math.max(input.limit ?? PRODUCT_OUTREACH_HISTORY_LIMIT, 1), 100);
+  const statuses = input.statuses?.map((s) => s.trim()).filter((s) => s.length > 0) ?? null;
+  const status = (input.status ?? 'draft').trim() || 'draft';
 
   let query = client
     .from('system_messages')
     .select(AGENT_PRODUCT_OUTREACH_DRAFT_SELECT)
     .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
     .eq('origin', SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL)
-    .eq('status', status)
     .order('created_at', { ascending: false })
     .limit(limit);
+
+  if (statuses && statuses.length > 0) {
+    query = query.in('status', statuses);
+  } else {
+    query = query.eq('status', status);
+  }
 
   if (input.catalogItemId?.trim()) {
     query = query.eq('catalog_item_id', input.catalogItemId.trim());
@@ -432,6 +441,146 @@ export async function listAgentProductOutreachDrafts(
     .filter((row): row is AgentProductOutreachDraftRow => row != null);
 
   return { ok: true, drafts };
+}
+
+const PRODUCT_OUTREACH_SEND_SELECT = 'id, prospect_id, to_email, sent_at' as const;
+
+export type LatestProductOutreachSend = {
+  id: string;
+  prospectId: number | null;
+  toEmail: string;
+  sentAt: string;
+};
+
+/**
+ * Latest product_outreach row with non-null sent_at for prospect and/or normalized to_email.
+ * When both filters are provided, matches either origin (OR). Uses prospect_sent_at / to_email indexes.
+ */
+export async function fetchLatestProductOutreachSend(
+  client: DbClient,
+  input: { prospectId?: number; toEmail?: string },
+): Promise<{ ok: true; row: LatestProductOutreachSend | null } | { ok: false; error: string }> {
+  const prospectId = input.prospectId;
+  const toEmail =
+    typeof input.toEmail === 'string' && input.toEmail.trim()
+      ? normalizeSystemMessageEmail(input.toEmail)
+      : null;
+
+  if (prospectId == null && !toEmail) {
+    return { ok: false, error: 'prospectId or toEmail is required' };
+  }
+
+  let query = client
+    .from('system_messages')
+    .select(PRODUCT_OUTREACH_SEND_SELECT)
+    .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
+    .not('sent_at', 'is', null)
+    .order('sent_at', { ascending: false })
+    .limit(1);
+
+  if (prospectId != null && toEmail) {
+    query = query.or(`prospect_id.eq.${prospectId},to_email.eq.${toEmail}`);
+  } else if (prospectId != null) {
+    query = query.eq('prospect_id', prospectId);
+  } else if (toEmail) {
+    query = query.eq('to_email', toEmail);
+  }
+
+  const { data, error } = await query.maybeSingle();
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+  if (!data || !data.sent_at) {
+    return { ok: true, row: null };
+  }
+
+  return {
+    ok: true,
+    row: {
+      id: data.id,
+      prospectId: data.prospect_id,
+      toEmail: data.to_email,
+      sentAt: data.sent_at,
+    },
+  };
+}
+
+const PRODUCT_OUTREACH_SUPPRESSION_SELECT =
+  'id, prospect_id, to_email, status, bounced_at, complained_at' as const;
+
+/**
+ * True when any historical product_outreach row for this email (or optional prospect)
+ * has bounce/complaint timestamps or status in bounced|complained. Permanent until cleared at source.
+ */
+export async function isProductOutreachRecipientSuppressed(
+  client: DbClient,
+  input: { toEmail: string; prospectId?: number },
+): Promise<{ ok: true; suppressed: boolean } | { ok: false; error: string }> {
+  const toEmail = normalizeSystemMessageEmail(input.toEmail);
+  if (!toEmail) {
+    return { ok: false, error: 'toEmail is required' };
+  }
+
+  let query = client
+    .from('system_messages')
+    .select(PRODUCT_OUTREACH_SUPPRESSION_SELECT)
+    .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
+    .or(
+      [
+        'bounced_at.not.is.null',
+        'complained_at.not.is.null',
+        'status.eq.bounced',
+        'status.eq.complained',
+      ].join(','),
+    )
+    .limit(1);
+
+  if (input.prospectId != null) {
+    query = query.or(`to_email.eq.${toEmail},prospect_id.eq.${input.prospectId}`);
+  } else {
+    query = query.eq('to_email', toEmail);
+  }
+
+  const { data, error } = await query.maybeSingle();
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true, suppressed: data != null };
+}
+
+/**
+ * Prospect ids that already have a non-terminal agent product_outreach draft.
+ * Used by Phase 1 selection to exclude pending work without N+1 draft fetches.
+ */
+export async function fetchPendingAgentProductOutreachProspectIds(
+  client: DbClient,
+  statuses: readonly string[] = ['draft', 'queued', 'scheduled'],
+): Promise<{ ok: true; prospectIds: Set<number> } | { ok: false; error: string }> {
+  const statusList = statuses.map((s) => s.trim()).filter((s) => s.length > 0);
+  if (statusList.length === 0) {
+    return { ok: true, prospectIds: new Set() };
+  }
+
+  const { data, error } = await client
+    .from('system_messages')
+    .select('prospect_id')
+    .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
+    .eq('origin', SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL)
+    .in('status', statusList)
+    .not('prospect_id', 'is', null);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  const prospectIds = new Set<number>();
+  for (const row of data ?? []) {
+    if (typeof row.prospect_id === 'number' && Number.isFinite(row.prospect_id)) {
+      prospectIds.add(row.prospect_id);
+    }
+  }
+  return { ok: true, prospectIds };
 }
 
 export async function updateAgentProductOutreachDraft(
