@@ -11,6 +11,7 @@ function profile(partial: Partial<Profile>): Profile {
     status: 'pending',
     prospect_id: null,
     wholesale_pricing_unlocked: false,
+    avatar_path: null,
     created_at: '2026-08-01T00:00:00Z',
     updated_at: '2026-08-01T00:00:00Z',
     ...partial,

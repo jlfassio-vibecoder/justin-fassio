@@ -4,6 +4,7 @@ import { OwnerPendingPanel } from '@/components/auth/OwnerPendingPanel';
 import { OwnerWholesaleBuyersPanel } from '@/components/auth/OwnerWholesaleBuyersPanel';
 import { PendingApprovalScreen } from '@/components/auth/PendingApprovalScreen';
 import { WrongPortalScreen } from '@/components/auth/WrongPortalScreen';
+import { StaffAccountPage } from '@/components/staff/StaffAccountPage';
 import { RepCommandCenter } from '@/components/RepCommandCenter';
 import { AIAssistantModal } from '@/components/ui/AIAssistantModal';
 import { Button } from '@/components/ui/Button';
@@ -12,7 +13,10 @@ import { AiAssistProvider } from '@/lib/AiAssistProvider';
 import { supabase } from '@/lib/supabase';
 import { isApprovedOwner, isApprovedStaff } from '@/lib/auth';
 import { pingAuthorizedServer } from '@/lib/serverPing';
+import { createStaffAvatarSignedUrl, staffAccountInitials } from '@/lib/staffAccount';
 import type { TabKey } from '@/types';
+
+export type AuthGatePage = 'app' | 'account';
 
 const TAB_KEYS: TabKey[] = [
   'catalog',
@@ -32,7 +36,36 @@ function tabFromSearch(): TabKey | undefined {
   return TAB_KEYS.find((key) => key === raw);
 }
 
-function AuthGateInner() {
+function StaffToolbarAvatar({
+  avatarPath,
+  displayName,
+  emails,
+}: {
+  avatarPath: string | null | undefined;
+  displayName: string | null | undefined;
+  emails: Array<string | null | undefined>;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void createStaffAvatarSignedUrl(avatarPath).then((url) => {
+      if (active) setSrc(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, [avatarPath]);
+
+  const initials = staffAccountInitials(displayName, emails);
+  return (
+    <span className="bg-accent font-heading text-bg flex h-6 w-6 flex-none items-center justify-center overflow-hidden rounded-full text-[10px]">
+      {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : initials}
+    </span>
+  );
+}
+
+function AuthGateInner({ page }: { page: AuthGatePage }) {
   const { loading, session, user, profile, configured } = useAuth();
   const [pingBusy, setPingBusy] = useState(false);
   const [pingStatus, setPingStatus] = useState<string | null>(null);
@@ -97,6 +130,22 @@ function AuthGateInner() {
     <AiAssistProvider>
       <div>
         <div className="border-ink/10 bg-surface/60 text-ink/70 flex flex-wrap items-center justify-end gap-3 border-b px-7 py-2 text-xs">
+          {page === 'account' ? (
+            <a href="/app" className="text-ink/80 hover:text-ink no-underline">
+              Command Center
+            </a>
+          ) : null}
+          <a
+            href="/app/account"
+            className="text-ink/80 hover:text-ink inline-flex items-center gap-1.5 no-underline"
+          >
+            <StaffToolbarAvatar
+              avatarPath={profile?.avatar_path}
+              displayName={profile?.display_name}
+              emails={[user?.email, profile?.email]}
+            />
+            <span>Account</span>
+          </a>
           <span className="truncate">{user?.email}</span>
           {profile?.role && (
             <span className="bg-bg rounded-full px-2.5 py-0.5 font-semibold capitalize">
@@ -131,17 +180,17 @@ function AuthGateInner() {
             Sign out
           </Button>
         </div>
-        <RepCommandCenter defaultTab={defaultTab} />
+        {page === 'account' ? <StaffAccountPage /> : <RepCommandCenter defaultTab={defaultTab} />}
       </div>
     </AiAssistProvider>
   );
 }
 
 /** Root island for `/app` — owns AuthProvider so nested islands are not required. */
-export function AuthGate() {
+export function AuthGate({ page = 'app' }: { page?: AuthGatePage }) {
   return (
     <AuthProvider>
-      <AuthGateInner />
+      <AuthGateInner page={page} />
     </AuthProvider>
   );
 }

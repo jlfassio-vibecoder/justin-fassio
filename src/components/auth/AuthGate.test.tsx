@@ -27,6 +27,15 @@ vi.mock('@/lib/supabase', () => ({
   },
 }));
 
+vi.mock('@/lib/staffAccount', () => ({
+  createStaffAvatarSignedUrl: vi.fn().mockResolvedValue(null),
+  staffAccountInitials: () => 'JF',
+}));
+
+vi.mock('@/components/staff/StaffAccountPage', () => ({
+  StaffAccountPage: () => <div>Staff Account</div>,
+}));
+
 import { useAuth } from '@/hooks/useAuth';
 import { AuthGate } from '@/components/auth/AuthGate';
 
@@ -41,6 +50,7 @@ function baseProfile(partial: Partial<Profile>): Profile {
     status: 'pending',
     prospect_id: null,
     wholesale_pricing_unlocked: false,
+    avatar_path: null,
     created_at: '',
     updated_at: '',
     ...partial,
@@ -54,6 +64,7 @@ function stubAuth(partial: Partial<AuthState>) {
     user: null,
     profile: null,
     configured: true,
+    reloadProfile: vi.fn(async () => {}),
     ...partial,
   });
 }
@@ -138,6 +149,24 @@ describe('AuthGate', () => {
     expect(screen.getByText('rep')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Wholesale buyers' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pending reps' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Account/i })).toHaveAttribute('href', '/app/account');
+  });
+
+  it('renders the account page without the command center', () => {
+    stubAuth({
+      session: { access_token: 'tok' } as AuthState['session'],
+      user: { email: 'justin@example.com' } as AuthState['user'],
+      profile: baseProfile({
+        email: 'justin@example.com',
+        display_name: 'Justin',
+        role: 'rep',
+        status: 'approved',
+      }),
+    });
+    render(<AuthGate page="account" />);
+    expect(screen.getByText('Staff Account')).toBeInTheDocument();
+    expect(screen.queryByText('Rep Command Center')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Command Center' })).toHaveAttribute('href', '/app');
   });
 
   it('renders the app for an approved owner', () => {

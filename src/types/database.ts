@@ -1145,6 +1145,7 @@ export interface Database {
           id: string;
           email: string | null;
           display_name: string | null;
+          avatar_path: string | null;
           role: UserRole;
           status: UserStatus;
           prospect_id: number | null;
@@ -1156,6 +1157,7 @@ export interface Database {
           id: string;
           email?: string | null;
           display_name?: string | null;
+          avatar_path?: string | null;
           role?: UserRole;
           status?: UserStatus;
           prospect_id?: number | null;
@@ -1167,6 +1169,7 @@ export interface Database {
           id?: string;
           email?: string | null;
           display_name?: string | null;
+          avatar_path?: string | null;
           role?: UserRole;
           status?: UserStatus;
           prospect_id?: number | null;

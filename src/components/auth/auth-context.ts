@@ -8,6 +8,7 @@ export type AuthState = {
   user: User | null;
   profile: Profile | null;
   configured: boolean;
+  reloadProfile: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthState | null>(null);
