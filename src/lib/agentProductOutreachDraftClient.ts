@@ -121,6 +121,29 @@ export async function listAgentProductOutreachDraftsClient(input: {
   return { ok: true, drafts: payload.drafts as AgentProductOutreachDraftDto[] };
 }
 
+export async function getAgentProductOutreachDraftClient(
+  id: string,
+): Promise<{ ok: true; draft: AgentProductOutreachDraftDto } | ApiFail> {
+  const trimmed = id.trim();
+  if (!trimmed) return { ok: false, error: 'Draft id is required' };
+
+  const result = await staffFetch(`/api/staff/ogr-product-email/drafts/${trimmed}`, {
+    method: 'GET',
+  });
+  if ('ok' in result && result.ok === false) return result;
+  const { res, payload } = result as {
+    res: Response;
+    payload: Record<string, unknown>;
+  };
+  if (!res.ok || !payload.ok || !payload.draft || typeof payload.draft !== 'object') {
+    return {
+      ok: false,
+      error: typeof payload.error === 'string' ? payload.error : `Load failed (${res.status})`,
+    };
+  }
+  return { ok: true, draft: payload.draft as AgentProductOutreachDraftDto };
+}
+
 export async function updateAgentProductOutreachDraftClient(
   id: string,
   patch: {

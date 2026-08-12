@@ -19,6 +19,7 @@ import type { TabKey } from '@/types';
 export type AuthGatePage = 'app' | 'account';
 
 const TAB_KEYS: TabKey[] = [
+  'briefing',
   'catalog',
   'dashboard',
   'calls',

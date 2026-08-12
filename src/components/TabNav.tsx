@@ -1,6 +1,7 @@
 import {
   Building2,
   Calendar,
+  ClipboardList,
   Gauge,
   Home,
   Lightbulb,
@@ -24,6 +25,7 @@ interface TabNavProps {
 }
 
 const tabs: { key: TabKey; label: string; icon: typeof Package }[] = [
+  { key: 'briefing', label: 'Daily Briefing', icon: ClipboardList },
   { key: 'catalog', label: 'Line Sheet', icon: Package },
   { key: 'dashboard', label: 'PMF Dashboard', icon: Gauge },
   { key: 'calls', label: 'Call Pipeline', icon: ListChecks },

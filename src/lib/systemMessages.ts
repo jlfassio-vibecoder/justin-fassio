@@ -14,7 +14,7 @@ export const PRODUCT_OUTREACH_HISTORY_SELECT =
 export const PRODUCT_OUTREACH_HISTORY_LIMIT = 50;
 
 export const AGENT_PRODUCT_OUTREACH_DRAFT_SELECT =
-  'id, message_type, origin, status, catalog_item_id, resend_email_id, to_email, to_name, subject, intro_text, closing_text, prospect_id, account_contact_id, sent_by, queued_at, sent_at, payload, created_at, updated_at' as const;
+  'id, message_type, origin, status, catalog_item_id, resend_email_id, to_email, to_name, subject, intro_text, closing_text, prospect_id, account_contact_id, sent_by, queued_at, sent_at, payload, automation_run_id, created_at, updated_at' as const;
 
 export type ProductOutreachHistoryItem = {
   id: string;
@@ -299,6 +299,7 @@ export type AgentProductOutreachDraftRow = {
   queuedAt: string | null;
   sentAt: string | null;
   payload: ProductOutreachSystemMessagePayload;
+  automationRunId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -312,8 +313,10 @@ export type InsertAgentProductOutreachDraftInput = {
   closingText: string;
   prospectId: number;
   accountContactId: string;
-  sentBy: string;
+  /** Null allowed for cron when OUTREACH_PREP_ACTOR_USER_ID is unset. */
+  sentBy: string | null;
   payload: ProductOutreachSystemMessagePayload;
+  automationRunId?: string | null;
 };
 
 export type UpdateAgentProductOutreachDraftInput = {
@@ -351,6 +354,7 @@ function mapAgentDraftRow(row: {
   queued_at: string | null;
   sent_at: string | null;
   payload: unknown;
+  automation_run_id?: string | null;
   created_at: string;
   updated_at: string;
 }): AgentProductOutreachDraftRow | null {
@@ -397,6 +401,7 @@ function mapAgentDraftRow(row: {
       },
       parseGenerationMeta(payload.generation),
     ),
+    automationRunId: row.automation_run_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -428,6 +433,7 @@ export async function insertAgentProductOutreachDraft(
     queued_at: null,
     sent_at: null,
     payload: buildProductOutreachPayload(input.payload, input.payload.generation ?? null),
+    ...(input.automationRunId ? { automation_run_id: input.automationRunId } : {}),
   };
 
   const { data, error } = await client.from('system_messages').insert(row).select('id').single();
@@ -480,6 +486,11 @@ export async function listAgentProductOutreachDrafts(
     status?: string;
     /** When set, overrides `status` and filters with `.in()`. */
     statuses?: string[];
+    /** Prep scope: filter by automation run and/or preparationDate in payload. */
+    automationRunId?: string;
+    preparationDate?: string;
+    /** When true, catalogItemId/prospectId are optional (staff briefing / pending counts). */
+    prepScope?: boolean;
     limit?: number;
   } = {},
 ): Promise<{ ok: true; drafts: AgentProductOutreachDraftRow[] } | { ok: false; error: string }> {
@@ -508,15 +519,23 @@ export async function listAgentProductOutreachDrafts(
   if (input.prospectId != null) {
     query = query.eq('prospect_id', input.prospectId);
   }
+  if (input.automationRunId?.trim()) {
+    query = query.eq('automation_run_id', input.automationRunId.trim());
+  }
 
   const { data, error } = await query;
   if (error) {
     return { ok: false, error: error.message };
   }
 
-  const drafts = (data ?? [])
+  let drafts = (data ?? [])
     .map(mapAgentDraftRow)
     .filter((row): row is AgentProductOutreachDraftRow => row != null);
+
+  const prepDate = input.preparationDate?.trim();
+  if (prepDate) {
+    drafts = drafts.filter((d) => d.payload.generation?.preparationDate === prepDate);
+  }
 
   return { ok: true, drafts };
 }

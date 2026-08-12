@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Header } from '@/components/Header';
 import { TabNav } from '@/components/TabNav';
 import { LogCallModal } from '@/components/LogCallModal';
+import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
 import { CatalogTab } from '@/components/tabs/CatalogTab';
 import { DashboardTab } from '@/components/tabs/DashboardTab';
 import { CallsTab } from '@/components/tabs/CallsTab';
@@ -31,7 +32,25 @@ interface RepCommandCenterProps {
   defaultTab?: TabKey;
 }
 
+function parseAppDeepLinks(): {
+  sku: string | null;
+  draftId: string | null;
+  prospectId: number | null;
+} {
+  if (typeof window === 'undefined') {
+    return { sku: null, draftId: null, prospectId: null };
+  }
+  const params = new URLSearchParams(window.location.search);
+  const sku = params.get('sku')?.trim() || null;
+  const draftId = params.get('draftId')?.trim() || null;
+  const prospectRaw = params.get('prospectId')?.trim();
+  const prospectId =
+    prospectRaw && Number.isFinite(Number(prospectRaw)) ? Number(prospectRaw) : null;
+  return { sku, draftId, prospectId };
+}
+
 export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterProps) {
+  const initialLinks = parseAppDeepLinks();
   const [activeTab, setActiveTab] = useState<TabKey>(defaultTab);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalStoreId, setModalStoreId] = useState<number | null>(null);
@@ -48,6 +67,56 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
   const [messagesNeedsMappingCount, setMessagesNeedsMappingCount] = useState(0);
   const [openLiveChats, setOpenLiveChats] = useState<OpenLiveChatSlot[]>([]);
   const [messagesReloadToken, setMessagesReloadToken] = useState(0);
+  const [deepLinkSku, setDeepLinkSku] = useState<string | null>(initialLinks.sku);
+  const [deepLinkDraftId, setDeepLinkDraftId] = useState<string | null>(initialLinks.draftId);
+  const [deepLinkProspectId, setDeepLinkProspectId] = useState<number | null>(
+    initialLinks.prospectId,
+  );
+  const [deepLinkAccountId, setDeepLinkAccountId] = useState<number | null>(null);
+
+  // URL prospectId may belong to an active account — remap once directory is loaded.
+  if (deepLinkProspectId != null && prospects.length > 0) {
+    const match = prospects.find((p) => p.id === deepLinkProspectId);
+    if (match?.accountStatus === 'active_account') {
+      setDeepLinkAccountId(match.id);
+      setDeepLinkProspectId(null);
+      if (activeTab === 'prospects') setActiveTab('accounts');
+    }
+  }
+
+  const clearCatalogDeepLink = useCallback(() => {
+    setDeepLinkSku(null);
+    setDeepLinkDraftId(null);
+  }, []);
+
+  const clearProspectDeepLink = useCallback(() => {
+    setDeepLinkProspectId(null);
+  }, []);
+
+  const clearAccountDeepLink = useCallback(() => {
+    setDeepLinkAccountId(null);
+  }, []);
+
+  const openDraftDeepLink = useCallback((args: { sku: string; draftId: string }) => {
+    setDeepLinkSku(args.sku);
+    setDeepLinkDraftId(args.draftId);
+    setActiveTab('catalog');
+  }, []);
+
+  const openProspectDeepLink = useCallback(
+    (args: { prospectId: number; accountStatus?: string }) => {
+      if (args.accountStatus === 'active_account') {
+        setDeepLinkAccountId(args.prospectId);
+        setDeepLinkProspectId(null);
+        setActiveTab('accounts');
+        return;
+      }
+      setDeepLinkProspectId(args.prospectId);
+      setDeepLinkAccountId(null);
+      setActiveTab('prospects');
+    },
+    [],
+  );
 
   const openLiveChat = useCallback((thread: MessageThread) => {
     if (thread.channel !== 'live_chat') return;
@@ -222,6 +291,12 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
 
         {!directoryLoading && (catalog.length > 0 || prospects.length > 0 || !directoryError) && (
           <>
+            {activeTab === 'briefing' && (
+              <AgentBriefingTab
+                onOpenDraft={openDraftDeepLink}
+                onOpenProspect={openProspectDeepLink}
+              />
+            )}
             {activeTab === 'catalog' && (
               <CatalogTab
                 catalog={catalog}
@@ -243,6 +318,9 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                 keystoneMarginRate={keystoneMarginRate}
                 setKeystoneMarginRate={setKeystoneMarginRate}
                 marginRangeDisplay={marginRangeDisplay}
+                deepLinkSku={deepLinkSku}
+                deepLinkDraftId={deepLinkDraftId}
+                onDeepLinkConsumed={clearCatalogDeepLink}
               />
             )}
             {activeTab === 'dashboard' && (
@@ -278,6 +356,8 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                 onNotesSaved={(id, notes) => {
                   setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
                 }}
+                deepLinkProspectId={deepLinkProspectId}
+                onDeepLinkConsumed={clearProspectDeepLink}
               />
             )}
             {activeTab === 'accounts' && (
@@ -291,6 +371,8 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
                 onProspectUpdated={(prospect) => {
                   setProspects((prev) => prev.map((p) => (p.id === prospect.id ? prospect : p)));
                 }}
+                deepLinkAccountId={deepLinkAccountId}
+                onDeepLinkConsumed={clearAccountDeepLink}
               />
             )}
             {activeTab === 'contacts' && (

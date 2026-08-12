@@ -36,6 +36,11 @@ export function nextSellingDayOnOrAfter(isoDate: string): string {
   return cur;
 }
 
+/** Next Mon–Fri strictly after isoDate (Friday → Monday; weekend → Monday). */
+export function nextSellingDayAfter(isoDate: string): string {
+  return nextSellingDayOnOrAfter(addCalendarDaysIso(isoDate, 1));
+}
+
 export type MonthWindow = {
   yearMonth: string;
   monthStart: string;

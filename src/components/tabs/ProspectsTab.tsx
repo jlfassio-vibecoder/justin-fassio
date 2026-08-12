@@ -55,6 +55,8 @@ interface ProspectsTabProps {
   onProspectCreated?: (prospect: Prospect) => void;
   onProspectUpdated?: (prospect: Prospect) => void;
   onNotesSaved?: (id: number, notes: string | null) => void;
+  deepLinkProspectId?: number | null;
+  onDeepLinkConsumed?: () => void;
 }
 
 export function ProspectsTab({
@@ -65,6 +67,8 @@ export function ProspectsTab({
   onProspectCreated,
   onProspectUpdated,
   onNotesSaved,
+  deepLinkProspectId = null,
+  onDeepLinkConsumed,
 }: ProspectsTabProps) {
   const { openAssist } = useAiAssist();
   const [addOpen, setAddOpen] = useState(false);
@@ -76,6 +80,17 @@ export function ProspectsTab({
     prospect: Prospect;
     mode: ProspectResearchMode;
   } | null>(null);
+  const [appliedDeepLinkProspectId, setAppliedDeepLinkProspectId] = useState<number | null>(null);
+
+  if (deepLinkProspectId != null && deepLinkProspectId !== appliedDeepLinkProspectId) {
+    const match = prospects.find((p) => p.id === deepLinkProspectId);
+    setAppliedDeepLinkProspectId(deepLinkProspectId);
+    if (match) {
+      setDetailProspect(match);
+      setHighlightedProspectId(match.id);
+    }
+    queueMicrotask(() => onDeepLinkConsumed?.());
+  }
 
   const pipelineProspects = useMemo(
     () => prospects.filter((p) => p.accountStatus !== 'active_account'),

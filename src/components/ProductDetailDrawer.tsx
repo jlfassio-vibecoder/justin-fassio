@@ -5,6 +5,7 @@ import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Inpu
 import { Tag } from '@/components/ui/Tag';
 import { OgrProductEmailComposerModal } from '@/components/OgrProductEmailComposerModal';
 import { ProductEmailHistory } from '@/components/product/ProductEmailHistory';
+import { getAgentProductOutreachDraftClient } from '@/lib/agentProductOutreachDraftClient';
 import {
   ATTRIBUTE_REGISTRY,
   type AttributeGroup,
@@ -278,6 +279,8 @@ interface ProductDetailDrawerProps {
   items: CatalogItem[];
   factors: LandedCostFactors;
   supplierTerms?: CatalogSupplierTerms | null;
+  /** When set, open the agent draft review modal after the drawer mounts. */
+  initialReviewDraftId?: string | null;
   onClose: () => void;
   onSaved: (item: CatalogItem) => void;
   onNavigate: (sku: string) => void;
@@ -288,6 +291,7 @@ export function ProductDetailDrawer({
   items,
   factors,
   supplierTerms = null,
+  initialReviewDraftId = null,
   onClose,
   onSaved,
   onNavigate,
@@ -300,6 +304,7 @@ export function ProductDetailDrawer({
       items={items}
       factors={factors}
       supplierTerms={supplierTerms}
+      initialReviewDraftId={initialReviewDraftId}
       onClose={onClose}
       onSaved={onSaved}
       onNavigate={onNavigate}
@@ -312,6 +317,7 @@ function ProductDetailDrawerInner({
   items,
   factors,
   supplierTerms,
+  initialReviewDraftId = null,
   onClose,
   onSaved,
   onNavigate,
@@ -320,6 +326,7 @@ function ProductDetailDrawerInner({
   items: CatalogItem[];
   factors: LandedCostFactors;
   supplierTerms: CatalogSupplierTerms | null;
+  initialReviewDraftId?: string | null;
   onClose: () => void;
   onSaved: (item: CatalogItem) => void;
   onNavigate: (sku: string) => void;
@@ -393,6 +400,33 @@ function ProductDetailDrawerInner({
       active = false;
     };
   }, [item.id]);
+
+  useEffect(() => {
+    const draftId = initialReviewDraftId?.trim();
+    if (!draftId) return;
+    let active = true;
+    void getAgentProductOutreachDraftClient(draftId).then((result) => {
+      if (!active || !result.ok) return;
+      const d = result.draft;
+      setEmailReviewDraft({
+        id: d.id,
+        to: d.toEmail,
+        toName: d.toName,
+        subject: d.subject,
+        introText: d.introText,
+        closingText: d.closingText,
+        prospectId: d.prospectId,
+        accountContactId: d.accountContactId,
+        catalogItemId: d.catalogItemId,
+        productSku: d.payload.sku,
+        productSlug: d.payload.slug,
+      });
+      setEmailModalOpen(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [initialReviewDraftId, item.id]);
 
   useEffect(() => {
     return () => {

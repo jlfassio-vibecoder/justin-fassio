@@ -3,6 +3,7 @@ import {
   countWeekdaysInclusive,
   isWeekdayIso,
   monthWindowInTimezone,
+  nextSellingDayAfter,
   nextSellingDayOnOrAfter,
   remainingSellingDaysInMonth,
 } from '@/lib/outreachSellingDays';
@@ -19,6 +20,12 @@ describe('outreachSellingDays', () => {
   it('nextSellingDayOnOrAfter jumps weekends to Monday', () => {
     expect(nextSellingDayOnOrAfter('2026-08-15')).toBe('2026-08-17');
     expect(nextSellingDayOnOrAfter('2026-08-10')).toBe('2026-08-10');
+  });
+
+  it('nextSellingDayAfter is strictly after (Fri → Mon)', () => {
+    expect(nextSellingDayAfter('2026-08-14')).toBe('2026-08-17');
+    expect(nextSellingDayAfter('2026-08-15')).toBe('2026-08-17');
+    expect(nextSellingDayAfter('2026-08-12')).toBe('2026-08-13');
   });
 
   it('counts weekdays inclusive', () => {
