@@ -261,7 +261,9 @@ function latestSentAt(
 ): string | null {
   const a = byProspectId.get(prospectId) ?? null;
   const b = byEmail.get(toEmail) ?? null;
-  if (a && b) return a > b ? a : b;
+  if (a && b) {
+    return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
+  }
   return a ?? b;
 }
 

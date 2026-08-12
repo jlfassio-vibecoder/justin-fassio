@@ -258,4 +258,135 @@ describe('selectOutreachTargets', () => {
       ]),
     );
   });
+
+  it('excludes prospects with suppressed email or prospect id', async () => {
+    const client = mockSelectClient({
+      prospects: [prospectRow(10, 'Bounced Shop'), prospectRow(11, 'Clean Shop')],
+      contacts: [
+        {
+          id: 'c-10',
+          account_id: 10,
+          role: 'buyer',
+          full_name: 'Sam',
+          title: null,
+          phone: null,
+          email: 'bounced@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+        {
+          id: 'c-11',
+          account_id: 11,
+          role: 'buyer',
+          full_name: 'Pat',
+          title: null,
+          phone: null,
+          email: 'clean@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+      pendingProspectIds: [],
+      suppressed: [
+        {
+          prospect_id: 10,
+          to_email: 'bounced@example.com',
+          status: 'bounced',
+          bounced_at: '2026-01-01T00:00:00Z',
+          complained_at: null,
+        },
+      ],
+      sendsByProspect: [],
+      sendsByEmail: [],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 5,
+      preparationDate: '2026-08-12',
+      asOf: new Date('2026-08-12T18:00:00Z'),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.excluded).toEqual(
+      expect.arrayContaining([{ prospectId: 10, reason: 'contact_suppressed' }]),
+    );
+    expect(result.targets.map((t) => t.prospectId)).toEqual([11]);
+  });
+
+  it('excludes prospects inside the outreach cooldown window', async () => {
+    const client = mockSelectClient({
+      prospects: [prospectRow(20, 'Recent Send')],
+      contacts: [
+        {
+          id: 'c-20',
+          account_id: 20,
+          role: 'buyer',
+          full_name: 'Sam',
+          title: null,
+          phone: null,
+          email: 'recent@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+      pendingProspectIds: [],
+      suppressed: [],
+      sendsByProspect: [
+        {
+          prospect_id: 20,
+          to_email: 'recent@example.com',
+          sent_at: '2026-08-10T12:00:00Z',
+        },
+      ],
+      sendsByEmail: [],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 5,
+      preparationDate: '2026-08-12',
+      asOf: new Date('2026-08-12T18:00:00Z'),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets).toHaveLength(0);
+    expect(result.excluded).toEqual(
+      expect.arrayContaining([{ prospectId: 20, reason: 'cooldown' }]),
+    );
+  });
 });

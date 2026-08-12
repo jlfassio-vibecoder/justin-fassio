@@ -455,7 +455,8 @@ export type LatestProductOutreachSend = {
 
 /**
  * Latest product_outreach row with non-null sent_at for prospect and/or normalized to_email.
- * When both filters are provided, matches either origin (OR). Uses prospect_sent_at / to_email indexes.
+ * When both filters are provided, matches either prospect_id or to_email (OR).
+ * Uses prospect_sent_at / to_email indexes.
  */
 export async function fetchLatestProductOutreachSend(
   client: DbClient,
