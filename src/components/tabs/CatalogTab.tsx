@@ -25,6 +25,7 @@ import {
   retailKeystoneBreakdown,
 } from '@/lib/retailPricing';
 import {
+  fetchPendingAgentDraftCountsByCatalogItemId,
   fetchProductEngagementAlerts,
   markProductEngagementSeen,
   type ProductEngagementAlertKind,
@@ -136,6 +137,7 @@ export function CatalogTab({
   const [engagementAlerts, setEngagementAlerts] = useState<
     Record<string, ProductEngagementAlertKind>
   >({});
+  const [draftCounts, setDraftCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let active = true;
@@ -155,27 +157,31 @@ export function CatalogTab({
   useEffect(() => {
     let active = true;
 
-    async function loadEngagementAlerts() {
+    async function loadLineSheetSignals() {
       if (typeof document !== 'undefined' && document.hidden) return;
-      const result = await fetchProductEngagementAlerts();
-      if (!active || result.error) return;
-      setEngagementAlerts(result.data);
+      const [alerts, drafts] = await Promise.all([
+        fetchProductEngagementAlerts(),
+        fetchPendingAgentDraftCountsByCatalogItemId(),
+      ]);
+      if (!active) return;
+      if (!alerts.error) setEngagementAlerts(alerts.data);
+      if (!drafts.error) setDraftCounts(drafts.data);
     }
 
-    void loadEngagementAlerts();
+    void loadLineSheetSignals();
 
     function onFocus() {
-      void loadEngagementAlerts();
+      void loadLineSheetSignals();
     }
 
     function onVisibilityChange() {
-      if (!document.hidden) void loadEngagementAlerts();
+      if (!document.hidden) void loadLineSheetSignals();
     }
 
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibilityChange);
     const pollId = window.setInterval(() => {
-      void loadEngagementAlerts();
+      void loadLineSheetSignals();
     }, ENGAGEMENT_ALERT_POLL_MS);
 
     return () => {
@@ -191,6 +197,7 @@ export function CatalogTab({
     setSelectedSku(sku);
     if (!item) return;
 
+    // Clear engagement badges only — draft counts stay until send/cancel.
     setEngagementAlerts((prev) => {
       if (!(item.id in prev)) return prev;
       const next = { ...prev };
@@ -748,6 +755,15 @@ export function CatalogTab({
                       <div className="mt-0.5 flex flex-wrap gap-1">
                         {item.isNew && <Tag variant="accent">New</Tag>}
                         {item.isNameDrop && <Tag variant="accent-2">Name Drop</Tag>}
+                        {(() => {
+                          const draftCount = draftCounts[item.id] ?? 0;
+                          if (draftCount <= 0) return null;
+                          return (
+                            <Tag variant="neutral">
+                              {draftCount > 1 ? `Draft · ${draftCount}` : 'Draft'}
+                            </Tag>
+                          );
+                        })()}
                         {engagementAlerts[item.id] === 'clicked' ? (
                           <Tag variant="accent">Clicked</Tag>
                         ) : engagementAlerts[item.id] === 'opened' ? (

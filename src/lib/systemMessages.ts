@@ -47,13 +47,85 @@ export type ProductOutreachCrmAssociation = {
   accountContactId: string | null;
 };
 
+export type ProductOutreachGenerationMeta = {
+  promptVersion: string;
+  model: string;
+  preparationDate: string;
+  selectionReasons: {
+    priority: string | null;
+    fitScore: number | null;
+    channelMatch: boolean;
+    productFit: 'channel_intersect' | 'global_fallback';
+    exclusionsChecked: true;
+  };
+  fallback: 'none' | 'defaults' | 'retry_shorten';
+  introWordCount: number;
+  closingWordCount: number;
+  generatedAt: string;
+};
+
 export type ProductOutreachSystemMessagePayload = {
   sku: string;
   name: string;
   slug: string;
   productHref: string;
   from?: string;
+  /** Phase 2 generation audit — preserved across approve-and-send. */
+  generation?: ProductOutreachGenerationMeta;
 };
+
+/** Build lean payload for insert/update/send, optionally preserving generation meta. */
+export function buildProductOutreachPayload(
+  base: Pick<ProductOutreachSystemMessagePayload, 'sku' | 'name' | 'slug' | 'productHref'> & {
+    from?: string;
+  },
+  generation?: ProductOutreachGenerationMeta | null,
+): ProductOutreachSystemMessagePayload {
+  return {
+    sku: base.sku,
+    name: base.name,
+    slug: base.slug,
+    productHref: base.productHref,
+    ...(base.from ? { from: base.from } : {}),
+    ...(generation ? { generation } : {}),
+  };
+}
+
+function parseGenerationMeta(raw: unknown): ProductOutreachGenerationMeta | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const g = raw as Record<string, unknown>;
+  if (typeof g.promptVersion !== 'string' || typeof g.model !== 'string') return undefined;
+  if (typeof g.preparationDate !== 'string' || typeof g.generatedAt !== 'string') return undefined;
+  if (typeof g.introWordCount !== 'number' || typeof g.closingWordCount !== 'number') {
+    return undefined;
+  }
+  if (g.fallback !== 'none' && g.fallback !== 'defaults' && g.fallback !== 'retry_shorten') {
+    return undefined;
+  }
+  const reasons = g.selectionReasons;
+  if (!reasons || typeof reasons !== 'object' || Array.isArray(reasons)) return undefined;
+  const r = reasons as Record<string, unknown>;
+  if (r.exclusionsChecked !== true) return undefined;
+  if (typeof r.channelMatch !== 'boolean') return undefined;
+  if (r.productFit !== 'channel_intersect' && r.productFit !== 'global_fallback') return undefined;
+
+  return {
+    promptVersion: g.promptVersion,
+    model: g.model,
+    preparationDate: g.preparationDate,
+    selectionReasons: {
+      priority: typeof r.priority === 'string' ? r.priority : null,
+      fitScore: typeof r.fitScore === 'number' ? r.fitScore : null,
+      channelMatch: r.channelMatch,
+      productFit: r.productFit,
+      exclusionsChecked: true,
+    },
+    fallback: g.fallback,
+    introWordCount: g.introWordCount,
+    closingWordCount: g.closingWordCount,
+    generatedAt: g.generatedAt,
+  };
+}
 
 export type InsertProductOutreachSystemMessageInput = {
   catalogItemId: string;
@@ -245,6 +317,9 @@ export type UpdateAgentProductOutreachDraftInput = {
   subject?: string;
   introText?: string;
   closingText?: string;
+  /** When regenerating for a new product selection. */
+  catalogItemId?: string;
+  payload?: ProductOutreachSystemMessagePayload;
 };
 
 export type MarkAgentProductOutreachDraftSentInput = {
@@ -307,13 +382,16 @@ function mapAgentDraftRow(row: {
     sentBy: row.sent_by,
     queuedAt: row.queued_at,
     sentAt: row.sent_at,
-    payload: {
-      sku: typeof payload.sku === 'string' ? payload.sku : '',
-      name: typeof payload.name === 'string' ? payload.name : '',
-      slug: typeof payload.slug === 'string' ? payload.slug : '',
-      productHref: typeof payload.productHref === 'string' ? payload.productHref : '',
-      ...(typeof payload.from === 'string' ? { from: payload.from } : {}),
-    },
+    payload: buildProductOutreachPayload(
+      {
+        sku: typeof payload.sku === 'string' ? payload.sku : '',
+        name: typeof payload.name === 'string' ? payload.name : '',
+        slug: typeof payload.slug === 'string' ? payload.slug : '',
+        productHref: typeof payload.productHref === 'string' ? payload.productHref : '',
+        ...(typeof payload.from === 'string' ? { from: payload.from } : {}),
+      },
+      parseGenerationMeta(payload.generation),
+    ),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -344,13 +422,7 @@ export async function insertAgentProductOutreachDraft(
     sent_by: input.sentBy,
     queued_at: null,
     sent_at: null,
-    payload: {
-      sku: input.payload.sku,
-      name: input.payload.name,
-      slug: input.payload.slug,
-      productHref: input.payload.productHref,
-      ...(input.payload.from ? { from: input.payload.from } : {}),
-    },
+    payload: buildProductOutreachPayload(input.payload, input.payload.generation ?? null),
   };
 
   const { data, error } = await client.from('system_messages').insert(row).select('id').single();
@@ -585,6 +657,36 @@ export async function fetchPendingAgentProductOutreachProspectIds(
   return { ok: true, prospectIds };
 }
 
+/**
+ * Pending agent draft counts keyed by catalog_item_id for Line Sheet Draft badges.
+ * Does not read or write product_outreach_engagement_seen.
+ */
+export async function fetchPendingAgentDraftCountsByCatalogItemId(): Promise<{
+  data: Record<string, number>;
+  error: string | null;
+}> {
+  const { data, error } = await supabase
+    .from('system_messages')
+    .select('catalog_item_id')
+    .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
+    .eq('origin', SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL)
+    .in('status', ['draft', 'queued', 'scheduled'])
+    .not('catalog_item_id', 'is', null);
+
+  if (error) {
+    return { data: {}, error: error.message };
+  }
+
+  const counts: Record<string, number> = {};
+  for (const row of data ?? []) {
+    const id = row.catalog_item_id;
+    if (typeof id === 'string' && id.trim()) {
+      counts[id] = (counts[id] ?? 0) + 1;
+    }
+  }
+  return { data: counts, error: null };
+}
+
 export async function updateAgentProductOutreachDraft(
   client: DbClient,
   id: string,
@@ -613,6 +715,12 @@ export async function updateAgentProductOutreachDraft(
   }
   if (input.closingText != null) {
     patch.closing_text = input.closingText;
+  }
+  if (input.catalogItemId != null) {
+    patch.catalog_item_id = input.catalogItemId.trim();
+  }
+  if (input.payload != null) {
+    patch.payload = buildProductOutreachPayload(input.payload, input.payload.generation ?? null);
   }
 
   if (Object.keys(patch).length === 0) {
@@ -662,6 +770,8 @@ export async function markAgentProductOutreachDraftSent(
   }
 
   const now = new Date().toISOString();
+  // Preserve generation metadata from the draft when send payload omits it.
+  const generation = input.payload.generation ?? existing.draft.payload.generation ?? null;
   const { error } = await client
     .from('system_messages')
     .update({
@@ -670,13 +780,7 @@ export async function markAgentProductOutreachDraftSent(
       queued_at: now,
       sent_at: now,
       sent_by: input.sentBy,
-      payload: {
-        sku: input.payload.sku,
-        name: input.payload.name,
-        slug: input.payload.slug,
-        productHref: input.payload.productHref,
-        ...(input.payload.from ? { from: input.payload.from } : {}),
-      },
+      payload: buildProductOutreachPayload(input.payload, generation),
     })
     .eq('id', existing.draft.id)
     .eq('status', 'draft')
