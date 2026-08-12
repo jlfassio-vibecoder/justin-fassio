@@ -29,16 +29,16 @@ Phases 0–4 provide drafts, selection, lead states, and pace math; Phase 5 wire
 
 ## Current live-code foundation
 
-| Artifact | Location |
-|----------|----------|
-| App shell | `src/components/RepCommandCenter.tsx`, `src/components/TabNav.tsx`, `src/types/index.ts` (`TabKey`) |
-| Dashboard | `src/components/tabs/DashboardTab.tsx` |
-| AI chrome | `src/components/ui/AIAssistantModal.tsx` |
-| Auth | `src/components/auth/AuthGate.tsx` |
-| Deploy | `vercel.json` — no `crons` |
-| Placeholders | `system_messages.scheduled_for`, `automation_run_id` |
-| Engagement UI | `CatalogTab` Opened/Clicked |
-| Active due | `ActiveAccountsTab` reorder-due (separate from new-logo Call Today) |
+| Artifact      | Location                                                                                            |
+| ------------- | --------------------------------------------------------------------------------------------------- |
+| App shell     | `src/components/RepCommandCenter.tsx`, `src/components/TabNav.tsx`, `src/types/index.ts` (`TabKey`) |
+| Dashboard     | `src/components/tabs/DashboardTab.tsx`                                                              |
+| AI chrome     | `src/components/ui/AIAssistantModal.tsx`                                                            |
+| Auth          | `src/components/auth/AuthGate.tsx`                                                                  |
+| Deploy        | `vercel.json` — no `crons`                                                                          |
+| Placeholders  | `system_messages.scheduled_for`, `automation_run_id`                                                |
+| Engagement UI | `CatalogTab` Opened/Clicked                                                                         |
+| Active due    | `ActiveAccountsTab` reorder-due (separate from new-logo Call Today)                                 |
 
 ---
 
@@ -70,18 +70,18 @@ Secure scheduled job (Vercel Cron → protected API, or equivalent on current ho
 
 ### Daily Agent Briefing contents
 
-| Block | Source |
-|-------|--------|
-| Monthly account goal | Phase 4 |
-| Accounts opened MTD | `converted_at` |
-| Projected attainment | Phase 4 |
-| Recommended outreach pace | Phase 4 |
-| Drafts ready today | Agent-origin drafts in draft/queued for the day |
-| Retail-channel allocation | Phase 1/5 plan |
-| Hot / Call Today | Phase 3 |
-| Warm leads | Phase 3 |
-| Recent meaningful engagement | Aggregates / recent clicks |
-| Recent account conversions | `converted_at` list |
+| Block                        | Source                                          |
+| ---------------------------- | ----------------------------------------------- |
+| Monthly account goal         | Phase 4                                         |
+| Accounts opened MTD          | `converted_at`                                  |
+| Projected attainment         | Phase 4                                         |
+| Recommended outreach pace    | Phase 4                                         |
+| Drafts ready today           | Agent-origin drafts in draft/queued for the day |
+| Retail-channel allocation    | Phase 1/5 plan                                  |
+| Hot / Call Today             | Phase 3                                         |
+| Warm leads                   | Phase 3                                         |
+| Recent meaningful engagement | Aggregates / recent clicks                      |
+| Recent account conversions   | `converted_at` list                             |
 
 **Navigation:** each row links to prospect/account, product drawer, and draft review/send.
 
@@ -98,12 +98,12 @@ Explicitly forbidden in this phase and Epic.
 
 ## Proposed data / schema changes
 
-| Change | Purpose |
-|--------|---------|
-| `outreach_automation_runs` | id, run_date, status, targets, produced_drafts, error, timestamps |
-| Link drafts | `system_messages.automation_run_id` → run |
-| `outreach_briefing_snapshots` (optional) | JSON briefing for morning if on-read is expensive |
-| Vercel cron | Add `crons` to `vercel.json` invoking secured route |
+| Change                                   | Purpose                                                           |
+| ---------------------------------------- | ----------------------------------------------------------------- |
+| `outreach_automation_runs`               | id, run_date, status, targets, produced_drafts, error, timestamps |
+| Link drafts                              | `system_messages.automation_run_id` → run                         |
+| `outreach_briefing_snapshots` (optional) | JSON briefing for morning if on-read is expensive                 |
+| Vercel cron                              | Add `crons` to `vercel.json` invoking secured route               |
 
 Cron auth: shared secret header / Vercel cron rules — never public anonymous generate.
 
@@ -111,11 +111,11 @@ Cron auth: shared secret header / Vercel cron rules — never public anonymous g
 
 ## Server / API changes
 
-| Endpoint | Behavior |
-|----------|----------|
+| Endpoint                                               | Behavior                                                 |
+| ------------------------------------------------------ | -------------------------------------------------------- |
 | `POST /api/cron/outreach-nightly-prep` (name flexible) | Orchestrate steps 1–7; `prerender = false`; secret-gated |
-| `GET` briefing | Staff JWT; assemble or load snapshot |
-| Manual “Run prep now” | Staff-only ops escape hatch with same idempotency |
+| `GET` briefing                                         | Staff JWT; assemble or load snapshot                     |
+| Manual “Run prep now”                                  | Staff-only ops escape hatch with same idempotency        |
 
 Orchestrator imports Phase 1–4 libs only; send module must not be reachable from cron handler.
 
@@ -123,12 +123,12 @@ Orchestrator imports Phase 1–4 libs only; send module must not be reachable fr
 
 ## UI changes
 
-| Surface | Change |
-|---------|--------|
-| Daily Agent Briefing | New tab and/or Dashboard top strip in `RepCommandCenter` |
-| Deep links | Prospect detail, product drawer, draft composer/send |
-| Prep status banner | Success / empty pool / failure |
-| Optional | `AIAssistantModal` cold-open deep-link to Briefing — secondary |
+| Surface              | Change                                                         |
+| -------------------- | -------------------------------------------------------------- |
+| Daily Agent Briefing | New tab and/or Dashboard top strip in `RepCommandCenter`       |
+| Deep links           | Prospect detail, product drawer, draft composer/send           |
+| Prep status banner   | Success / empty pool / failure                                 |
+| Optional             | `AIAssistantModal` cold-open deep-link to Briefing — secondary |
 
 Prefer first-class Briefing over burying solely in the AI chat modal.
 
@@ -219,13 +219,13 @@ Prefer first-class Briefing over burying solely in the AI chat modal.
 
 ## Risks / edge cases
 
-| Risk | Mitigation |
-|------|------------|
+| Risk                                | Mitigation                                                               |
+| ----------------------------------- | ------------------------------------------------------------------------ |
 | Serverless timeout on large batches | Cap nightly N; chunk; or queue **draft generation only** (still no send) |
-| TZ boundary duplicates | Pin run_date in business TZ |
-| Cron triggers send by mistake | Code review invariant + test forbid Resend import in cron module |
-| Staff ignores Briefing | Optional morning default tab later — product choice |
-| Partial AI failures | Save successful drafts; report failures per target |
+| TZ boundary duplicates              | Pin run_date in business TZ                                              |
+| Cron triggers send by mistake       | Code review invariant + test forbid Resend import in cron module         |
+| Staff ignores Briefing              | Optional morning default tab later — product choice                      |
+| Partial AI failures                 | Save successful drafts; report failures per target                       |
 
 ---
 

@@ -30,34 +30,34 @@ Phase 1 builds the filter + rank + product-match layer that Phases 2 and 5 call.
 
 ### Prospects / contacts
 
-| Artifact | Location |
-|----------|----------|
-| Table | `prospects` — status `prospect` \| `active_account` \| `inactive`; `converted_at`; `fit_score`; `priority`; `provisional_grade`; `category`; taxonomy JSONB; `retail_category`; etc. |
-| Contacts | `account_contacts` — `email`, `is_primary`, roles |
-| Taxonomy | `src/lib/crmRetailTaxonomy.ts` |
-| Channel map | `src/lib/prospectEnrichment/crmChannelFromRetailCategory.ts` |
-| Seed score | `src/lib/prospectEnrichment/seedFitScore.ts`, `priorityGrade.ts` |
-| Convert | `src/lib/convertToActiveAccount.ts` |
-| Soft company match | `src/lib/companyMatch.ts` |
+| Artifact           | Location                                                                                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Table              | `prospects` — status `prospect` \| `active_account` \| `inactive`; `converted_at`; `fit_score`; `priority`; `provisional_grade`; `category`; taxonomy JSONB; `retail_category`; etc. |
+| Contacts           | `account_contacts` — `email`, `is_primary`, roles                                                                                                                                    |
+| Taxonomy           | `src/lib/crmRetailTaxonomy.ts`                                                                                                                                                       |
+| Channel map        | `src/lib/prospectEnrichment/crmChannelFromRetailCategory.ts`                                                                                                                         |
+| Seed score         | `src/lib/prospectEnrichment/seedFitScore.ts`, `priorityGrade.ts`                                                                                                                     |
+| Convert            | `src/lib/convertToActiveAccount.ts`                                                                                                                                                  |
+| Soft company match | `src/lib/companyMatch.ts`                                                                                                                                                            |
 
 ### Catalog / ranking
 
-| Artifact | Location |
-|----------|----------|
-| Rank | `salesVolumeRankByProductId` — `src/lib/wholesaleFilters.ts` |
-| Top badge cutoff | `BEST_SELLER_BADGE_MAX_RANK = 32` — `src/lib/crmRetailTaxonomy.ts` |
-| New | `catalog_items.is_new` / `CatalogItem.isNew` |
-| Channels on product | `recommended_channels` (max `MAX_RECOMMENDED_CHANNELS`) |
-| Email load gate | `loadPublishedOgrProductForEmail` |
-| Filters | `src/lib/catalogFilters.ts` (`NEW`, etc.) |
+| Artifact            | Location                                                           |
+| ------------------- | ------------------------------------------------------------------ |
+| Rank                | `salesVolumeRankByProductId` — `src/lib/wholesaleFilters.ts`       |
+| Top badge cutoff    | `BEST_SELLER_BADGE_MAX_RANK = 32` — `src/lib/crmRetailTaxonomy.ts` |
+| New                 | `catalog_items.is_new` / `CatalogItem.isNew`                       |
+| Channels on product | `recommended_channels` (max `MAX_RECOMMENDED_CHANNELS`)            |
+| Email load gate     | `loadPublishedOgrProductForEmail`                                  |
+| Filters             | `src/lib/catalogFilters.ts` (`NEW`, etc.)                          |
 
 ### Outreach history / bounce
 
-| Artifact | Location |
-|----------|----------|
-| Sends | `system_messages` (`prospect_id`, `to_email`, `sent_at`, bounce/complaint timestamps) |
-| Index | `system_messages_prospect_sent_at_idx`, `system_messages_to_email_idx` |
-| Active cadence only | `account_reorder_settings` + `src/lib/reorderCadence.ts` |
+| Artifact            | Location                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| Sends               | `system_messages` (`prospect_id`, `to_email`, `sent_at`, bounce/complaint timestamps) |
+| Index               | `system_messages_prospect_sent_at_idx`, `system_messages_to_email_idx`                |
+| Active cadence only | `account_reorder_settings` + `src/lib/reorderCadence.ts`                              |
 
 ---
 
@@ -115,11 +115,11 @@ AI must not invent ineligible prospects or unpublished products.
 
 ## Proposed data / schema changes
 
-| Change | Purpose |
-|--------|---------|
+| Change                                                          | Purpose                                                                                                     |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Optional suppression fields on `account_contacts` or side table | `do_not_contact`, `email_suppressed_at`, `suppression_reason` — or derive-only from `system_messages` in v1 |
-| Config for cooldown days / Top-N / exclude active_account | Staff settings table (may land with Phase 4 goals) or code constants initially |
-| Optional unique partial index | Prevent duplicate open drafts per prospect+catalog (application-enforced if index deferred) |
+| Config for cooldown days / Top-N / exclude active_account       | Staff settings table (may land with Phase 4 goals) or code constants initially                              |
+| Optional unique partial index                                   | Prevent duplicate open drafts per prospect+catalog (application-enforced if index deferred)                 |
 
 v1 may implement suppression as **queries against `system_messages`** without new columns; document upgrade path.
 
@@ -127,12 +127,12 @@ v1 may implement suppression as **queries against `system_messages`** without ne
 
 ## Server / API changes
 
-| Module | Responsibility |
-|--------|----------------|
-| `selectEligibleProspects(...)` | Hard filters + rank |
-| `selectProductForProspect(...)` | Top/New pool + channel fit |
-| `allocateChannelsForDay(...)` | Strategy + optional Phase 4 weights (stub OK) |
-| Staff preview API | Dry-run selection for debugging (optional) |
+| Module                          | Responsibility                                |
+| ------------------------------- | --------------------------------------------- |
+| `selectEligibleProspects(...)`  | Hard filters + rank                           |
+| `selectProductForProspect(...)` | Top/New pool + channel fit                    |
+| `allocateChannelsForDay(...)`   | Strategy + optional Phase 4 weights (stub OK) |
+| Staff preview API               | Dry-run selection for debugging (optional)    |
 
 Nightly job (Phase 5) calls these modules; Phase 2 draft generation consumes their output.
 
@@ -140,10 +140,10 @@ Nightly job (Phase 5) calls these modules; Phase 2 draft generation consumes the
 
 ## UI changes
 
-| Surface | Change |
-|---------|--------|
-| Phase 1 minimal | None required if APIs/libs only |
-| Helpful | Staff “why selected / why excluded” debug on draft or Briefing later |
+| Surface         | Change                                                               |
+| --------------- | -------------------------------------------------------------------- |
+| Phase 1 minimal | None required if APIs/libs only                                      |
+| Helpful         | Staff “why selected / why excluded” debug on draft or Briefing later |
 
 ---
 
@@ -234,13 +234,13 @@ Nightly job (Phase 5) calls these modules; Phase 2 draft generation consumes the
 
 ## Risks / edge cases
 
-| Risk | Mitigation |
-|------|------------|
+| Risk                                  | Mitigation                                                         |
+| ------------------------------------- | ------------------------------------------------------------------ |
 | Sparse taxonomy on imported prospects | Demote rather than exclude; fall back to `retail_category` mapping |
-| `fit` text vs `fit_score` divergence | Prefer `fit_score` / `priority` for sort |
-| Duplicate `account_contacts` emails | Dedupe by normalized email globally in batch |
-| Active Account accidentally included | Explicit status filter in tests |
-| Unpublished Top seller | Publish gate removes from pool |
+| `fit` text vs `fit_score` divergence  | Prefer `fit_score` / `priority` for sort                           |
+| Duplicate `account_contacts` emails   | Dedupe by normalized email globally in batch                       |
+| Active Account accidentally included  | Explicit status filter in tests                                    |
+| Unpublished Top seller                | Publish gate removes from pool                                     |
 
 ---
 

@@ -27,21 +27,21 @@ Without Phase 0, later phases have nowhere safe to store reviewable agent outrea
 
 ## Current live-code foundation
 
-| Artifact | Location |
-|----------|----------|
-| Table | `system_messages` — migration `supabase/migrations/20260811120000_system_messages.sql` |
-| Events | `system_message_events` — `20260811140000_system_message_events.sql` |
-| Webhook RPC | `apply_resend_system_message_event` — `20260811150000_apply_resend_system_message_event.sql` |
-| Engagement columns | `20260811160000_product_engagement_alerts.sql`, `20260811170000_engagement_receipt_monotonic.sql` |
-| Insert | `insertProductOutreachSystemMessage` in `src/lib/systemMessages.ts` (always `sent` + `manual_product_email`) |
-| Constants | `SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH`, `SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL` |
-| Render | `renderOgrProductOutreachEmail` — `src/lib/ogrProductOutreachEmail.ts` |
-| Card | `renderOgrProductEmailCard` — `src/lib/ogrProductEmailCard.ts` |
-| Send | `sendOgrProductOutreachEmail` — `src/lib/sendOgrProductOutreachEmail.ts` |
-| Staff API | `POST` `src/pages/api/staff/ogr-product-email.ts` |
-| CRM resolve | `resolveProductOutreachCrmAssociation` |
-| Sender | `resolveStaffOutreachSenderNames` — `src/lib/ogrProductEmailSender.ts` |
-| Types | `src/types/database.ts` (`SystemMessage`, payload lean `{ sku, name, slug, productHref }`) |
+| Artifact           | Location                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Table              | `system_messages` — migration `supabase/migrations/20260811120000_system_messages.sql`                       |
+| Events             | `system_message_events` — `20260811140000_system_message_events.sql`                                         |
+| Webhook RPC        | `apply_resend_system_message_event` — `20260811150000_apply_resend_system_message_event.sql`                 |
+| Engagement columns | `20260811160000_product_engagement_alerts.sql`, `20260811170000_engagement_receipt_monotonic.sql`            |
+| Insert             | `insertProductOutreachSystemMessage` in `src/lib/systemMessages.ts` (always `sent` + `manual_product_email`) |
+| Constants          | `SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH`, `SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL`                         |
+| Render             | `renderOgrProductOutreachEmail` — `src/lib/ogrProductOutreachEmail.ts`                                       |
+| Card               | `renderOgrProductEmailCard` — `src/lib/ogrProductEmailCard.ts`                                               |
+| Send               | `sendOgrProductOutreachEmail` — `src/lib/sendOgrProductOutreachEmail.ts`                                     |
+| Staff API          | `POST` `src/pages/api/staff/ogr-product-email.ts`                                                            |
+| CRM resolve        | `resolveProductOutreachCrmAssociation`                                                                       |
+| Sender             | `resolveStaffOutreachSenderNames` — `src/lib/ogrProductEmailSender.ts`                                       |
+| Types              | `src/types/database.ts` (`SystemMessage`, payload lean `{ sku, name, slug, productHref }`)                   |
 
 **Status allowlist today:** `draft`, `queued`, `scheduled`, `sending`, `sent`, `delivered`, `opened`, `clicked`, `bounced`, `failed`, `cancelled`, `complained`.
 
@@ -65,12 +65,12 @@ Without Phase 0, later phases have nowhere safe to store reviewable agent outrea
 
 ## Proposed data / schema changes
 
-| Change | Notes |
-|--------|-------|
-| Alter `system_messages.origin` CHECK | Add agent origin (e.g. `agent_product_email`) |
-| Persist intro + closing | Option A: `payload.introText`, `payload.closingText` (+ existing product fields). Option B: `intro_text` / `closing_text` columns. Prefer one approach; document in migration |
-| Optional draft metadata | `payload.channelAllocation?`, `payload.selectionReason?`, `created_by` already via `sent_by` or add `created_by` — decide whether `sent_by` means “author” pre-send or only sender at send time |
-| Keep unused columns | `scheduled_for`, `automation_run_id` remain for Phase 5; do not invent sequence tables |
+| Change                               | Notes                                                                                                                                                                                           |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Alter `system_messages.origin` CHECK | Add agent origin (e.g. `agent_product_email`)                                                                                                                                                   |
+| Persist intro + closing              | Option A: `payload.introText`, `payload.closingText` (+ existing product fields). Option B: `intro_text` / `closing_text` columns. Prefer one approach; document in migration                   |
+| Optional draft metadata              | `payload.channelAllocation?`, `payload.selectionReason?`, `created_by` already via `sent_by` or add `created_by` — decide whether `sent_by` means “author” pre-send or only sender at send time |
+| Keep unused columns                  | `scheduled_for`, `automation_run_id` remain for Phase 5; do not invent sequence tables                                                                                                          |
 
 No new mail tables. Do not add a parallel `agent_emails` store.
 
@@ -78,14 +78,14 @@ No new mail tables. Do not add a parallel `agent_emails` store.
 
 ## Server / API changes
 
-| Endpoint / helper | Behavior |
-|-------------------|----------|
-| Draft create (staff or service) | Validate associations; insert `draft` + agent origin; no Resend |
-| Draft update | Edit to/name/subject/intro/closing within limits (`ogrProductEmailLimits.ts`) |
-| Draft cancel | `status = cancelled` |
-| Draft get / list | By prospect, by “ready today”, by id |
-| Approve-and-send | Staff JWT; load draft; re-validate product still publishable; resolve sender from **authenticated** staff; render; Resend; update same row to `sent` + `resend_email_id` + timestamps |
-| Existing `POST /api/staff/ogr-product-email` | Remain for manual compose; optionally also accept `systemMessageId` for draft send — or separate `/api/staff/ogr-product-email/send-draft` |
+| Endpoint / helper                            | Behavior                                                                                                                                                                              |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Draft create (staff or service)              | Validate associations; insert `draft` + agent origin; no Resend                                                                                                                       |
+| Draft update                                 | Edit to/name/subject/intro/closing within limits (`ogrProductEmailLimits.ts`)                                                                                                         |
+| Draft cancel                                 | `status = cancelled`                                                                                                                                                                  |
+| Draft get / list                             | By prospect, by “ready today”, by id                                                                                                                                                  |
+| Approve-and-send                             | Staff JWT; load draft; re-validate product still publishable; resolve sender from **authenticated** staff; render; Resend; update same row to `sent` + `resend_email_id` + timestamps |
+| Existing `POST /api/staff/ogr-product-email` | Remain for manual compose; optionally also accept `systemMessageId` for draft send — or separate `/api/staff/ogr-product-email/send-draft`                                            |
 
 Shared helpers must stay the only Resend entry: `sendOgrProductOutreachEmail`.
 
@@ -93,11 +93,11 @@ Shared helpers must stay the only Resend entry: `sendOgrProductOutreachEmail`.
 
 ## UI changes
 
-| Surface | Change |
-|---------|--------|
-| Minimal Phase 0 | Draft list + open in composer-like review (can be API-complete first) |
-| Composer reuse | `OgrProductEmailComposerModal` pattern: load draft fields, Send calls approve-and-send |
-| Product Email history | Show origin (manual vs agent); include drafts optionally filtered |
+| Surface               | Change                                                                                 |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| Minimal Phase 0       | Draft list + open in composer-like review (can be API-complete first)                  |
+| Composer reuse        | `OgrProductEmailComposerModal` pattern: load draft fields, Send calls approve-and-send |
+| Product Email history | Show origin (manual vs agent); include drafts optionally filtered                      |
 
 Full Line Sheet draft badge can wait for Phase 2; Phase 0 should not block on badge polish.
 
@@ -191,13 +191,13 @@ Full Line Sheet draft badge can wait for Phase 2; Phase 0 should not block on ba
 
 ## Risks / edge cases
 
-| Risk | Mitigation |
-|------|------------|
-| Send after product unpublished | Re-run `loadPublishedOgrProductForEmail` at approve time |
-| Staff edits product name → subject drift | Recompute default subject on send if staff left default marker, or freeze subject at draft create |
-| Duplicate draft for same prospect+product | Soft uniqueness rule in Phase 1; Phase 0 may allow multiples with cancel |
-| Persist-only in payload vs columns | Pick one; document for Phase 2 AI writers |
-| `sent_by` semantics pre-send | Define: author vs sender; store both if needed in payload |
+| Risk                                      | Mitigation                                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Send after product unpublished            | Re-run `loadPublishedOgrProductForEmail` at approve time                                          |
+| Staff edits product name → subject drift  | Recompute default subject on send if staff left default marker, or freeze subject at draft create |
+| Duplicate draft for same prospect+product | Soft uniqueness rule in Phase 1; Phase 0 may allow multiples with cancel                          |
+| Persist-only in payload vs columns        | Pick one; document for Phase 2 AI writers                                                         |
+| `sent_by` semantics pre-send              | Define: author vs sender; store both if needed in payload                                         |
 
 ---
 

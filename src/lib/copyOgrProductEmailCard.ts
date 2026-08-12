@@ -15,12 +15,7 @@ export function buildOgrProductEmailCardPlainText(input: {
   if (tagline) {
     lines.push(tagline, '');
   }
-  lines.push(
-    'View Details:',
-    input.productHref.trim(),
-    'View Catalog:',
-    input.catalogHref.trim(),
-  );
+  lines.push('View Details:', input.productHref.trim(), 'View Catalog:', input.catalogHref.trim());
   return lines.join('\n');
 }
 

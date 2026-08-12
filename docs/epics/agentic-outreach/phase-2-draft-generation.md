@@ -25,17 +25,17 @@ Composition slots already exist (`introText`, `closingText`, subject default in 
 
 ## Current live-code foundation
 
-| Artifact | Location |
-|----------|----------|
-| Renderer | `renderOgrProductOutreachEmail` — greeting, intro, card, closing, signature, footer |
-| Defaults | `OGR_PRODUCT_EMAIL_DEFAULT_INTRO`, `OGR_PRODUCT_EMAIL_DEFAULT_CLOSING`, `defaultOgrProductEmailSubject` |
-| Card | `renderOgrProductEmailCard` (View Details + View Catalog) |
-| Limits | `src/lib/ogrProductEmailLimits.ts` (`OGR_PRODUCT_EMAIL_MAX_PROSE`, etc.) |
-| Composer UI | `src/components/OgrProductEmailComposerModal.tsx` |
-| Drawer | `src/components/ProductDetailDrawer.tsx` |
-| AI Gateway | `/api/agent`, `/api/prospects/enrich`, `generateObject` patterns |
-| Prefills | `src/lib/aiAssistPrefill.ts` (coach drafts — **not** Product Outreach card emails) |
-| Sender | `resolveStaffOutreachSenderNames` |
+| Artifact    | Location                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------- |
+| Renderer    | `renderOgrProductOutreachEmail` — greeting, intro, card, closing, signature, footer                     |
+| Defaults    | `OGR_PRODUCT_EMAIL_DEFAULT_INTRO`, `OGR_PRODUCT_EMAIL_DEFAULT_CLOSING`, `defaultOgrProductEmailSubject` |
+| Card        | `renderOgrProductEmailCard` (View Details + View Catalog)                                               |
+| Limits      | `src/lib/ogrProductEmailLimits.ts` (`OGR_PRODUCT_EMAIL_MAX_PROSE`, etc.)                                |
+| Composer UI | `src/components/OgrProductEmailComposerModal.tsx`                                                       |
+| Drawer      | `src/components/ProductDetailDrawer.tsx`                                                                |
+| AI Gateway  | `/api/agent`, `/api/prospects/enrich`, `generateObject` patterns                                        |
+| Prefills    | `src/lib/aiAssistPrefill.ts` (coach drafts — **not** Product Outreach card emails)                      |
+| Sender      | `resolveStaffOutreachSenderNames`                                                                       |
 
 Subject format already matches Epic contract: `Old Guys Rule — [Line Item Name]`.
 
@@ -68,11 +68,11 @@ Preview HTML may call `renderOgrProductOutreachEmail` with a placeholder signatu
 
 ## Server / API changes
 
-| Endpoint / job step | Behavior |
-|---------------------|----------|
+| Endpoint / job step            | Behavior                                                                                                  |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------- |
 | `generateProductOutreachDraft` | Staff or nightly runner; eligibility already applied; `generateObject` → validate length → Phase 0 insert |
-| Preview | Optional render-only without save |
-| Batch generate | Used by Phase 5; Phase 2 should expose single + batch |
+| Preview                        | Optional render-only without save                                                                         |
+| Batch generate                 | Used by Phase 5; Phase 2 should expose single + batch                                                     |
 
 Use Vercel AI Gateway + structured output (Zod), same secret boundary as enrich APIs (`AI_GATEWAY_API_KEY` server-only).
 
@@ -82,12 +82,12 @@ Rate-limit batch generation; never import `resend` in generation module.
 
 ## UI changes
 
-| Surface | Change |
-|---------|--------|
-| Draft review | Composer-like modal prefilled from draft; Send = approve-and-send |
-| Line Sheet | Agent draft badge distinct from engagement badges (`CatalogTab.tsx`) |
-| Product history | Show drafts + origin |
-| Optional | “Regenerate intro” staff action |
+| Surface         | Change                                                               |
+| --------------- | -------------------------------------------------------------------- |
+| Draft review    | Composer-like modal prefilled from draft; Send = approve-and-send    |
+| Line Sheet      | Agent draft badge distinct from engagement badges (`CatalogTab.tsx`) |
+| Product history | Show drafts + origin                                                 |
+| Optional        | “Regenerate intro” staff action                                      |
 
 Do not place draft state into `product_outreach_engagement_seen`.
 
@@ -179,13 +179,13 @@ Do not place draft state into `product_outreach_engagement_seen`.
 
 ## Risks / edge cases
 
-| Risk | Mitigation |
-|------|------------|
-| Model invents pricing | System prompt + post-filter for currency patterns |
-| Empty tagline / thin prospect context | Fall back to defaults; still save draft for staff edit |
-| Signature name at draft time vs send time | Resolve at send from authenticated staff |
-| Over-long intro | Enforce max prose; prefer regenerate once |
-| Staff sends as different user than nightly author | Expected; From = sender |
+| Risk                                              | Mitigation                                             |
+| ------------------------------------------------- | ------------------------------------------------------ |
+| Model invents pricing                             | System prompt + post-filter for currency patterns      |
+| Empty tagline / thin prospect context             | Fall back to defaults; still save draft for staff edit |
+| Signature name at draft time vs send time         | Resolve at send from authenticated staff               |
+| Over-long intro                                   | Enforce max prose; prefer regenerate once              |
+| Staff sends as different user than nightly author | Expected; From = sender                                |
 
 ---
 

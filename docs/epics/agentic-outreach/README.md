@@ -51,18 +51,18 @@ Line Sheet → product_outreach_engagement_seen (Opened/Clicked badges)
 
 Key live artifacts:
 
-| Area | Location |
-|------|----------|
-| Ledger | `system_messages`, `system_message_events` |
-| Origin today | `manual_product_email` only (CHECK) |
-| Status allowlist | includes `draft` / `queued` / `scheduled` but app only inserts `sent` |
-| Renderer | `src/lib/ogrProductOutreachEmail.ts`, `src/lib/ogrProductEmailCard.ts` |
-| Send | `src/lib/sendOgrProductOutreachEmail.ts` |
-| Staff API | `src/pages/api/staff/ogr-product-email.ts` |
-| CRM | `prospects` (status flip to Active Account), `account_contacts` |
-| Convert | `src/lib/convertToActiveAccount.ts` → `converted_at` |
-| Ranking | `public_sort_order` → sales volume rank; `BEST_SELLER_BADGE_MAX_RANK = 32` |
-| AI today | `/api/agent`, enrich/research endpoints, Vercel AI Gateway — no outreach drafts |
+| Area             | Location                                                                        |
+| ---------------- | ------------------------------------------------------------------------------- |
+| Ledger           | `system_messages`, `system_message_events`                                      |
+| Origin today     | `manual_product_email` only (CHECK)                                             |
+| Status allowlist | includes `draft` / `queued` / `scheduled` but app only inserts `sent`           |
+| Renderer         | `src/lib/ogrProductOutreachEmail.ts`, `src/lib/ogrProductEmailCard.ts`          |
+| Send             | `src/lib/sendOgrProductOutreachEmail.ts`                                        |
+| Staff API        | `src/pages/api/staff/ogr-product-email.ts`                                      |
+| CRM              | `prospects` (status flip to Active Account), `account_contacts`                 |
+| Convert          | `src/lib/convertToActiveAccount.ts` → `converted_at`                            |
+| Ranking          | `public_sort_order` → sales volume rank; `BEST_SELLER_BADGE_MAX_RANK = 32`      |
+| AI today         | `/api/agent`, enrich/research endpoints, Vercel AI Gateway — no outreach drafts |
 
 This Epic **extends** that spine. It does not create a parallel mail system.
 
@@ -114,12 +114,12 @@ flowchart TD
 
 ## 4. Human-review-first operating model
 
-| Actor | May do | Must not do |
-|-------|--------|-------------|
-| Agent / nightly job | Select, draft, queue for review, brief | Call Resend; mark `sent`; auto-dispatch |
-| Staff | Edit draft, approve, send, call, convert | Bypass eligibility when approving agent batch (warn OK; hard-block on suppression) |
-| System Message ledger | Own all Product Outreach lifecycle | Merge with Gmail threads |
-| Resend | Transport + webhook engagement for Product Outreach only | Be invoked from agent tools |
+| Actor                 | May do                                                   | Must not do                                                                        |
+| --------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Agent / nightly job   | Select, draft, queue for review, brief                   | Call Resend; mark `sent`; auto-dispatch                                            |
+| Staff                 | Edit draft, approve, send, call, convert                 | Bypass eligibility when approving agent batch (warn OK; hard-block on suppression) |
+| System Message ledger | Own all Product Outreach lifecycle                       | Merge with Gmail threads                                                           |
+| Resend                | Transport + webhook engagement for Product Outreach only | Be invoked from agent tools                                                        |
 
 Draft → Review → Send is the only send path for agent-created outreach in this Epic.
 
@@ -129,16 +129,16 @@ Draft → Review → Send is the only send path for agent-created outreach in th
 
 Agent-generated outreach **must** use:
 
-| Contract item | Requirement |
-|---------------|-------------|
-| `message_type` | `product_outreach` |
-| `origin` | Distinct agent origin (e.g. `agent_product_email`) — not `manual_product_email` |
-| Renderer / card | Existing `renderOgrProductOutreachEmail` + `renderOgrProductEmailCard` |
-| Review / send | Existing staff review + shared send helpers / staff send API |
-| Transport | Existing `sendOgrProductOutreachEmail` (Resend) |
-| Ledger | `system_messages` + `system_message_events` |
-| Tracking | Existing Resend webhook path |
-| Agent → Resend | **Forbidden** |
+| Contract item   | Requirement                                                                     |
+| --------------- | ------------------------------------------------------------------------------- |
+| `message_type`  | `product_outreach`                                                              |
+| `origin`        | Distinct agent origin (e.g. `agent_product_email`) — not `manual_product_email` |
+| Renderer / card | Existing `renderOgrProductOutreachEmail` + `renderOgrProductEmailCard`          |
+| Review / send   | Existing staff review + shared send helpers / staff send API                    |
+| Transport       | Existing `sendOgrProductOutreachEmail` (Resend)                                 |
+| Ledger          | `system_messages` + `system_message_events`                                     |
+| Tracking        | Existing Resend webhook path                                                    |
+| Agent → Resend  | **Forbidden**                                                                   |
 
 **Email structure**
 
@@ -203,11 +203,11 @@ Deterministic filter first; AI only chooses among the filtered pool.
 
 **Success hierarchy**
 
-| Tier | Signals | Meaning |
-|------|---------|---------|
-| **Attention** | Opens, clicks | Message noticed |
-| **Intent** | Warm / Hot, reply (if attributable), call | Worth human time |
-| **Conversion** | Prospect → Active Account | Primary success |
+| Tier           | Signals                                   | Meaning          |
+| -------------- | ----------------------------------------- | ---------------- |
+| **Attention**  | Opens, clicks                             | Message noticed  |
+| **Intent**     | Warm / Hot, reply (if attributable), call | Worth human time |
+| **Conversion** | Prospect → Active Account                 | Primary success  |
 
 ---
 
@@ -304,14 +304,14 @@ Preserve across all phases:
 
 ## 15. Phase dependency map
 
-| Phase | Document | Depends on | Delivers |
-|-------|----------|------------|----------|
-| **0** | [phase-0-foundations.md](./phase-0-foundations.md) | Live Product Outreach | Agent drafts, origin, persist intro/closing, approve→send |
-| **1** | [phase-1-eligibility-selection.md](./phase-1-eligibility-selection.md) | Phase 0 | Eligibility, ranking, product pool, deterministic selection |
-| **2** | [phase-2-draft-generation.md](./phase-2-draft-generation.md) | Phase 0–1 | AI intro/closing, save drafts, review workflow, draft badge |
-| **3** | [phase-3-engagement-qualification.md](./phase-3-engagement-qualification.md) | Phase 0 (+ sends from 2) | Prospect engagement rollup, Cold/Warm/Hot/Call Today |
-| **4** | [phase-4-goals-attribution-learning.md](./phase-4-goals-attribution-learning.md) | Phase 0–3 | Goal, pace, attribution, performance learning |
-| **5** | [phase-5-nightly-briefing.md](./phase-5-nightly-briefing.md) | Phase 0–4 | Nightly orchestration, Daily Agent Briefing |
+| Phase | Document                                                                         | Depends on               | Delivers                                                    |
+| ----- | -------------------------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------- |
+| **0** | [phase-0-foundations.md](./phase-0-foundations.md)                               | Live Product Outreach    | Agent drafts, origin, persist intro/closing, approve→send   |
+| **1** | [phase-1-eligibility-selection.md](./phase-1-eligibility-selection.md)           | Phase 0                  | Eligibility, ranking, product pool, deterministic selection |
+| **2** | [phase-2-draft-generation.md](./phase-2-draft-generation.md)                     | Phase 0–1                | AI intro/closing, save drafts, review workflow, draft badge |
+| **3** | [phase-3-engagement-qualification.md](./phase-3-engagement-qualification.md)     | Phase 0 (+ sends from 2) | Prospect engagement rollup, Cold/Warm/Hot/Call Today        |
+| **4** | [phase-4-goals-attribution-learning.md](./phase-4-goals-attribution-learning.md) | Phase 0–3                | Goal, pace, attribution, performance learning               |
+| **5** | [phase-5-nightly-briefing.md](./phase-5-nightly-briefing.md)                     | Phase 0–4                | Nightly orchestration, Daily Agent Briefing                 |
 
 Phases 3 and 4 can start design in parallel after Phase 0 lands CRM-linked sends, but Phase 5 requires 1–4 behaviors to be real.
 
@@ -348,15 +348,15 @@ Until that Epic ships, every agent-created Product Outreach email requires expli
 
 ## 17. Document index
 
-| File | Purpose |
-|------|---------|
-| [README.md](./README.md) | Master Epic contract (this file) |
-| [phase-0-foundations.md](./phase-0-foundations.md) | Drafts, origin, approve/send |
-| [phase-1-eligibility-selection.md](./phase-1-eligibility-selection.md) | Who/what to outreach |
-| [phase-2-draft-generation.md](./phase-2-draft-generation.md) | AI drafts + human review |
-| [phase-3-engagement-qualification.md](./phase-3-engagement-qualification.md) | Warm/Hot/Call Today |
-| [phase-4-goals-attribution-learning.md](./phase-4-goals-attribution-learning.md) | Goals, pace, learning |
-| [phase-5-nightly-briefing.md](./phase-5-nightly-briefing.md) | Cron + morning briefing |
+| File                                                                             | Purpose                          |
+| -------------------------------------------------------------------------------- | -------------------------------- |
+| [README.md](./README.md)                                                         | Master Epic contract (this file) |
+| [phase-0-foundations.md](./phase-0-foundations.md)                               | Drafts, origin, approve/send     |
+| [phase-1-eligibility-selection.md](./phase-1-eligibility-selection.md)           | Who/what to outreach             |
+| [phase-2-draft-generation.md](./phase-2-draft-generation.md)                     | AI drafts + human review         |
+| [phase-3-engagement-qualification.md](./phase-3-engagement-qualification.md)     | Warm/Hot/Call Today              |
+| [phase-4-goals-attribution-learning.md](./phase-4-goals-attribution-learning.md) | Goals, pace, learning            |
+| [phase-5-nightly-briefing.md](./phase-5-nightly-briefing.md)                     | Cron + morning briefing          |
 
 ---
 

@@ -42,7 +42,12 @@ function fixture(partial: Partial<PublicOgrProduct> = {}): PublicOgrProduct {
 
 function renderCard(
   presentation: ReturnType<typeof buildPublicProductPresentation>,
-  options: { href?: string; catalogHref?: string; imageUrl?: string | null; ctaLabel?: string } = {},
+  options: {
+    href?: string;
+    catalogHref?: string;
+    imageUrl?: string | null;
+    ctaLabel?: string;
+  } = {},
 ) {
   return renderOgrProductEmailCard(presentation, {
     href: options.href ?? HREF,

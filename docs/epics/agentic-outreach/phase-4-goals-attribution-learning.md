@@ -28,15 +28,15 @@ Without attribution, adaptive volume and channel rotation cannot be honest.
 
 ## Current live-code foundation
 
-| Artifact | Location |
-|----------|----------|
-| Convert | `src/lib/convertToActiveAccount.ts` — sets `account_status = active_account`, `converted_at` |
-| UI | `ConvertAccountModal.tsx`, conversion call outcomes in `callOutcomes.ts` |
-| Orders | optional initial `orders` row on convert |
-| Outreach ledger | `system_messages` with `prospect_id`, `catalog_item_id`, engagement |
-| Lead states | Phase 3 framework |
-| Settings today | `catalog_settings` (pricing landed rates) — **do not overload** for sales goals |
-| Dashboard | `src/components/tabs/DashboardTab.tsx` — calls, reach, PMF, Closed PO — no date window |
+| Artifact        | Location                                                                                     |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| Convert         | `src/lib/convertToActiveAccount.ts` — sets `account_status = active_account`, `converted_at` |
+| UI              | `ConvertAccountModal.tsx`, conversion call outcomes in `callOutcomes.ts`                     |
+| Orders          | optional initial `orders` row on convert                                                     |
+| Outreach ledger | `system_messages` with `prospect_id`, `catalog_item_id`, engagement                          |
+| Lead states     | Phase 3 framework                                                                            |
+| Settings today  | `catalog_settings` (pricing landed rates) — **do not overload** for sales goals              |
+| Dashboard       | `src/components/tabs/DashboardTab.tsx` — calls, reach, PMF, Closed PO — no date window       |
 
 ---
 
@@ -50,14 +50,14 @@ Without attribution, adaptive volume and channel rotation cannot be honest.
 
 ### Metrics
 
-| Metric | Definition sketch |
-|--------|-------------------|
-| Outreach sent | Count `product_outreach` with `sent_at` in window (manual + agent origins) |
-| New accounts opened MTD | Prospects with `converted_at` in month (and status active) |
-| Projected attainment | Extrapolate from MTD pace vs remaining days |
-| Planning conversion assumption | Bootstrap rate until enough attributed conversions |
-| Actual outreach→account conversion | Attributed conversions / attributed outreach (define cohort window) |
-| Recommended daily outreach pace | f(goal remaining, days left, conversion rate) with smoothing + minimum-data floor |
+| Metric                             | Definition sketch                                                                 |
+| ---------------------------------- | --------------------------------------------------------------------------------- |
+| Outreach sent                      | Count `product_outreach` with `sent_at` in window (manual + agent origins)        |
+| New accounts opened MTD            | Prospects with `converted_at` in month (and status active)                        |
+| Projected attainment               | Extrapolate from MTD pace vs remaining days                                       |
+| Planning conversion assumption     | Bootstrap rate until enough attributed conversions                                |
+| Actual outreach→account conversion | Attributed conversions / attributed outreach (define cohort window)               |
+| Recommended daily outreach pace    | f(goal remaining, days left, conversion rate) with smoothing + minimum-data floor |
 
 ### Attribution (required for learning)
 
@@ -88,9 +88,9 @@ Loose “same month” joins without message linkage are **not** sufficient for 
 
 ### Leading vs primary
 
-| Tier | Examples |
-|------|----------|
-| Primary | Active Account conversion |
+| Tier    | Examples                                |
+| ------- | --------------------------------------- |
+| Primary | Active Account conversion               |
 | Leading | Opens, clicks, replies, Warm/Hot, calls |
 
 Pace optimization keys primarily off conversion; leading indicators inform confidence and Call Today, not vanity volume.
@@ -106,11 +106,11 @@ Pace optimization keys primarily off conversion; leading indicators inform confi
 
 ## Proposed data / schema changes
 
-| Change | Purpose |
-|--------|---------|
-| `outreach_goals` or staff `app_settings` row | Monthly target, selling-day calendar, planning assumption, smoothing params, Top-N, cooldown (may share with Phase 1) |
-| `account_conversion_attribution` (or columns on prospects) | Link convert → system_message(s); `attribution_model`, `attributed_at` |
-| Optional convert metadata | `converted_by`, `conversion_source` (`outreach` \| `call` \| `wholesale` \| `manual`) |
+| Change                                                     | Purpose                                                                                                               |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `outreach_goals` or staff `app_settings` row               | Monthly target, selling-day calendar, planning assumption, smoothing params, Top-N, cooldown (may share with Phase 1) |
+| `account_conversion_attribution` (or columns on prospects) | Link convert → system_message(s); `attribution_model`, `attributed_at`                                                |
+| Optional convert metadata                                  | `converted_by`, `conversion_source` (`outreach` \| `call` \| `wholesale` \| `manual`)                                 |
 
 Do not put goals in `catalog_settings`.
 
@@ -118,13 +118,13 @@ Do not put goals in `catalog_settings`.
 
 ## Server / API changes
 
-| Module | Responsibility |
-|--------|----------------|
-| Goal CRUD | Staff read/update monthly target + params |
-| `computeOutreachPace(...)` | Recommended sends/day |
-| `computeGoalProgress(...)` | MTD accounts, projection |
-| Attribution writer | Hook from convert flow and/or nightly reconciler |
-| Performance reports | Channel/product/fit/Warm-Hot slices for Phase 1/5 |
+| Module                     | Responsibility                                    |
+| -------------------------- | ------------------------------------------------- |
+| Goal CRUD                  | Staff read/update monthly target + params         |
+| `computeOutreachPace(...)` | Recommended sends/day                             |
+| `computeGoalProgress(...)` | MTD accounts, projection                          |
+| Attribution writer         | Hook from convert flow and/or nightly reconciler  |
+| Performance reports        | Channel/product/fit/Warm-Hot slices for Phase 1/5 |
 
 Extend `convertToActiveAccount` (or post-convert staff API) to record attribution without breaking existing convert UX.
 
@@ -132,12 +132,12 @@ Extend `convertToActiveAccount` (or post-convert staff API) to record attributio
 
 ## UI changes
 
-| Surface | Change |
-|---------|--------|
-| Settings or Account/Briefing admin | Edit monthly target + planning assumption |
-| Dashboard and/or Briefing | Goal MTD, projection, recommended pace |
-| Convert modal | Optional “linked outreach” confirmation |
-| Later | Simple performance table for channel/product |
+| Surface                            | Change                                       |
+| ---------------------------------- | -------------------------------------------- |
+| Settings or Account/Briefing admin | Edit monthly target + planning assumption    |
+| Dashboard and/or Briefing          | Goal MTD, projection, recommended pace       |
+| Convert modal                      | Optional “linked outreach” confirmation      |
+| Later                              | Simple performance table for channel/product |
 
 ---
 
@@ -223,13 +223,13 @@ Extend `convertToActiveAccount` (or post-convert staff API) to record attributio
 
 ## Risks / edge cases
 
-| Risk | Mitigation |
-|------|------------|
-| Convert without any outreach | `conversion_source = manual/call`; exclude from outreach conversion rate denominator carefully |
-| Multiple sends before convert | Document last-touch vs multi-credit rules |
-| Mid-month goal edit | Recalculate pace from remaining target |
-| Over-goal early | Pace may floor at minimum touches or zero — product choice |
-| Dual category on channel performance | Snapshot channel code at send time into payload/attribution |
+| Risk                                 | Mitigation                                                                                     |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Convert without any outreach         | `conversion_source = manual/call`; exclude from outreach conversion rate denominator carefully |
+| Multiple sends before convert        | Document last-touch vs multi-credit rules                                                      |
+| Mid-month goal edit                  | Recalculate pace from remaining target                                                         |
+| Over-goal early                      | Pace may floor at minimum touches or zero — product choice                                     |
+| Dual category on channel performance | Snapshot channel code at send time into payload/attribution                                    |
 
 ---
 
