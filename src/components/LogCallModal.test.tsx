@@ -34,8 +34,26 @@ const TEST_PROSPECTS: Prospect[] = [
   },
 ];
 
+vi.mock('@/lib/convertToActiveAccount', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/convertToActiveAccount')>(
+    '@/lib/convertToActiveAccount',
+  );
+  return {
+    ...actual,
+    convertToActiveAccount: (...args: unknown[]) => convertMock(...args),
+  };
+});
+
+vi.mock('@/lib/outreachAttribution', () => ({
+  listLinkedOutreachCandidates: vi.fn(async () => ({ ok: true, candidates: [] })),
+  recordConversionAttribution: vi.fn(async () => ({ ok: true, id: 'attr-1' })),
+}));
+
 vi.mock('@/lib/supabase', () => ({
   supabase: {
+    auth: {
+      getUser: async () => ({ data: { user: { id: 'user-1' } }, error: null }),
+    },
     from: (table: string) => {
       if (table === 'calls') {
         return {
@@ -55,16 +73,6 @@ vi.mock('@/lib/supabase', () => ({
     },
   },
 }));
-
-vi.mock('@/lib/convertToActiveAccount', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/convertToActiveAccount')>(
-    '@/lib/convertToActiveAccount',
-  );
-  return {
-    ...actual,
-    convertToActiveAccount: (...args: unknown[]) => convertMock(...args),
-  };
-});
 
 function ModalHarness({
   initialOpen = true,

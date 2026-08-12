@@ -34,6 +34,10 @@ vi.mock('@/lib/accountReorderSettings', () => ({
   upsertAccountReorderSettings: (...args: unknown[]) => upsertSettingsMock(...args),
 }));
 
+vi.mock('@/lib/outreachAttribution', () => ({
+  recordConversionAttribution: vi.fn(async () => ({ ok: true, id: 'attr-1' })),
+}));
+
 describe('isConversionOutcome', () => {
   it('matches Closed PO and Account Converted only', () => {
     expect(isConversionOutcome('Closed PO / Written Order')).toBe(true);
@@ -74,7 +78,7 @@ describe('convertToActiveAccount', () => {
       },
     });
 
-    expect(result).toEqual({ ok: true, alreadyActive: false });
+    expect(result).toEqual(expect.objectContaining({ ok: true, alreadyActive: false }));
     expect(updateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         account_status: 'active_account',
@@ -104,7 +108,7 @@ describe('convertToActiveAccount', () => {
       currentStatus: 'prospect',
     });
 
-    expect(result).toEqual({ ok: true, alreadyActive: false });
+    expect(result).toEqual(expect.objectContaining({ ok: true, alreadyActive: false }));
     expect(updateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         account_status: 'active_account',

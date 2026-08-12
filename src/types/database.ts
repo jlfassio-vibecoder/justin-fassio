@@ -15,6 +15,9 @@ export type ApparelSeason =
   'spring_summer' | 'fathers_day' | 'fall_winter' | 'holiday_christmas' | 'ats_in_season';
 export type OrderStatus = 'draft' | 'submitted' | 'fulfilled';
 export type AccountContactRole = 'buyer' | 'manager' | 'owner';
+export type ConversionSource = 'outreach' | 'call' | 'wholesale' | 'manual';
+export type AttributionModel = 'staff_confirmed' | 'last_touch_inferred' | 'none';
+export type SellingDayMode = 'weekdays';
 
 export interface Database {
   public: {
@@ -885,6 +888,132 @@ export interface Database {
           seasonal_cadence_tags?: string[];
           ai_reorder_notes?: string | null;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      outreach_goal_settings: {
+        Row: {
+          id: string;
+          monthly_target: number;
+          planning_conversion_rate: number;
+          min_attributed_conversions: number;
+          lookback_days: number;
+          last_touch_window_days: number;
+          smoothing_alpha: number;
+          measured_rate_floor: number;
+          measured_rate_cap: number;
+          pace_floor: number;
+          pace_cap: number;
+          business_timezone: string;
+          selling_day_mode: SellingDayMode;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          monthly_target?: number;
+          planning_conversion_rate?: number;
+          min_attributed_conversions?: number;
+          lookback_days?: number;
+          last_touch_window_days?: number;
+          smoothing_alpha?: number;
+          measured_rate_floor?: number;
+          measured_rate_cap?: number;
+          pace_floor?: number;
+          pace_cap?: number;
+          business_timezone?: string;
+          selling_day_mode?: SellingDayMode;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          monthly_target?: number;
+          planning_conversion_rate?: number;
+          min_attributed_conversions?: number;
+          lookback_days?: number;
+          last_touch_window_days?: number;
+          smoothing_alpha?: number;
+          measured_rate_floor?: number;
+          measured_rate_cap?: number;
+          pace_floor?: number;
+          pace_cap?: number;
+          business_timezone?: string;
+          selling_day_mode?: SellingDayMode;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [];
+      };
+      account_conversion_attribution: {
+        Row: {
+          id: string;
+          prospect_id: number;
+          converted_at: string;
+          converted_by: string | null;
+          conversion_source: ConversionSource;
+          attribution_model: AttributionModel;
+          attributed_system_message_id: string | null;
+          contributing_system_message_ids: string[];
+          catalog_item_id: string | null;
+          message_origin: string | null;
+          primary_channel: string | null;
+          priority: string | null;
+          fit_score: number | null;
+          product_fit: string | null;
+          channel_match: boolean | null;
+          lead_state: 'cold' | 'warm' | 'hot' | null;
+          lead_score: number | null;
+          rules_version: string | null;
+          snapshot: unknown;
+          attributed_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          prospect_id: number;
+          converted_at: string;
+          converted_by?: string | null;
+          conversion_source: ConversionSource;
+          attribution_model: AttributionModel;
+          attributed_system_message_id?: string | null;
+          contributing_system_message_ids?: string[];
+          catalog_item_id?: string | null;
+          message_origin?: string | null;
+          primary_channel?: string | null;
+          priority?: string | null;
+          fit_score?: number | null;
+          product_fit?: string | null;
+          channel_match?: boolean | null;
+          lead_state?: 'cold' | 'warm' | 'hot' | null;
+          lead_score?: number | null;
+          rules_version?: string | null;
+          snapshot?: unknown;
+          attributed_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          prospect_id?: number;
+          converted_at?: string;
+          converted_by?: string | null;
+          conversion_source?: ConversionSource;
+          attribution_model?: AttributionModel;
+          attributed_system_message_id?: string | null;
+          contributing_system_message_ids?: string[];
+          catalog_item_id?: string | null;
+          message_origin?: string | null;
+          primary_channel?: string | null;
+          priority?: string | null;
+          fit_score?: number | null;
+          product_fit?: string | null;
+          channel_match?: boolean | null;
+          lead_state?: 'cold' | 'warm' | 'hot' | null;
+          lead_score?: number | null;
+          rules_version?: string | null;
+          snapshot?: unknown;
+          attributed_at?: string;
+          created_at?: string;
         };
         Relationships: [];
       };
@@ -1810,6 +1939,13 @@ export type AccountReorderSettings =
   Database['public']['Tables']['account_reorder_settings']['Row'];
 export type AccountReorderSettingsInsert =
   Database['public']['Tables']['account_reorder_settings']['Insert'];
+export type OutreachGoalSettingsRow = Database['public']['Tables']['outreach_goal_settings']['Row'];
+export type OutreachGoalSettingsUpdate =
+  Database['public']['Tables']['outreach_goal_settings']['Update'];
+export type AccountConversionAttributionRow =
+  Database['public']['Tables']['account_conversion_attribution']['Row'];
+export type AccountConversionAttributionInsert =
+  Database['public']['Tables']['account_conversion_attribution']['Insert'];
 export type AccountContact = Database['public']['Tables']['account_contacts']['Row'];
 export type AccountContactInsert = Database['public']['Tables']['account_contacts']['Insert'];
 export type AccountContactUpdate = Database['public']['Tables']['account_contacts']['Update'];

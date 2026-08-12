@@ -9,6 +9,10 @@ import {
   type DashboardSummary,
 } from '@/lib/callAggregates';
 import { fetchCalls } from '@/lib/calls';
+import {
+  loadOutreachGoalDashboardSnapshot,
+  type OutreachGoalDashboardSnapshot,
+} from '@/lib/outreachGoalDashboard';
 import type { Prospect } from '@/lib/prospects';
 
 interface DashboardTabProps {
@@ -23,6 +27,8 @@ export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: Dashboar
   const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [goalSnapshot, setGoalSnapshot] = useState<OutreachGoalDashboardSnapshot | null>(null);
+  const [goalError, setGoalError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -30,16 +36,25 @@ export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: Dashboar
     async function load() {
       setLoading(true);
       setFetchError(null);
-      const { data, error } = await fetchCalls(500);
+      setGoalError(null);
+      const [{ data, error }, goals] = await Promise.all([
+        fetchCalls(500),
+        loadOutreachGoalDashboardSnapshot(),
+      ]);
 
       if (!active) return;
       if (error) {
         setSummary(emptySummary);
         setFetchError(error);
-        setLoading(false);
-        return;
+      } else {
+        setSummary(summarizeDashboard(data, prospects));
       }
-      setSummary(summarizeDashboard(data, prospects));
+      if (goals.ok) {
+        setGoalSnapshot(goals.snapshot);
+      } else {
+        setGoalSnapshot(null);
+        setGoalError(goals.error);
+      }
       setLoading(false);
     }
 
@@ -51,6 +66,10 @@ export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: Dashboar
 
   const { totalCalls, avgPmf, closedPoCount, pipelineValueCad, reachRatePct } = summary;
   const conversionPct = totalCalls > 0 ? Math.round((closedPoCount / totalCalls) * 100) : null;
+  const progress = goalSnapshot?.progress;
+  const pace = goalSnapshot?.pace;
+  const rate = goalSnapshot?.rate;
+  const performance = goalSnapshot?.performance;
 
   return (
     <section className="flex flex-col gap-5" data-screen-label="dashboard">
@@ -58,6 +77,107 @@ export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: Dashboar
       {fetchError && (
         <p className="text-accent-800 m-0 text-sm">Could not load calls: {fetchError}</p>
       )}
+      {goalError && (
+        <p className="text-accent-800 m-0 text-sm">Could not load account goals: {goalError}</p>
+      )}
+
+      <div>
+        <p className="text-ink/55 m-0 mb-2 text-[11px] tracking-wider uppercase">
+          New accounts (primary)
+        </p>
+        <p className="text-ink/60 m-0 mb-3 text-xs">
+          Primary KPI is Prospect → Active Account. Opens, clicks, Warm/Hot, and calls are leading
+          indicators — not the monthly goal.
+        </p>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+          <Card>
+            <CardKicker>Accounts opened MTD</CardKicker>
+            <CardTitle className="text-[28px]">
+              {progress != null ? `${progress.mtdAccounts} / ${progress.monthlyTarget}` : '—'}
+            </CardTitle>
+            <CardMeta>
+              {pace?.goalMet
+                ? 'Goal met — recommendation paused'
+                : progress != null
+                  ? `${progress.remainingGoal} remaining · ${progress.remainingSellingDays} selling days left`
+                  : 'Load goals to calculate'}
+            </CardMeta>
+          </Card>
+          <Card>
+            <CardKicker>Projected attainment</CardKicker>
+            <CardTitle className="text-[28px]">
+              {pace != null ? pace.projectedAttainment : '—'}
+            </CardTitle>
+            <CardMeta>
+              {pace?.monthEnded
+                ? 'Month ended'
+                : rate != null
+                  ? `Rate source: ${rate.rateSource === 'planning' ? 'planning assumption' : 'blended measured'}`
+                  : 'Awaiting data'}
+            </CardMeta>
+          </Card>
+          <Card>
+            <CardKicker>Recommended daily outreach</CardKicker>
+            <CardTitle className="text-[28px]">
+              {pace != null ? pace.recommendedDailySends : '—'}
+            </CardTitle>
+            <CardMeta>
+              {pace?.goalMet
+                ? 'Paused — over goal'
+                : progress != null && !progress.isSellingDay
+                  ? '0 today (non-selling day)'
+                  : 'Sends/day · staff still reviews & sends'}
+            </CardMeta>
+          </Card>
+        </div>
+      </div>
+
+      {performance && (performance.byChannel.length > 0 || performance.byLeadState.length > 0) ? (
+        <Card>
+          <CardTitle className="text-base">Learning inputs (attributed only)</CardTitle>
+          <p className="text-ink/60 m-0 mt-1 text-xs">
+            Channel and Warm/Hot conversion from attributed outreach — not wired into autonomous
+            targeting yet.
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <p className="text-[11px] tracking-wider uppercase opacity-60">By channel</p>
+              {performance.byChannel.length === 0 ? (
+                <p className="text-[13px] opacity-60">No attributed channel data yet.</p>
+              ) : (
+                <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-[13px]">
+                  {performance.byChannel.slice(0, 6).map((row) => (
+                    <li key={row.key} className="flex justify-between gap-2">
+                      <span>{row.label}</span>
+                      <span className="opacity-70">
+                        {row.attributedConversions}/{row.sends}
+                        {row.conversionRate != null
+                          ? ` · ${(row.conversionRate * 100).toFixed(1)}%`
+                          : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <p className="text-[11px] tracking-wider uppercase opacity-60">By lead state</p>
+              {performance.byLeadState.length === 0 ? (
+                <p className="text-[13px] opacity-60">No attributed lead-state data yet.</p>
+              ) : (
+                <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-[13px]">
+                  {performance.byLeadState.map((row) => (
+                    <li key={row.key} className="flex justify-between gap-2">
+                      <span>{row.label}</span>
+                      <span className="opacity-70">{row.attributedConversions} converts</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
         <Card>
@@ -81,7 +201,7 @@ export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: Dashboar
           <CardTitle className="text-[28px]">{closedPoCount}</CardTitle>
           <CardMeta>
             {conversionPct != null
-              ? `Conversion rate ${conversionPct}%`
+              ? `Call conversion rate ${conversionPct}% (leading)`
               : 'Conversion rate — awaiting data'}
           </CardMeta>
         </Card>

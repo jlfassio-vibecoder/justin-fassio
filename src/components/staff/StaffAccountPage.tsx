@@ -15,6 +15,7 @@ import {
   uploadStaffAvatar,
   validateStaffAvatarFile,
 } from '@/lib/staffAccount';
+import { OutreachGoalsSettingsCard } from '@/components/staff/OutreachGoalsSettingsCard';
 
 type SectionState = { busy: boolean; error: string | null; success: string | null };
 
@@ -149,6 +150,8 @@ export function StaffAccountPage() {
           Your display name is used on Product Emails you send.
         </p>
       </div>
+
+      <OutreachGoalsSettingsCard />
 
       <Card>
         <CardKicker>Profile</CardKicker>

@@ -58,6 +58,8 @@ export type ProductOutreachGenerationMeta = {
     productFit: 'channel_intersect' | 'global_fallback';
     exclusionsChecked: true;
   };
+  /** Phase 4: channel snapshot for attribution / learning. */
+  primaryChannel?: string | null;
   fallback: 'none' | 'defaults' | 'retry_shorten';
   introWordCount: number;
   closingWordCount: number;
@@ -91,7 +93,7 @@ export function buildProductOutreachPayload(
   };
 }
 
-function parseGenerationMeta(raw: unknown): ProductOutreachGenerationMeta | undefined {
+export function parseGenerationMeta(raw: unknown): ProductOutreachGenerationMeta | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const g = raw as Record<string, unknown>;
   if (typeof g.promptVersion !== 'string' || typeof g.model !== 'string') return undefined;
@@ -120,6 +122,9 @@ function parseGenerationMeta(raw: unknown): ProductOutreachGenerationMeta | unde
       productFit: r.productFit,
       exclusionsChecked: true,
     },
+    ...(typeof g.primaryChannel === 'string' || g.primaryChannel === null
+      ? { primaryChannel: g.primaryChannel }
+      : {}),
     fallback: g.fallback,
     introWordCount: g.introWordCount,
     closingWordCount: g.closingWordCount,

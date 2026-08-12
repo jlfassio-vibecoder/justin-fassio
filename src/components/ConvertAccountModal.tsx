@@ -1,4 +1,4 @@
-import { useState, type SubmitEvent } from 'react';
+import { useEffect, useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
 import { MentionTextarea } from '@/components/MentionTextarea';
 import { Button } from '@/components/ui/Button';
@@ -8,8 +8,13 @@ import { APPAREL_SEASON_LABELS, APPAREL_SEASONS } from '@/lib/apparelSeasons';
 import type { CatalogItem } from '@/lib/catalog';
 import { convertToActiveAccount } from '@/lib/convertToActiveAccount';
 import { resolveOgrLineId } from '@/lib/lines';
+import {
+  listLinkedOutreachCandidates,
+  type LinkedOutreachCandidate,
+} from '@/lib/outreachAttribution';
 import type { Prospect } from '@/lib/prospects';
-import type { ApparelSeason } from '@/types/database';
+import { supabase } from '@/lib/supabase';
+import type { ApparelSeason, ConversionSource } from '@/types/database';
 
 interface ConvertAccountModalProps {
   open: boolean;
@@ -17,20 +22,26 @@ interface ConvertAccountModalProps {
   /** Prefill estimated CAD (e.g. from Log Call order value). */
   prefillAmountCad?: number | null;
   catalog?: CatalogItem[];
+  /** Default conversion source — `call` when opened from Log Call. */
+  defaultConversionSource?: ConversionSource;
   onClose: () => void;
   onConverted?: () => void;
 }
+
+const NONE_VALUE = '__none__';
 
 function ConvertAccountForm({
   prospect,
   prefillAmountCad,
   catalog,
+  defaultConversionSource,
   onClose,
   onConverted,
 }: {
   prospect: Prospect;
   prefillAmountCad: number | null;
   catalog?: CatalogItem[];
+  defaultConversionSource: ConversionSource;
   onClose: () => void;
   onConverted?: () => void;
 }) {
@@ -41,6 +52,34 @@ function ConvertAccountForm({
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<LinkedOutreachCandidate[]>([]);
+  const [linkedMessageId, setLinkedMessageId] = useState<string>(NONE_VALUE);
+  const [conversionSource, setConversionSource] =
+    useState<ConversionSource>(defaultConversionSource);
+  const [candidatesLoading, setCandidatesLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setCandidatesLoading(true);
+      const result = await listLinkedOutreachCandidates({ prospectId: prospect.id });
+      if (cancelled) return;
+      if (result.ok && result.candidates.length > 0) {
+        setCandidates(result.candidates);
+        setLinkedMessageId(result.candidates[0]?.id ?? NONE_VALUE);
+        if (defaultConversionSource === 'manual') {
+          setConversionSource('outreach');
+        }
+      } else {
+        setCandidates([]);
+        setLinkedMessageId(NONE_VALUE);
+      }
+      setCandidatesLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [prospect.id, defaultConversionSource]);
 
   function resetAndClose() {
     setError(null);
@@ -66,6 +105,15 @@ function ConvertAccountForm({
       lineId = await resolveOgrLineId();
     }
 
+    const selectedId = linkedMessageId === NONE_VALUE ? null : linkedMessageId;
+    let source = conversionSource;
+    if (selectedId && source === 'manual') source = 'outreach';
+    if (!selectedId && source === 'outreach') source = 'manual';
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     const result = await convertToActiveAccount({
       accountId,
       currentStatus,
@@ -77,6 +125,11 @@ function ConvertAccountForm({
             lineId,
           }
         : undefined,
+      attribution: {
+        conversionSource: source,
+        staffSelectedMessageId: selectedId,
+        convertedBy: user?.id ?? null,
+      },
     });
 
     setBusy(false);
@@ -160,6 +213,73 @@ function ConvertAccountForm({
           />
         </Field>
 
+        <Field>
+          <FieldLabel>Conversion source</FieldLabel>
+          <Select
+            value={conversionSource}
+            onChange={(e) => setConversionSource(e.target.value as ConversionSource)}
+            disabled={busy}
+          >
+            <option value="outreach">Product outreach</option>
+            <option value="call">Call</option>
+            <option value="wholesale">Wholesale</option>
+            <option value="manual">Manual / other</option>
+          </Select>
+        </Field>
+
+        <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+          <legend className="text-ink/70 m-0 text-[11px] tracking-wide uppercase">
+            Linked outreach
+          </legend>
+          <p className="text-ink/60 m-0 text-xs">
+            Confirm which product outreach contributed when possible. Journey history is preserved
+            either way.
+          </p>
+          {candidatesLoading ? (
+            <p className="text-ink/50 m-0 text-xs">Loading outreach…</p>
+          ) : (
+            <div className="flex max-h-40 flex-col gap-1.5 overflow-auto">
+              <label className="text-ink flex items-start gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="linked-outreach"
+                  value={NONE_VALUE}
+                  checked={linkedMessageId === NONE_VALUE}
+                  onChange={() => setLinkedMessageId(NONE_VALUE)}
+                  disabled={busy}
+                  className="mt-1"
+                />
+                <span>None / not from outreach</span>
+              </label>
+              {candidates.map((c) => (
+                <label key={c.id} className="text-ink flex items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="linked-outreach"
+                    value={c.id}
+                    checked={linkedMessageId === c.id}
+                    onChange={() => setLinkedMessageId(c.id)}
+                    disabled={busy}
+                    className="mt-1"
+                  />
+                  <span>
+                    {(c.productName || c.productSku || 'Product outreach').trim()}
+                    <span className="text-ink/55">
+                      {' '}
+                      · {c.sentAt.slice(0, 10)} · {c.toEmail}
+                    </span>
+                  </span>
+                </label>
+              ))}
+              {candidates.length === 0 ? (
+                <p className="text-ink/50 m-0 text-xs">
+                  No recent product outreach for this account.
+                </p>
+              ) : null}
+            </div>
+          )}
+        </fieldset>
+
         {error ? (
           <p className="text-accent-800 m-0 text-sm" role="alert">
             {error}
@@ -192,6 +312,7 @@ export function ConvertAccountModal({
   prospect,
   prefillAmountCad = null,
   catalog,
+  defaultConversionSource = 'manual',
   onClose,
   onConverted,
 }: ConvertAccountModalProps) {
@@ -199,10 +320,11 @@ export function ConvertAccountModal({
 
   return (
     <ConvertAccountForm
-      key={`${prospect.id}-${prefillAmountCad ?? 'none'}`}
+      key={`${prospect.id}-${prefillAmountCad ?? 'none'}-${defaultConversionSource}`}
       prospect={prospect}
       prefillAmountCad={prefillAmountCad}
       catalog={catalog}
+      defaultConversionSource={defaultConversionSource}
       onClose={onClose}
       onConverted={onConverted}
     />

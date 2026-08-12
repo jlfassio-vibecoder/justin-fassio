@@ -1,8 +1,9 @@
 import { insertOrder } from '@/lib/orders';
 import { upsertAccountReorderSettings } from '@/lib/accountReorderSettings';
+import { recordConversionAttribution } from '@/lib/outreachAttribution';
 import { formatLocalIsoDate } from '@/lib/reorderCadence';
 import { supabase } from '@/lib/supabase';
-import type { AccountStatus, ApparelSeason } from '@/types/database';
+import type { AccountStatus, ApparelSeason, ConversionSource } from '@/types/database';
 
 export const CONVERSION_OUTCOMES = ['Closed PO / Written Order', 'Account Converted'] as const;
 
@@ -21,14 +22,24 @@ export interface ConvertInitialOrderInput {
   lineId?: string | null;
 }
 
+export interface ConvertAttributionInput {
+  conversionSource: ConversionSource;
+  /** Staff-selected system_message id, or null for None. */
+  staffSelectedMessageId?: string | null;
+  forceNone?: boolean;
+  convertedBy?: string | null;
+}
+
 export interface ConvertToActiveAccountInput {
   accountId: number;
   currentStatus: AccountStatus;
   initialOrder?: ConvertInitialOrderInput;
+  attribution?: ConvertAttributionInput;
 }
 
 export type ConvertToActiveAccountResult =
-  { ok: true; alreadyActive: boolean } | { ok: false; error: string };
+  | { ok: true; alreadyActive: boolean; convertedAt?: string; attributionError?: string }
+  | { ok: false; error: string };
 
 function todayIsoDate(): string {
   return formatLocalIsoDate(new Date());
@@ -37,7 +48,7 @@ function todayIsoDate(): string {
 /**
  * Promote a prospect to active_account, optionally logging an initial order.
  * Sequential client writes (no DB transaction) — a mid-step failure may leave
- * the prospect updated without an order/settings row.
+ * the prospect updated without an order/settings/attribution row.
  */
 export async function convertToActiveAccount(
   input: ConvertToActiveAccountInput,
@@ -90,7 +101,24 @@ export async function convertToActiveAccount(
     return { ok: false, error: settingsResult.error };
   }
 
-  return { ok: true, alreadyActive: false };
+  let attributionError: string | undefined;
+  const attr = input.attribution ?? {
+    conversionSource: 'manual' as const,
+    staffSelectedMessageId: null,
+  };
+  const attrResult = await recordConversionAttribution({
+    prospectId: input.accountId,
+    convertedAt: nowIso,
+    convertedBy: attr.convertedBy ?? null,
+    conversionSource: attr.conversionSource,
+    staffSelectedMessageId: attr.staffSelectedMessageId,
+    forceNone: attr.forceNone,
+  });
+  if (!attrResult.ok) {
+    attributionError = attrResult.error;
+  }
+
+  return { ok: true, alreadyActive: false, convertedAt: nowIso, attributionError };
 }
 
 export interface DemoteToProspectInput {
