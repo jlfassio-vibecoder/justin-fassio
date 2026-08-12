@@ -19,6 +19,7 @@ import type { AccountReorderSettingsRow } from '@/lib/accountReorderSettings';
 import { demoteToProspect } from '@/lib/convertToActiveAccount';
 import { primaryRetailChannelLabel, updateProspectTaxonomy, type Prospect } from '@/lib/prospects';
 import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
+import { OutreachLeadStateChip } from '@/components/OutreachLeadStateChip';
 import type { ApparelSeason } from '@/types/database';
 
 export interface AccountDetailSummary {
@@ -216,6 +217,7 @@ export function AccountDetailDrawer({
               {account.territoryName ? ` · ${account.territoryName}` : ''}
             </span>
           </div>
+          <OutreachLeadStateChip prospectId={account.id} />
 
           <section className="flex flex-col gap-2">
             <h3 className="font-heading m-0 text-base">CRM Retail Taxonomy</h3>
