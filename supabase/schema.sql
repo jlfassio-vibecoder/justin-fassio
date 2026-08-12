@@ -1638,9 +1638,8 @@ create table if not exists system_messages (
   id uuid primary key default gen_random_uuid(),
   message_type text not null
     check (message_type in ('product_outreach')),
-  -- Copilot suggestion ignored: keep origin allowlist narrow until agent/automation origins ship (avoids speculative values).
   origin text not null
-    check (origin in ('manual_product_email')),
+    check (origin in ('manual_product_email', 'agent_product_email')),
   status text not null
     check (status in (
       'draft',
@@ -1661,6 +1660,8 @@ create table if not exists system_messages (
   to_email text not null,
   to_name text,
   subject text not null default '',
+  intro_text text,
+  closing_text text,
   prospect_id integer references prospects (id) on delete set null,
   account_contact_id uuid references account_contacts (id) on delete set null,
   sent_by uuid references auth.users (id) on delete set null,
@@ -1703,6 +1704,10 @@ create index if not exists system_messages_prospect_sent_at_idx
 
 create index if not exists system_messages_status_created_at_idx
   on system_messages (status, created_at desc);
+
+create index if not exists system_messages_agent_origin_status_created_at_idx
+  on system_messages (status, created_at desc)
+  where origin = 'agent_product_email';
 
 create index if not exists system_messages_to_email_idx
   on system_messages (to_email);

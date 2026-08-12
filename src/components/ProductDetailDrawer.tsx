@@ -359,6 +359,14 @@ function ProductDetailDrawerInner({
   );
   const emailCardCopyTimerRef = useRef<number | null>(null);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailReviewDraft, setEmailReviewDraft] = useState<{
+    id: string;
+    to: string;
+    toName: string;
+    subject: string;
+    introText: string;
+    closingText: string;
+  } | null>(null);
   const [emailSendState, setEmailSendState] = useState<'idle' | 'sent'>('idle');
   const emailSendTimerRef = useRef<number | null>(null);
   const [emailHistoryReloadToken, setEmailHistoryReloadToken] = useState(0);
@@ -1781,7 +1789,10 @@ function ProductDetailDrawerInner({
                           ? 'Publish to send product email'
                           : undefined
                     }
-                    onClick={() => setEmailModalOpen(true)}
+                    onClick={() => {
+                      setEmailReviewDraft(null);
+                      setEmailModalOpen(true);
+                    }}
                   >
                     {emailSendState === 'sent' ? 'Email sent' : 'Email Product'}
                   </Button>
@@ -1796,6 +1807,17 @@ function ProductDetailDrawerInner({
               <ProductEmailHistory
                 key={`${item.id}-${emailHistoryReloadToken}`}
                 catalogItemId={item.id}
+                onReviewDraft={(historyItem) => {
+                  setEmailReviewDraft({
+                    id: historyItem.id,
+                    to: historyItem.toEmail,
+                    toName: historyItem.toName?.trim() || '',
+                    subject: historyItem.subject,
+                    introText: historyItem.introText ?? '',
+                    closingText: historyItem.closingText ?? '',
+                  });
+                  setEmailModalOpen(true);
+                }}
               />
             </div>
           </Section>
@@ -2005,7 +2027,10 @@ function ProductDetailDrawerInner({
       </aside>
       <OgrProductEmailComposerModal
         open={emailModalOpen}
-        onClose={() => setEmailModalOpen(false)}
+        onClose={() => {
+          setEmailModalOpen(false);
+          setEmailReviewDraft(null);
+        }}
         onSent={() => {
           setEmailSendState('sent');
           setEmailHistoryReloadToken((n) => n + 1);
@@ -2017,6 +2042,7 @@ function ProductDetailDrawerInner({
         productId={item.id}
         productName={draft.name.trim()}
         cardHtml={emailCardPreviewHtml}
+        draft={emailReviewDraft}
       />
     </>
   );

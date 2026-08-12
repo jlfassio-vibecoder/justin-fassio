@@ -1377,6 +1377,8 @@ export interface Database {
           to_email: string;
           to_name: string | null;
           subject: string;
+          intro_text: string | null;
+          closing_text: string | null;
           prospect_id: number | null;
           account_contact_id: string | null;
           sent_by: string | null;
@@ -1413,6 +1415,8 @@ export interface Database {
           to_email: string;
           to_name?: string | null;
           subject?: string;
+          intro_text?: string | null;
+          closing_text?: string | null;
           prospect_id?: number | null;
           account_contact_id?: string | null;
           sent_by?: string | null;
@@ -1449,6 +1453,8 @@ export interface Database {
           to_email?: string;
           to_name?: string | null;
           subject?: string;
+          intro_text?: string | null;
+          closing_text?: string | null;
           prospect_id?: number | null;
           account_contact_id?: string | null;
           sent_by?: string | null;

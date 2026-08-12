@@ -14,10 +14,12 @@ import {
   deriveProductEngagementAlerts,
   fetchProductEngagementAlerts,
   fetchProductOutreachHistory,
+  insertAgentProductOutreachDraft,
   insertProductOutreachSystemMessage,
   markProductEngagementSeen,
   matchUniqueAccountContactByEmail,
   normalizeSystemMessageEmail,
+  requireExplicitProductOutreachCrmAssociation,
   resolveProductOutreachCrmAssociation,
 } from '@/lib/systemMessages';
 
@@ -305,9 +307,8 @@ describe('fetchProductOutreachHistory', () => {
       'catalog_item_id',
       'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
     );
-    expect(chain.order).toHaveBeenCalledWith('sent_at', {
+    expect(chain.order).toHaveBeenCalledWith('created_at', {
       ascending: false,
-      nullsFirst: false,
     });
     expect(chain.limit).toHaveBeenCalledWith(50);
   });
@@ -321,9 +322,13 @@ describe('fetchProductOutreachHistory', () => {
           to_name: 'Sam',
           subject: 'Hello',
           status: 'sent',
+          origin: 'manual_product_email',
+          intro_text: null,
+          closing_text: null,
           sent_at: '2026-08-11T12:00:00.000Z',
           prospect_id: 42,
           account_contact_id: 'c1',
+          catalog_item_id: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
           created_at: '2026-08-11T12:00:00.000Z',
           open_count: 0,
           click_count: 0,
@@ -340,9 +345,13 @@ describe('fetchProductOutreachHistory', () => {
           to_name: null,
           subject: 'Hi',
           status: 'sent',
+          origin: 'manual_product_email',
+          intro_text: null,
+          closing_text: null,
           sent_at: '2026-08-10T12:00:00.000Z',
           prospect_id: null,
           account_contact_id: null,
+          catalog_item_id: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
           created_at: '2026-08-10T12:00:00.000Z',
           open_count: 1,
           click_count: 0,
@@ -386,9 +395,13 @@ describe('fetchProductOutreachHistory', () => {
         toName: 'Sam',
         subject: 'Hello',
         status: 'sent',
+        origin: 'manual_product_email',
+        introText: null,
+        closingText: null,
         sentAt: '2026-08-11T12:00:00.000Z',
         prospectId: 42,
         accountContactId: 'c1',
+        catalogItemId: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
         prospectName: 'Kelowna Golf',
         contactName: 'Sam Buyer',
         createdAt: '2026-08-11T12:00:00.000Z',
@@ -407,9 +420,13 @@ describe('fetchProductOutreachHistory', () => {
         toName: null,
         subject: 'Hi',
         status: 'sent',
+        origin: 'manual_product_email',
+        introText: null,
+        closingText: null,
         sentAt: '2026-08-10T12:00:00.000Z',
         prospectId: null,
         accountContactId: null,
+        catalogItemId: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
         prospectName: null,
         contactName: null,
         createdAt: '2026-08-10T12:00:00.000Z',
@@ -630,5 +647,111 @@ describe('markProductEngagementSeen', () => {
     const result = await markProductEngagementSeen('  ');
     expect(result).toEqual({ error: 'A catalog item id is required' });
     expect(fromMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('requireExplicitProductOutreachCrmAssociation', () => {
+  it('requires a contact that belongs to the prospect', async () => {
+    const client = mockClient({
+      accountContacts: {
+        eqMaybeSingle: { data: { id: 'c1', account_id: 42 }, error: null },
+      },
+    });
+    await expect(
+      requireExplicitProductOutreachCrmAssociation(client, {
+        prospectId: 42,
+        accountContactId: 'c1',
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      association: { prospectId: 42, accountContactId: 'c1' },
+    });
+  });
+
+  it('rejects a mismatched contact without soft-matching email', async () => {
+    const client = mockClient({
+      accountContacts: {
+        eqMaybeSingle: { data: { id: 'c1', account_id: 99 }, error: null },
+      },
+    });
+    await expect(
+      requireExplicitProductOutreachCrmAssociation(client, {
+        prospectId: 42,
+        accountContactId: 'c1',
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: 'Account contact does not belong to the given prospect',
+    });
+  });
+});
+
+describe('insertAgentProductOutreachDraft', () => {
+  it('inserts agent_product_email draft without Resend id or sent_at', async () => {
+    let inserted: Record<string, unknown> | undefined;
+    const client = mockClient({
+      systemMessagesInsert: { data: { id: 'draft-1' }, error: null },
+      onInsert: (row) => {
+        inserted = row as Record<string, unknown>;
+      },
+    });
+
+    const result = await insertAgentProductOutreachDraft(client, {
+      catalogItemId: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      toEmail: 'Buyer@Example.com',
+      toName: 'Sam',
+      subject: 'Old Guys Rule — American Revival',
+      introText: 'Short intro',
+      closingText: 'Short closing',
+      prospectId: 42,
+      accountContactId: 'c1',
+      sentBy: 'user-1',
+      payload: {
+        sku: 'OG2513',
+        name: 'American Revival',
+        slug: 'american-revival',
+        productHref: 'https://justinfassio.com/old-guys-rule-wholesale/american-revival',
+      },
+    });
+
+    expect(result).toEqual({ ok: true, id: 'draft-1' });
+    expect(inserted).toEqual(
+      expect.objectContaining({
+        message_type: 'product_outreach',
+        origin: 'agent_product_email',
+        status: 'draft',
+        resend_email_id: null,
+        sent_at: null,
+        queued_at: null,
+        intro_text: 'Short intro',
+        closing_text: 'Short closing',
+        to_name: 'Sam',
+        to_email: 'buyer@example.com',
+        prospect_id: 42,
+        account_contact_id: 'c1',
+      }),
+    );
+  });
+
+  it('rejects blank toName', async () => {
+    const client = mockClient({});
+    const result = await insertAgentProductOutreachDraft(client, {
+      catalogItemId: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      toEmail: 'buyer@example.com',
+      toName: '   ',
+      subject: 'Old Guys Rule — American Revival',
+      introText: 'Intro',
+      closingText: 'Closing',
+      prospectId: 42,
+      accountContactId: 'c1',
+      sentBy: 'user-1',
+      payload: {
+        sku: 'OG2513',
+        name: 'American Revival',
+        slug: 'american-revival',
+        productHref: 'https://example.com/p',
+      },
+    });
+    expect(result).toEqual({ ok: false, error: 'toName is required' });
   });
 });

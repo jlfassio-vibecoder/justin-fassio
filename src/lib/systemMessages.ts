@@ -1,16 +1,20 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import type { Database, SystemMessageInsert } from '@/types/database';
+import type { Database, SystemMessageInsert, SystemMessageUpdate } from '@/types/database';
 
 type DbClient = SupabaseClient<Database>;
 
 export const SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH = 'product_outreach' as const;
 export const SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL = 'manual_product_email' as const;
+export const SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL = 'agent_product_email' as const;
 
 export const PRODUCT_OUTREACH_HISTORY_SELECT =
-  'id, to_email, to_name, subject, status, sent_at, prospect_id, account_contact_id, created_at, open_count, click_count, opened_at, clicked_at, delivered_at, bounced_at, failed_at, failure_reason' as const;
+  'id, to_email, to_name, subject, status, origin, intro_text, closing_text, sent_at, prospect_id, account_contact_id, catalog_item_id, created_at, open_count, click_count, opened_at, clicked_at, delivered_at, bounced_at, failed_at, failure_reason' as const;
 
 export const PRODUCT_OUTREACH_HISTORY_LIMIT = 50;
+
+export const AGENT_PRODUCT_OUTREACH_DRAFT_SELECT =
+  'id, message_type, origin, status, catalog_item_id, resend_email_id, to_email, to_name, subject, intro_text, closing_text, prospect_id, account_contact_id, sent_by, queued_at, sent_at, payload, created_at, updated_at' as const;
 
 export type ProductOutreachHistoryItem = {
   id: string;
@@ -18,9 +22,13 @@ export type ProductOutreachHistoryItem = {
   toName: string | null;
   subject: string;
   status: string;
+  origin: string;
+  introText: string | null;
+  closingText: string | null;
   sentAt: string | null;
   prospectId: number | null;
   accountContactId: string | null;
+  catalogItemId: string | null;
   prospectName: string | null;
   contactName: string | null;
   createdAt: string;
@@ -161,8 +169,360 @@ export async function resolveProductOutreachCrmAssociation(
   };
 }
 
+/**
+ * Require an explicit prospect + contact pair that belongs together.
+ * Used for agent drafts — never soft-matches by email.
+ */
+export async function requireExplicitProductOutreachCrmAssociation(
+  client: DbClient,
+  input: {
+    prospectId: number;
+    accountContactId: string;
+  },
+): Promise<ResolveProductOutreachCrmResult> {
+  return resolveProductOutreachCrmAssociation(client, {
+    prospectId: input.prospectId,
+    accountContactId: input.accountContactId,
+    toEmail: '',
+  });
+}
+
 export type InsertProductOutreachSystemMessageResult =
   { ok: true; id: string } | { ok: false; error: string };
+
+export type AgentProductOutreachDraftRow = {
+  id: string;
+  messageType: string;
+  origin: string;
+  status: string;
+  catalogItemId: string;
+  resendEmailId: string | null;
+  toEmail: string;
+  toName: string;
+  subject: string;
+  introText: string;
+  closingText: string;
+  prospectId: number;
+  accountContactId: string;
+  sentBy: string | null;
+  queuedAt: string | null;
+  sentAt: string | null;
+  payload: ProductOutreachSystemMessagePayload;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InsertAgentProductOutreachDraftInput = {
+  catalogItemId: string;
+  toEmail: string;
+  toName: string;
+  subject: string;
+  introText: string;
+  closingText: string;
+  prospectId: number;
+  accountContactId: string;
+  sentBy: string;
+  payload: ProductOutreachSystemMessagePayload;
+};
+
+export type UpdateAgentProductOutreachDraftInput = {
+  toEmail?: string;
+  toName?: string;
+  subject?: string;
+  introText?: string;
+  closingText?: string;
+};
+
+export type MarkAgentProductOutreachDraftSentInput = {
+  resendEmailId: string;
+  sentBy: string;
+  payload: ProductOutreachSystemMessagePayload;
+};
+
+function mapAgentDraftRow(row: {
+  id: string;
+  message_type: string;
+  origin: string;
+  status: string;
+  catalog_item_id: string | null;
+  resend_email_id: string | null;
+  to_email: string;
+  to_name: string | null;
+  subject: string;
+  intro_text: string | null;
+  closing_text: string | null;
+  prospect_id: number | null;
+  account_contact_id: string | null;
+  sent_by: string | null;
+  queued_at: string | null;
+  sent_at: string | null;
+  payload: unknown;
+  created_at: string;
+  updated_at: string;
+}): AgentProductOutreachDraftRow | null {
+  if (
+    !row.catalog_item_id ||
+    row.prospect_id == null ||
+    !row.account_contact_id ||
+    !row.to_name?.trim() ||
+    row.intro_text == null ||
+    row.closing_text == null
+  ) {
+    return null;
+  }
+
+  const payload =
+    row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
+      ? (row.payload as Record<string, unknown>)
+      : {};
+
+  return {
+    id: row.id,
+    messageType: row.message_type,
+    origin: row.origin,
+    status: row.status,
+    catalogItemId: row.catalog_item_id,
+    resendEmailId: row.resend_email_id,
+    toEmail: row.to_email,
+    toName: row.to_name.trim(),
+    subject: row.subject,
+    introText: row.intro_text,
+    closingText: row.closing_text,
+    prospectId: row.prospect_id,
+    accountContactId: row.account_contact_id,
+    sentBy: row.sent_by,
+    queuedAt: row.queued_at,
+    sentAt: row.sent_at,
+    payload: {
+      sku: typeof payload.sku === 'string' ? payload.sku : '',
+      name: typeof payload.name === 'string' ? payload.name : '',
+      slug: typeof payload.slug === 'string' ? payload.slug : '',
+      productHref: typeof payload.productHref === 'string' ? payload.productHref : '',
+      ...(typeof payload.from === 'string' ? { from: payload.from } : {}),
+    },
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function insertAgentProductOutreachDraft(
+  client: DbClient,
+  input: InsertAgentProductOutreachDraftInput,
+): Promise<InsertProductOutreachSystemMessageResult> {
+  const toName = input.toName.trim();
+  if (!toName) {
+    return { ok: false, error: 'toName is required' };
+  }
+
+  const row: SystemMessageInsert = {
+    message_type: SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH,
+    origin: SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL,
+    status: 'draft',
+    catalog_item_id: input.catalogItemId,
+    resend_email_id: null,
+    to_email: normalizeSystemMessageEmail(input.toEmail),
+    to_name: toName,
+    subject: input.subject,
+    intro_text: input.introText,
+    closing_text: input.closingText,
+    prospect_id: input.prospectId,
+    account_contact_id: input.accountContactId,
+    sent_by: input.sentBy,
+    queued_at: null,
+    sent_at: null,
+    payload: {
+      sku: input.payload.sku,
+      name: input.payload.name,
+      slug: input.payload.slug,
+      productHref: input.payload.productHref,
+      ...(input.payload.from ? { from: input.payload.from } : {}),
+    },
+  };
+
+  const { data, error } = await client.from('system_messages').insert(row).select('id').single();
+
+  if (error || !data?.id) {
+    return { ok: false, error: error?.message ?? 'Failed to insert agent draft' };
+  }
+
+  return { ok: true, id: data.id };
+}
+
+export async function getAgentProductOutreachDraftById(
+  client: DbClient,
+  id: string,
+): Promise<{ ok: true; draft: AgentProductOutreachDraftRow } | { ok: false; error: string }> {
+  const trimmed = id.trim();
+  if (!trimmed) {
+    return { ok: false, error: 'Draft id is required' };
+  }
+
+  const { data, error } = await client
+    .from('system_messages')
+    .select(AGENT_PRODUCT_OUTREACH_DRAFT_SELECT)
+    .eq('id', trimmed)
+    .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
+    .eq('origin', SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL)
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+  if (!data) {
+    return { ok: false, error: 'Draft not found' };
+  }
+
+  const draft = mapAgentDraftRow(data);
+  if (!draft) {
+    return { ok: false, error: 'Draft is missing required fields' };
+  }
+
+  return { ok: true, draft };
+}
+
+export async function listAgentProductOutreachDrafts(
+  client: DbClient,
+  input: {
+    catalogItemId?: string;
+    prospectId?: number;
+    status?: string;
+    limit?: number;
+  } = {},
+): Promise<{ ok: true; drafts: AgentProductOutreachDraftRow[] } | { ok: false; error: string }> {
+  const status = (input.status ?? 'draft').trim() || 'draft';
+  const limit = Math.min(Math.max(input.limit ?? PRODUCT_OUTREACH_HISTORY_LIMIT, 1), 100);
+
+  let query = client
+    .from('system_messages')
+    .select(AGENT_PRODUCT_OUTREACH_DRAFT_SELECT)
+    .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
+    .eq('origin', SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL)
+    .eq('status', status)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (input.catalogItemId?.trim()) {
+    query = query.eq('catalog_item_id', input.catalogItemId.trim());
+  }
+  if (input.prospectId != null) {
+    query = query.eq('prospect_id', input.prospectId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  const drafts = (data ?? [])
+    .map(mapAgentDraftRow)
+    .filter((row): row is AgentProductOutreachDraftRow => row != null);
+
+  return { ok: true, drafts };
+}
+
+export async function updateAgentProductOutreachDraft(
+  client: DbClient,
+  id: string,
+  input: UpdateAgentProductOutreachDraftInput,
+): Promise<{ ok: true; draft: AgentProductOutreachDraftRow } | { ok: false; error: string }> {
+  const existing = await getAgentProductOutreachDraftById(client, id);
+  if (!existing.ok) return existing;
+  if (existing.draft.status !== 'draft') {
+    return { ok: false, error: 'Only draft messages can be updated' };
+  }
+
+  const patch: SystemMessageUpdate = {};
+  if (input.toEmail != null) {
+    patch.to_email = normalizeSystemMessageEmail(input.toEmail);
+  }
+  if (input.toName != null) {
+    const toName = input.toName.trim();
+    if (!toName) return { ok: false, error: 'toName is required' };
+    patch.to_name = toName;
+  }
+  if (input.subject != null) {
+    patch.subject = input.subject;
+  }
+  if (input.introText != null) {
+    patch.intro_text = input.introText;
+  }
+  if (input.closingText != null) {
+    patch.closing_text = input.closingText;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return existing;
+  }
+
+  const { error } = await client.from('system_messages').update(patch).eq('id', existing.draft.id);
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return getAgentProductOutreachDraftById(client, existing.draft.id);
+}
+
+export async function cancelAgentProductOutreachDraft(
+  client: DbClient,
+  id: string,
+): Promise<{ ok: true; draft: AgentProductOutreachDraftRow } | { ok: false; error: string }> {
+  const existing = await getAgentProductOutreachDraftById(client, id);
+  if (!existing.ok) return existing;
+  if (existing.draft.status !== 'draft') {
+    return { ok: false, error: 'Only draft messages can be cancelled' };
+  }
+
+  const { error } = await client
+    .from('system_messages')
+    .update({ status: 'cancelled' })
+    .eq('id', existing.draft.id)
+    .eq('status', 'draft');
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return getAgentProductOutreachDraftById(client, existing.draft.id);
+}
+
+export async function markAgentProductOutreachDraftSent(
+  client: DbClient,
+  id: string,
+  input: MarkAgentProductOutreachDraftSentInput,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const existing = await getAgentProductOutreachDraftById(client, id);
+  if (!existing.ok) return existing;
+  if (existing.draft.status !== 'draft') {
+    return { ok: false, error: 'Only draft messages can be sent' };
+  }
+
+  const now = new Date().toISOString();
+  const { error } = await client
+    .from('system_messages')
+    .update({
+      status: 'sent',
+      resend_email_id: input.resendEmailId,
+      queued_at: now,
+      sent_at: now,
+      sent_by: input.sentBy,
+      payload: {
+        sku: input.payload.sku,
+        name: input.payload.name,
+        slug: input.payload.slug,
+        productHref: input.payload.productHref,
+        ...(input.payload.from ? { from: input.payload.from } : {}),
+      },
+    })
+    .eq('id', existing.draft.id)
+    .eq('status', 'draft')
+    .eq('origin', SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true, id: existing.draft.id };
+}
 
 export async function insertProductOutreachSystemMessage(
   client: DbClient,
@@ -207,9 +567,13 @@ function mapHistoryRow(row: {
   to_name: string | null;
   subject: string;
   status: string;
+  origin: string;
+  intro_text: string | null;
+  closing_text: string | null;
   sent_at: string | null;
   prospect_id: number | null;
   account_contact_id: string | null;
+  catalog_item_id: string | null;
   created_at: string;
   open_count: number;
   click_count: number;
@@ -226,9 +590,13 @@ function mapHistoryRow(row: {
     toName: row.to_name,
     subject: row.subject,
     status: row.status,
+    origin: row.origin,
+    introText: row.intro_text,
+    closingText: row.closing_text,
     sentAt: row.sent_at,
     prospectId: row.prospect_id,
     accountContactId: row.account_contact_id,
+    catalogItemId: row.catalog_item_id,
     prospectName: null,
     contactName: null,
     createdAt: row.created_at,
@@ -260,7 +628,7 @@ export async function fetchProductOutreachHistory(
     .select(PRODUCT_OUTREACH_HISTORY_SELECT)
     .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
     .eq('catalog_item_id', trimmedId)
-    .order('sent_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
     .limit(PRODUCT_OUTREACH_HISTORY_LIMIT);
 
   if (error) {

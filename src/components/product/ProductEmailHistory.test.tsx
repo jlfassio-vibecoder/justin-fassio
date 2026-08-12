@@ -23,9 +23,13 @@ const SAMPLE: ProductOutreachHistoryItem = {
   toName: 'Sam',
   subject: 'Old Guys Rule — American Revival',
   status: 'delivered',
+  origin: 'manual_product_email',
+  introText: null,
+  closingText: null,
   sentAt: '2026-08-11T15:00:00.000Z',
   prospectId: 42,
   accountContactId: 'c1',
+  catalogItemId: PRODUCT_ID,
   prospectName: 'Kelowna Golf',
   contactName: 'Sam Buyer',
   createdAt: '2026-08-11T15:00:00.000Z',
@@ -61,6 +65,7 @@ describe('ProductEmailHistory', () => {
       expect(screen.getByText('Sam · buyer@example.com')).toBeInTheDocument();
     });
     expect(screen.getByText(/Delivered/)).toBeInTheDocument();
+    expect(screen.getByText(/Manual/)).toBeInTheDocument();
     expect(screen.getByText(/Kelowna Golf · Sam Buyer/)).toBeInTheDocument();
     expect(screen.getByText('Opens 2 · Clicks 1')).toBeInTheDocument();
     expect(screen.getByText('Old Guys Rule — American Revival')).toBeInTheDocument();
@@ -90,5 +95,33 @@ describe('ProductEmailHistory', () => {
       expect(fetchProductOutreachHistoryMock).toHaveBeenCalledTimes(2);
       expect(screen.getByText('Sam · buyer@example.com')).toBeInTheDocument();
     });
+  });
+
+  it('renders Review for agent drafts when onReviewDraft is provided', async () => {
+    const onReviewDraft = vi.fn();
+    fetchProductOutreachHistoryMock.mockResolvedValue({
+      data: [
+        {
+          ...SAMPLE,
+          id: 'draft-1',
+          status: 'draft',
+          origin: 'agent_product_email',
+          introText: 'Intro',
+          closingText: 'Closing',
+          sentAt: null,
+          openCount: 0,
+          clickCount: 0,
+        },
+      ],
+      error: null,
+    });
+    render(<ProductEmailHistory catalogItemId={PRODUCT_ID} onReviewDraft={onReviewDraft} />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Review' })).toBeInTheDocument();
+    });
+    screen.getByRole('button', { name: 'Review' }).click();
+    expect(onReviewDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'draft-1', status: 'draft' }),
+    );
   });
 });
