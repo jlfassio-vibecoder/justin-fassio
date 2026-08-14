@@ -1,9 +1,9 @@
 # Phase 1 Plan: Multi-Line Schema Foundation
 
-**Status:** Implementation-ready documentation only. No migrations, schemas, application code, or production data have been changed by this document.  
+**Status:** Phase 1A implemented locally (additive schema + seeds). Phase 1B backfill/dual-write **not** done. Overall Phase 1 is incomplete.  
 **Epic:** [docs/epics/multi-line-multi-territory-crm.md](../epics/multi-line-multi-territory-crm.md)  
 **Current-state audit:** [docs/multi-line-territory-audit.md](../multi-line-territory-audit.md)  
-**Branch inspected:** `feature/multi-line-multi-territory-implementation` at `a1b2e57` (docs commit on `main` `879a24a`)  
+**Branch inspected (plan authorship):** `feature/multi-line-multi-territory-implementation` at `a1b2e57` (docs commit on `main` `879a24a`)  
 **Date:** 2026-08-14
 
 Settled business decisions in the epic **supersede** audit §8.4 / §14 items 1–6, 8, and 13 where they conflict. Live schema evidence below was re-verified against the repository; it matches the audit (no schema drift).
@@ -52,48 +52,48 @@ flowchart TD
 
 ### 2.1 Branch and types
 
-| Fact | Evidence |
-|------|----------|
-| HEAD is docs-only on main | `a1b2e57` on `feature/multi-line-multi-territory-implementation` |
-| Types are hand-written, not CLI-generated | [src/types/database.ts](../../src/types/database.ts) lines 1–7 |
-| No `FEATURE_*` flags in app today | `rg FEATURE_` under `src/` finds none for multi-line |
-| No `docs/plans/` before this plan | Created by this phase |
+| Fact                                      | Evidence                                                         |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| HEAD is docs-only on main                 | `a1b2e57` on `feature/multi-line-multi-territory-implementation` |
+| Types are hand-written, not CLI-generated | [src/types/database.ts](../../src/types/database.ts) lines 1–7   |
+| No `FEATURE_*` flags in app today         | `rg FEATURE_` under `src/` finds none for multi-line             |
+| No `docs/plans/` before this plan         | Created by this phase                                            |
 
 ### 2.2 `lines`
 
-| Fact | Evidence |
-|------|----------|
-| Table: uuid PK, `code` unique, `active` boolean, marketing fields | [supabase/schema.sql](../../supabase/schema.sql) lines 26–58 |
-| Seeds: `ogr` active, `bkg` inactive | Same; initial seed [20260802185342_initial_schema.sql](../../supabase/migrations/20260802185342_initial_schema.sql) |
-| Portfolio fields + public RPC | [20260806180000_line_portfolio_fields.sql](../../supabase/migrations/20260806180000_line_portfolio_fields.sql) — `get_public_active_lines()` filters `active = true` |
-| App hardcodes OGR | [src/lib/lines.ts](../../src/lib/lines.ts) `resolveOgrLineId`, explicit `LINE_SELECT` |
-| `LineKey` | [src/types/index.ts](../../src/types/index.ts) `'ogr' \| 'bkg'` |
+| Fact                                                              | Evidence                                                                                                                                                             |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Table: uuid PK, `code` unique, `active` boolean, marketing fields | [supabase/schema.sql](../../supabase/schema.sql) lines 26–58                                                                                                         |
+| Seeds: `ogr` active, `bkg` inactive                               | Same; initial seed [20260802185342_initial_schema.sql](../../supabase/migrations/20260802185342_initial_schema.sql)                                                  |
+| Portfolio fields + public RPC                                     | [20260806180000_line_portfolio_fields.sql](../../supabase/migrations/20260806180000_line_portfolio_fields.sql) — `get_public_active_lines()` filters `active = true` |
+| App hardcodes OGR                                                 | [src/lib/lines.ts](../../src/lib/lines.ts) `resolveOgrLineId`, explicit `LINE_SELECT`                                                                                |
+| `LineKey`                                                         | [src/types/index.ts](../../src/types/index.ts) `'ogr' \| 'bkg'`                                                                                                      |
 
 ### 2.3 `territories` and retailer geography
 
-| Fact | Evidence |
-|------|----------|
+| Fact                                  | Evidence                                                                                                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Five codes CHECK `bc\|ab\|ca\|or\|wa` | [supabase/schema.sql](../../supabase/schema.sql) lines 64–89; [20260806170000_territories.sql](../../supabase/migrations/20260806170000_territories.sql) |
-| `prospects.territory_id` NOT NULL FK | Same migration; backfilled all nulls to BC |
-| App defaults unknown province to BC | [src/lib/territories.ts](../../src/lib/territories.ts) `territoryCodeFromProvince` |
+| `prospects.territory_id` NOT NULL FK  | Same migration; backfilled all nulls to BC                                                                                                               |
+| App defaults unknown province to BC   | [src/lib/territories.ts](../../src/lib/territories.ts) `territoryCodeFromProvince`                                                                       |
 
 ### 2.4 `prospects` (identity + commercial blob)
 
-| Fact | Evidence |
-|------|----------|
+| Fact                                                              | Evidence                                                                                                                                                                             |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Integer PK; `account_status` `prospect\|active_account\|inactive` | [supabase/schema.sql](../../supabase/schema.sql) lines 352–390; [20260802270000_account_lifecycle_orders.sql](../../supabase/migrations/20260802270000_account_lifecycle_orders.sql) |
-| Planning columns | [20260804010000_prospects_planning_columns.sql](../../supabase/migrations/20260804010000_prospects_planning_columns.sql), taxonomy migrations |
-| Convert flips global status | [src/lib/convertToActiveAccount.ts](../../src/lib/convertToActiveAccount.ts) |
+| Planning columns                                                  | [20260804010000_prospects_planning_columns.sql](../../supabase/migrations/20260804010000_prospects_planning_columns.sql), taxonomy migrations                                        |
+| Convert flips global status                                       | [src/lib/convertToActiveAccount.ts](../../src/lib/convertToActiveAccount.ts)                                                                                                         |
 
 ### 2.5 Contacts, orders, calls, reorder
 
-| Table | Key columns | FK to prospects? | Evidence |
-|-------|-------------|------------------|----------|
-| `account_contacts` | `account_id`, role, `is_primary` | Yes, ON DELETE CASCADE | [20260803010000_account_contacts.sql](../../supabase/migrations/20260803010000_account_contacts.sql); partial unique one primary per account |
-| `orders` | `account_id`, nullable `line_id`, `total_amount_cad` | Yes | [20260802270000_account_lifecycle_orders.sql](../../supabase/migrations/20260802270000_account_lifecycle_orders.sql) |
-| `account_reorder_settings` | PK = `account_id` | Yes, CASCADE | Same |
-| `calls` | `prospect_id`, nullable `line_id`, `order_value_cad` | **No FK** | [supabase/schema.sql](../../supabase/schema.sql) lines 426–444; initial schema |
-| `prospect_updates` | `prospect_id` | **No FK** | Same lines 412–420 |
+| Table                      | Key columns                                          | FK to prospects?       | Evidence                                                                                                                                     |
+| -------------------------- | ---------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `account_contacts`         | `account_id`, role, `is_primary`                     | Yes, ON DELETE CASCADE | [20260803010000_account_contacts.sql](../../supabase/migrations/20260803010000_account_contacts.sql); partial unique one primary per account |
+| `orders`                   | `account_id`, nullable `line_id`, `total_amount_cad` | Yes                    | [20260802270000_account_lifecycle_orders.sql](../../supabase/migrations/20260802270000_account_lifecycle_orders.sql)                         |
+| `account_reorder_settings` | PK = `account_id`                                    | Yes, CASCADE           | Same                                                                                                                                         |
+| `calls`                    | `prospect_id`, nullable `line_id`, `order_value_cad` | **No FK**              | [supabase/schema.sql](../../supabase/schema.sql) lines 426–444; initial schema                                                               |
+| `prospect_updates`         | `prospect_id`                                        | **No FK**              | Same lines 412–420                                                                                                                           |
 
 `CALL_SELECT` omits `line_id` ([src/lib/calls.ts](../../src/lib/calls.ts)). Convert may stamp `orders.line_id` ([convertToActiveAccount.ts](../../src/lib/convertToActiveAccount.ts)).
 
@@ -150,38 +150,38 @@ All CRM tables use `is_approved_staff()` ([supabase/schema.sql](../../supabase/s
 
 ## 3. Confirmed business decisions
 
-| Decision | Value |
-|----------|-------|
-| `lines.status` enum | `prospective`, `confirmed`, `onboarding`, `active`, `paused`, `declined`, `terminated` |
+| Decision                             | Value                                                                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `lines.status` enum                  | `prospective`, `confirmed`, `onboarding`, `active`, `paused`, `declined`, `terminated`                            |
 | Acquisition stage (prospective only) | `identified`, `researching`, `contact_requested`, `conversation`, `evaluating`, `negotiating`, `decision_pending` |
-| Big Fish | Confirmed represented; `status = confirmed`; not prospective; do not invent commercial terms |
-| OGR territories | BC, OR, WA assigned; CA and AB **not** assigned |
-| OGR `rights_type` | `unconfirmed` until written exclusivity evidence |
-| `rights_type` enum | `exclusive`, `limited_exclusive`, `non_exclusive`, `unconfirmed` — never store unknown as `non_exclusive` |
-| Eagle Peak | Global Shade Co. dba Eagle Peak; code `eagle-peak`; USD; 10%; OR/WA assigned; norcal proposed; no BC/AB |
-| BKG | Keep `bkg`, `active = false`, map `status = paused`; do not reuse |
-| Prospective Lines | Owner/admin; research targets OK; no orders/commissions/outreach/public catalog/active KPIs |
-| Preserve `prospects.id` | Yes — used as `retailer_id` |
-| `lines.active` | Remains public-portfolio flag; Eagle Peak / Big Fish seed `active = false` |
+| Big Fish                             | Confirmed represented; `status = confirmed`; not prospective; do not invent commercial terms                      |
+| OGR territories                      | BC, OR, WA assigned; CA and AB **not** assigned                                                                   |
+| OGR `rights_type`                    | `unconfirmed` until written exclusivity evidence                                                                  |
+| `rights_type` enum                   | `exclusive`, `limited_exclusive`, `non_exclusive`, `unconfirmed` — never store unknown as `non_exclusive`         |
+| Eagle Peak                           | Global Shade Co. dba Eagle Peak; code `eagle-peak`; USD; 10%; OR/WA assigned; norcal proposed; no BC/AB           |
+| BKG                                  | Keep `bkg`, `active = false`, map `status = paused`; do not reuse                                                 |
+| Prospective Lines                    | Owner/admin; research targets OK; no orders/commissions/outreach/public catalog/active KPIs                       |
+| Preserve `prospects.id`              | Yes — used as `retailer_id`                                                                                       |
+| `lines.active`                       | Remains public-portfolio flag; Eagle Peak / Big Fish seed `active = false`                                        |
 
 ---
 
 ## 4. Remaining values that must stay null, proposed, or unconfirmed
 
-| Item | Phase 1 treatment |
-|------|-------------------|
-| Big Fish `principals.legal_name` | **NULL** (line display name only: `Big Fish`) |
-| Big Fish currency / commission / territories / catalog | **NULL / empty** |
-| Northern California county list | `norcal` territory `status = proposed`; no county children |
-| OGR exclusivity | All OGR assignments `rights_type = unconfirmed` |
-| OGR CA / AB rights | Geo rows exist; **no** `sales_line_territories` rows |
-| Eagle Peak BC / AB | No assignments |
-| `lines.productivity_thresholds` for OGR | **NULL** → productivity view returns `unclassified` |
-| Prospective line rows | **Zero** in Phase 1 seed (pipeline ships Phase 8) |
-| Eagle Peak / Big Fish / prospective `retailer_line_accounts` | **Zero** auto-created |
-| `retailer_line_targets` | Empty table; structure + triggers only |
-| FKs on `calls` / `prospect_updates` | Not added |
-| Rename `prospects` → `retailers` | Deferred to Phase 9 |
+| Item                                                         | Phase 1 treatment                                          |
+| ------------------------------------------------------------ | ---------------------------------------------------------- |
+| Big Fish `principals.legal_name`                             | **NULL** (line display name only: `Big Fish`)              |
+| Big Fish currency / commission / territories / catalog       | **NULL / empty**                                           |
+| Northern California county list                              | `norcal` territory `status = proposed`; no county children |
+| OGR exclusivity                                              | All OGR assignments `rights_type = unconfirmed`            |
+| OGR CA / AB rights                                           | Geo rows exist; **no** `sales_line_territories` rows       |
+| Eagle Peak BC / AB                                           | No assignments                                             |
+| `lines.productivity_thresholds` for OGR                      | **NULL** → productivity view returns `unclassified`        |
+| Prospective line rows                                        | **Zero** in Phase 1 seed (pipeline ships Phase 8)          |
+| Eagle Peak / Big Fish / prospective `retailer_line_accounts` | **Zero** auto-created                                      |
+| `retailer_line_targets`                                      | Empty table; structure + triggers only                     |
+| FKs on `calls` / `prospect_updates`                          | Not added                                                  |
+| Rename `prospects` → `retailers`                             | Deferred to Phase 9                                        |
 
 ---
 
@@ -189,28 +189,28 @@ All CRM tables use `is_approved_staff()` ([supabase/schema.sql](../../supabase/s
 
 ### 5.1 `principals` (new)
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | uuid PK `gen_random_uuid()` | |
-| `legal_name` | text nullable | Required when known; Big Fish may be null |
-| `dba_name` | text nullable | Eagle Peak: `Eagle Peak` |
-| `notes` | text nullable | |
-| `created_at` / `updated_at` | timestamptz NOT NULL default now() | `set_updated_at` trigger |
+| Column                      | Type                               | Notes                                     |
+| --------------------------- | ---------------------------------- | ----------------------------------------- |
+| `id`                        | uuid PK `gen_random_uuid()`        |                                           |
+| `legal_name`                | text nullable                      | Required when known; Big Fish may be null |
+| `dba_name`                  | text nullable                      | Eagle Peak: `Eagle Peak`                  |
+| `notes`                     | text nullable                      |                                           |
+| `created_at` / `updated_at` | timestamptz NOT NULL default now() | `set_updated_at` trigger                  |
 
 ### 5.2 Extend `lines`
 
 Keep existing columns. Add:
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `principal_id` | uuid NULL → `principals(id)` ON DELETE SET NULL | |
-| `status` | text NOT NULL default `'prospective'` | CHECK enum §3 |
-| `acquisition_stage` | text NULL | CHECK enum §3; required iff prospective |
-| `default_currency` | text NULL | ISO-4217 (`CAD`, `USD`) |
-| `commission_rate` | numeric(5,4) NULL | e.g. `0.1000` = 10% |
-| `effective_date` | date NULL | |
-| `termination_date` | date NULL | |
-| `productivity_thresholds` | jsonb NULL | Shape documented in §6 |
+| Column                    | Type                                            | Notes                                   |
+| ------------------------- | ----------------------------------------------- | --------------------------------------- |
+| `principal_id`            | uuid NULL → `principals(id)` ON DELETE SET NULL |                                         |
+| `status`                  | text NOT NULL default `'prospective'`           | CHECK enum §3                           |
+| `acquisition_stage`       | text NULL                                       | CHECK enum §3; required iff prospective |
+| `default_currency`        | text NULL                                       | ISO-4217 (`CAD`, `USD`)                 |
+| `commission_rate`         | numeric(5,4) NULL                               | e.g. `0.1000` = 10%                     |
+| `effective_date`          | date NULL                                       |                                         |
+| `termination_date`        | date NULL                                       |                                         |
+| `productivity_thresholds` | jsonb NULL                                      | Shape documented in §6                  |
 
 CHECK: `(status = 'prospective' AND acquisition_stage IS NOT NULL) OR (status <> 'prospective' AND acquisition_stage IS NULL)`.
 
@@ -218,81 +218,81 @@ Keep `active boolean` as public-portfolio flag (do not derive-drop in Phase 1).
 
 ### 5.3 Extend `territories`
 
-| Change | Detail |
-|--------|--------|
-| Drop | `territories_code_check` (five codes) |
-| Keep | `territories_country_code_check` (`CA`,`US`) for now; revisit if country-level rows need other codes |
-| Add `level` | text NOT NULL default `'province_state'` CHECK (`country\|province_state\|region\|county`) |
-| Add `parent_territory_id` | uuid NULL → `territories(id)` |
-| Add `status` | text NOT NULL default `'active'` CHECK (`active\|proposed`) |
-| Add `metadata` | jsonb NOT NULL default `'{}'` |
+| Change                    | Detail                                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Drop                      | `territories_code_check` (five codes)                                                                |
+| Keep                      | `territories_country_code_check` (`CA`,`US`) for now; revisit if country-level rows need other codes |
+| Add `level`               | text NOT NULL default `'province_state'` CHECK (`country\|province_state\|region\|county`)           |
+| Add `parent_territory_id` | uuid NULL → `territories(id)`                                                                        |
+| Add `status`              | text NOT NULL default `'active'` CHECK (`active\|proposed`)                                          |
+| Add `metadata`            | jsonb NOT NULL default `'{}'`                                                                        |
 
 Existing five rows: `level = province_state`, `status = active`, `parent_territory_id = null`.  
 Seed `norcal`: `level = region`, parent = `ca`, `status = proposed`.
 
 ### 5.4 `sales_line_territories` (new)
 
-| Column | Type |
-|--------|------|
-| `id` | uuid PK |
-| `sales_line_id` | uuid NOT NULL → `lines(id)` ON DELETE CASCADE |
-| `territory_id` | uuid NOT NULL → `territories(id)` |
-| `rights_type` | text NOT NULL CHECK (`exclusive\|limited_exclusive\|non_exclusive\|unconfirmed`) |
-| `status` | text NOT NULL CHECK (`proposed\|active\|expired\|disputed`) |
-| `effective_date` / `expiration_date` | date NULL |
-| `contract_source` | text NULL |
-| `restrictions` | jsonb NOT NULL default `'{}'` |
-| `notes` | text NULL |
-| `created_at` / `updated_at` | timestamptz |
+| Column                               | Type                                                                             |
+| ------------------------------------ | -------------------------------------------------------------------------------- |
+| `id`                                 | uuid PK                                                                          |
+| `sales_line_id`                      | uuid NOT NULL → `lines(id)` ON DELETE CASCADE                                    |
+| `territory_id`                       | uuid NOT NULL → `territories(id)`                                                |
+| `rights_type`                        | text NOT NULL CHECK (`exclusive\|limited_exclusive\|non_exclusive\|unconfirmed`) |
+| `status`                             | text NOT NULL CHECK (`proposed\|active\|expired\|disputed`)                      |
+| `effective_date` / `expiration_date` | date NULL                                                                        |
+| `contract_source`                    | text NULL                                                                        |
+| `restrictions`                       | jsonb NOT NULL default `'{}'`                                                    |
+| `notes`                              | text NULL                                                                        |
+| `created_at` / `updated_at`          | timestamptz                                                                      |
 
 ### 5.5 `retailer_line_accounts` (new)
 
-| Column | Type | Source |
-|--------|------|--------|
-| `id` | uuid PK | |
-| `retailer_id` | integer NOT NULL → `prospects(id)` ON DELETE CASCADE | Preserve identity id |
-| `sales_line_id` | uuid NOT NULL → `lines(id)` | |
-| `sales_line_territory_id` | uuid NULL | Composite FK with `sales_line_id` |
-| `relationship_status` | text NOT NULL | See §6 |
-| `converted_at` | timestamptz NULL | from `prospects` |
-| `initial_order_date` | timestamptz NULL | |
-| `notes` | text NULL | |
-| `fit` | text NULL | |
-| `fit_score` | smallint NULL | |
-| `ideal_opening_units` | integer NULL | |
-| `priority` | text NULL | |
-| `provisional_grade` | text NULL | |
-| `verification_status` | text NULL | |
-| `buyer_verified` | boolean NOT NULL default false | |
-| `apparel_capability` | text NULL | |
-| `existing_ogr` | text NULL | Keep name in Phase 1; rename later |
-| `qualification_status` | text NULL | |
-| `next_action` | text NULL | |
-| `source_note` | text NULL | |
-| `region` | text NULL | BC planning corridor (line-specific) |
-| `primary_district` | text NULL | |
-| `subterritory` | text NULL | |
-| `secondary_channels` | jsonb NOT NULL default `'[]'` | |
-| `retail_subchannels` | jsonb NOT NULL default `'[]'` | |
-| `venue_contexts` | jsonb NOT NULL default `'[]'` | |
-| `lifestyle_themes` | jsonb NOT NULL default `'[]'` | |
-| `retail_capabilities` | jsonb NOT NULL default `'[]'` | |
-| `backfill_review_reason` | text NULL | Set when territory ambiguous |
-| `created_at` / `updated_at` | timestamptz | |
+| Column                      | Type                                                 | Source                               |
+| --------------------------- | ---------------------------------------------------- | ------------------------------------ |
+| `id`                        | uuid PK                                              |                                      |
+| `retailer_id`               | integer NOT NULL → `prospects(id)` ON DELETE CASCADE | Preserve identity id                 |
+| `sales_line_id`             | uuid NOT NULL → `lines(id)`                          |                                      |
+| `sales_line_territory_id`   | uuid NULL                                            | Composite FK with `sales_line_id`    |
+| `relationship_status`       | text NOT NULL                                        | See §6                               |
+| `converted_at`              | timestamptz NULL                                     | from `prospects`                     |
+| `initial_order_date`        | timestamptz NULL                                     |                                      |
+| `notes`                     | text NULL                                            |                                      |
+| `fit`                       | text NULL                                            |                                      |
+| `fit_score`                 | smallint NULL                                        |                                      |
+| `ideal_opening_units`       | integer NULL                                         |                                      |
+| `priority`                  | text NULL                                            |                                      |
+| `provisional_grade`         | text NULL                                            |                                      |
+| `verification_status`       | text NULL                                            |                                      |
+| `buyer_verified`            | boolean NOT NULL default false                       |                                      |
+| `apparel_capability`        | text NULL                                            |                                      |
+| `existing_ogr`              | text NULL                                            | Keep name in Phase 1; rename later   |
+| `qualification_status`      | text NULL                                            |                                      |
+| `next_action`               | text NULL                                            |                                      |
+| `source_note`               | text NULL                                            |                                      |
+| `region`                    | text NULL                                            | BC planning corridor (line-specific) |
+| `primary_district`          | text NULL                                            |                                      |
+| `subterritory`              | text NULL                                            |                                      |
+| `secondary_channels`        | jsonb NOT NULL default `'[]'`                        |                                      |
+| `retail_subchannels`        | jsonb NOT NULL default `'[]'`                        |                                      |
+| `venue_contexts`            | jsonb NOT NULL default `'[]'`                        |                                      |
+| `lifestyle_themes`          | jsonb NOT NULL default `'[]'`                        |                                      |
+| `retail_capabilities`       | jsonb NOT NULL default `'[]'`                        |                                      |
+| `backfill_review_reason`    | text NULL                                            | Set when territory ambiguous         |
+| `created_at` / `updated_at` | timestamptz                                          |                                      |
 
 Do **not** store `activity_status` or `productivity_class` as mutable columns (see §6).
 
 ### 5.6 `retailer_line_contacts` (new)
 
-| Column | Type |
-|--------|------|
-| `id` | uuid PK |
-| `retailer_line_account_id` | uuid NOT NULL → `retailer_line_accounts(id)` ON DELETE CASCADE |
-| `account_contact_id` | uuid NOT NULL → `account_contacts(id)` ON DELETE CASCADE |
-| `role` | text NOT NULL CHECK (`buyer\|manager\|owner`) |
-| `is_primary` | boolean NOT NULL default false |
-| `notes` | text NULL |
-| `created_at` / `updated_at` | timestamptz |
+| Column                      | Type                                                           |
+| --------------------------- | -------------------------------------------------------------- |
+| `id`                        | uuid PK                                                        |
+| `retailer_line_account_id`  | uuid NOT NULL → `retailer_line_accounts(id)` ON DELETE CASCADE |
+| `account_contact_id`        | uuid NOT NULL → `account_contacts(id)` ON DELETE CASCADE       |
+| `role`                      | text NOT NULL CHECK (`buyer\|manager\|owner`)                  |
+| `is_primary`                | boolean NOT NULL default false                                 |
+| `notes`                     | text NULL                                                      |
+| `created_at` / `updated_at` | timestamptz                                                    |
 
 UNIQUE `(retailer_line_account_id, account_contact_id)`.
 
@@ -300,44 +300,44 @@ UNIQUE `(retailer_line_account_id, account_contact_id)`.
 
 Mirror `catalog_field_changes`:
 
-| Column | Type |
-|--------|------|
-| `id` | uuid PK |
-| `retailer_id` | integer NOT NULL → `prospects(id)` ON DELETE CASCADE |
-| `field_path` | text NOT NULL |
-| `old_value` / `new_value` | jsonb |
-| `source` | text NOT NULL default `'user'` CHECK (`user\|ai\|import\|calculated\|unknown`) |
-| `actor_id` | uuid NULL → `auth.users(id)` ON DELETE SET NULL |
-| `created_at` | timestamptz NOT NULL default now() |
+| Column                    | Type                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `id`                      | uuid PK                                                                        |
+| `retailer_id`             | integer NOT NULL → `prospects(id)` ON DELETE CASCADE                           |
+| `field_path`              | text NOT NULL                                                                  |
+| `old_value` / `new_value` | jsonb                                                                          |
+| `source`                  | text NOT NULL default `'user'` CHECK (`user\|ai\|import\|calculated\|unknown`) |
+| `actor_id`                | uuid NULL → `auth.users(id)` ON DELETE SET NULL                                |
+| `created_at`              | timestamptz NOT NULL default now()                                             |
 
 Phase 1 creates the table; writers land in Phase 4.
 
 ### 5.8 `retailer_line_targets` (new)
 
-| Column | Type |
-|--------|------|
-| `id` | uuid PK |
-| `retailer_id` | integer NOT NULL → `prospects(id)` ON DELETE CASCADE |
-| `sales_line_id` | uuid NOT NULL → `lines(id)` ON DELETE CASCADE |
-| `interest` | text NULL |
-| `fit_notes` | text NULL |
-| `suggested_geo` | text NULL |
-| `status` | text NOT NULL default `'watching'` CHECK (`watching\|shortlist\|dropped`) |
-| `created_at` / `updated_at` | timestamptz |
+| Column                      | Type                                                                      |
+| --------------------------- | ------------------------------------------------------------------------- |
+| `id`                        | uuid PK                                                                   |
+| `retailer_id`               | integer NOT NULL → `prospects(id)` ON DELETE CASCADE                      |
+| `sales_line_id`             | uuid NOT NULL → `lines(id)` ON DELETE CASCADE                             |
+| `interest`                  | text NULL                                                                 |
+| `fit_notes`                 | text NULL                                                                 |
+| `suggested_geo`             | text NULL                                                                 |
+| `status`                    | text NOT NULL default `'watching'` CHECK (`watching\|shortlist\|dropped`) |
+| `created_at` / `updated_at` | timestamptz                                                               |
 
 UNIQUE `(retailer_id, sales_line_id)`.
 
 ### 5.9 `migration_review_queue` (new)
 
-| Column | Type |
-|--------|------|
-| `id` | uuid PK |
-| `entity_type` | text NOT NULL | e.g. `prospect`, `order`, `call`, `system_message` |
-| `entity_id` | text NOT NULL | stringified id |
-| `reason` | text NOT NULL | |
-| `payload` | jsonb NOT NULL default `'{}'` | |
-| `resolved_at` | timestamptz NULL | |
-| `created_at` | timestamptz NOT NULL default now() |
+| Column        | Type                               |
+| ------------- | ---------------------------------- |
+| `id`          | uuid PK                            |
+| `entity_type` | text NOT NULL                      | e.g. `prospect`, `order`, `call`, `system_message` |
+| `entity_id`   | text NOT NULL                      | stringified id                                     |
+| `reason`      | text NOT NULL                      |                                                    |
+| `payload`     | jsonb NOT NULL default `'{}'`      |                                                    |
+| `resolved_at` | timestamptz NULL                   |                                                    |
+| `created_at`  | timestamptz NOT NULL default now() |
 
 ### 5.10 Nullable transitional FKs on operational records
 
@@ -361,15 +361,15 @@ Add `retailer_line_account_id uuid NULL → retailer_line_accounts(id) ON DELETE
 
 Keep `total_amount_cad`. Add:
 
-| Column | Type |
-|--------|------|
-| `original_amount` | numeric(12,2) NULL |
-| `original_currency` | text NULL |
-| `exchange_rate` | numeric(18,8) NULL |
-| `exchange_rate_date` | date NULL |
-| `converted_amount` | numeric(12,2) NULL |
-| `converted_currency` | text NULL |
-| `conversion_source` | text NULL |
+| Column               | Type               |
+| -------------------- | ------------------ |
+| `original_amount`    | numeric(12,2) NULL |
+| `original_currency`  | text NULL          |
+| `exchange_rate`      | numeric(18,8) NULL |
+| `exchange_rate_date` | date NULL          |
+| `converted_amount`   | numeric(12,2) NULL |
+| `converted_currency` | text NULL          |
+| `conversion_source`  | text NULL          |
 
 `order_date` remains the transaction date.
 
@@ -387,21 +387,21 @@ See §3. Defaults: new lines `status = 'prospective'` (safe); seeds override. OG
 
 `relationship_status`:
 
-| Value | Meaning |
-|-------|---------|
-| `prospect` | Not yet opened |
-| `qualified` | Qualified, not opened (unused in OGR backfill) |
-| `opened` | Opened account (maps from today's `active_account`) |
-| `inactive` | Inactive relationship |
-| `terminated` | Ended; excluded from partial unique |
+| Value        | Meaning                                             |
+| ------------ | --------------------------------------------------- |
+| `prospect`   | Not yet opened                                      |
+| `qualified`  | Qualified, not opened (unused in OGR backfill)      |
+| `opened`     | Opened account (maps from today's `active_account`) |
+| `inactive`   | Inactive relationship                               |
+| `terminated` | Ended; excluded from partial unique                 |
 
 **OGR map from `prospects.account_status`:**
 
-| Today | `relationship_status` |
-|-------|------------------------|
-| `prospect` | `prospect` |
-| `active_account` | `opened` |
-| `inactive` | `inactive` |
+| Today            | `relationship_status` |
+| ---------------- | --------------------- |
+| `prospect`       | `prospect`            |
+| `active_account` | `opened`              |
+| `inactive`       | `inactive`            |
 
 Do **not** overload relationship with activity or productivity.
 
@@ -443,15 +443,15 @@ NULL for all Phase 1 seeds.
 
 ### 7.1 Uniqueness
 
-| Constraint | Mechanism |
-|------------|-----------|
-| One operational line account per retailer × line | Partial unique index `UNIQUE (retailer_id, sales_line_id) WHERE relationship_status <> 'terminated'` |
-| One primary contact per line account | Partial unique index `UNIQUE (retailer_line_account_id) WHERE is_primary` on `retailer_line_contacts` |
-| Contact membership | `UNIQUE (retailer_line_account_id, account_contact_id)` |
-| Line × territory assignment | Partial unique `UNIQUE (sales_line_id, territory_id) WHERE status <> 'expired'` (or full unique if expired rows must be archived elsewhere — prefer partial) |
-| Composite FK support | `UNIQUE (id, sales_line_id)` on `sales_line_territories` |
-| Target uniqueness | `UNIQUE (retailer_id, sales_line_id)` on `retailer_line_targets` |
-| Principals | No uniqueness on name (legal names may collide across markets) |
+| Constraint                                       | Mechanism                                                                                                                                                    |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| One operational line account per retailer × line | Partial unique index `UNIQUE (retailer_id, sales_line_id) WHERE relationship_status <> 'terminated'`                                                         |
+| One primary contact per line account             | Partial unique index `UNIQUE (retailer_line_account_id) WHERE is_primary` on `retailer_line_contacts`                                                        |
+| Contact membership                               | `UNIQUE (retailer_line_account_id, account_contact_id)`                                                                                                      |
+| Line × territory assignment                      | Partial unique `UNIQUE (sales_line_id, territory_id) WHERE status <> 'expired'` (or full unique if expired rows must be archived elsewhere — prefer partial) |
+| Composite FK support                             | `UNIQUE (id, sales_line_id)` on `sales_line_territories`                                                                                                     |
+| Target uniqueness                                | `UNIQUE (retailer_id, sales_line_id)` on `retailer_line_targets`                                                                                             |
+| Principals                                       | No uniqueness on name (legal names may collide across markets)                                                                                               |
 
 ### 7.2 Same-line territory assignment (composite FK)
 
@@ -466,13 +466,13 @@ MATCH SIMPLE: NULL `sales_line_territory_id` allowed. **Impossible with a single
 
 PostgreSQL cannot express “FK only if parent.status = X” as a CHECK across tables. Use:
 
-| Rule | Mechanism |
-|------|-----------|
-| Targets only on prospective lines | `BEFORE INSERT OR UPDATE` trigger on `retailer_line_targets` reading `lines.status` |
-| No operational accounts on prospective lines | `BEFORE INSERT OR UPDATE` trigger on `retailer_line_accounts` rejecting `lines.status = 'prospective'` |
-| No orders against prospective line accounts | `BEFORE INSERT OR UPDATE` trigger on `orders` joining line via `retailer_line_account_id` (and via `line_id` when set) |
-| No outreach sends against prospective lines | `BEFORE INSERT OR UPDATE` trigger on `system_messages` when `origin` is product outreach / agent draft and line is prospective |
-| Targets cannot own orders | Structural: orders FK `retailer_line_account_id`, not `retailer_line_target_id` — no path to attach |
+| Rule                                         | Mechanism                                                                                                                      |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Targets only on prospective lines            | `BEFORE INSERT OR UPDATE` trigger on `retailer_line_targets` reading `lines.status`                                            |
+| No operational accounts on prospective lines | `BEFORE INSERT OR UPDATE` trigger on `retailer_line_accounts` rejecting `lines.status = 'prospective'`                         |
+| No orders against prospective line accounts  | `BEFORE INSERT OR UPDATE` trigger on `orders` joining line via `retailer_line_account_id` (and via `line_id` when set)         |
+| No outreach sends against prospective lines  | `BEFORE INSERT OR UPDATE` trigger on `system_messages` when `origin` is product outreach / agent draft and line is prospective |
+| Targets cannot own orders                    | Structural: orders FK `retailer_line_account_id`, not `retailer_line_target_id` — no path to attach                            |
 
 Service-layer 403 for Prospective Lines UI is Phase 8; Phase 1 ships DB guards.
 
@@ -501,12 +501,12 @@ Service-layer 403 for Prospective Lines UI is Phase 8; Phase 1 ships DB guards.
 
 After existing latest: `20260812140000_outreach_automation_runs.sql`.
 
-| # | File | Contents |
-|---|------|----------|
-| 1 | `20260814100000_multi_line_phase1_tables.sql` | `principals`; alter `lines`; alter `territories` (drop code check, add hierarchy); create `sales_line_territories`, `retailer_line_accounts`, contacts, field changes, targets, review queue; add nullable FKs + financial columns; indexes; composite FK; RLS; views for activity/productivity |
-| 2 | `20260814110000_multi_line_phase1_line_seeds.sql` | Principals + update `ogr`/`bkg`; insert `eagle-peak` / `big-fish`; seed `norcal`; OGR BC/OR/WA; Eagle Peak OR/WA/norcal. **No accounts** |
-| 3 | `20260814120000_multi_line_phase1_ogr_backfill.sql` | Line accounts; stamp operational rows; financial backfill; review queue; assertions |
-| 4 | `20260814130000_multi_line_phase1_dual_write.sql` | Dual-write triggers + prospective/order/outreach guards |
+| #   | File                                                | Contents                                                                                                                                                                                                                                                                                        |
+| --- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `20260814100000_multi_line_phase1_tables.sql`       | `principals`; alter `lines`; alter `territories` (drop code check, add hierarchy); create `sales_line_territories`, `retailer_line_accounts`, contacts, field changes, targets, review queue; add nullable FKs + financial columns; indexes; composite FK; RLS; views for activity/productivity |
+| 2   | `20260814110000_multi_line_phase1_line_seeds.sql`   | Principals + update `ogr`/`bkg`; insert `eagle-peak` / `big-fish`; seed `norcal`; OGR BC/OR/WA; Eagle Peak OR/WA/norcal. **No accounts**                                                                                                                                                        |
+| 3   | `20260814120000_multi_line_phase1_ogr_backfill.sql` | Line accounts; stamp operational rows; financial backfill; review queue; assertions                                                                                                                                                                                                             |
+| 4   | `20260814130000_multi_line_phase1_dual_write.sql`   | Dual-write triggers + prospective/order/outreach guards                                                                                                                                                                                                                                         |
 
 Also update [supabase/schema.sql](../../supabase/schema.sql) and [src/types/database.ts](../../src/types/database.ts) in the same PRs (hand-maintained mirror).
 
@@ -532,52 +532,52 @@ Leave originals on `prospects` (dual-write source of truth for UI).
 
 ### 10.4 Orders / calls / messages / reorder / links / attribution
 
-| Source | Map |
-|--------|-----|
-| `orders.account_id` | OGR line account for that retailer; set `retailer_line_account_id`; set `line_id = ogr` when null or ogr |
-| `calls.prospect_id` | Same; set `line_id = ogr` when null |
-| `system_messages.prospect_id` | Same when non-null |
-| `account_reorder_settings.account_id` | Same |
-| Gmail / Calendar / message_threads / wholesale requests / attribution | Same when prospect/account id present |
+| Source                                                                | Map                                                                                                      |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `orders.account_id`                                                   | OGR line account for that retailer; set `retailer_line_account_id`; set `line_id = ogr` when null or ogr |
+| `calls.prospect_id`                                                   | Same; set `line_id = ogr` when null                                                                      |
+| `system_messages.prospect_id`                                         | Same when non-null                                                                                       |
+| `account_reorder_settings.account_id`                                 | Same                                                                                                     |
+| Gmail / Calendar / message_threads / wholesale requests / attribution | Same when prospect/account id present                                                                    |
 
 ---
 
 ## 11. OGR backfill algorithm
 
-1. **Pre-count snapshot** (§ end checklists).  
-2. Run seeds migration (principals, lines, territories, assignments). Assert Eagle Peak / Big Fish account counts = 0.  
-3. Resolve `ogr_line_id` and OGR `sales_line_territories` ids for `bc`, `or`, `wa`.  
-4. `INSERT INTO retailer_line_accounts … SELECT … FROM prospects` with mapped columns; `retailer_id = prospects.id`.  
-5. **Territory assignment:**  
-   - Join `prospects.territory_id` → `territories.code`.  
-   - If code in (`bc`,`or`,`wa`): set `sales_line_territory_id` to matching OGR assignment.  
-   - If code in (`ca`,`ab`) or unknown: leave NULL, set `backfill_review_reason`, insert `migration_review_queue` row.  
-   - **Never** infer from address/city.  
-6. **Orders gate:**  
-   - If any `orders.line_id` references a non-OGR line → **stop backfill**, queue those order ids, fail go/no-go.  
-   - Else stamp all orders to OGR line account; set `line_id = ogr` where null; set financial columns: `original_amount = total_amount_cad`, `original_currency = 'CAD'`, `exchange_rate = 1`, `exchange_rate_date = order_date`, `converted_amount = total_amount_cad`, `converted_currency = 'CAD'`, `conversion_source = 'legacy_cad_column'`.  
-7. Stamp calls, system_messages, reorder settings, gmail, calendar, threads, wholesale requests, attribution.  
-8. Contacts → `retailer_line_contacts`.  
-9. **Orphans:** `calls` / `prospect_updates` / messages with `prospect_id` not in `prospects` → review queue; **do not delete**.  
-10. Assert:  
-    - `count(retailer_line_accounts where ogr) = count(prospects)`  
-    - Eagle Peak / Big Fish / prospective account counts = 0  
-    - `retailer_line_targets` count = 0  
-    - OGR active territory codes = `{bc,or,wa}` only  
+1. **Pre-count snapshot** (§ end checklists).
+2. Run seeds migration (principals, lines, territories, assignments). Assert Eagle Peak / Big Fish account counts = 0.
+3. Resolve `ogr_line_id` and OGR `sales_line_territories` ids for `bc`, `or`, `wa`.
+4. `INSERT INTO retailer_line_accounts … SELECT … FROM prospects` with mapped columns; `retailer_id = prospects.id`.
+5. **Territory assignment:**
+   - Join `prospects.territory_id` → `territories.code`.
+   - If code in (`bc`,`or`,`wa`): set `sales_line_territory_id` to matching OGR assignment.
+   - If code in (`ca`,`ab`) or unknown: leave NULL, set `backfill_review_reason`, insert `migration_review_queue` row.
+   - **Never** infer from address/city.
+6. **Orders gate:**
+   - If any `orders.line_id` references a non-OGR line → **stop backfill**, queue those order ids, fail go/no-go.
+   - Else stamp all orders to OGR line account; set `line_id = ogr` where null; set financial columns: `original_amount = total_amount_cad`, `original_currency = 'CAD'`, `exchange_rate = 1`, `exchange_rate_date = order_date`, `converted_amount = total_amount_cad`, `converted_currency = 'CAD'`, `conversion_source = 'legacy_cad_column'`.
+7. Stamp calls, system_messages, reorder settings, gmail, calendar, threads, wholesale requests, attribution.
+8. Contacts → `retailer_line_contacts`.
+9. **Orphans:** `calls` / `prospect_updates` / messages with `prospect_id` not in `prospects` → review queue; **do not delete**.
+10. Assert:
+    - `count(retailer_line_accounts where ogr) = count(prospects)`
+    - Eagle Peak / Big Fish / prospective account counts = 0
+    - `retailer_line_targets` count = 0
+    - OGR active territory codes = `{bc,or,wa}` only
 
 ---
 
 ## 12. Handling of orphaned or ambiguous records
 
-| Case | Action |
-|------|--------|
-| Prospect on CA or AB | Line account created; territory NULL; review queue |
-| Prospect territory missing / unknown code | Same |
-| Call / update / message with unknown `prospect_id` | Review queue; leave row unchanged except skip stamp |
-| Order with non-OGR `line_id` | **Hard stop** before mass stamp |
-| Order with null `line_id` | Map to OGR **only after** confirming all non-null line_ids are OGR |
-| Duplicate-looking retailers | Do **not** merge; optional later review queue reason `possible_duplicate` (not auto in Phase 1) |
-| Big Fish / Eagle Peak | Never auto-create accounts from OGR geography |
+| Case                                               | Action                                                                                          |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Prospect on CA or AB                               | Line account created; territory NULL; review queue                                              |
+| Prospect territory missing / unknown code          | Same                                                                                            |
+| Call / update / message with unknown `prospect_id` | Review queue; leave row unchanged except skip stamp                                             |
+| Order with non-OGR `line_id`                       | **Hard stop** before mass stamp                                                                 |
+| Order with null `line_id`                          | Map to OGR **only after** confirming all non-null line_ids are OGR                              |
+| Duplicate-looking retailers                        | Do **not** merge; optional later review queue reason `possible_duplicate` (not auto in Phase 1) |
+| Big Fish / Eagle Peak                              | Never auto-create accounts from OGR geography                                                   |
 
 ---
 
@@ -585,12 +585,12 @@ Leave originals on `prospects` (dual-write source of truth for UI).
 
 While UI still writes `prospects` (flag off):
 
-| Trigger | Behavior |
-|---------|----------|
-| `AFTER INSERT OR UPDATE ON prospects` | Upsert OGR `retailer_line_accounts` commercial fields for that `retailer_id` |
-| `AFTER INSERT ON account_contacts` | Insert OGR `retailer_line_contacts` (ignore conflict) |
+| Trigger                               | Behavior                                                                                                                     |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `AFTER INSERT OR UPDATE ON prospects` | Upsert OGR `retailer_line_accounts` commercial fields for that `retailer_id`                                                 |
+| `AFTER INSERT ON account_contacts`    | Insert OGR `retailer_line_contacts` (ignore conflict)                                                                        |
 | `BEFORE INSERT ON orders` (and peers) | If `retailer_line_account_id` IS NULL and retailer resolves, set to OGR account; set financial defaults when CAD-only insert |
-| `BEFORE INSERT OR UPDATE` guards | Prospective / order / outreach protections from §7.3 |
+| `BEFORE INSERT OR UPDATE` guards      | Prospective / order / outreach protections from §7.3                                                                         |
 
 Dual-write does **not** create Eagle Peak or Big Fish accounts.  
 Dual-write does **not** change React islands or API handlers in Phase 1.
@@ -599,14 +599,14 @@ Dual-write does **not** change React islands or API handlers in Phase 1.
 
 ## 14. Application compatibility while the feature flag is off
 
-| Surface | Why safe |
-|---------|----------|
-| [src/lib/lines.ts](../../src/lib/lines.ts) `LINE_SELECT` | Explicit column list — extra `lines` columns ignored |
-| `fetchActiveLines` / `get_public_active_lines` | Still filter `active = true` → OGR only |
-| Convert / orders / calls inserts | Omit unknown columns; triggers fill `retailer_line_account_id` |
-| [src/types/database.ts](../../src/types/database.ts) | Must be updated to include new tables/columns so `npm run check` passes — types expand without requiring UI to use them |
-| Staff UI / tabs | Unchanged routes and queries |
-| Public wholesale | Unchanged RPCs |
+| Surface                                                  | Why safe                                                                                                                |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| [src/lib/lines.ts](../../src/lib/lines.ts) `LINE_SELECT` | Explicit column list — extra `lines` columns ignored                                                                    |
+| `fetchActiveLines` / `get_public_active_lines`           | Still filter `active = true` → OGR only                                                                                 |
+| Convert / orders / calls inserts                         | Omit unknown columns; triggers fill `retailer_line_account_id`                                                          |
+| [src/types/database.ts](../../src/types/database.ts)     | Must be updated to include new tables/columns so `npm run check` passes — types expand without requiring UI to use them |
+| Staff UI / tabs                                          | Unchanged routes and queries                                                                                            |
+| Public wholesale                                         | Unchanged RPCs                                                                                                          |
 
 `FEATURE_MULTI_LINE_SCHEMA` is **documentation only** in Phase 1 (no runtime branch required). Runtime UI gating starts Phase 2 (`FEATURE_MULTI_LINE_UI`).
 
@@ -685,11 +685,11 @@ select reason, count(*) from migration_review_queue where resolved_at is null gr
 
 ## 16. Rollback procedure
 
-| Stage | Procedure |
-|-------|-----------|
-| After tables+seeds only (PR1) | Reverse migrations 2 then 1 (`DROP` new tables/columns; restore `territories_code_check`). `prospects` untouched. |
-| After backfill+dual-write (PR2) | Disable/drop triggers first; reverse migrations 4→3→2→1. Snapshot restore if partial failure mid-backfill. |
-| Snapshot required before PR2 | `prospects`, `orders`, `calls`, `account_contacts`, `system_messages`, `account_reorder_settings`, gmail/calendar links, attribution |
+| Stage                           | Procedure                                                                                                                            |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| After tables+seeds only (PR1)   | Reverse migrations 2 then 1 (`DROP` new tables/columns; restore `territories_code_check`). `prospects` untouched.                    |
+| After backfill+dual-write (PR2) | Disable/drop triggers first; reverse migrations 4→3→2→1. Snapshot restore if partial failure mid-backfill.                           |
+| Snapshot required before PR2    | `prospects`, `orders`, `calls`, `account_contacts`, `system_messages`, `account_reorder_settings`, gmail/calendar links, attribution |
 
 `prospects` remains source of truth for the app throughout Phase 1 — rollback never needs to reconstruct UI data from line accounts.
 
@@ -699,14 +699,14 @@ select reason, count(*) from migration_review_queue where resolved_at is null gr
 
 Prefer SQL fixture tests and/or Vitest that read migration SQL (pattern: [src/lib/google/crmLinkLifecycle.test.ts](../../src/lib/google/crmLinkLifecycle.test.ts)).
 
-1. **Schema:** partial unique rejects second non-terminated account for same retailer×line.  
-2. **Composite FK:** attaching Eagle Peak territory id to OGR account fails.  
-3. **Target trigger:** insert target for `ogr` fails; for a prospective fixture line succeeds.  
-4. **Account trigger:** insert line account for prospective line fails.  
-5. **Order trigger:** order against prospective line account fails.  
-6. **Seeds:** BKG `status=paused`, `active=false`; Big Fish `status=confirmed`, zero territories; Eagle Peak currency USD / commission 0.1.  
-7. **Backfill fixture:** mixed `account_status`; territories BC/OR/WA/CA; null `line_id` orders; orphan call → counts + review queue.  
-8. **Financial backfill:** CAD legacy columns populated; no invented USD.  
+1. **Schema:** partial unique rejects second non-terminated account for same retailer×line.
+2. **Composite FK:** attaching Eagle Peak territory id to OGR account fails.
+3. **Target trigger:** insert target for `ogr` fails; for a prospective fixture line succeeds.
+4. **Account trigger:** insert line account for prospective line fails.
+5. **Order trigger:** order against prospective line account fails.
+6. **Seeds:** BKG `status=paused`, `active=false`; Big Fish `status=confirmed`, zero territories; Eagle Peak currency USD / commission 0.1.
+7. **Backfill fixture:** mixed `account_status`; territories BC/OR/WA/CA; null `line_id` orders; orphan call → counts + review queue.
+8. **Financial backfill:** CAD legacy columns populated; no invented USD.
 9. **`npm run check`** on every Phase 1 PR.
 
 No UI / Playwright changes in Phase 1.
@@ -715,15 +715,15 @@ No UI / Playwright changes in Phase 1.
 
 ## 18. Exact files expected to change during implementation
 
-| File | Change |
-|------|--------|
-| `supabase/migrations/20260814100000_multi_line_phase1_tables.sql` | **New** |
-| `supabase/migrations/20260814110000_multi_line_phase1_line_seeds.sql` | **New** |
-| `supabase/migrations/20260814120000_multi_line_phase1_ogr_backfill.sql` | **New** |
-| `supabase/migrations/20260814130000_multi_line_phase1_dual_write.sql` | **New** |
-| [supabase/schema.sql](../../supabase/schema.sql) | Mirror new objects |
-| [src/types/database.ts](../../src/types/database.ts) | New tables/columns/enums |
-| New test files under `src/lib/` or `src/test/` | Constraint / migration string tests |
+| File                                                                    | Change                              |
+| ----------------------------------------------------------------------- | ----------------------------------- |
+| `supabase/migrations/20260814100000_multi_line_phase1_tables.sql`       | **New**                             |
+| `supabase/migrations/20260814110000_multi_line_phase1_line_seeds.sql`   | **New**                             |
+| `supabase/migrations/20260814120000_multi_line_phase1_ogr_backfill.sql` | **New**                             |
+| `supabase/migrations/20260814130000_multi_line_phase1_dual_write.sql`   | **New**                             |
+| [supabase/schema.sql](../../supabase/schema.sql)                        | Mirror new objects                  |
+| [src/types/database.ts](../../src/types/database.ts)                    | New tables/columns/enums            |
+| New test files under `src/lib/` or `src/test/`                          | Constraint / migration string tests |
 
 **Do not change in Phase 1 implementation:** React islands, API routes, `LINE_SELECT` consumers for behavior, historical migrations, production data outside the controlled backfill migration, public RPCs.
 
@@ -731,63 +731,63 @@ No UI / Playwright changes in Phase 1.
 
 ## 19. Risks and failure triggers
 
-| Risk | Failure trigger | Mitigation |
-|------|-----------------|------------|
-| Non-OGR `orders.line_id` exists | Pre-backfill query count > 0 | Stop; manual review |
-| Orphan calls inflate silently | Orphans discarded | Review queue only |
-| Dropping `territories_code_check` allows bad codes | Bad seed | App + CHECK on `level`; careful seeds |
-| Dual-write trigger recursion | Update prospects ↔ line accounts loop | Trigger uses `WHEN` / `pg_trigger_depth()` / update only differing columns |
-| `lines.active` confused with `status` | Eagle Peak appears in public portfolio | Seed `active=false`; leave RPC filter |
-| Unknown rights stored as `non_exclusive` | Audit regression | Enum includes `unconfirmed`; seed uses it |
-| Big Fish invented terms | Seed invents currency/commission | Explicit NULLs |
-| Type drift | `database.ts` not updated | Same PR as migrations; `npm run check` |
-| CA prospects auto-assigned OGR-CA | Inferring rights | No OGR-CA assignment; review queue |
+| Risk                                               | Failure trigger                        | Mitigation                                                                 |
+| -------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------- |
+| Non-OGR `orders.line_id` exists                    | Pre-backfill query count > 0           | Stop; manual review                                                        |
+| Orphan calls inflate silently                      | Orphans discarded                      | Review queue only                                                          |
+| Dropping `territories_code_check` allows bad codes | Bad seed                               | App + CHECK on `level`; careful seeds                                      |
+| Dual-write trigger recursion                       | Update prospects ↔ line accounts loop  | Trigger uses `WHEN` / `pg_trigger_depth()` / update only differing columns |
+| `lines.active` confused with `status`              | Eagle Peak appears in public portfolio | Seed `active=false`; leave RPC filter                                      |
+| Unknown rights stored as `non_exclusive`           | Audit regression                       | Enum includes `unconfirmed`; seed uses it                                  |
+| Big Fish invented terms                            | Seed invents currency/commission       | Explicit NULLs                                                             |
+| Type drift                                         | `database.ts` not updated              | Same PR as migrations; `npm run check`                                     |
+| CA prospects auto-assigned OGR-CA                  | Inferring rights                       | No OGR-CA assignment; review queue                                         |
 
 ---
 
 ## 20. Phase 1 acceptance criteria
 
-- [ ] Four migrations applied in order on a fresh migrate path; `schema.sql` and `database.ts` match.  
-- [ ] `ogr` status `active`, territories BC/OR/WA with `rights_type=unconfirmed`.  
-- [ ] `eagle-peak` onboarding, USD, 10%, OR/WA active, norcal proposed, zero accounts.  
-- [ ] `big-fish` confirmed, no invented commercial fields, zero territories, zero accounts.  
-- [ ] `bkg` paused / inactive, unused.  
-- [ ] One OGR line account per prospect; ids preserved.  
-- [ ] Operational stamps complete or queued; orphans not deleted.  
-- [ ] Financial columns filled for OGR CAD orders without inventing USD.  
-- [ ] Dual-write triggers keep OGR accounts synced on prospect writes.  
-- [ ] Prospective guards exist; targets table empty.  
-- [ ] Staff UI behavior unchanged; public OGR site unchanged.  
-- [ ] Validation queries pass; `npm run check` passes.  
+- [ ] Four migrations applied in order on a fresh migrate path; `schema.sql` and `database.ts` match.
+- [ ] `ogr` status `active`, territories BC/OR/WA with `rights_type=unconfirmed`.
+- [ ] `eagle-peak` onboarding, USD, 10%, OR/WA active, norcal proposed, zero accounts.
+- [ ] `big-fish` confirmed, no invented commercial fields, zero territories, zero accounts.
+- [ ] `bkg` paused / inactive, unused.
+- [ ] One OGR line account per prospect; ids preserved.
+- [ ] Operational stamps complete or queued; orphans not deleted.
+- [ ] Financial columns filled for OGR CAD orders without inventing USD.
+- [ ] Dual-write triggers keep OGR accounts synced on prospect writes.
+- [ ] Prospective guards exist; targets table empty.
+- [ ] Staff UI behavior unchanged; public OGR site unchanged.
+- [ ] Validation queries pass; `npm run check` passes.
 - [ ] Rollback procedure documented and dry-runnable for PR1.
 
 ---
 
 ## 21. Explicitly deferred work
 
-- Phase 2+ UI, routes, line picker, feature-flagged reads/writes  
-- AI isolation and `retailer_field_changes` writers  
-- Territory admin UI  
-- Eagle Peak / Big Fish selling, outreach, public catalogs  
-- Prospective Lines CRUD UI (~12) and owner/admin API 403  
-- Rename `prospects` → `retailers`; drop dual-write columns  
-- FKs on `calls.prospect_id` / `prospect_updates.prospect_id`  
-- PostGIS / county children for norcal  
-- Staff-line RLS  
-- Quotes / commissions / samples tables  
-- Productivity threshold configuration UI  
-- Big Fish commercial term capture  
-- Written OGR exclusivity evidence  
-- Autosend / Gmail-as-send  
+- Phase 2+ UI, routes, line picker, feature-flagged reads/writes
+- AI isolation and `retailer_field_changes` writers
+- Territory admin UI
+- Eagle Peak / Big Fish selling, outreach, public catalogs
+- Prospective Lines CRUD UI (~12) and owner/admin API 403
+- Rename `prospects` → `retailers`; drop dual-write columns
+- FKs on `calls.prospect_id` / `prospect_updates.prospect_id`
+- PostGIS / county children for norcal
+- Staff-line RLS
+- Quotes / commissions / samples tables
+- Productivity threshold configuration UI
+- Big Fish commercial term capture
+- Written OGR exclusivity evidence
+- Autosend / Gmail-as-send
 
 ---
 
 ## Appendix A — Recommended migration-file sequence
 
-1. `20260814100000_multi_line_phase1_tables.sql`  
-2. `20260814110000_multi_line_phase1_line_seeds.sql`  
-3. `20260814120000_multi_line_phase1_ogr_backfill.sql`  
-4. `20260814130000_multi_line_phase1_dual_write.sql`  
+1. `20260814100000_multi_line_phase1_tables.sql`
+2. `20260814110000_multi_line_phase1_line_seeds.sql`
+3. `20260814120000_multi_line_phase1_ogr_backfill.sql`
+4. `20260814130000_multi_line_phase1_dual_write.sql`
 
 ---
 
@@ -795,28 +795,28 @@ No UI / Playwright changes in Phase 1.
 
 Record before applying PR2:
 
-- [ ] `prospects` total + by `account_status`  
-- [ ] `prospects` by territory code  
-- [ ] `orders` total + by `line_id` null/non-null  
-- [ ] Distinct non-null `orders.line_id` codes (must be empty or only `ogr`)  
-- [ ] `calls`, orphan call count  
-- [ ] `account_contacts`, `account_reorder_settings`  
-- [ ] `system_messages`, gmail/calendar links, threads, wholesale requests, attribution  
+- [ ] `prospects` total + by `account_status`
+- [ ] `prospects` by territory code
+- [ ] `orders` total + by `line_id` null/non-null
+- [ ] Distinct non-null `orders.line_id` codes (must be empty or only `ogr`)
+- [ ] `calls`, orphan call count
+- [ ] `account_contacts`, `account_reorder_settings`
+- [ ] `system_messages`, gmail/calendar links, threads, wholesale requests, attribution
 
 ---
 
 ## Appendix C — Post-backfill validation checklist
 
-- [ ] OGR account count = prospect count  
-- [ ] Eagle Peak / Big Fish / prospective accounts = 0  
-- [ ] Big Fish territories = 0  
-- [ ] OGR territories = bc, or, wa only; `unconfirmed`  
-- [ ] Eagle Peak territories = or, wa, norcal (proposed)  
-- [ ] Orders with known accounts have `retailer_line_account_id`  
-- [ ] Prospective order count = 0  
-- [ ] Targets count = 0  
-- [ ] Review queue explains every CA/AB/orphan case  
-- [ ] Dual-write: insert test prospect (in staging) creates OGR line account  
+- [ ] OGR account count = prospect count
+- [ ] Eagle Peak / Big Fish / prospective accounts = 0
+- [ ] Big Fish territories = 0
+- [ ] OGR territories = bc, or, wa only; `unconfirmed`
+- [ ] Eagle Peak territories = or, wa, norcal (proposed)
+- [ ] Orders with known accounts have `retailer_line_account_id`
+- [ ] Prospective order count = 0
+- [ ] Targets count = 0
+- [ ] Review queue explains every CA/AB/orphan case
+- [ ] Dual-write: insert test prospect (in staging) creates OGR line account
 
 ---
 
@@ -824,11 +824,11 @@ Record before applying PR2:
 
 **GO only if all are true:**
 
-1. Epic + this plan approved.  
-2. Production/staging backup taken.  
-3. Pre-count checklist recorded.  
-4. Every existing `orders.line_id` is NULL or OGR.  
-5. No conflicting directory import running.  
+1. Epic + this plan approved.
+2. Production/staging backup taken.
+3. Pre-count checklist recorded.
+4. Every existing `orders.line_id` is NULL or OGR.
+5. No conflicting directory import running.
 6. Implementers will not invent Big Fish commercial terms or assign OGR CA/AB.
 
 **NO-GO if:** non-OGR orders exist; backup missing; or remaining open questions are misread as “invent defaults.”
@@ -839,27 +839,27 @@ Record before applying PR2:
 
 Roll back immediately if:
 
-- OGR account count ≠ prospect count after backfill  
-- Any Eagle Peak / Big Fish / prospective operational account auto-created  
-- Public `get_public_active_lines` returns non-OGR unexpectedly  
-- Staff UI errors on prospect list/convert due to type or trigger failure  
-- Dual-write recursion or write amplification detected  
-- Financial backfill invents USD or nulls `total_amount_cad`  
+- OGR account count ≠ prospect count after backfill
+- Any Eagle Peak / Big Fish / prospective operational account auto-created
+- Public `get_public_active_lines` returns non-OGR unexpectedly
+- Staff UI errors on prospect list/convert due to type or trigger failure
+- Dual-write recursion or write amplification detected
+- Financial backfill invents USD or nulls `total_amount_cad`
 
 ---
 
 ## Appendix F — Questions that block vs can remain unresolved
 
-| Question | Blocks Phase 1 implementation? |
-|----------|--------------------------------|
-| Approve this plan + epic decisions | **Yes** |
-| Confirm all live orders are OGR (or null line_id) | **Yes** (go/no-go query) |
-| Big Fish legal name / currency / commission / territories | No — leave null |
-| Norcal county list | No — keep proposed |
-| OGR exclusivity evidence | No — keep `unconfirmed` |
-| Productivity thresholds | No — leave null |
-| Outreach goal per line vs agency | No — Phase 2+ |
-| Whether Big Fish later moves `confirmed` → `onboarding` | No — staff decision |
+| Question                                                  | Blocks Phase 1 implementation? |
+| --------------------------------------------------------- | ------------------------------ |
+| Approve this plan + epic decisions                        | **Yes**                        |
+| Confirm all live orders are OGR (or null line_id)         | **Yes** (go/no-go query)       |
+| Big Fish legal name / currency / commission / territories | No — leave null                |
+| Norcal county list                                        | No — keep proposed             |
+| OGR exclusivity evidence                                  | No — keep `unconfirmed`        |
+| Productivity thresholds                                   | No — leave null                |
+| Outreach goal per line vs agency                          | No — Phase 2+                  |
+| Whether Big Fish later moves `confirmed` → `onboarding`   | No — staff decision            |
 
 ---
 
@@ -867,20 +867,91 @@ Roll back immediately if:
 
 ### PR 1 — Tables, seeds, types (no operational backfill)
 
-- Migrations `…100000` + `…110000`  
-- `schema.sql` + `database.ts`  
-- Schema constraint tests (composite FK, enums, seed assertions)  
-- **No** dual-write; **no** production account stamp  
+- Migrations `…100000` + `…110000`
+- `schema.sql` + `database.ts`
+- Schema constraint tests (composite FK, enums, seed assertions)
+- **No** dual-write; **no** production account stamp
 
 ### PR 2 — OGR backfill + dual-write
 
-- Migrations `…120000` + `…130000`  
-- Pre/post validation SQL as comments or staging runbook  
-- Backfill fixture tests  
-- Staging apply → validation checklist → production with snapshot  
+- Migrations `…120000` + `…130000`
+- Pre/post validation SQL as comments or staging runbook
+- Backfill fixture tests
+- Staging apply → validation checklist → production with snapshot
 
 Rollback of PR2 does not require reverting PR1 if triggers are dropped first and nullable columns left in place (expand/contract safe). Full reverse still available.
 
 ---
+
+## Implementation results — Phase 1A (additive schema only)
+
+**Status:** Phase 1A implemented in the local repository. Phase 1 overall is **not** complete (1B backfill / dual-write deferred).  
+**Date:** 2026-08-14  
+**Branch tip at implementation:** `feature/multi-line-multi-territory-implementation` (docs HEAD was `4ec008b` before this work).
+
+### Migration files created
+
+| File                                                                  | Role                                                                                   |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `supabase/migrations/20260814100000_multi_line_phase1_tables.sql`     | Tables, column extensions, indexes, composite FK, views, enforcement triggers, RLS     |
+| `supabase/migrations/20260814110000_multi_line_phase1_line_seeds.sql` | Principals, line status/commercial seeds, norcal geo, OGR + Eagle Peak territory seeds |
+
+**Not created (Phase 1B):** `…120000` OGR backfill, `…130000` dual-write.
+
+### Schema and type files changed
+
+- `supabase/schema.sql` — mirrored Phase 1A objects, enums, FKs, views, triggers, RLS
+- `src/types/database.ts` — new enums/tables; extended `lines`, `territories`, `orders`, `calls`, and operational `retailer_line_account_id` columns
+
+### Constraints and enforcement mechanisms implemented
+
+| Rule                                         | Mechanism                                                                                              |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Same-line territory on line account          | Composite FK `(sales_line_territory_id, sales_line_id)` → `sales_line_territories (id, sales_line_id)` |
+| One operational account per retailer × line  | Partial unique index where `relationship_status <> 'terminated'`                                       |
+| One primary contact per line account         | Partial unique index on `retailer_line_contacts` where `is_primary`                                    |
+| Targets only on prospective lines            | `BEFORE INSERT/UPDATE` trigger `retailer_line_targets_prospective_only`                                |
+| No operational accounts on prospective lines | Trigger `retailer_line_accounts_not_prospective`                                                       |
+| No orders / outreach on prospective lines    | Triggers on `orders` and `system_messages`                                                             |
+| Activity / productivity                      | Views only (`retailer_line_account_activity`, `retailer_line_account_productivity`)                    |
+
+### Tests added
+
+- `src/lib/multiLinePhase1aSchema.test.ts` — migration/schema string assertions for enums, FKs, triggers, RLS, seeds, no-backfill
+
+### Validation results
+
+- `npm run check` — **passed** (lint, typecheck, format, 800 tests)
+- No production migration applied
+- No OGR backfill / no `retailer_line_accounts` seeded
+
+### Deviations from the plan
+
+1. **Eagle Peak territory assignments seeded as `proposed` only** (not `active`). Phase 1A prompt forbids active Eagle Peak grants; plan § seeds said OR/WA `active`. Documented in the seeds migration header.
+2. **Enforcement triggers shipped in the tables migration (1A)** rather than waiting for the dual-write migration (1B), so prospective guards are testable without backfill.
+3. **`lines.status` column default** is temporarily `'active'` during expand (to protect existing ogr/bkg rows), then seeds set default to `'prospective'` and add the acquisition_stage combined CHECK.
+4. Fixture/type updates in a few existing tests (`lines.test.ts`, order/gmail/calendar fixtures) so hand-written `Database` types compile; **no UI behavior changes**.
+
+### Deferred Phase 1B work
+
+- OGR `retailer_line_accounts` backfill and operational stamps
+- Dual-write triggers from `prospects` / contacts / orders
+- Financial CAD → `original_*` backfill with `legacy_cad_column`
+- `migration_review_queue` population for CA/AB/orphans
+- Activating Eagle Peak OR/WA grants when approved
+- Migrations `20260814120000_*` and `20260814130000_*`
+
+### Rollback instructions for Phase 1A
+
+1. Do **not** apply these migrations to production until go/no-go for staging.
+2. If applied only on a local/staging DB: reverse by dropping new objects in reverse dependency order (triggers → views → new tables → new columns on existing tables → restore `territories_code_check` if required), or restore a pre-1A snapshot.
+3. Application remains compatible with empty new tables; rolling back types/migrations in git restores the prior compile surface.
+4. `prospects` and existing operational rows are untouched by 1A seeds (no account stamp).
+
+**Phase 1 is not complete.** Do not start Phase 1B until explicitly approved.
+
+---
+
+**Historical note:** The planning stop-line below applied before Phase 1A was authorized.
 
 **Stop:** documentation complete. Do not begin migration implementation until this plan is approved.

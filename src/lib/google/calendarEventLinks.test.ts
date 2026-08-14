@@ -10,6 +10,7 @@ const row: CalendarEventLinkRow = {
   calendar_id: 'primary',
   google_event_id: 'ev-1',
   prospect_id: 42,
+  retailer_line_account_id: null,
   account_contact_id: 'contact-1',
   link_status: 'confirmed',
   title: 'Buyer call',

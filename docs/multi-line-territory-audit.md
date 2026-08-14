@@ -25,7 +25,7 @@ The live CRM is a **single-retailer, single-lifecycle, OGR-and-BC operating syst
 7. **RLS is staff-wide, not line-scoped.** Approved owner/rep sees every prospect, order, catalog item, and message. There is no per-line or per-territory policy.
 8. **Highest-risk commingling is not theoretical.** Converting a store to Active Account for Eagle Peak would flip the same `account_status` that OGR uses. Orders, notes, fit scores, and reorder dates would mix unless the schema is split first.
 
-**Do not implement until the unresolved business questions in §14 are answered.** In particular: Busted Knuckles fate; Eagle Peak / Big Fish legal names, currencies, and territories; Northern California boundary; whether OGR also has OR/WA; and whether `prospects.id` should be preserved as the retailer PK. Big Fish’s *existence as a represented line* is decided — only onboarding details remain.
+**Do not implement until the unresolved business questions in §14 are answered.** In particular: Busted Knuckles fate; Eagle Peak / Big Fish legal names, currencies, and territories; Northern California boundary; whether OGR also has OR/WA; and whether `prospects.id` should be preserved as the retailer PK. Big Fish’s _existence as a represented line_ is decided — only onboarding details remain.
 
 ---
 
@@ -56,17 +56,17 @@ Conversion (`src/lib/convertToActiveAccount.ts`) updates the same row: `account_
 
 ### 2.2 What already exists for “lines”
 
-| Artifact | Evidence | Used in staff app? |
-|----------|----------|-------------------|
-| `lines` table | `supabase/schema.sql:26-58` — `code`, `name`, `active`, marketing fields | Catalog/settings lookup only |
-| Seed `ogr` | Active, showroom `/old-guys-rule-wholesale` | Yes, hardcoded |
-| Seed `bkg` | Inactive “Busted Knuckles Garage” | No `src/` usage except `LineKey` |
-| `catalog_items.line_id` | `NOT NULL`, `UNIQUE (line_id, sku)` | Always filtered to `ogr` in `fetchCatalogItems` |
-| `catalog_settings` | 1:1 per line | `fetchOgrCatalogSettings()` hardcodes `ogr` |
-| `orders.line_id` | Nullable FK | Convert modal can stamp it; lists do not filter by it |
-| `calls.line_id` | Nullable FK | **Not in `CALL_SELECT`**; UI never sets it |
-| `LineKey` | `src/types/index.ts` `'ogr' \| 'bkg'` | Header OGR button; `onSelectOgr` is a no-op |
-| Public RPCs | `get_public_ogr_products` etc. | Public wholesale site only |
+| Artifact                | Evidence                                                                 | Used in staff app?                                    |
+| ----------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `lines` table           | `supabase/schema.sql:26-58` — `code`, `name`, `active`, marketing fields | Catalog/settings lookup only                          |
+| Seed `ogr`              | Active, showroom `/old-guys-rule-wholesale`                              | Yes, hardcoded                                        |
+| Seed `bkg`              | Inactive “Busted Knuckles Garage”                                        | No `src/` usage except `LineKey`                      |
+| `catalog_items.line_id` | `NOT NULL`, `UNIQUE (line_id, sku)`                                      | Always filtered to `ogr` in `fetchCatalogItems`       |
+| `catalog_settings`      | 1:1 per line                                                             | `fetchOgrCatalogSettings()` hardcodes `ogr`           |
+| `orders.line_id`        | Nullable FK                                                              | Convert modal can stamp it; lists do not filter by it |
+| `calls.line_id`         | Nullable FK                                                              | **Not in `CALL_SELECT`**; UI never sets it            |
+| `LineKey`               | `src/types/index.ts` `'ogr' \| 'bkg'`                                    | Header OGR button; `onSelectOgr` is a no-op           |
+| Public RPCs             | `get_public_ogr_products` etc.                                           | Public wholesale site only                            |
 
 **There is no `principals` table, no `sales_line_territories`, no `retailer_line_accounts`.**
 
@@ -98,18 +98,18 @@ Conversion (`src/lib/convertToActiveAccount.ts`) updates the same row: `account_
 
 ### 2.4 Activities, catalog, and money
 
-| Domain | Attachment | Line-safe? |
-|--------|------------|------------|
-| Contacts | `account_contacts.account_id → prospects.id` | No — shared across all future lines |
-| Calls | `calls.prospect_id` (no FK); `line_id` unused | No |
-| Notes | `prospects.notes` + `prospect_updates` | No |
-| Orders | `orders.account_id`; CAD header only; **no line items / `catalog_item_id`** | Weak (`line_id` optional, UI unfiltered) |
-| Reorder AI | `account_reorder_settings.account_id` PK | No |
-| Quotes / samples / commissions | **Do not exist** as tables | N/A |
-| Product email / outreach | `system_messages.prospect_id` + `catalog_item_id` | Catalog item implies a line; selection still OGR-only |
-| Gmail / Calendar links | `prospect_id` | No |
-| Wholesale cart requests | `wholesale_order_requests` + items with `catalog_item_id` | Items are SKU-level; request is retailer-level |
-| Outreach goals / briefing | Singleton `outreach_goal_settings` | Global KPI, not per line |
+| Domain                         | Attachment                                                                  | Line-safe?                                            |
+| ------------------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Contacts                       | `account_contacts.account_id → prospects.id`                                | No — shared across all future lines                   |
+| Calls                          | `calls.prospect_id` (no FK); `line_id` unused                               | No                                                    |
+| Notes                          | `prospects.notes` + `prospect_updates`                                      | No                                                    |
+| Orders                         | `orders.account_id`; CAD header only; **no line items / `catalog_item_id`** | Weak (`line_id` optional, UI unfiltered)              |
+| Reorder AI                     | `account_reorder_settings.account_id` PK                                    | No                                                    |
+| Quotes / samples / commissions | **Do not exist** as tables                                                  | N/A                                                   |
+| Product email / outreach       | `system_messages.prospect_id` + `catalog_item_id`                           | Catalog item implies a line; selection still OGR-only |
+| Gmail / Calendar links         | `prospect_id`                                                               | No                                                    |
+| Wholesale cart requests        | `wholesale_order_requests` + items with `catalog_item_id`                   | Items are SKU-level; request is retailer-level        |
+| Outreach goals / briefing      | Singleton `outreach_goal_settings`                                          | Global KPI, not per line                              |
 
 ### 2.5 Application shell
 
@@ -127,46 +127,46 @@ Public OGR wholesale is a separate tree: `/old-guys-rule-wholesale/`.
 
 ### 3.1 Old Guys Rule (non-exhaustive but representative)
 
-| Area | Location |
-|------|----------|
-| Catalog fetch | `src/lib/catalog.ts:257-267` `.eq('code', 'ogr')` |
-| Catalog settings | `src/lib/catalogSettings.ts` `fetchOgrCatalogSettings` |
-| Line helper | `src/lib/lines.ts:54-58` `resolveOgrLineId` |
-| Catalog API | `src/pages/api/catalog/items/[sku].ts` |
-| Catalog import | `scripts/catalog-import/from-json.ts` always `'ogr'` |
-| Outreach product pool | `src/lib/outreachProductSelection.ts` |
-| Draft generation | `src/lib/generateOgrProductOutreachDraft.ts` (“Old Guys Rule apparel”) |
-| Product email APIs | `src/pages/api/staff/ogr-product-email/**` |
-| Public RPCs | `get_public_ogr_products`, `get_public_ogr_product_by_slug`, `get_public_ogr_supplier_terms` |
-| Agent prompt | `src/pages/api/agent.ts:10-11` |
-| Agent tools | `src/lib/agentCrmTools.ts` `DEFAULT_LINE_CODE = 'ogr'` |
-| AI prefill | `src/lib/aiAssistPrefill.ts` |
-| Add via AI | `src/lib/createEnrichedProspect.ts` |
-| Fill blanks | `src/lib/fillBlankProspectFields.ts` “OGR themes” |
-| Taxonomy | `src/lib/crmRetailTaxonomy.ts` “Canonical OGR CRM retail taxonomy” |
-| Prospect column | `existing_ogr` |
-| Type union | `LineKey = 'ogr' \| 'bkg'` |
-| Public site | `src/pages/old-guys-rule-wholesale/**` |
+| Area                  | Location                                                                                     |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| Catalog fetch         | `src/lib/catalog.ts:257-267` `.eq('code', 'ogr')`                                            |
+| Catalog settings      | `src/lib/catalogSettings.ts` `fetchOgrCatalogSettings`                                       |
+| Line helper           | `src/lib/lines.ts:54-58` `resolveOgrLineId`                                                  |
+| Catalog API           | `src/pages/api/catalog/items/[sku].ts`                                                       |
+| Catalog import        | `scripts/catalog-import/from-json.ts` always `'ogr'`                                         |
+| Outreach product pool | `src/lib/outreachProductSelection.ts`                                                        |
+| Draft generation      | `src/lib/generateOgrProductOutreachDraft.ts` (“Old Guys Rule apparel”)                       |
+| Product email APIs    | `src/pages/api/staff/ogr-product-email/**`                                                   |
+| Public RPCs           | `get_public_ogr_products`, `get_public_ogr_product_by_slug`, `get_public_ogr_supplier_terms` |
+| Agent prompt          | `src/pages/api/agent.ts:10-11`                                                               |
+| Agent tools           | `src/lib/agentCrmTools.ts` `DEFAULT_LINE_CODE = 'ogr'`                                       |
+| AI prefill            | `src/lib/aiAssistPrefill.ts`                                                                 |
+| Add via AI            | `src/lib/createEnrichedProspect.ts`                                                          |
+| Fill blanks           | `src/lib/fillBlankProspectFields.ts` “OGR themes”                                            |
+| Taxonomy              | `src/lib/crmRetailTaxonomy.ts` “Canonical OGR CRM retail taxonomy”                           |
+| Prospect column       | `existing_ogr`                                                                               |
+| Type union            | `LineKey = 'ogr' \| 'bkg'`                                                                   |
+| Public site           | `src/pages/old-guys-rule-wholesale/**`                                                       |
 
 ### 3.2 British Columbia / Vancouver / CAD
 
-| Area | Location |
-|------|----------|
-| Territory default | `src/lib/territories.ts` `BC_TERRITORY_CODE`; unknown province → `bc` |
-| Directory regions | `src/lib/prospects.ts` `ProspectRegion` = six BC corridors |
-| Directory filters | `src/lib/directoryOptions.ts` |
-| Enrichment geo | `src/lib/prospectEnrichment/bcTerritory.ts` |
-| Fit score geo ±1 | `src/lib/prospectEnrichment/seedFitScore.ts` |
-| Priority / Okanagan Tier 1 | `src/lib/prospectEnrichment/priorityGrade.ts` |
-| Add-via-AI schema | BC cities/regions enum in `createEnrichedProspect.ts` |
-| Named list import | `src/lib/prospectListImport.ts` “BC named prospect list” |
-| Seed | `supabase/migrations/20260802251000_seed_catalog_prospects.sql` (ids 1–249, BC) |
-| BC upsert | `supabase/migrations/20260804120000_upsert_bc_prospect_list.sql` |
-| Timezone | `outreach_goal_settings.business_timezone` default `America/Vancouver`; `AGENT_OUTREACH_PREP_TZ` |
-| Consumer tax | `src/lib/retailPricing.ts` `BC_GST_RATE`, `BC_PST_RATE` |
-| Header copy | `Header.tsx` “British Columbia” |
-| Orders / calls | `total_amount_cad`, `order_value_cad` |
-| Landed cost | USD wholesale → CAD landed via FX (default 1.45) |
+| Area                       | Location                                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------------------------ |
+| Territory default          | `src/lib/territories.ts` `BC_TERRITORY_CODE`; unknown province → `bc`                            |
+| Directory regions          | `src/lib/prospects.ts` `ProspectRegion` = six BC corridors                                       |
+| Directory filters          | `src/lib/directoryOptions.ts`                                                                    |
+| Enrichment geo             | `src/lib/prospectEnrichment/bcTerritory.ts`                                                      |
+| Fit score geo ±1           | `src/lib/prospectEnrichment/seedFitScore.ts`                                                     |
+| Priority / Okanagan Tier 1 | `src/lib/prospectEnrichment/priorityGrade.ts`                                                    |
+| Add-via-AI schema          | BC cities/regions enum in `createEnrichedProspect.ts`                                            |
+| Named list import          | `src/lib/prospectListImport.ts` “BC named prospect list”                                         |
+| Seed                       | `supabase/migrations/20260802251000_seed_catalog_prospects.sql` (ids 1–249, BC)                  |
+| BC upsert                  | `supabase/migrations/20260804120000_upsert_bc_prospect_list.sql`                                 |
+| Timezone                   | `outreach_goal_settings.business_timezone` default `America/Vancouver`; `AGENT_OUTREACH_PREP_TZ` |
+| Consumer tax               | `src/lib/retailPricing.ts` `BC_GST_RATE`, `BC_PST_RATE`                                          |
+| Header copy                | `Header.tsx` “British Columbia”                                                                  |
+| Orders / calls             | `total_amount_cad`, `order_value_cad`                                                            |
+| Landed cost                | USD wholesale → CAD landed via FX (default 1.45)                                                 |
 
 Schema already **allows** AB, CA, OR, WA territories. Application logic and seed **do not operate them**.
 
@@ -176,22 +176,22 @@ Schema already **allows** AB, CA, OR, WA territories. Application logic and seed
 
 Ranked by damage if Eagle Peak is activated on the current schema.
 
-| # | Risk | Why it happens | Blast radius |
-|---|------|----------------|--------------|
-| 1 | **One `account_status` per store** | Convert/demote is retailer-global | Opening Eagle Peak would mark an OGR prospect as an Active Account (or hide an OGR account from the prospect list) |
-| 2 | **One notes / score / grade / next-action blob** | Planning columns live on `prospects` | Eagle Peak AI Update overwrites OGR qualification |
-| 3 | **Contacts are retailer-only** | `account_contacts.account_id` | Canopy buyer mixed with apparel buyer; primary-contact unique index is per retailer |
-| 4 | **Orders listed for the retailer, not the line** | `fetchOrdersForAccounts` filters `account_id` only | Dashboard LTV, last order, reorder suggestion mix CAD apparel with (future) canopy USD |
-| 5 | **Reorder settings 1:1 on prospect** | PK = `account_id` | One cadence, one `ai_reorder_notes` |
-| 6 | **Calls unscoped** | `line_id` unused; `CALL_SELECT` omits it | Call Today / PMF dashboard mixes principals |
-| 7 | **Outreach eligibility is global** | `selectOutreachTargets` loads all `account_status = 'prospect'` | Nightly prep could email OGR copy to an Eagle Peak-only store, or vice versa |
-| 8 | **APF defaults to OGR catalog** | `getAccountProductFit` default `ogr` | Scoring a Northern California canopy account against OGR tees |
-| 9 | **Territory on the retailer** | Cannot be “BC for OGR, OR for Eagle Peak” | Same store cannot sit in two line territories |
-| 10 | **California = whole state** | `territories.code` check `'ca'` | Assigning CA for Eagle Peak would imply Southern California rights |
-| 11 | **RLS is all-staff** | `is_approved_staff()` | Cannot hide Prospective Lines (acquisition candidates) from active selling except by UI convention; Big Fish as a represented line would otherwise share OGR lists |
-| 12 | **Integer `prospects.id` reused everywhere** | Calls/updates have **no FK** | Migration must remap activities carefully or keep retailer ids stable |
-| 13 | **Duplicate stores** | No unique `(name, city, territory)`; import matching is heuristic | Splitting lines without a retailer master will duplicate or silently merge |
-| 14 | **Catalog `field_meta` / `catalog_field_changes` exist; prospect identity has no equivalent** | AI fill-blanks can write `website`/`address` | Cross-line AI can clobber verified address without audit |
+| #   | Risk                                                                                          | Why it happens                                                    | Blast radius                                                                                                                                                       |
+| --- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **One `account_status` per store**                                                            | Convert/demote is retailer-global                                 | Opening Eagle Peak would mark an OGR prospect as an Active Account (or hide an OGR account from the prospect list)                                                 |
+| 2   | **One notes / score / grade / next-action blob**                                              | Planning columns live on `prospects`                              | Eagle Peak AI Update overwrites OGR qualification                                                                                                                  |
+| 3   | **Contacts are retailer-only**                                                                | `account_contacts.account_id`                                     | Canopy buyer mixed with apparel buyer; primary-contact unique index is per retailer                                                                                |
+| 4   | **Orders listed for the retailer, not the line**                                              | `fetchOrdersForAccounts` filters `account_id` only                | Dashboard LTV, last order, reorder suggestion mix CAD apparel with (future) canopy USD                                                                             |
+| 5   | **Reorder settings 1:1 on prospect**                                                          | PK = `account_id`                                                 | One cadence, one `ai_reorder_notes`                                                                                                                                |
+| 6   | **Calls unscoped**                                                                            | `line_id` unused; `CALL_SELECT` omits it                          | Call Today / PMF dashboard mixes principals                                                                                                                        |
+| 7   | **Outreach eligibility is global**                                                            | `selectOutreachTargets` loads all `account_status = 'prospect'`   | Nightly prep could email OGR copy to an Eagle Peak-only store, or vice versa                                                                                       |
+| 8   | **APF defaults to OGR catalog**                                                               | `getAccountProductFit` default `ogr`                              | Scoring a Northern California canopy account against OGR tees                                                                                                      |
+| 9   | **Territory on the retailer**                                                                 | Cannot be “BC for OGR, OR for Eagle Peak”                         | Same store cannot sit in two line territories                                                                                                                      |
+| 10  | **California = whole state**                                                                  | `territories.code` check `'ca'`                                   | Assigning CA for Eagle Peak would imply Southern California rights                                                                                                 |
+| 11  | **RLS is all-staff**                                                                          | `is_approved_staff()`                                             | Cannot hide Prospective Lines (acquisition candidates) from active selling except by UI convention; Big Fish as a represented line would otherwise share OGR lists |
+| 12  | **Integer `prospects.id` reused everywhere**                                                  | Calls/updates have **no FK**                                      | Migration must remap activities carefully or keep retailer ids stable                                                                                              |
+| 13  | **Duplicate stores**                                                                          | No unique `(name, city, territory)`; import matching is heuristic | Splitting lines without a retailer master will duplicate or silently merge                                                                                         |
+| 14  | **Catalog `field_meta` / `catalog_field_changes` exist; prospect identity has no equivalent** | AI fill-blanks can write `website`/`address`                      | Cross-line AI can clobber verified address without audit                                                                                                           |
 
 ---
 
@@ -213,16 +213,16 @@ principals
 
 ### 5.1 Recommended table mapping (v1)
 
-| Proposed concept | Recommended physical name | Rationale |
-|------------------|---------------------------|-----------|
-| Principal | `principals` (**new**) | OGR, Eagle Peak, Big Fish are different companies. Optional in a thin v1 if `sales_lines` carries company fields, but a separate table avoids stuffing contracts onto the line row. |
-| Sales line | **Keep `lines`**, extend columns | Avoids rewriting `catalog_items.line_id` and public RPCs in the same migration. Add `status`, `principal_id`, `default_currency`, `commission_rate`, dates. Treat `active boolean` as derived or migrate to status enum. |
-| Geo territory | **Keep `territories`**, replace CHECK | Drop `code in ('bc','ab','ca','or','wa')`. Add `level`, `parent_territory_id`, optional geometry/metadata. Seed Northern California as a **child region**, not `ca`. |
-| Line territory rights | **`sales_line_territories` (new)** | Never store rights on the retailer. |
-| Retailer master | **`retailers` as renamed/split `prospects`** | Preserve integer ids as `retailers.id` so `calls.prospect_id` can be migrated to `retailer_id` without collision. |
-| Line account | **`retailer_line_accounts` (new)** | Commercial relationship. `UNIQUE (retailer_id, sales_line_id)`. |
-| Shared contacts | Keep `account_contacts` → rename `retailer_contacts` | Person identity. |
-| Line contact role | **`retailer_line_contacts` (new)** | Buyer role, primary flag, engagement **per line account**. |
+| Proposed concept      | Recommended physical name                            | Rationale                                                                                                                                                                                                                |
+| --------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Principal             | `principals` (**new**)                               | OGR, Eagle Peak, Big Fish are different companies. Optional in a thin v1 if `sales_lines` carries company fields, but a separate table avoids stuffing contracts onto the line row.                                      |
+| Sales line            | **Keep `lines`**, extend columns                     | Avoids rewriting `catalog_items.line_id` and public RPCs in the same migration. Add `status`, `principal_id`, `default_currency`, `commission_rate`, dates. Treat `active boolean` as derived or migrate to status enum. |
+| Geo territory         | **Keep `territories`**, replace CHECK                | Drop `code in ('bc','ab','ca','or','wa')`. Add `level`, `parent_territory_id`, optional geometry/metadata. Seed Northern California as a **child region**, not `ca`.                                                     |
+| Line territory rights | **`sales_line_territories` (new)**                   | Never store rights on the retailer.                                                                                                                                                                                      |
+| Retailer master       | **`retailers` as renamed/split `prospects`**         | Preserve integer ids as `retailers.id` so `calls.prospect_id` can be migrated to `retailer_id` without collision.                                                                                                        |
+| Line account          | **`retailer_line_accounts` (new)**                   | Commercial relationship. `UNIQUE (retailer_id, sales_line_id)`.                                                                                                                                                          |
+| Shared contacts       | Keep `account_contacts` → rename `retailer_contacts` | Person identity.                                                                                                                                                                                                         |
+| Line contact role     | **`retailer_line_contacts` (new)**                   | Buyer role, primary flag, engagement **per line account**.                                                                                                                                                               |
 
 Do **not** put `territory_id` on `retailers` as the source of truth for rights. Retailer location (address, city, province, country) is identity. Assignment is `retailer_line_accounts.sales_line_territory_id` (nullable until staff confirms).
 
@@ -241,14 +241,14 @@ Leave `lines.code = 'bkg'` (Busted Knuckles Garage, `active = false`) untouched 
 
 Prospective Lines are candidate principals under evaluation, not a fourth represented book.
 
-| Allowed | Forbidden |
-|---------|-----------|
-| Line record with `status = prospective` | Represented picker, `active` / selling workspace |
-| ICP notes, agreement drafts, geographic interest | Public catalog / showroom RPCs |
+| Allowed                                                                     | Forbidden                                                                        |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Line record with `status = prospective`                                     | Represented picker, `active` / selling workspace                                 |
+| ICP notes, agreement drafts, geographic interest                            | Public catalog / showroom RPCs                                                   |
 | Research-only **retailer targets** (mapping a retailer to a candidate line) | `retailer_line_accounts` in selling statuses (`prospect`, `opened`, `active`, …) |
-| Manual research notes | Orders, commissions, quotes, samples as commercial records |
-| Owner/admin research workspace (`/app/prospective-lines`) | Automated outreach, nightly prep, Daily Briefing KPIs |
-| Promote-to-represented as an explicit owner action later | Convert-to-active-account, reorder cadence, line-sheet send |
+| Manual research notes                                                       | Orders, commissions, quotes, samples as commercial records                       |
+| Owner/admin research workspace (`/app/prospective-lines`)                   | Automated outreach, nightly prep, Daily Briefing KPIs                            |
+| Promote-to-represented as an explicit owner action later                    | Convert-to-active-account, reorder cadence, line-sheet send                      |
 
 **Research-only retailer target** is a distinct row type (recommended: `retailer_line_targets` or a line-account `status = 'research_target'` that application and DB CHECKs exclude from selling). Targeting a store for a prospective line must **not** create an OGR-style prospect account and must **not** flip `account_status` on the shared retailer.
 
@@ -258,30 +258,30 @@ Capacity: design for **approximately 12** prospective line records without schem
 
 ## 6. Shared versus line-specific field matrix
 
-| Field / concern | Layer | Notes vs today |
-|-----------------|-------|----------------|
-| Legal / public name | Retailer | Today: `prospects.name` |
-| Street, city, province/state, postal, country | Retailer | Today: `address`, `city`; province implied by territory; **no postal/country/lat/lng** |
-| Main phone, website | Retailer | Exists |
-| Lat/lng, Place ID | Retailer (**new**) | Missing |
-| Generic retail channel (physical store type) | Retailer, lightly | Today: OGR taxonomy on the same row — split: generic channel on retailer; line ICP weights on line account |
-| Duplicate keys (`external_id`, Place ID) | Retailer | `external_id` is BC-sheet scoped; keep as `source_external_ids` JSON or typed source table |
-| Account status / grade / priority / fit score | **Line account** | Today global |
-| Qualification, scoring evidence, next action | **Line account** | Today global |
-| Apparel / category fit, competing brands, `existing_ogr` | **Line account** | Rename `existing_ogr` → line-specific competing/incumbent field |
-| Opening-order estimate, price list, currency, terms, credit | **Line account** | Mostly missing; orders are CAD headers |
-| Notes, AI insights, suggested actions | **Line account** | Today `prospects.notes` |
-| Contacts (person) | Shared person | Today mixed |
-| Contact role / primary / engagement | **Line account via junction** | Today `is_primary` unique per retailer |
-| Calls, appointments, tasks | **Line account** | Today `prospect_id` |
-| Orders, quotes, samples, returns, commission | **Line account** | Orders exist (CAD); others missing |
-| Last order / reorder prediction | **Line account** | Today 1:1 settings |
-| Territory rights | **sales_line_territories** | Today retailer FK |
-| Assigned salesperson | **Line account** | Missing (all staff see all) |
-| Catalog / SKUs / published showroom | **Sales line** | Already `line_id` |
-| Outreach drafts / Resend ledger | **Line account + catalog_item** | Catalog implies line; must also stamp `retailer_line_account_id` |
-| Outreach monthly goal / briefing | **Per sales line** | Today singleton |
-| Portfolio KPI | Explicit report only | Must be labelled; default dashboards stay in-line |
+| Field / concern                                             | Layer                           | Notes vs today                                                                                             |
+| ----------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Legal / public name                                         | Retailer                        | Today: `prospects.name`                                                                                    |
+| Street, city, province/state, postal, country               | Retailer                        | Today: `address`, `city`; province implied by territory; **no postal/country/lat/lng**                     |
+| Main phone, website                                         | Retailer                        | Exists                                                                                                     |
+| Lat/lng, Place ID                                           | Retailer (**new**)              | Missing                                                                                                    |
+| Generic retail channel (physical store type)                | Retailer, lightly               | Today: OGR taxonomy on the same row — split: generic channel on retailer; line ICP weights on line account |
+| Duplicate keys (`external_id`, Place ID)                    | Retailer                        | `external_id` is BC-sheet scoped; keep as `source_external_ids` JSON or typed source table                 |
+| Account status / grade / priority / fit score               | **Line account**                | Today global                                                                                               |
+| Qualification, scoring evidence, next action                | **Line account**                | Today global                                                                                               |
+| Apparel / category fit, competing brands, `existing_ogr`    | **Line account**                | Rename `existing_ogr` → line-specific competing/incumbent field                                            |
+| Opening-order estimate, price list, currency, terms, credit | **Line account**                | Mostly missing; orders are CAD headers                                                                     |
+| Notes, AI insights, suggested actions                       | **Line account**                | Today `prospects.notes`                                                                                    |
+| Contacts (person)                                           | Shared person                   | Today mixed                                                                                                |
+| Contact role / primary / engagement                         | **Line account via junction**   | Today `is_primary` unique per retailer                                                                     |
+| Calls, appointments, tasks                                  | **Line account**                | Today `prospect_id`                                                                                        |
+| Orders, quotes, samples, returns, commission                | **Line account**                | Orders exist (CAD); others missing                                                                         |
+| Last order / reorder prediction                             | **Line account**                | Today 1:1 settings                                                                                         |
+| Territory rights                                            | **sales_line_territories**      | Today retailer FK                                                                                          |
+| Assigned salesperson                                        | **Line account**                | Missing (all staff see all)                                                                                |
+| Catalog / SKUs / published showroom                         | **Sales line**                  | Already `line_id`                                                                                          |
+| Outreach drafts / Resend ledger                             | **Line account + catalog_item** | Catalog implies line; must also stamp `retailer_line_account_id`                                           |
+| Outreach monthly goal / briefing                            | **Per sales line**              | Today singleton                                                                                            |
+| Portfolio KPI                                               | Explicit report only            | Must be labelled; default dashboards stay in-line                                                          |
 
 **Never** sum revenue, mix statuses, or reuse qualification scores across lines except a labelled portfolio view that shows **line name + status only** (or opt-in metrics).
 
@@ -350,58 +350,58 @@ Briefing, Line Sheet, Dashboard, Calls, Prospects, Active Accounts, Contacts, Me
 
 ### 8.2 Proposed `territories` (geo)
 
-| Column | Purpose |
-|--------|---------|
-| `id` | PK |
-| `country_code` | `CA` / `US` |
-| `level` | `country` \| `province_state` \| `region` \| `corridor` \| `county` |
-| `name` | Display |
-| `code` | Stable slug (`bc`, `or`, `norcal`, `us-ca-sonoma`, …) — **drop the five-value CHECK** |
-| `parent_territory_id` | Hierarchy |
-| `metadata` jsonb | FIPS/SGC codes, bbox, notes |
-| `geometry` | Optional later (PostGIS); not required for v1 |
+| Column                | Purpose                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `id`                  | PK                                                                                    |
+| `country_code`        | `CA` / `US`                                                                           |
+| `level`               | `country` \| `province_state` \| `region` \| `corridor` \| `county`                   |
+| `name`                | Display                                                                               |
+| `code`                | Stable slug (`bc`, `or`, `norcal`, `us-ca-sonoma`, …) — **drop the five-value CHECK** |
+| `parent_territory_id` | Hierarchy                                                                             |
+| `metadata` jsonb      | FIPS/SGC codes, bbox, notes                                                           |
+| `geometry`            | Optional later (PostGIS); not required for v1                                         |
 
 **Northern California must not equal `ca`.** v1 recommendation: define an explicit `norcal` **region** whose children are a **staff-approved county list** (stored as child `county` rows or as `metadata.counties[]` until GIS is justified). Until the agreement wording is confirmed, seed `norcal` as `status = proposed` on the Eagle Peak assignment only.
 
 ### 8.3 Proposed `sales_line_territories`
 
-| Column | Purpose |
-|--------|---------|
-| `sales_line_id` | FK `lines` |
-| `territory_id` | FK geo |
-| `rights_type` | `exclusive` \| `limited_exclusive` \| `non_exclusive` |
-| `status` | `proposed` \| `active` \| `expired` \| `disputed` |
-| `effective_date` / `expiration_date` | Contract window |
-| `contract_source` | Agreement filename / URL / note |
-| `restrictions` | Text/json (accounts, channels, house accounts) |
-| `notes` | |
+| Column                               | Purpose                                               |
+| ------------------------------------ | ----------------------------------------------------- |
+| `sales_line_id`                      | FK `lines`                                            |
+| `territory_id`                       | FK geo                                                |
+| `rights_type`                        | `exclusive` \| `limited_exclusive` \| `non_exclusive` |
+| `status`                             | `proposed` \| `active` \| `expired` \| `disputed`     |
+| `effective_date` / `expiration_date` | Contract window                                       |
+| `contract_source`                    | Agreement filename / URL / note                       |
+| `restrictions`                       | Text/json (accounts, channels, house accounts)        |
+| `notes`                              |                                                       |
 
 Admin UI: open a line → only that line’s assignments → add/modify without touching other lines.
 
 ### 8.4 Territory-by-line matrix **supported by evidence today**
 
-| Line | In database? | Territory rights in DB | Evidence of assigned geography |
-|------|----------------|------------------------|--------------------------------|
-| Old Guys Rule | Yes (`ogr`, active) | None (retailer-level BC) | Seed + import = British Columbia. Schema *allows* AB/CA/OR/WA but nothing assigns them to OGR. **OR/WA for OGR is not evidenced.** California is not evidenced. |
-| Busted Knuckles Garage | Yes (`bkg`, inactive) | None | No catalog, no prospects, unused in `src/` |
-| Eagle Peak | **No** | **No** | Not in schema, seed, or UI |
-| Big Fish | **No** | **No** | Not in schema, seed, or UI. **Business decision: confirmed represented line** — still no rights or accounts in DB. |
-| Prospective Lines (≤12) | **No** | **No** | Not in product. Research pipeline only. |
+| Line                    | In database?          | Territory rights in DB   | Evidence of assigned geography                                                                                                                                  |
+| ----------------------- | --------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Old Guys Rule           | Yes (`ogr`, active)   | None (retailer-level BC) | Seed + import = British Columbia. Schema _allows_ AB/CA/OR/WA but nothing assigns them to OGR. **OR/WA for OGR is not evidenced.** California is not evidenced. |
+| Busted Knuckles Garage  | Yes (`bkg`, inactive) | None                     | No catalog, no prospects, unused in `src/`                                                                                                                      |
+| Eagle Peak              | **No**                | **No**                   | Not in schema, seed, or UI                                                                                                                                      |
+| Big Fish                | **No**                | **No**                   | Not in schema, seed, or UI. **Business decision: confirmed represented line** — still no rights or accounts in DB.                                              |
+| Prospective Lines (≤12) | **No**                | **No**                   | Not in product. Research pipeline only.                                                                                                                         |
 
-**Do not encode hoped-for geography as data until confirmed.** Planning assumption for *design* (not migration):
+**Do not encode hoped-for geography as data until confirmed.** Planning assumption for _design_ (not migration):
 
-| Line | Status (intended) | Territories (intended, unconfirmed) |
-|------|-------------------|-------------------------------------|
-| OGR | Active (represented) | BC confirmed in data; OR/WA maybe; CA not assumed |
-| Eagle Peak | Active or onboarding (represented) | Northern CA (undefined), OR, WA; not BC/AB unless confirmed |
-| Big Fish | Confirmed represented; onboard as `onboarding` until catalog/territories/accounts exist | None until confirmed — do not copy OGR BC |
-| Prospective Lines | `prospective` (not represented) | Optional *interest* notes only; not `sales_line_territories` with selling rights |
+| Line              | Status (intended)                                                                       | Territories (intended, unconfirmed)                                              |
+| ----------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| OGR               | Active (represented)                                                                    | BC confirmed in data; OR/WA maybe; CA not assumed                                |
+| Eagle Peak        | Active or onboarding (represented)                                                      | Northern CA (undefined), OR, WA; not BC/AB unless confirmed                      |
+| Big Fish          | Confirmed represented; onboard as `onboarding` until catalog/territories/accounts exist | None until confirmed — do not copy OGR BC                                        |
+| Prospective Lines | `prospective` (not represented)                                                         | Optional _interest_ notes only; not `sales_line_territories` with selling rights |
 
 Retailer **footprint** (CA, OR, WA, BC, AB) is the agency’s possible working area, not a grant of rights.
 
 ### 8.5 Assignment rule
 
-AI and import **must not** set `sales_line_territory_id` from address alone. Location can *suggest* a matching active assignment; staff confirms. A Portland store may be OGR-unassigned and Eagle Peak–Oregon.
+AI and import **must not** set `sales_line_territory_id` from address alone. Location can _suggest_ a matching active assignment; staff confirms. A Portland store may be OGR-unassigned and Eagle Peak–Oregon.
 
 ---
 
@@ -409,20 +409,20 @@ AI and import **must not** set `sales_line_territory_id` from address alone. Loc
 
 ### 9.1 Inventory of AI surfaces
 
-| Surface | Entry | Today’s scope |
-|---------|-------|----------------|
-| Ask AI / coach | `AIAssistantModal` → `POST /api/agent` | System prompt: BC OGR apparel; tools keyed by `prospectId` |
-| Suggest | `buildSuggestDraft` | OGR/BC copy; CRM tools by prospect id |
-| APF Brief | `buildApfDraft` → `getAccountProductFit` | Default `lineCode=ogr`; catalog anchors for that code; scores in the model |
-| Assist / call draft | `buildAssistDraft` / `buildCallDraft` | OGR/BC |
-| AI Update | `AiUpdateResearchModal` → `/api/prospects/research-update` | Writes **prospect** columns |
-| Fill blanks | `fillBlankProspectFields.ts` | OGR themes; deterministic BC scoring |
-| Add via AI | `/api/prospects/enrich` → `createEnrichedProspect` | BC OGR; model may assign `fitScore` |
-| Contact enrich | `/api/contacts/enrich` | Can create a prospect |
-| Outreach drafts | `generateOgrProductOutreachDraft` | OGR apparel prompt; OGR published SKUs |
-| Landed rates | `/api/pricing/landed-rates` | “BC apparel wholesale rep” |
-| Reorder notes | `getReorderSuggestions` | Orders + settings by `account_id` (CAD) |
-| Public live chat AI | `/api/chat/ai-reply` | Buyer/OGR wholesale context (separate from staff CRM) |
+| Surface             | Entry                                                      | Today’s scope                                                              |
+| ------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Ask AI / coach      | `AIAssistantModal` → `POST /api/agent`                     | System prompt: BC OGR apparel; tools keyed by `prospectId`                 |
+| Suggest             | `buildSuggestDraft`                                        | OGR/BC copy; CRM tools by prospect id                                      |
+| APF Brief           | `buildApfDraft` → `getAccountProductFit`                   | Default `lineCode=ogr`; catalog anchors for that code; scores in the model |
+| Assist / call draft | `buildAssistDraft` / `buildCallDraft`                      | OGR/BC                                                                     |
+| AI Update           | `AiUpdateResearchModal` → `/api/prospects/research-update` | Writes **prospect** columns                                                |
+| Fill blanks         | `fillBlankProspectFields.ts`                               | OGR themes; deterministic BC scoring                                       |
+| Add via AI          | `/api/prospects/enrich` → `createEnrichedProspect`         | BC OGR; model may assign `fitScore`                                        |
+| Contact enrich      | `/api/contacts/enrich`                                     | Can create a prospect                                                      |
+| Outreach drafts     | `generateOgrProductOutreachDraft`                          | OGR apparel prompt; OGR published SKUs                                     |
+| Landed rates        | `/api/pricing/landed-rates`                                | “BC apparel wholesale rep”                                                 |
+| Reorder notes       | `getReorderSuggestions`                                    | Orders + settings by `account_id` (CAD)                                    |
+| Public live chat AI | `/api/chat/ai-reply`                                       | Buyer/OGR wholesale context (separate from staff CRM)                      |
 
 ### 9.2 Required request context (every staff AI call)
 
@@ -687,20 +687,20 @@ Public catalog RPCs stay **per-line** (`ogr` vs future Eagle Peak showroom). Do 
 
 ## 15. Phased implementation plan
 
-Do not start Phase 1 until §14 items 1–5, 6 (Big Fish details as known), and 8 are answered. Big Fish *as a represented line* is already decided.
+Do not start Phase 1 until §14 items 1–5, 6 (Big Fish details as known), and 8 are answered. Big Fish _as a represented line_ is already decided.
 
-| Phase | Name | Outcome |
-|-------|------|---------|
-| **0** | This audit + decisions | Approved field matrix, slugs, territory list, BKG policy, Eagle Peak / Big Fish onboarding details |
-| **1** | Schema foundation | New tables + extended `lines`/`territories`; OGR backfill behind flag; line `status` includes `prospective` |
-| **2** | Line context in app | Represented line picker (OGR + placeholders for Eagle Peak / Big Fish), route prefix, scoped fetches |
-| **3** | Split remaining writes | Convert, notes, contacts, orders, calls, reorder, outreach, goals use `retailer_line_account_id` |
-| **4** | AI isolation | Prompts + tools + fill-blanks keyed by line profile; retailer identity audit log |
-| **5** | Territory admin | Line territory CRUD; norcal proposed region; stop using `prospects.territory_id` as rights |
-| **6** | Eagle Peak onboarding | Catalog/ICP as available; empty account book; badges; feature-flagged selling |
-| **7** | Big Fish onboarding | Represented line record; empty book; no OGR clone; feature-flagged selling until territories/catalog exist |
-| **8** | Prospective Lines pipeline | Up to ~12 research candidates; retailer targets; hard blocks on selling/outreach/KPIs |
-| **9** | Cleanup | Drop old columns; FKs on calls; optional PostGIS; staff-line RLS if needed |
+| Phase | Name                       | Outcome                                                                                                     |
+| ----- | -------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **0** | This audit + decisions     | Approved field matrix, slugs, territory list, BKG policy, Eagle Peak / Big Fish onboarding details          |
+| **1** | Schema foundation          | New tables + extended `lines`/`territories`; OGR backfill behind flag; line `status` includes `prospective` |
+| **2** | Line context in app        | Represented line picker (OGR + placeholders for Eagle Peak / Big Fish), route prefix, scoped fetches        |
+| **3** | Split remaining writes     | Convert, notes, contacts, orders, calls, reorder, outreach, goals use `retailer_line_account_id`            |
+| **4** | AI isolation               | Prompts + tools + fill-blanks keyed by line profile; retailer identity audit log                            |
+| **5** | Territory admin            | Line territory CRUD; norcal proposed region; stop using `prospects.territory_id` as rights                  |
+| **6** | Eagle Peak onboarding      | Catalog/ICP as available; empty account book; badges; feature-flagged selling                               |
+| **7** | Big Fish onboarding        | Represented line record; empty book; no OGR clone; feature-flagged selling until territories/catalog exist  |
+| **8** | Prospective Lines pipeline | Up to ~12 research candidates; retailer targets; hard blocks on selling/outreach/KPIs                       |
+| **9** | Cleanup                    | Drop old columns; FKs on calls; optional PostGIS; staff-line RLS if needed                                  |
 
 **Out of scope until later:** GIS drawing tools, automatic duplicate merge, independent duplicate retailer databases, Gmail as a send system, autosend outreach.
 
@@ -806,16 +806,16 @@ See §14. Minimum to start Phase 1: Eagle Peak slug/status/currency; Big Fish sl
 
 ## Appendix E — Numbered implementation sequence
 
-1. Record answers to §14.  
-2. Additive migration (principals, line status, geo hierarchy, `sales_line_territories`, `retailer_line_accounts`, contact junction, FKs).  
-3. Backfill OGR only; validate counts.  
-4. Line picker + route prefix; filter all reads.  
-5. Move writes (convert, notes, orders, calls, contacts, outreach).  
-6. AI request context + per-line prompts/rubrics + retailer field audit.  
-7. Territory admin UI.  
-8. Enable Eagle Peak catalog + empty book (no silent account clone).  
-9. Enable Big Fish as represented empty book (no OGR clone).  
-10. Prospective Lines pipeline (~12) + research-only retailer targets.  
+1. Record answers to §14.
+2. Additive migration (principals, line status, geo hierarchy, `sales_line_territories`, `retailer_line_accounts`, contact junction, FKs).
+3. Backfill OGR only; validate counts.
+4. Line picker + route prefix; filter all reads.
+5. Move writes (convert, notes, orders, calls, contacts, outreach).
+6. AI request context + per-line prompts/rubrics + retailer field audit.
+7. Territory admin UI.
+8. Enable Eagle Peak catalog + empty book (no silent account clone).
+9. Enable Big Fish as represented empty book (no OGR clone).
+10. Prospective Lines pipeline (~12) + research-only retailer targets.
 11. Drop dual-write columns.
 
 ---

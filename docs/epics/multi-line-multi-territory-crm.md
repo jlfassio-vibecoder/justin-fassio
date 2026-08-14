@@ -20,11 +20,11 @@ Replace the current OGR-and-BC single-lifecycle CRM with a **line-first** worksp
 
 **Represented lines (this epic):**
 
-| Line | `lines.status` | First ship |
-|------|----------------|------------|
-| Old Guys Rule | `active` | Migrate all existing data onto OGR line accounts |
-| Eagle Peak | `onboarding` | Line + territories as known; empty book; no OGR clone |
-| Big Fish | `confirmed` | Line row only; empty book; **not** a Prospective Line; do not invent commercial terms |
+| Line          | `lines.status` | First ship                                                                            |
+| ------------- | -------------- | ------------------------------------------------------------------------------------- |
+| Old Guys Rule | `active`       | Migrate all existing data onto OGR line accounts                                      |
+| Eagle Peak    | `onboarding`   | Line + territories as known; empty book; no OGR clone                                 |
+| Big Fish      | `confirmed`    | Line row only; empty book; **not** a Prospective Line; do not invent commercial terms |
 
 **Busted Knuckles Garage (`bkg`):** keep as an inactive independent line (`active = false`, map `status = paused`). **Do not reuse** for Eagle Peak or Big Fish.
 
@@ -71,25 +71,25 @@ Gaps this epic closes: no retailer master, no per-line status, no `sales_line_te
 
 Keep physical table `lines`. Add `status`. Keep existing `active boolean` as the **public-portfolio flag** (independent of `status`) so `fetchActiveLines` / `get_public_active_lines` stay OGR-only until intentionally published. Seed Eagle Peak and Big Fish with `active = false`.
 
-| Status | Meaning | In represented picker | Selling / orders / convert | Outreach cron / briefing KPIs | Public catalog |
-|--------|---------|----------------------|----------------------------|-------------------------------|----------------|
-| `prospective` | Acquisition candidate | **No** — `/app/prospective-lines` only | **No** | **No** | **No** |
-| `confirmed` | Represented agreement in place; configuration incomplete | Yes (badge) | Feature-flagged | No until flag | No until flag |
-| `onboarding` | Represented; catalog/territories/accounts being set up | Yes (badge) | Feature-flagged | No until flag | No until flag |
-| `active` | Represented, operational | Yes | Yes | Yes (per line) | If published |
-| `paused` | Represented or dormant independent line, temporarily stopped | Yes (admin) | Read-only selling | No | Existing URLs may stay |
-| `declined` | Acquisition ended without representation | Admin only | No | No | No |
-| `terminated` | Former represented line | Admin only | No | No | No |
+| Status        | Meaning                                                      | In represented picker                  | Selling / orders / convert | Outreach cron / briefing KPIs | Public catalog         |
+| ------------- | ------------------------------------------------------------ | -------------------------------------- | -------------------------- | ----------------------------- | ---------------------- |
+| `prospective` | Acquisition candidate                                        | **No** — `/app/prospective-lines` only | **No**                     | **No**                        | **No**                 |
+| `confirmed`   | Represented agreement in place; configuration incomplete     | Yes (badge)                            | Feature-flagged            | No until flag                 | No until flag          |
+| `onboarding`  | Represented; catalog/territories/accounts being set up       | Yes (badge)                            | Feature-flagged            | No until flag                 | No until flag          |
+| `active`      | Represented, operational                                     | Yes                                    | Yes                        | Yes (per line)                | If published           |
+| `paused`      | Represented or dormant independent line, temporarily stopped | Yes (admin)                            | Read-only selling          | No                            | Existing URLs may stay |
+| `declined`    | Acquisition ended without representation                     | Admin only                             | No                         | No                            | No                     |
+| `terminated`  | Former represented line                                      | Admin only                             | No                         | No                            | No                     |
 
 **Seed mapping:**
 
-| Code | `status` | `active` | Notes |
-|------|----------|----------|-------|
-| `ogr` | `active` | `true` | Full OGR backfill |
-| `bkg` | `paused` | `false` | Independent; unused in `src/` |
-| `eagle-peak` | `onboarding` | `false` | Phase 1 line row + known territories; zero accounts |
-| `big-fish` | `confirmed` | `false` | Phase 1 line row only; zero territories/accounts; no invented terms |
-| Prospective candidates | `prospective` | `false` | Phase 8 pipeline; ~12 soft cap |
+| Code                   | `status`      | `active` | Notes                                                               |
+| ---------------------- | ------------- | -------- | ------------------------------------------------------------------- |
+| `ogr`                  | `active`      | `true`   | Full OGR backfill                                                   |
+| `bkg`                  | `paused`      | `false`  | Independent; unused in `src/`                                       |
+| `eagle-peak`           | `onboarding`  | `false`  | Phase 1 line row + known territories; zero accounts                 |
+| `big-fish`             | `confirmed`   | `false`  | Phase 1 line row only; zero territories/accounts; no invented terms |
+| Prospective candidates | `prospective` | `false`  | Phase 8 pipeline; ~12 soft cap                                      |
 
 Prospective Lines use **only** `status = prospective`. Soft cap: ~12 prospective rows in UX.
 
@@ -97,15 +97,15 @@ Prospective Lines use **only** `status = prospective`. Soft cap: ~12 prospective
 
 When `status = prospective`, require `acquisition_stage`:
 
-| Stage | Meaning |
-|-------|---------|
-| `identified` | Candidate named |
-| `researching` | ICP / market research |
+| Stage               | Meaning                         |
+| ------------------- | ------------------------------- |
+| `identified`        | Candidate named                 |
+| `researching`       | ICP / market research           |
 | `contact_requested` | Outreach to principal requested |
-| `conversation` | Active discussion |
-| `evaluating` | Fit / capacity evaluation |
-| `negotiating` | Terms discussion |
-| `decision_pending` | Waiting on yes/no |
+| `conversation`      | Active discussion               |
+| `evaluating`        | Fit / capacity evaluation       |
+| `negotiating`       | Terms discussion                |
+| `decision_pending`  | Waiting on yes/no               |
 
 When `status <> prospective`, `acquisition_stage` must be null. Promote-to-represented is an explicit owner action (e.g. `prospective` → `confirmed` or `onboarding`) that does **not** auto-create selling accounts from targets.
 
@@ -151,19 +151,19 @@ When `status <> prospective`, `acquisition_stage` must be null. Promote-to-repre
 
 ## 6. Research-only retailer targets
 
-Prospective Lines may map retailers they *might* sell if the line is signed. That mapping is **not** a selling line account.
+Prospective Lines may map retailers they _might_ sell if the line is signed. That mapping is **not** a selling line account.
 
 **Required:** table `retailer_line_targets`
 
-| Column | Purpose |
-|--------|---------|
-| `id` | PK |
-| `retailer_id` | Shared identity (`prospects.id` in Phase 1) |
-| `sales_line_id` | Must be `lines.status = prospective` |
-| `interest` / `fit_notes` | Research |
-| `suggested_geo` | Text only — not `sales_line_territories` rights |
-| `status` | `watching` \| `shortlist` \| `dropped` |
-| `created_at` / `updated_at` | Audit |
+| Column                      | Purpose                                         |
+| --------------------------- | ----------------------------------------------- |
+| `id`                        | PK                                              |
+| `retailer_id`               | Shared identity (`prospects.id` in Phase 1)     |
+| `sales_line_id`             | Must be `lines.status = prospective`            |
+| `interest` / `fit_notes`    | Research                                        |
+| `suggested_geo`             | Text only — not `sales_line_territories` rights |
+| `status`                    | `watching` \| `shortlist` \| `dropped`          |
+| `created_at` / `updated_at` | Audit                                           |
 
 **Enforcement:** trigger (not a cross-table CHECK) ensures `sales_line_id` references a prospective line.
 
@@ -295,7 +295,7 @@ Big Fish is already a represented line at `confirmed`. This phase fills configur
 - `/app/prospective-lines` and `/:lineSlug` research workspace (owner/admin)
 - CRUD up to ~12 candidate lines (`status=prospective` + `acquisition_stage`)
 - Retailer target mapping (`retailer_line_targets`)
-- Research notes, ICP drafts, geographic *interest* text
+- Research notes, ICP drafts, geographic _interest_ text
 - **Hard blocks (DB + API + UI):**
   - orders, commissions, quotes as commercial docs
   - convert to active account
@@ -321,23 +321,23 @@ Big Fish is already a represented line at `confirmed`. This phase fills configur
 
 ### 9.1 Expand / contract
 
-1. Add tables and nullable FKs.  
-2. Backfill OGR.  
-3. Dual-write.  
-4. Switch reads (flag).  
-5. Switch writes.  
+1. Add tables and nullable FKs.
+2. Backfill OGR.
+3. Dual-write.
+4. Switch reads (flag).
+5. Switch writes.
 6. Drop old line-specific columns.
 
 Never regenerate `prospects.id` / `retailers.id`.
 
 ### 9.2 Rollback
 
-| After | How |
-|-------|-----|
-| Phase 1–2 | Reverse migration; flag off; UI is OGR `/app` |
-| Phase 3–5 | Revert deploy; dual-write still populated `prospects` |
+| After     | How                                                                                                           |
+| --------- | ------------------------------------------------------------------------------------------------------------- |
+| Phase 1–2 | Reverse migration; flag off; UI is OGR `/app`                                                                 |
+| Phase 3–5 | Revert deploy; dual-write still populated `prospects`                                                         |
 | Phase 6–8 | Disable line-specific feature flags; leave empty Eagle Peak / Big Fish / prospective rows in place (harmless) |
-| Phase 9 | Restore DB snapshot taken before drop; this phase is irreversible without backup |
+| Phase 9   | Restore DB snapshot taken before drop; this phase is irreversible without backup                              |
 
 Snapshot before Phase 1 backfill: `prospects`, `orders`, `calls`, `account_contacts`, `system_messages`, `account_reorder_settings`.
 
@@ -380,38 +380,38 @@ order by 1;
 
 Aligned with audit §13, plus:
 
-1. Unique `(retailer, line)` and same-line territory FK.  
-2. OGR backfill counts.  
-3. UI isolation: two line accounts, no leaked orders/notes/scores.  
-4. Route 404 when `lineAccountId` belongs to another slug.  
-5. AI context required; no cross-line SKUs.  
-6. Outreach prep scoped by line; cron ignores prospective and unflagged confirmed/onboarding.  
-7. Currency: Eagle Peak USD (and future Big Fish currency when set) not in OGR CAD LTV.  
-8. Territory admin isolation; OGR CA/AB remain unassigned.  
-9. Public OGR RPCs still `code = 'ogr'`.  
-10. Prospective: 12-line UX; 13th warned; order/outreach/convert 403.  
-11. Research targets cannot convert.  
-12. Promote prospective → confirmed/onboarding does not create line accounts automatically.  
+1. Unique `(retailer, line)` and same-line territory FK.
+2. OGR backfill counts.
+3. UI isolation: two line accounts, no leaked orders/notes/scores.
+4. Route 404 when `lineAccountId` belongs to another slug.
+5. AI context required; no cross-line SKUs.
+6. Outreach prep scoped by line; cron ignores prospective and unflagged confirmed/onboarding.
+7. Currency: Eagle Peak USD (and future Big Fish currency when set) not in OGR CAD LTV.
+8. Territory admin isolation; OGR CA/AB remain unassigned.
+9. Public OGR RPCs still `code = 'ogr'`.
+10. Prospective: 12-line UX; 13th warned; order/outreach/convert 403.
+11. Research targets cannot convert.
+12. Promote prospective → confirmed/onboarding does not create line accounts automatically.
 13. `npm run check` on every PR.
 
 ---
 
 ## 11. Feature flags
 
-| Flag | Phase | Default prod | Effect |
-|------|-------|--------------|--------|
-| `FEATURE_MULTI_LINE_SCHEMA` | 1 | n/a (schema) | Document only |
-| `FEATURE_MULTI_LINE_UI` | 2 | off | Line routes + picker |
-| `FEATURE_MULTI_LINE_WRITES` | 3 | off | Writes to line accounts |
-| `FEATURE_MULTI_LINE_AI` | 4 | off | Strict AI context |
-| `FEATURE_LINE_TERRITORY_ADMIN` | 5 | off | Territory CRUD |
-| `FEATURE_EAGLE_PEAK_SELLING` | 6 | off | Convert/orders/calls for Eagle Peak |
-| `FEATURE_EAGLE_PEAK_OUTREACH` | 6 | off | Prep/briefing/send |
-| `FEATURE_EAGLE_PEAK_PUBLIC_CATALOG` | 6 | off | Public RPCs/showroom |
-| `FEATURE_BIG_FISH_SELLING` | 7 | off | Same for Big Fish |
-| `FEATURE_BIG_FISH_OUTREACH` | 7 | off | |
-| `FEATURE_BIG_FISH_PUBLIC_CATALOG` | 7 | off | |
-| `FEATURE_PROSPECTIVE_LINES` | 8 | off | Acquisition UI |
+| Flag                                | Phase | Default prod | Effect                              |
+| ----------------------------------- | ----- | ------------ | ----------------------------------- |
+| `FEATURE_MULTI_LINE_SCHEMA`         | 1     | n/a (schema) | Document only                       |
+| `FEATURE_MULTI_LINE_UI`             | 2     | off          | Line routes + picker                |
+| `FEATURE_MULTI_LINE_WRITES`         | 3     | off          | Writes to line accounts             |
+| `FEATURE_MULTI_LINE_AI`             | 4     | off          | Strict AI context                   |
+| `FEATURE_LINE_TERRITORY_ADMIN`      | 5     | off          | Territory CRUD                      |
+| `FEATURE_EAGLE_PEAK_SELLING`        | 6     | off          | Convert/orders/calls for Eagle Peak |
+| `FEATURE_EAGLE_PEAK_OUTREACH`       | 6     | off          | Prep/briefing/send                  |
+| `FEATURE_EAGLE_PEAK_PUBLIC_CATALOG` | 6     | off          | Public RPCs/showroom                |
+| `FEATURE_BIG_FISH_SELLING`          | 7     | off          | Same for Big Fish                   |
+| `FEATURE_BIG_FISH_OUTREACH`         | 7     | off          |                                     |
+| `FEATURE_BIG_FISH_PUBLIC_CATALOG`   | 7     | off          |                                     |
+| `FEATURE_PROSPECTIVE_LINES`         | 8     | off          | Acquisition UI                      |
 
 Never `PUBLIC_` for these if they gate server writes; server reads `import.meta.env` in API routes. UI may use a staff-only `/api/staff/features` snapshot if needed (no secrets).
 
@@ -421,10 +421,10 @@ Confirmed / onboarding represented lines **appear** in the picker when their row
 
 ## 12. Security
 
-- v1: `is_approved_staff()` + mandatory `sales_line_id` in every CRM query.  
-- Prospective Lines: **owner/admin** only in UI; APIs 403 for non-owner.  
-- Cron: existing `CRON_SECRET`; prep runner must receive `sales_line_id` and skip `prospective` / unflagged confirmed/onboarding.  
-- No service role in React islands.  
+- v1: `is_approved_staff()` + mandatory `sales_line_id` in every CRM query.
+- Prospective Lines: **owner/admin** only in UI; APIs 403 for non-owner.
+- Cron: existing `CRON_SECRET`; prep runner must receive `sales_line_id` and skip `prospective` / unflagged confirmed/onboarding.
+- No service role in React islands.
 - Public catalogs remain per-line RPCs.
 
 ---
@@ -439,15 +439,15 @@ Do not rewrite historical BC seed migrations.
 
 ## 14. Numbered sequence (approval checklist)
 
-1. Approve this epic + revised audit + Phase 1 plan.  
-2. Phase 1 schema + OGR backfill + validation.  
-3. Phase 2 UI reads + `FEATURE_MULTI_LINE_UI`.  
-4. Phase 3 writes + badges.  
-5. Phase 4 AI isolation.  
-6. Phase 5 territory admin.  
-7. Phase 6 Eagle Peak selling flags when ready.  
-8. Phase 7 Big Fish configuration when commercial terms are known.  
-9. Phase 8 Prospective Lines (~12) + research targets.  
+1. Approve this epic + revised audit + Phase 1 plan.
+2. Phase 1 schema + OGR backfill + validation.
+3. Phase 2 UI reads + `FEATURE_MULTI_LINE_UI`.
+4. Phase 3 writes + badges.
+5. Phase 4 AI isolation.
+6. Phase 5 territory admin.
+7. Phase 6 Eagle Peak selling flags when ready.
+8. Phase 7 Big Fish configuration when commercial terms are known.
+9. Phase 8 Prospective Lines (~12) + research targets.
 10. Phase 9 drop dual-write.
 
 ---
@@ -468,14 +468,14 @@ Do not rewrite historical BC seed migrations.
 
 **Still open (do not block Phase 1 schema shape):**
 
-| Item | Blocks implementation? |
-|------|------------------------|
-| Big Fish legal name, currency, commission, territories, catalog | No — leave null / empty until known |
-| Northern California exact county list | No — keep `norcal` as `proposed` |
-| Written evidence that OGR rights are exclusive | No — keep `unconfirmed` |
-| OGR `productivity_thresholds` numbers | No — leave null → `unclassified` |
-| Outreach goal of 5 accounts: per line vs agency | No — Phase 2+ |
-| Whether to move Big Fish from `confirmed` to `onboarding` when config starts | No — staff decision later |
+| Item                                                                         | Blocks implementation?              |
+| ---------------------------------------------------------------------------- | ----------------------------------- |
+| Big Fish legal name, currency, commission, territories, catalog              | No — leave null / empty until known |
+| Northern California exact county list                                        | No — keep `norcal` as `proposed`    |
+| Written evidence that OGR rights are exclusive                               | No — keep `unconfirmed`             |
+| OGR `productivity_thresholds` numbers                                        | No — leave null → `unclassified`    |
+| Outreach goal of 5 accounts: per line vs agency                              | No — Phase 2+                       |
+| Whether to move Big Fish from `confirmed` to `onboarding` when config starts | No — staff decision later           |
 
 ---
 

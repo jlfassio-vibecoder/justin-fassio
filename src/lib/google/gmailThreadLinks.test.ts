@@ -6,6 +6,7 @@ const row: GmailThreadLinkRow = {
   google_connection_id: 'conn-1',
   gmail_thread_id: 'thread-1',
   prospect_id: 42,
+  retailer_line_account_id: null,
   account_contact_id: 'contact-1',
   link_status: 'confirmed',
   subject: 'Re: Quote',
