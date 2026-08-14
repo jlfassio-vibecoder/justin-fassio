@@ -104,6 +104,21 @@ describe('Phase 1A multi-line schema foundation', () => {
     expect(tablesMigration).toMatch(/enforce_system_message_not_prospective_line/i);
   });
 
+  it('blocks leaving prospective while retailer_line_targets exist', () => {
+    const promoteFix = readFileSync(
+      resolve(
+        process.cwd(),
+        'supabase/migrations/20260814115000_multi_line_phase1a_block_promote_with_targets.sql',
+      ),
+      'utf8',
+    );
+    expect(promoteFix).toMatch(/enforce_lines_leave_prospective_without_targets/i);
+    expect(promoteFix).toMatch(
+      /Cannot change line % from prospective while % retailer_line_targets exist/i,
+    );
+    expect(schemaSql).toMatch(/enforce_lines_leave_prospective_without_targets/i);
+  });
+
   it('adds RLS to every new table with is_approved_staff', () => {
     for (const table of [
       'principals',
