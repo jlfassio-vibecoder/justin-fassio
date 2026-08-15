@@ -1705,14 +1705,14 @@ No throwaway Big Fish RLA, order, SLT, or catalog row was inserted. Selling/outr
 
 ### Baseline / reconciliation (local disposable DB)
 
-| Check                            | Result                                                                                          |
-| -------------------------------- | ----------------------------------------------------------------------------------------------- |
-| prospects                        | 607 (Phase 4 start; live recount skipped)                                                       |
-| OGR non-terminated RLAs          | 607                                                                                             |
-| OGR catalog items                | 190                                                                                             |
-| Eagle Peak / Big Fish / BKG RLAs | 0 / 0 / 0 at start; isolation tests mocked (no throwaway prospective RLA, order, or catalog)    |
-| Prospective line rows / targets  | 0 / 0 at start; create/promote/target tests mocked                                              |
-| Flag default                     | `FEATURE_PROSPECTIVE_LINES` off (not `PUBLIC_`). Snapshot AND UI only; does not AND writes       |
+| Check                            | Result                                                                                       |
+| -------------------------------- | -------------------------------------------------------------------------------------------- |
+| prospects                        | 607 (Phase 4 start; live recount skipped)                                                    |
+| OGR non-terminated RLAs          | 607                                                                                          |
+| OGR catalog items                | 190                                                                                          |
+| Eagle Peak / Big Fish / BKG RLAs | 0 / 0 / 0 at start; isolation tests mocked (no throwaway prospective RLA, order, or catalog) |
+| Prospective line rows / targets  | 0 / 0 at start; create/promote/target tests mocked                                           |
+| Flag default                     | `FEATURE_PROSPECTIVE_LINES` off (not `PUBLIC_`). Snapshot AND UI only; does not AND writes   |
 
 ### Delivered
 
@@ -1746,4 +1746,3 @@ Promoted lines are represented in DB (`confirmed` / `onboarding`) but stay out o
 - No commit/push unless separately requested
 
 **Phase 8 Prospective Lines acquisition pipeline is complete locally.** Do not begin Phase 9 until separately approved. Do not commit/push/deploy unless separately requested.
-
