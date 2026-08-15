@@ -1,0 +1,10 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { AuthGate } from '@/components/auth/AuthGate';
+export const prerender = false;
+const { lineSlug, lineAccountId } = Astro.params;
+---
+
+<Layout title="Account — Rep Command Center">
+  <AuthGate client:load lineSlug={lineSlug} lineAccountId={lineAccountId} pathTab="accounts" />
+</Layout>

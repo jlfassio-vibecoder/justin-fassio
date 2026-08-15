@@ -24,6 +24,7 @@ import {
 import { fetchOrdersForAccounts, type OrderRow } from '@/lib/orders';
 import { computeReorderSuggestion, formatLocalIsoDate } from '@/lib/reorderCadence';
 import type { Prospect } from '@/lib/prospects';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
 
 interface ActiveAccountsTabProps {
@@ -64,6 +65,8 @@ export function ActiveAccountsTab({
   onDeepLinkConsumed,
 }: ActiveAccountsTabProps) {
   const { openAssist } = useAiAssist();
+  const lineCtx = useOptionalLineContext();
+  const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const [territoryCode, setTerritoryCode] = useState(BC_TERRITORY_CODE);
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);
@@ -125,7 +128,7 @@ export function ActiveAccountsTab({
 
       setOrdersLoading(true);
       setOrdersError(null);
-      const result = await fetchOrdersForAccounts(ids);
+      const result = await fetchOrdersForAccounts(ids, salesLineId ? { salesLineId } : {});
       if (!active) return;
       setOrdersLoading(false);
       if (result.error) {
@@ -140,7 +143,7 @@ export function ActiveAccountsTab({
     return () => {
       active = false;
     };
-  }, [accountIdsKey, ordersReloadToken]);
+  }, [accountIdsKey, ordersReloadToken, salesLineId]);
 
   useEffect(() => {
     let active = true;
@@ -241,6 +244,7 @@ export function ActiveAccountsTab({
         territories={territories}
         territoryCode={territoryCode}
         onTerritoryCodeChange={setTerritoryCode}
+        currentSalesLineId={salesLineId}
         searchPlaceholder="Search active accounts by name, city, address, or fit…"
         emptyMessage="No active accounts yet. Convert a prospect after a Closed PO or from Details."
         extraColumnHeaders={['TLV', 'Last order', 'Season']}

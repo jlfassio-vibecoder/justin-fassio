@@ -97,6 +97,7 @@ describe('staff outreach briefing + prep', () => {
     });
     const res = await GET_BRIEFING({
       request: new Request('http://localhost/api/staff/outreach/briefing'),
+      url: new URL('http://localhost/api/staff/outreach/briefing'),
     } as never);
     expect(res.status).toBe(401);
     expect(assembleOutreachBriefingMock).not.toHaveBeenCalled();
@@ -105,6 +106,7 @@ describe('staff outreach briefing + prep', () => {
   it('GET briefing returns assembled DTO with deep-link ids', async () => {
     const res = await GET_BRIEFING({
       request: new Request('http://localhost/api/staff/outreach/briefing'),
+      url: new URL('http://localhost/api/staff/outreach/briefing'),
     } as never);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {

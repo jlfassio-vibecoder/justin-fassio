@@ -9,6 +9,7 @@ import { useAiAssist } from '@/hooks/useAiAssist';
 import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
 import type { ProspectResearchMode } from '@/lib/fillBlankProspectFields';
 import type { Prospect } from '@/lib/prospects';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
 
 const PLANNING_COLUMN_HEADERS = [
@@ -71,6 +72,8 @@ export function ProspectsTab({
   onDeepLinkConsumed,
 }: ProspectsTabProps) {
   const { openAssist } = useAiAssist();
+  const lineCtx = useOptionalLineContext();
+  const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const [addOpen, setAddOpen] = useState(false);
   const [territoryCode, setTerritoryCode] = useState(BC_TERRITORY_CODE);
   const [highlightedProspectId, setHighlightedProspectId] = useState<number | null>(null);
@@ -121,6 +124,7 @@ export function ProspectsTab({
         territories={territories}
         territoryCode={territoryCode}
         onTerritoryCodeChange={setTerritoryCode}
+        currentSalesLineId={salesLineId}
         searchPlaceholder="Search prospects by name, city, address, fit, ID, website…"
         emptyMessage="No prospects match these filters. Converted accounts live under Active Accounts."
         highlightedId={highlightedProspectId}

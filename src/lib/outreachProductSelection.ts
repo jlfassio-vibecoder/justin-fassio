@@ -176,28 +176,37 @@ export function selectProductForProspect(
   return remaining[0] ? { product: remaining[0], productFit: 'global_fallback' } : null;
 }
 
-/** Load published OGR catalog rows and build Top-N OR New pool. */
+/** Load published catalog rows for a line and build Top-N OR New pool. Defaults to OGR. */
 export async function loadOutreachProductPool(
   client: DbClient,
-  options: { topRankLimit?: number } = {},
+  options: { topRankLimit?: number; lineId?: string; lineCode?: string } = {},
 ): Promise<{ ok: true; pool: OutreachProductCandidate[] } | { ok: false; error: string }> {
-  const { data: line, error: lineError } = await client
-    .from('lines')
-    .select('id')
-    .eq('code', 'ogr')
-    .maybeSingle();
+  let lineId = options.lineId?.trim() || null;
 
-  if (lineError) {
-    return { ok: false, error: lineError.message };
-  }
-  if (!line) {
-    return { ok: false, error: 'Old Guys Rule line not found' };
+  if (!lineId) {
+    const code = (options.lineCode?.trim() || 'ogr').toLowerCase();
+    const { data: line, error: lineError } = await client
+      .from('lines')
+      .select('id')
+      .eq('code', code)
+      .maybeSingle();
+
+    if (lineError) {
+      return { ok: false, error: lineError.message };
+    }
+    if (!line) {
+      return {
+        ok: false,
+        error: code === 'ogr' ? 'Old Guys Rule line not found' : `Line not found: ${code}`,
+      };
+    }
+    lineId = line.id;
   }
 
   const { data, error } = await client
     .from('catalog_items')
     .select(OUTREACH_PRODUCT_POOL_SELECT)
-    .eq('line_id', line.id);
+    .eq('line_id', lineId);
 
   if (error) {
     return { ok: false, error: error.message };

@@ -70,26 +70,51 @@ export function factorsWithSettings(
   };
 }
 
-export async function fetchOgrCatalogSettings(): Promise<{
+export type FetchCatalogSettingsOptions = {
+  lineId?: string;
+  lineCode?: string;
+};
+
+/** Catalog settings for a line; defaults to OGR when options omitted (flag-off). */
+export async function fetchCatalogSettings(options: FetchCatalogSettingsOptions = {}): Promise<{
   data: CatalogSupplierTerms | null;
   error: string | null;
 }> {
-  const { data: line, error: lineError } = await supabase
-    .from('lines')
-    .select('id')
-    .eq('code', 'ogr')
-    .maybeSingle();
+  let lineId = options.lineId?.trim() || null;
 
-  if (lineError) return { data: null, error: lineError.message };
-  if (!line) return { data: null, error: 'Old Guys Rule line not found' };
+  if (!lineId) {
+    const code = (options.lineCode?.trim() || 'ogr').toLowerCase();
+    const { data: line, error: lineError } = await supabase
+      .from('lines')
+      .select('id')
+      .eq('code', code)
+      .maybeSingle();
+
+    if (lineError) return { data: null, error: lineError.message };
+    if (!line) {
+      return {
+        data: null,
+        error: code === 'ogr' ? 'Old Guys Rule line not found' : `Line not found: ${code}`,
+      };
+    }
+    lineId = line.id;
+  }
 
   const { data, error } = await supabase
     .from('catalog_settings')
     .select('*')
-    .eq('line_id', line.id)
+    .eq('line_id', lineId)
     .maybeSingle();
 
   if (error) return { data: null, error: error.message };
   if (!data) return { data: null, error: null };
   return { data: mapCatalogSettingsRow(data as CatalogSettingsRow), error: null };
+}
+
+/** @deprecated Prefer fetchCatalogSettings — kept for flag-off call sites. */
+export async function fetchOgrCatalogSettings(): Promise<{
+  data: CatalogSupplierTerms | null;
+  error: string | null;
+}> {
+  return fetchCatalogSettings({ lineCode: 'ogr' });
 }

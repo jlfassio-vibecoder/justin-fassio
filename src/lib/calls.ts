@@ -7,7 +7,7 @@ import { AGENT_OUTREACH_PREP_TZ } from '@/lib/outreachSelectionConstants';
 type Client = SupabaseClient<Database>;
 
 export const CALL_SELECT =
-  'id, prospect_id, contact_name, outcome, pmf_score, order_value_cad, call_date, notes, objection_tags' as const;
+  'id, prospect_id, contact_name, outcome, pmf_score, order_value_cad, call_date, notes, objection_tags, line_id, retailer_line_account_id' as const;
 
 export type CallRow = {
   id: string;
@@ -19,17 +19,35 @@ export type CallRow = {
   call_date: string;
   notes: string | null;
   objection_tags: string[];
+  line_id: string | null;
+  retailer_line_account_id: string | null;
 };
 
-export async function fetchCalls(limit = 500): Promise<{
+export type FetchCallsOptions = {
+  limit?: number;
+  /** When set, only calls for this sales line (Phase 2 scoped reads). */
+  salesLineId?: string;
+};
+
+export async function fetchCalls(limitOrOptions: number | FetchCallsOptions = 500): Promise<{
   data: CallRow[];
   error: string | null;
 }> {
-  const { data, error } = await supabase
+  const options: FetchCallsOptions =
+    typeof limitOrOptions === 'number' ? { limit: limitOrOptions } : limitOrOptions;
+  const limit = options.limit ?? 500;
+
+  let query = supabase
     .from('calls')
     .select(CALL_SELECT)
     .order('call_date', { ascending: false })
     .limit(limit);
+
+  if (options.salesLineId) {
+    query = query.eq('line_id', options.salesLineId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return { data: [], error: error.message };

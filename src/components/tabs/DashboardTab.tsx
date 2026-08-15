@@ -13,6 +13,7 @@ import {
   loadOutreachGoalDashboardSnapshot,
   type OutreachGoalDashboardSnapshot,
 } from '@/lib/outreachGoalDashboard';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import type { Prospect } from '@/lib/prospects';
 
 interface DashboardTabProps {
@@ -24,6 +25,8 @@ interface DashboardTabProps {
 const emptySummary = summarizeDashboard([]);
 
 export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: DashboardTabProps) {
+  const lineCtx = useOptionalLineContext();
+  const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -37,8 +40,28 @@ export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: Dashboar
       setLoading(true);
       setFetchError(null);
       setGoalError(null);
+      const callOpts = salesLineId ? { limit: 500, salesLineId } : 500;
+      const isNonOgrScoped = Boolean(
+        lineCtx.multiLineUi && lineCtx.lineSlug && lineCtx.lineSlug !== 'ogr',
+      );
+
+      if (isNonOgrScoped) {
+        const { data, error } = await fetchCalls(callOpts);
+        if (!active) return;
+        if (error) {
+          setSummary(emptySummary);
+          setFetchError(error);
+        } else {
+          setSummary(summarizeDashboard(data, prospects));
+        }
+        setGoalSnapshot(null);
+        setGoalError(null);
+        setLoading(false);
+        return;
+      }
+
       const [{ data, error }, goals] = await Promise.all([
-        fetchCalls(500),
+        fetchCalls(callOpts),
         loadOutreachGoalDashboardSnapshot(),
       ]);
 
@@ -62,7 +85,7 @@ export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: Dashboar
     return () => {
       active = false;
     };
-  }, [reloadToken, prospects]);
+  }, [reloadToken, prospects, salesLineId, lineCtx.multiLineUi, lineCtx.lineSlug]);
 
   const { totalCalls, avgPmf, closedPoCount, pipelineValueCad, reachRatePct } = summary;
   const conversionPct = totalCalls > 0 ? Math.round((closedPoCount / totalCalls) * 100) : null;

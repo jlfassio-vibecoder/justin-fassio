@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { CrossLineBadgeChips } from '@/components/CrossLineBadgeChips';
 import { Card } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
@@ -6,6 +7,7 @@ import { CHANNEL_OPTIONS, REGION_OPTIONS } from '@/lib/directoryOptions';
 import { filterProspects } from '@/lib/prospectFilters';
 import { primaryRetailChannelLabel } from '@/lib/crmRetailTaxonomy';
 import type { Prospect } from '@/lib/prospects';
+import { fetchCrossLineBadgesForRetailers, type CrossLineBadge } from '@/lib/retailerLineAccounts';
 import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
 
 const channelTagVariant: Partial<
@@ -57,6 +59,8 @@ export interface RetailerDirectoryProps {
   /** Controlled territory code; defaults to British Columbia. */
   territoryCode?: string;
   onTerritoryCodeChange?: (code: string) => void;
+  /** Phase 2: when set, show empty-safe cross-line badge chips. */
+  currentSalesLineId?: string | null;
 }
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
@@ -81,12 +85,16 @@ export function RetailerDirectory({
   territories = [],
   territoryCode: territoryCodeProp,
   onTerritoryCodeChange,
+  currentSalesLineId = null,
 }: RetailerDirectoryProps) {
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
   const [territoryCodeInternal, setTerritoryCodeInternal] = useState(BC_TERRITORY_CODE);
   const territoryCode = territoryCodeProp ?? territoryCodeInternal;
+  const [badgesByRetailer, setBadgesByRetailer] = useState<Map<number, CrossLineBadge[]>>(
+    () => new Map(),
+  );
 
   function setTerritoryCode(code: string) {
     if (territoryCodeProp === undefined) {
@@ -104,6 +112,33 @@ export function RetailerDirectory({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [highlightedId]);
+
+  const retailerIdsKey = useMemo(
+    () =>
+      retailers
+        .map((r) => r.id)
+        .sort((a, b) => a - b)
+        .join(','),
+    [retailers],
+  );
+
+  useEffect(() => {
+    if (!currentSalesLineId || retailerIdsKey === '') {
+      return;
+    }
+    const ids = retailerIdsKey.split(',').map((s) => Number(s));
+    let active = true;
+    void fetchCrossLineBadgesForRetailers({
+      retailerIds: ids,
+      currentSalesLineId,
+    }).then((result) => {
+      if (!active) return;
+      setBadgesByRetailer(result.error ? new Map() : result.data);
+    });
+    return () => {
+      active = false;
+    };
+  }, [currentSalesLineId, retailerIdsKey]);
 
   const filtered = useMemo(
     () => filterProspects(retailers, { search, region, channel, territoryCode }),
@@ -205,7 +240,12 @@ export function RetailerDirectory({
                       {index + 1}
                     </td>
                     <td className="border-ink/[0.08] min-w-[160px] border-b p-2 font-semibold">
-                      {p.name}
+                      <span className="inline-flex flex-col gap-1">
+                        <span>{p.name}</span>
+                        <CrossLineBadgeChips
+                          badges={currentSalesLineId ? (badgesByRetailer.get(p.id) ?? []) : []}
+                        />
+                      </span>
                     </td>
                     <td className="border-ink/[0.08] border-b p-2">
                       <Tag variant={tagVariantForChannel(p.category)}>

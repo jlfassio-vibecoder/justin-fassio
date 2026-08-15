@@ -23,6 +23,11 @@ vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: {
       signOut: () => signOutMock(),
+      getSession: () =>
+        Promise.resolve({
+          data: { session: { access_token: 'tok' } },
+          error: null,
+        }),
     },
   },
 }));
@@ -72,9 +77,22 @@ function stubAuth(partial: Partial<AuthState>) {
 describe('AuthGate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ ok: true, features: { FEATURE_MULTI_LINE_UI: false } }),
+      }),
+    );
     Object.defineProperty(window, 'location', {
       configurable: true,
-      value: { ...window.location, replace: replaceMock, href: '' },
+      value: {
+        ...window.location,
+        pathname: '/app',
+        search: '',
+        replace: replaceMock,
+        href: '',
+      },
     });
   });
 
@@ -132,7 +150,7 @@ describe('AuthGate', () => {
     expect(screen.queryByText('Rep Command Center')).not.toBeInTheDocument();
   });
 
-  it('renders the app for an approved rep', () => {
+  it('renders the app for an approved rep', async () => {
     stubAuth({
       session: { access_token: 'tok' } as AuthState['session'],
       user: { email: 'justin@example.com' } as AuthState['user'],
@@ -144,7 +162,7 @@ describe('AuthGate', () => {
       }),
     });
     render(<AuthGate />);
-    expect(screen.getByText('Rep Command Center')).toBeInTheDocument();
+    expect(await screen.findByText('Rep Command Center')).toBeInTheDocument();
     expect(screen.getByText('justin@example.com')).toBeInTheDocument();
     expect(screen.getByText('rep')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Wholesale buyers' })).toBeInTheDocument();
@@ -169,7 +187,7 @@ describe('AuthGate', () => {
     expect(screen.getByRole('link', { name: 'Command Center' })).toHaveAttribute('href', '/app');
   });
 
-  it('renders the app for an approved owner', () => {
+  it('renders the app for an approved owner', async () => {
     stubAuth({
       session: { access_token: 'tok' } as AuthState['session'],
       user: { email: 'office@example.com' } as AuthState['user'],
@@ -180,7 +198,7 @@ describe('AuthGate', () => {
       }),
     });
     render(<AuthGate />);
-    expect(screen.getByText('Rep Command Center')).toBeInTheDocument();
+    expect(await screen.findByText('Rep Command Center')).toBeInTheDocument();
     expect(screen.getByText('owner')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pending reps' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Wholesale buyers' })).toBeInTheDocument();
@@ -194,6 +212,7 @@ describe('AuthGate', () => {
       profile: baseProfile({ role: 'owner', status: 'approved' }),
     });
     render(<AuthGate />);
+    expect(await screen.findByText('Rep Command Center')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
     await waitFor(() => {
       expect(signOutMock).toHaveBeenCalled();

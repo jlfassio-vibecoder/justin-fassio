@@ -1,0 +1,159 @@
+/* eslint-disable react-refresh/only-export-components -- LineProvider + context hooks */
+/**
+ * Phase 2 staff line context provider + hooks.
+ * Helpers live in lineContextStorage.ts to keep non-component exports separate.
+ */
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { fetchRepresentedLines, isRepresentedLineCode, type LinePortfolio } from '@/lib/lines';
+import { persistLastLineSlug, readLastLineSlug } from '@/lib/lineContextStorage';
+import type { LineKey } from '@/types';
+import type { LineStatus } from '@/types/database';
+
+export type LineContextValue = {
+  multiLineUi: boolean;
+  salesLineId: string | null;
+  lineSlug: LineKey | null;
+  status: LineStatus | null;
+  name: string | null;
+  loading: boolean;
+  error: string | null;
+  unknownLine: boolean;
+  representedLines: LinePortfolio[];
+  /** Navigate / persist a represented line slug (caller should update URL). */
+  selectLineSlug: (slug: LineKey) => void;
+};
+
+const LineContext = createContext<LineContextValue | null>(null);
+
+function initialSlug(multiLineUi: boolean, urlLineSlug: string | null): LineKey | null {
+  if (!multiLineUi) return null;
+  if (urlLineSlug && isRepresentedLineCode(urlLineSlug)) return urlLineSlug;
+  return readLastLineSlug() ?? 'ogr';
+}
+
+type LineProviderProps = {
+  multiLineUi: boolean;
+  /** URL slug when on /app/lines/:lineSlug; null on /app (resolved to last or ogr). */
+  urlLineSlug?: string | null;
+  children: ReactNode;
+};
+
+export function LineProvider({ multiLineUi, urlLineSlug = null, children }: LineProviderProps) {
+  const [representedLines, setRepresentedLines] = useState<LinePortfolio[]>([]);
+  const [linesLoading, setLinesLoading] = useState(multiLineUi);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedSlug, setSelectedSlug] = useState<LineKey | null>(() =>
+    initialSlug(multiLineUi, urlLineSlug),
+  );
+
+  // URL slug is source of truth.
+  // Copilot suggestion ignored: syncing via useEffect trips react-hooks/set-state-in-effect; render-time prop sync matches RepCommandCenter deep-link pattern.
+  const urlNormalized = urlLineSlug?.trim().toLowerCase() ?? null;
+  if (
+    multiLineUi &&
+    urlNormalized &&
+    isRepresentedLineCode(urlNormalized) &&
+    selectedSlug !== urlNormalized
+  ) {
+    setSelectedSlug(urlNormalized);
+    persistLastLineSlug(urlNormalized);
+  }
+
+  useEffect(() => {
+    if (!multiLineUi) return;
+    let active = true;
+    void fetchRepresentedLines().then((result) => {
+      if (!active) return;
+      if (result.error) {
+        setError(result.error);
+        setRepresentedLines([]);
+      } else {
+        setError(null);
+        setRepresentedLines(result.data);
+      }
+      setLinesLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [multiLineUi]);
+
+  const unknownLine = Boolean(
+    multiLineUi && urlNormalized && !isRepresentedLineCode(urlNormalized),
+  );
+
+  const current = useMemo(() => {
+    if (!selectedSlug) return null;
+    return representedLines.find((l) => l.code === selectedSlug) ?? null;
+  }, [representedLines, selectedSlug]);
+
+  const selectLineSlug = useCallback((slug: LineKey) => {
+    setSelectedSlug(slug);
+    persistLastLineSlug(slug);
+  }, []);
+
+  const loading = multiLineUi ? linesLoading : false;
+
+  const value = useMemo<LineContextValue>(
+    () => ({
+      multiLineUi,
+      salesLineId: current?.id ?? null,
+      lineSlug: unknownLine ? null : selectedSlug,
+      status: current?.status ?? null,
+      name: current?.name ?? null,
+      loading,
+      error,
+      unknownLine,
+      representedLines,
+      selectLineSlug,
+    }),
+    [
+      multiLineUi,
+      current,
+      selectedSlug,
+      loading,
+      error,
+      unknownLine,
+      representedLines,
+      selectLineSlug,
+    ],
+  );
+
+  return <LineContext.Provider value={value}>{children}</LineContext.Provider>;
+}
+
+export function useLineContext(): LineContextValue {
+  const ctx = useContext(LineContext);
+  if (!ctx) {
+    throw new Error('useLineContext must be used within LineProvider');
+  }
+  return ctx;
+}
+
+/** Safe for tabs that may render under flag-off shell without a provider. */
+export function useOptionalLineContext(): LineContextValue {
+  const ctx = useContext(LineContext);
+  return (
+    ctx ?? {
+      multiLineUi: false,
+      salesLineId: null,
+      lineSlug: null,
+      status: null,
+      name: null,
+      loading: false,
+      error: null,
+      unknownLine: false,
+      representedLines: [],
+      selectLineSlug: () => {},
+    }
+  );
+}

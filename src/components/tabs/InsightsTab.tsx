@@ -4,6 +4,7 @@ import { useAiAssist } from '@/hooks/useAiAssist';
 import { buildObjectionDraft } from '@/lib/aiAssistPrefill';
 import { PLAYBOOK_TAG_MATCH, tagCloud, type TagCloudItem } from '@/lib/callAggregates';
 import { fetchCalls } from '@/lib/calls';
+import { useOptionalLineContext } from '@/lib/lineContext';
 
 interface InsightsTabProps {
   marginRangeDisplay: string;
@@ -19,6 +20,8 @@ function tagStyle(item: TagCloudItem, max: number): CSSProperties {
 
 export function InsightsTab({ marginRangeDisplay, reloadToken = 0 }: InsightsTabProps) {
   const { openAssist } = useAiAssist();
+  const lineCtx = useOptionalLineContext();
+  const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const [tags, setTags] = useState<TagCloudItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -29,7 +32,7 @@ export function InsightsTab({ marginRangeDisplay, reloadToken = 0 }: InsightsTab
     async function load() {
       setLoading(true);
       setFetchError(null);
-      const { data, error } = await fetchCalls(500);
+      const { data, error } = await fetchCalls(salesLineId ? { limit: 500, salesLineId } : 500);
 
       if (!active) return;
       if (error) {
@@ -46,7 +49,7 @@ export function InsightsTab({ marginRangeDisplay, reloadToken = 0 }: InsightsTab
     return () => {
       active = false;
     };
-  }, [reloadToken]);
+  }, [reloadToken, salesLineId]);
 
   const maxCount = tags[0]?.count ?? 0;
   const seenCounts = useMemo(() => {

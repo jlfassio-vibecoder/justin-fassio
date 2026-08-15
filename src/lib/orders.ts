@@ -6,14 +6,26 @@ export const ORDER_SELECT =
 
 export type OrderRow = Order;
 
+export type FetchOrdersOptions = {
+  /** When set, restrict to orders for this sales line (read-only Phase 2 filter). */
+  salesLineId?: string;
+};
+
 export async function fetchOrdersForAccount(
   accountId: number,
+  options: FetchOrdersOptions = {},
 ): Promise<{ data: OrderRow[]; error: string | null }> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('orders')
     .select(ORDER_SELECT)
     .eq('account_id', accountId)
     .order('order_date', { ascending: false });
+
+  if (options.salesLineId) {
+    query = query.eq('line_id', options.salesLineId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return { data: [], error: error.message };
@@ -25,16 +37,23 @@ export async function fetchOrdersForAccount(
 /** Batch-fetch orders for many accounts. Empty id list returns [] without querying. */
 export async function fetchOrdersForAccounts(
   accountIds: number[],
+  options: FetchOrdersOptions = {},
 ): Promise<{ data: OrderRow[]; error: string | null }> {
   if (accountIds.length === 0) {
     return { data: [], error: null };
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('orders')
     .select(ORDER_SELECT)
     .in('account_id', accountIds)
     .order('order_date', { ascending: false });
+
+  if (options.salesLineId) {
+    query = query.eq('line_id', options.salesLineId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return { data: [], error: error.message };

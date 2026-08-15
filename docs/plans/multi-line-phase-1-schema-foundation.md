@@ -1,6 +1,6 @@
 # Phase 1 Plan: Multi-Line Schema Foundation
 
-**Status:** Phase 1A implemented locally (additive schema + seeds + promote-with-targets fix). Phase 1B OGR backfill is **specified below, not implemented**. Dual-write is **Phase 1C** (not 1B). Overall Phase 1 is incomplete.  
+**Status:** Phase 1A + Phase 1B + Phase 1C dual-write **implemented** (local validation complete). Overall Phase 1 schema foundation is complete; application cutover remains Phase 2+.  
 **Epic:** [docs/epics/multi-line-multi-territory-crm.md](../epics/multi-line-multi-territory-crm.md)  
 **Current-state audit:** [docs/multi-line-territory-audit.md](../multi-line-territory-audit.md)  
 **Branch inspected (plan authorship):** `feature/multi-line-multi-territory-implementation` at `a1b2e57` (docs commit on `main` `879a24a`)  
@@ -11,11 +11,11 @@ Settled business decisions in the epic **supersede** audit §8.4 / §14 items 1�
 
 **Phase split (expand/contract):**
 
-| Sub-phase | Scope                                      | Status                        |
-| --------- | ------------------------------------------ | ----------------------------- |
-| **1A**    | Additive tables, seeds, prospective guards | Done                          |
-| **1B**    | OGR backfill + validation only             | Planned (this revision)       |
-| **1C**    | Dual-write triggers (`…130000`)            | Deferred — do not begin in 1B |
+| Sub-phase | Scope                                      | Status                       |
+| --------- | ------------------------------------------ | ---------------------------- |
+| **1A**    | Additive tables, seeds, prospective guards | Done                         |
+| **1B**    | OGR backfill + validation only             | Done locally (results below) |
+| **1C**    | Dual-write triggers (`…130000`)            | Done locally (results below) |
 
 ---
 
@@ -1335,3 +1335,146 @@ Local only until a later go/no-go. No production apply in 1B.
 ---
 
 **Stop:** Phase 1B planning complete in this document. Do not implement the OGR backfill migration until Phase 1B implementation is separately approved. Do not begin Phase 1C dual-write.
+
+---
+
+## Implementation results — Phase 1B (OGR backfill)
+
+**Status:** Implemented and validated on disposable local Supabase only.  
+**Date:** 2026-08-14  
+**Branch tip at implementation:** `feature/multi-line-multi-territory-implementation`  
+**Executable plan:** [plan/multi-line-phase-1b-ogr-backfill.md](../../plan/multi-line-phase-1b-ogr-backfill.md)
+
+### Files created / changed
+
+| File                                                                    | Role                                                                          |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `supabase/migrations/20260814120000_multi_line_phase1_ogr_backfill.sql` | Preflight hard stops, OGR RLA backfill, stamps, CAD finance, orphans, asserts |
+| `supabase/schema.sql`                                                   | Mirrored `migration_review_queue_unresolved_entity_uidx`                      |
+| `src/lib/multiLinePhase1bBackfill.test.ts`                              | SQL-text assertions for 1B migration                                          |
+
+**Not created (Phase 1C):** `…130000` dual-write.
+
+### Local validation snapshot
+
+| Check                                | Result                                                                      |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| Prospects                            | 607                                                                         |
+| OGR `retailer_line_accounts`         | 607 (all `relationship_status = prospect`)                                  |
+| Eagle Peak / Big Fish / BKG RLA      | 0                                                                           |
+| `retailer_line_targets`              | 0                                                                           |
+| OGR active SLT                       | bc/or/wa, `unconfirmed`                                                     |
+| Territory assignment                 | All 607 BC → OGR–BC; non-BC queue empty (no non-BC prospects in local seed) |
+| Orders / contacts / messages stamped | 0 source rows in this local DB; asserts still passed                        |
+| Non-OGR `orders`/`calls`.`line_id`   | 0 (hard-stop path clean)                                                    |
+
+### Commands run
+
+- `npx supabase migration up --local` — applied `…120000`
+- `npx vitest run src/lib/multiLinePhase1bBackfill.test.ts`
+- `npm run check`
+
+### Explicit exclusions honored
+
+- No dual-write triggers
+- No UI/API changes
+- No `database.ts` changes
+- No hosted/staging/production apply
+- No Eagle Peak / Big Fish / BKG / prospective operational accounts
+- No invented USD; BC-only territory auto-assign
+
+**Phase 1C dual-write was implemented after this 1B note** — see Implementation results — Phase 1C below.
+
+---
+
+## Implementation results — Phase 1C (dual-write)
+
+**Status:** Implemented and validated on disposable local Supabase only.  
+**Date:** 2026-08-14  
+**Branch tip at implementation:** `feature/multi-line-multi-territory-implementation`  
+**Executable plan:** [plan/multi-line-phase-1c-dual-write.md](../../plan/multi-line-phase-1c-dual-write.md)
+
+### Approved override vs foundation §13
+
+Foundation §13 / executable plan §4.3 specified `AFTER INSERT ON account_contacts` only. Implementation uses the approved clarification: **`AFTER INSERT OR UPDATE ON account_contacts`**, syncing `role` / `is_primary` / `notes` only when `IS DISTINCT FROM`, with primary-clear before setting junction primary. DELETE remains `ON DELETE CASCADE`.
+
+### Files created / changed
+
+| File                                                                  | Role                                                         |
+| --------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `supabase/migrations/20260814130000_multi_line_phase1_dual_write.sql` | OGR dual-write helpers, sync triggers, BEFORE INSERT fillers |
+| `supabase/schema.sql`                                                 | Mirrored 1C functions/triggers                               |
+| `src/lib/multiLinePhase1cDualWrite.test.ts`                           | SQL-text assertions for 1C migration                         |
+
+### Local validation snapshot
+
+| Check                                             | Result                                                                        |
+| ------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Preflight                                         | OGR active; OGR–BC SLT active; 607=607 OGR RLAs; EP/BF/BKG = 0                |
+| BC prospect insert                                | OGR RLA + BC SLT; `relationship_status = prospect`                            |
+| Non-BC prospect insert                            | NULL SLT + `non_bc_territory` review queue                                    |
+| Convert / demote                                  | `opened` ↔ `prospect` synced                                                  |
+| Name-only prospect update                         | Does not rewrite RLA commercial columns                                       |
+| Contact insert / role+notes update / primary flip | Junction synced; unique primary preserved                                     |
+| Contact delete                                    | Junction removed via cascade                                                  |
+| Order / call insert                               | RLA + `line_id = ogr` + CAD `legacy_cad_column`; `total_amount_cad` unchanged |
+| EP / Big Fish / BKG / prospective RLA             | Still 0                                                                       |
+
+### Commands run
+
+- `npx supabase migration up --local` — applied `…130000`
+- Local transactional smoke (`BEGIN` … `ROLLBACK`)
+- `npx vitest run src/lib/multiLinePhase1cDualWrite.test.ts`
+- `npm run check`
+
+### Explicit exclusions honored
+
+- No UI / API / route / feature-flag changes
+- No `database.ts` changes
+- No hosted/staging/production apply
+- No Eagle Peak / Big Fish / BKG / prospective operational accounts
+- No reverse sync; no application cutover; no Phase 2
+
+**Phase 1 schema foundation (1A–1C) is complete locally.** Do not begin Phase 2 until separately approved. Do not commit/push/deploy unless separately requested.
+
+## Implementation results — Phase 2
+
+**Date:** 2026-08-14  
+**Branch:** `feature/multi-line-multi-territory-implementation`  
+**Scope:** Reads + navigation only (`FEATURE_MULTI_LINE_UI` server flag, default off). No write cutover. No commit/push/deploy. No hosted DB. No Phase 3.
+
+### Baseline / reconciliation (local disposable DB)
+
+| Check                            | Result                                                            |
+| -------------------------------- | ----------------------------------------------------------------- |
+| prospects                        | 607                                                               |
+| OGR non-terminated RLAs          | 607                                                               |
+| OGR catalog items                | 190                                                               |
+| Eagle Peak / Big Fish / BKG RLAs | 0 / 0 / 0                                                         |
+| Line statuses                    | ogr=active, eagle-peak=onboarding, big-fish=confirmed, bkg=paused |
+
+### Delivered
+
+- `src/lib/staffFeatures.ts` + `/api/staff/features` (`requireApprovedStaffClient`; no `PUBLIC_` flag)
+- `LINE_SELECT` + `fetchRepresentedLines` (ogr / eagle-peak / big-fish; excludes bkg + prospective)
+- `LineContext` + Header picker (flag on); sessionStorage `rcc.lastLineSlug`
+- Astro wrappers under `src/pages/app/lines/**` reusing `AuthGate` / `RepCommandCenter`
+- Flag off: `/app/lines/*` redirects to `/app` (optional `?tab=` preserved)
+- Flag on: bare `/app` redirects to `/app/lines/:lastOrOgr`; URL slug is source of truth
+- Scoped reads: prospects (via RLA), catalog/settings by `lineId`, contacts via junction, calls/orders **fetch** filters, outreach GET briefing/leads accept `sales_line_id` (non-OGR → empty books)
+- Cross-line badge helper + empty-safe chips (`lineName` + `relationship_status` only)
+- Wrong-line `lineAccountId` → inline 404; invalid slug → Unknown line
+- Vitest `src/lib/multiLinePhase2Reads.test.ts`; `npm run check` passed
+
+### Residual risk (documented; not exit blockers)
+
+- Messages / calendar lists remain globally prospect-linked in Phase 2 (not fully line-isolated)
+- Outreach **prep POST / send** and legacy writes remain OGR / 1C-protected (Phase 3+)
+
+### Explicit exclusions honored
+
+- No convert / `insertOrder` / `LogCallModal` / contact mutation / prep-send changes
+- No Phase 1C migration edits; no Eagle Peak / Big Fish cloning; no AI prompt changes
+- No hosted/staging/production DB access; no commit/push unless separately requested
+
+**Phase 2 line-context reads are complete locally.** Do not begin Phase 3 until separately approved.

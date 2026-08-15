@@ -6,6 +6,7 @@ import {
   listWarmLeads,
   type OutreachLeadKind,
 } from '@/lib/outreachLeadLists';
+import { resolveSalesLineQuery } from '@/lib/resolveSalesLineQuery';
 
 export const prerender = false;
 
@@ -29,7 +30,27 @@ export const GET: APIRoute = async ({ request, url }) => {
     );
   }
 
+  const search = url?.searchParams ?? new URL(request.url).searchParams;
+  const resolved = await resolveSalesLineQuery(
+    gate.supabase,
+    search.get('sales_line_id') ?? search.get('line'),
+  );
+  if (!resolved.ok) {
+    return new Response(JSON.stringify({ ok: false, error: resolved.error }), {
+      status: resolved.status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
+    // Empty books for non-OGR represented lines (Phase 2).
+    if (resolved.line && resolved.line.code !== 'ogr') {
+      return new Response(JSON.stringify({ ok: true, kind, leads: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const leads =
       kind === 'warm'
         ? await listWarmLeads(gate.supabase)

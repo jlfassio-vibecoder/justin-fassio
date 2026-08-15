@@ -12,8 +12,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { AiAssistProvider } from '@/lib/AiAssistProvider';
 import { supabase } from '@/lib/supabase';
 import { isApprovedOwner, isApprovedStaff } from '@/lib/auth';
+import { LineProvider } from '@/lib/lineContext';
+import { persistLastLineSlug, readLastLineSlug } from '@/lib/lineContextStorage';
+import { isRepresentedLineCode } from '@/lib/lines';
 import { pingAuthorizedServer } from '@/lib/serverPing';
 import { createStaffAvatarSignedUrl, staffAccountInitials } from '@/lib/staffAccount';
+import type { StaffFeatureFlags } from '@/lib/staffFeatures';
 import type { TabKey } from '@/types';
 
 export type AuthGatePage = 'app' | 'account';
@@ -66,17 +70,101 @@ function StaffToolbarAvatar({
   );
 }
 
-function AuthGateInner({ page }: { page: AuthGatePage }) {
+async function fetchStaffFeatures(): Promise<StaffFeatureFlags> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      return { FEATURE_MULTI_LINE_UI: false };
+    }
+    const res = await fetch('/api/staff/features', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { FEATURE_MULTI_LINE_UI: false };
+    const payload = (await res.json()) as { features?: StaffFeatureFlags };
+    return {
+      FEATURE_MULTI_LINE_UI: Boolean(payload.features?.FEATURE_MULTI_LINE_UI),
+    };
+  } catch {
+    return { FEATURE_MULTI_LINE_UI: false };
+  }
+}
+
+function AuthGateInner({
+  page,
+  lineSlug: lineSlugProp,
+  lineAccountId,
+  pathTab,
+}: {
+  page: AuthGatePage;
+  lineSlug?: string;
+  lineAccountId?: string;
+  pathTab?: TabKey;
+}) {
   const { loading, session, user, profile, configured } = useAuth();
   const [pingBusy, setPingBusy] = useState(false);
   const [pingStatus, setPingStatus] = useState<string | null>(null);
-  const [defaultTab] = useState<TabKey | undefined>(() => tabFromSearch());
+  const [defaultTab] = useState<TabKey | undefined>(() => pathTab ?? tabFromSearch());
+  const [features, setFeatures] = useState<StaffFeatureFlags | null>(null);
+  const [featuresLoading, setFeaturesLoading] = useState(page === 'app');
 
   useEffect(() => {
     if (!loading && configured && !session) {
       window.location.replace('/rep-login');
     }
   }, [loading, configured, session]);
+
+  useEffect(() => {
+    if (page !== 'app' || !session || !isApprovedStaff(profile)) {
+      return;
+    }
+    let active = true;
+    void fetchStaffFeatures().then((flags) => {
+      if (!active) return;
+      setFeatures(flags);
+      setFeaturesLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [page, session, profile]);
+
+  const multiLineUi = Boolean(features?.FEATURE_MULTI_LINE_UI);
+  const urlLineSlug = lineSlugProp?.trim().toLowerCase() || null;
+  const unknownLine = Boolean(urlLineSlug && !isRepresentedLineCode(urlLineSlug));
+
+  // Non-app / non-staff: treat feature flag as off without syncing in an effect.
+  const effectiveFeaturesLoading =
+    page === 'app' && Boolean(session) && isApprovedStaff(profile) ? featuresLoading : false;
+  const effectiveMultiLineUi =
+    page === 'app' && Boolean(session) && isApprovedStaff(profile) ? multiLineUi : false;
+
+  // Flag off + line-prefixed URL → redirect to /app preserving ?tab=
+  useEffect(() => {
+    if (page !== 'app' || effectiveFeaturesLoading || features == null) return;
+    if (features.FEATURE_MULTI_LINE_UI) return;
+    if (!urlLineSlug && !lineAccountId) return;
+    const params = new URLSearchParams(window.location.search);
+    if (pathTab && !params.get('tab')) params.set('tab', pathTab);
+    const qs = params.toString();
+    window.location.replace(qs ? `/app?${qs}` : '/app');
+  }, [page, effectiveFeaturesLoading, features, urlLineSlug, lineAccountId, pathTab]);
+
+  // Flag on + bare /app → canonical /app/lines/:slug with query preserved
+  useEffect(() => {
+    if (page !== 'app' || effectiveFeaturesLoading || features == null) return;
+    if (!features.FEATURE_MULTI_LINE_UI) return;
+    if (urlLineSlug) return;
+    if (typeof window === 'undefined') return;
+    const path = window.location.pathname;
+    if (path === '/app/lines' || path === '/app/lines/') return;
+    if (path !== '/app' && path !== '/app/') return;
+
+    const slug = readLastLineSlug() ?? 'ogr';
+    persistLastLineSlug(slug);
+    const qs = window.location.search || '';
+    window.location.replace(`/app/lines/${slug}${qs}`);
+  }, [page, effectiveFeaturesLoading, features, urlLineSlug]);
 
   if (!configured) {
     return (
@@ -112,6 +200,28 @@ function AuthGateInner({ page }: { page: AuthGatePage }) {
     return <PendingApprovalScreen email={user?.email} variant="pending" />;
   }
 
+  if (featuresLoading && page === 'app' && isApprovedStaff(profile)) {
+    return (
+      <div className="text-ink/60 flex min-h-dvh items-center justify-center px-6 text-sm">
+        Checking session…
+      </div>
+    );
+  }
+
+  if (page === 'app' && effectiveMultiLineUi && unknownLine) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-3 px-6">
+        <h1 className="m-0 text-2xl">Unknown line</h1>
+        <p className="text-ink/70 m-0 text-sm">
+          <code className="text-ink">{urlLineSlug}</code> is not a represented sales line.
+        </p>
+        <a href="/app/lines" className="font-heading text-accent-700 no-underline">
+          Back to lines
+        </a>
+      </div>
+    );
+  }
+
   async function handlePingServer() {
     setPingBusy(true);
     setPingStatus(null);
@@ -126,6 +236,19 @@ function AuthGateInner({ page }: { page: AuthGatePage }) {
       result.status > 0 ? `Server: ${result.status}${detail}` : `Server: error${detail}`,
     );
   }
+
+  const appShell =
+    page === 'account' ? (
+      <StaffAccountPage />
+    ) : (
+      <LineProvider multiLineUi={effectiveMultiLineUi} urlLineSlug={urlLineSlug}>
+        <RepCommandCenter
+          defaultTab={defaultTab}
+          multiLineUi={effectiveMultiLineUi}
+          lineAccountId={lineAccountId}
+        />
+      </LineProvider>
+    );
 
   return (
     <AiAssistProvider>
@@ -181,17 +304,32 @@ function AuthGateInner({ page }: { page: AuthGatePage }) {
             Sign out
           </Button>
         </div>
-        {page === 'account' ? <StaffAccountPage /> : <RepCommandCenter defaultTab={defaultTab} />}
+        {appShell}
       </div>
     </AiAssistProvider>
   );
 }
 
 /** Root island for `/app` — owns AuthProvider so nested islands are not required. */
-export function AuthGate({ page = 'app' }: { page?: AuthGatePage }) {
+export function AuthGate({
+  page = 'app',
+  lineSlug,
+  lineAccountId,
+  pathTab,
+}: {
+  page?: AuthGatePage;
+  lineSlug?: string;
+  lineAccountId?: string;
+  pathTab?: TabKey;
+}) {
   return (
     <AuthProvider>
-      <AuthGateInner page={page} />
+      <AuthGateInner
+        page={page}
+        lineSlug={lineSlug}
+        lineAccountId={lineAccountId}
+        pathTab={pathTab}
+      />
     </AuthProvider>
   );
 }
