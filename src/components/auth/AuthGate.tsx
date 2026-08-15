@@ -33,6 +33,7 @@ const TAB_KEYS: TabKey[] = [
   'insights',
   'messages',
   'calendar',
+  'territories',
 ];
 
 function tabFromSearch(): TabKey | undefined {
@@ -74,6 +75,7 @@ const STAFF_FEATURES_OFF: StaffFeatureFlags = {
   FEATURE_MULTI_LINE_UI: false,
   FEATURE_MULTI_LINE_WRITES: false,
   FEATURE_MULTI_LINE_AI: false,
+  FEATURE_LINE_TERRITORY_ADMIN: false,
 };
 
 async function fetchStaffFeatures(): Promise<StaffFeatureFlags> {
@@ -92,6 +94,7 @@ async function fetchStaffFeatures(): Promise<StaffFeatureFlags> {
       FEATURE_MULTI_LINE_UI: Boolean(payload.features?.FEATURE_MULTI_LINE_UI),
       FEATURE_MULTI_LINE_WRITES: Boolean(payload.features?.FEATURE_MULTI_LINE_WRITES),
       FEATURE_MULTI_LINE_AI: Boolean(payload.features?.FEATURE_MULTI_LINE_AI),
+      FEATURE_LINE_TERRITORY_ADMIN: Boolean(payload.features?.FEATURE_LINE_TERRITORY_ADMIN),
     };
   } catch {
     return STAFF_FEATURES_OFF;
@@ -140,6 +143,7 @@ function AuthGateInner({
   const multiLineUi = Boolean(features?.FEATURE_MULTI_LINE_UI);
   const multiLineWrites = Boolean(features?.FEATURE_MULTI_LINE_WRITES);
   const multiLineAi = Boolean(features?.FEATURE_MULTI_LINE_AI);
+  const multiLineTerritoryAdmin = Boolean(features?.FEATURE_LINE_TERRITORY_ADMIN);
   const urlLineSlug = lineSlugProp?.trim().toLowerCase() || null;
   const unknownLine = Boolean(urlLineSlug && !isRepresentedLineCode(urlLineSlug));
 
@@ -149,6 +153,7 @@ function AuthGateInner({
   const effectiveMultiLineUi = staffAppOrAccount ? multiLineUi : false;
   const effectiveMultiLineWrites = staffAppOrAccount ? multiLineWrites : false;
   const effectiveMultiLineAi = staffAppOrAccount ? multiLineAi : false;
+  const effectiveMultiLineTerritoryAdmin = staffAppOrAccount ? multiLineTerritoryAdmin : false;
 
   // Flag off + line-prefixed URL → redirect to /app preserving ?tab=
   useEffect(() => {
@@ -253,6 +258,7 @@ function AuthGateInner({
       multiLineUi={effectiveMultiLineUi}
       multiLineWrites={effectiveMultiLineWrites}
       multiLineAi={effectiveMultiLineAi}
+      multiLineTerritoryAdmin={effectiveMultiLineTerritoryAdmin}
       urlLineSlug={urlLineSlug}
     >
       {page === 'account' ? (

@@ -1564,3 +1564,45 @@ No throwaway Eagle Peak RLA was inserted (APF / resolver tests used mocks). Loca
 - No commit/push unless separately requested
 
 **Phase 4 staff AI isolation is complete locally.** Do not begin Phase 5 until separately approved. Do not commit/push/deploy unless separately requested.
+
+## Implementation results — Phase 5
+
+**Date:** 2026-08-15  
+**Branch:** `feature/multi-line-multi-territory-implementation`  
+**Scope:** Staff territory-rights admin (`FEATURE_LINE_TERRITORY_ADMIN` server flag, default off). One represented line at a time. Staff may confirm `retailer_line_accounts.sales_line_territory_id` from that line’s assignments. No Phase 6 selling flags. No commit/push/deploy. No hosted DB.
+
+### Baseline / reconciliation (local disposable DB)
+
+| Check                            | Result                                                                                        |
+| -------------------------------- | --------------------------------------------------------------------------------------------- |
+| prospects                        | 607 (Phase 4 start; live recount skipped — Docker daemon not running at completion)           |
+| OGR non-terminated RLAs          | 607                                                                                           |
+| OGR catalog items                | 190                                                                                           |
+| Eagle Peak / Big Fish / BKG RLAs | 0 / 0 / 0 at start; isolation tests mocked (no throwaway EP/BF RLA or SLT write against OGR)  |
+| OGR active SLT codes             | `bc`, `or`, `wa` only (schema seed; admin cannot create `ca` / `ab` / `norcal`)               |
+| Flag default                     | `FEATURE_LINE_TERRITORY_ADMIN` off (not `PUBLIC_`); snapshot AND `FEATURE_MULTI_LINE_UI` only |
+
+### Delivered
+
+- `FEATURE_LINE_TERRITORY_ADMIN` on `StaffFeatureFlags` + `/api/staff/features` snapshot; AuthGate / LineContext `multiLineTerritoryAdmin` (client cannot read the non-`PUBLIC_` env). Snapshot does **not** AND writes (admin allowed while EP selling stays blocked)
+- `src/lib/salesLineTerritories.ts`: allowlists (OGR `bc|or|wa`, Eagle Peak `or|wa|norcal`), reject Big Fish / bkg / prospective / declined / terminated; create defaults `rights_type=unconfirmed` / `status=proposed`; new RLA assigns require `status=active`; expire is allowed while accounts still reference the row; hard delete is blocked while referenced
+- Staff JWT APIs (`prerender = false`, `requireApprovedStaffClient`, no service role): `GET/POST /api/staff/lines/[code]/territories`, `PATCH .../territories/[assignmentId]`, `PATCH /api/staff/line-accounts/[id]/territory`. Flag off → writes 403; missing/invalid line → 400, never silent OGR
+- `/app/lines/:lineSlug/territories` is a real panel (`pathTab="territories"`). Header chrome “Territories” when `multiLineUi` (read-only list if admin snapshot off; CRUD if on). Not added as a primary CRM tab
+- Account drawer (flag on): same-line assignment dropdown + Unassigned; location may **suggest** a match; staff confirm writes `retailer_field_changes` with `source = 'user'`. `ensureRetailerLineAccount` / AI stamp still insert RLA **without** `sales_line_territory_id`
+- Vitest `src/lib/multiLinePhase5TerritoryAdmin.test.ts`; `npm run check` passed (142 files / 865 tests)
+
+### Isolation
+
+No throwaway Eagle Peak or Big Fish RLA was inserted. EP create-OR mock inserts only the EP `sales_line_id`. Cross-line RLA assign is rejected. Local EP/BF/BKG operational counts were 0 at baseline; no isolation rows to roll back.
+
+### Explicit exclusions honored
+
+- No `FEATURE_EAGLE_PEAK_*` / Big Fish selling or outreach flags; no invented Big Fish assignments
+- No Phase 1–4 migration rewrites (including 1C `ensure_ogr_retailer_line_account_from_prospect` BC location → OGR BC assignment filler)
+- No auto-assign from city/state/address; `territoryCodeFromProvince` / enrich / AI still do not write `sales_line_territory_id`
+- `prospects.territory_id` remains retailer location; directory filter unchanged
+- No `outreachNightlyPrep` / prep POST / send / cron, public chat, or public catalog RPC changes
+- No Messages/Calendar list filtering; no Phase 6
+- No commit/push unless separately requested
+
+**Phase 5 territory administration is complete locally.** Do not begin Phase 6 until separately approved. Do not commit/push/deploy unless separately requested.

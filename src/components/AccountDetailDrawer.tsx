@@ -7,7 +7,7 @@ import { ScheduleMeetingModal } from '@/components/calendar/ScheduleMeetingModal
 import { AccountEmailSection } from '@/components/messages/AccountEmailSection';
 import { AccountMessagesSection } from '@/components/messages/AccountMessagesSection';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
+import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import {
   accountContactRoleLabel,
@@ -21,7 +21,14 @@ import { useOptionalLineContext } from '@/lib/lineContext';
 import { primaryRetailChannelLabel, updateProspectTaxonomy, type Prospect } from '@/lib/prospects';
 import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
 import { OutreachLeadStateChip } from '@/components/OutreachLeadStateChip';
-import { isStaffSellingUiBlocked } from '@/lib/retailerLineAccounts';
+import { fetchOperationalLineAccount, isStaffSellingUiBlocked } from '@/lib/retailerLineAccounts';
+import {
+  ASSIGNABLE_SLT_STATUSES,
+  assignRetailerLineTerritoryClient,
+  fetchSalesLineTerritoriesClient,
+  suggestedAssignmentForLocation,
+  type SalesLineTerritoryAssignment,
+} from '@/lib/salesLineTerritories';
 import type { ApparelSeason } from '@/types/database';
 
 export interface AccountDetailSummary {
@@ -53,6 +60,105 @@ function formatCad(amount: number): string {
 function formatTimestamp(iso: string | null): string {
   if (!iso) return '—';
   return iso.slice(0, 10);
+}
+
+function LineRightsAssignField({ account }: { account: Prospect }) {
+  const line = useOptionalLineContext();
+  const [assignments, setAssignments] = useState<SalesLineTerritoryAssignment[]>([]);
+  const [selectedId, setSelectedId] = useState<string>('');
+  const [rlaId, setRlaId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!line.multiLineTerritoryAdmin || !line.salesLineId || !line.lineSlug) return;
+    let active = true;
+    void Promise.all([
+      fetchOperationalLineAccount({ retailerId: account.id, salesLineId: line.salesLineId }),
+      fetchSalesLineTerritoriesClient(line.lineSlug),
+    ]).then(([rla, list]) => {
+      if (!active) return;
+      if (rla.error) {
+        setError(rla.error);
+        setLoading(false);
+        return;
+      }
+      if (!list.ok) {
+        setError(list.error);
+        setLoading(false);
+        return;
+      }
+      setRlaId(rla.data?.id ?? null);
+      setSelectedId(rla.data?.salesLineTerritoryId ?? '');
+      setAssignments(
+        list.assignments.filter((row) => ASSIGNABLE_SLT_STATUSES.includes(row.status)),
+      );
+      setError(null);
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [account.id, line.lineSlug, line.multiLineTerritoryAdmin, line.salesLineId]);
+
+  if (!line.multiLineTerritoryAdmin || !line.salesLineId || !line.lineSlug) return null;
+
+  const suggested = suggestedAssignmentForLocation(assignments, account.territoryCode);
+
+  async function handleChange(nextId: string) {
+    if (!rlaId) return;
+    setSaving(true);
+    setError(null);
+    const result = await assignRetailerLineTerritoryClient({
+      retailerLineAccountId: rlaId,
+      salesLineTerritoryId: nextId || null,
+    });
+    setSaving(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setSelectedId(nextId);
+  }
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="font-heading m-0 text-base">Line territory rights</h3>
+      {loading ? <p className="text-ink/60 m-0 text-xs">Loading assignments…</p> : null}
+      {!loading && !rlaId ? (
+        <p className="text-ink/60 m-0 text-xs">No line account to assign yet.</p>
+      ) : null}
+      {!loading && rlaId ? (
+        <Field>
+          <FieldLabel>Assignment</FieldLabel>
+          <Select
+            value={selectedId}
+            disabled={saving}
+            onChange={(event) => void handleChange(event.target.value)}
+          >
+            <option value="">Unassigned</option>
+            {assignments.map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.territoryName}
+                {row.parentTerritoryName ? ` under ${row.parentTerritoryName}` : ''} ({row.status})
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : null}
+      {suggested && suggested.id !== selectedId ? (
+        <p className="text-ink/55 m-0 text-xs">
+          Suggested from store location: {suggested.territoryName}. Confirm to attach.
+        </p>
+      ) : null}
+      {error ? (
+        <p className="text-accent-800 m-0 text-xs" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </section>
+  );
 }
 
 function ContactNameSearch({ currentAccountId }: { currentAccountId: number }) {
@@ -227,6 +333,8 @@ export function AccountDetailDrawer({
             </span>
           </div>
           <OutreachLeadStateChip prospectId={account.id} />
+
+          <LineRightsAssignField key={`line-rights-${account.id}`} account={account} />
 
           <section className="flex flex-col gap-2">
             <h3 className="font-heading m-0 text-base">CRM Retail Taxonomy</h3>

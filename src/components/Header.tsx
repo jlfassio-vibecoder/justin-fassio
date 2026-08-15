@@ -1,4 +1,4 @@
-import { Download, MessageSquare, PhoneCall } from 'lucide-react';
+import { Download, MapPin, MessageSquare, PhoneCall } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
 import { cn } from '@/lib/cn';
@@ -17,6 +17,8 @@ interface HeaderProps {
   representedLines?: LinePortfolio[];
   onSelectLine?: (slug: LineKey) => void;
   subtitle?: string;
+  /** Phase 5: line-rights admin page for the current represented line. */
+  territoriesHref?: string;
 }
 
 export function Header({
@@ -29,6 +31,7 @@ export function Header({
   representedLines = [],
   onSelectLine,
   subtitle = 'Independent Sales Representative — British Columbia',
+  territoriesHref,
 }: HeaderProps) {
   return (
     <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-7 py-3.5">
@@ -80,6 +83,15 @@ export function Header({
               Old Guys Rule
             </button>
           )}
+          {territoriesHref ? (
+            <a
+              href={territoriesHref}
+              className="font-heading text-ink/70 inline-flex items-center gap-1.5 rounded-full bg-transparent px-3.5 py-1.5 text-sm no-underline"
+            >
+              <MapPin size={16} strokeWidth={2.75} />
+              <span>Territories</span>
+            </a>
+          ) : null}
           <button
             type="button"
             onClick={onOpenMessages}

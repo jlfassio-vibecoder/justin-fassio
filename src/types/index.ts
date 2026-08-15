@@ -8,7 +8,8 @@ export type TabKey =
   | 'contacts'
   | 'insights'
   | 'messages'
-  | 'calendar';
+  | 'calendar'
+  | 'territories';
 
 /** Represented sales lines in the Phase 2 picker (excludes bkg / prospective). */
 export type LineKey = 'ogr' | 'eagle-peak' | 'big-fish';
