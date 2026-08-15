@@ -1,12 +1,21 @@
 # Phase 1 Plan: Multi-Line Schema Foundation
 
-**Status:** Phase 1A implemented locally (additive schema + seeds). Phase 1B backfill/dual-write **not** done. Overall Phase 1 is incomplete.  
+**Status:** Phase 1A implemented locally (additive schema + seeds + promote-with-targets fix). Phase 1B OGR backfill is **specified below, not implemented**. Dual-write is **Phase 1C** (not 1B). Overall Phase 1 is incomplete.  
 **Epic:** [docs/epics/multi-line-multi-territory-crm.md](../epics/multi-line-multi-territory-crm.md)  
 **Current-state audit:** [docs/multi-line-territory-audit.md](../multi-line-territory-audit.md)  
 **Branch inspected (plan authorship):** `feature/multi-line-multi-territory-implementation` at `a1b2e57` (docs commit on `main` `879a24a`)  
-**Date:** 2026-08-14
+**Date:** 2026-08-14  
+**Phase 1B plan revision:** 2026-08-14
 
 Settled business decisions in the epic **supersede** audit §8.4 / §14 items 1–6, 8, and 13 where they conflict. Live schema evidence below was re-verified against the repository; it matches the audit (no schema drift).
+
+**Phase split (expand/contract):**
+
+| Sub-phase | Scope | Status |
+| --------- | ----- | ------ |
+| **1A** | Additive tables, seeds, prospective guards | Done |
+| **1B** | OGR backfill + validation only | Planned (this revision) |
+| **1C** | Dual-write triggers (`…130000`) | Deferred — do not begin in 1B |
 
 ---
 
@@ -16,11 +25,11 @@ Add an **additive expand/contract** schema foundation so the CRM can represent m
 
 Phase 1 must:
 
-1. Create `principals`, extend `lines`, make `territories` hierarchical, and add `sales_line_territories`, `retailer_line_accounts`, `retailer_line_contacts`, `retailer_field_changes`, `retailer_line_targets`, and `migration_review_queue`.
-2. Seed OGR (`active`), Eagle Peak (`onboarding`), Big Fish (`confirmed`), and leave BKG as an independent paused/inactive line.
-3. Assign OGR territories BC/OR/WA with `rights_type = unconfirmed`; assign Eagle Peak OR/WA (active) and norcal (proposed); assign **zero** Big Fish territories.
-4. Backfill **one OGR line account per existing `prospects` row**; stamp operational records onto those accounts.
-5. Install dual-write triggers so new writes to `prospects` keep the OGR line account in sync while the UI flag is off.
+1. Create `principals`, extend `lines`, make `territories` hierarchical, and add `sales_line_territories`, `retailer_line_accounts`, `retailer_line_contacts`, `retailer_field_changes`, `retailer_line_targets`, and `migration_review_queue`. **(1A — done)**
+2. Seed OGR (`active`), Eagle Peak (`onboarding`), Big Fish (`confirmed`), and leave BKG as an independent paused/inactive line. **(1A — done)**
+3. Assign OGR territories BC/OR/WA with `rights_type = unconfirmed`; assign Eagle Peak OR/WA/norcal (proposed in 1A); assign **zero** Big Fish territories. **(1A — done)**
+4. Backfill **one OGR line account per existing `prospects` row**; stamp operational records onto those accounts. **(1B)**
+5. Install dual-write triggers so new writes to `prospects` keep the OGR line account in sync while the UI flag is off. **(1C — not 1B)**
 6. Leave Eagle Peak, Big Fish, and Prospective Lines with **zero** operational line accounts.
 7. Not change staff UI behavior, public catalogs, or historical migrations.
 
@@ -501,14 +510,15 @@ Service-layer 403 for Prospective Lines UI is Phase 8; Phase 1 ships DB guards.
 
 After existing latest: `20260812140000_outreach_automation_runs.sql`.
 
-| #   | File                                                | Contents                                                                                                                                                                                                                                                                                        |
-| --- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `20260814100000_multi_line_phase1_tables.sql`       | `principals`; alter `lines`; alter `territories` (drop code check, add hierarchy); create `sales_line_territories`, `retailer_line_accounts`, contacts, field changes, targets, review queue; add nullable FKs + financial columns; indexes; composite FK; RLS; views for activity/productivity |
-| 2   | `20260814110000_multi_line_phase1_line_seeds.sql`   | Principals + update `ogr`/`bkg`; insert `eagle-peak` / `big-fish`; seed `norcal`; OGR BC/OR/WA; Eagle Peak OR/WA/norcal. **No accounts**                                                                                                                                                        |
-| 3   | `20260814120000_multi_line_phase1_ogr_backfill.sql` | Line accounts; stamp operational rows; financial backfill; review queue; assertions                                                                                                                                                                                                             |
-| 4   | `20260814130000_multi_line_phase1_dual_write.sql`   | Dual-write triggers + prospective/order/outreach guards                                                                                                                                                                                                                                         |
+| #   | File                                                                   | Sub-phase | Contents                                                                                                                                                                                                                                                                                        |
+| --- | ---------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `20260814100000_multi_line_phase1_tables.sql`                          | **1A done** | `principals`; alter `lines`; alter `territories` (drop code check, add hierarchy); create `sales_line_territories`, `retailer_line_accounts`, contacts, field changes, targets, review queue; add nullable FKs + financial columns; indexes; composite FK; RLS; views for activity/productivity; prospective guards |
+| 2   | `20260814110000_multi_line_phase1_line_seeds.sql`                      | **1A done** | Principals + update `ogr`/`bkg`; insert `eagle-peak` / `big-fish`; seed `norcal`; OGR BC/OR/WA; Eagle Peak OR/WA/norcal **proposed**. **No accounts**                                                                                                                                            |
+| 3   | `20260814115000_multi_line_phase1a_block_promote_with_targets.sql`     | **1A done** | Block leaving `prospective` while `retailer_line_targets` exist                                                                                                                                                                                                                                 |
+| 4   | `20260814120000_multi_line_phase1_ogr_backfill.sql`                    | **1B**      | Line accounts; stamp operational rows; financial backfill; review queue; assertions. **No dual-write.**                                                                                                                                                                                         |
+| 5   | `20260814130000_multi_line_phase1_dual_write.sql`                      | **1C**      | Dual-write triggers only (prospective guards already shipped in 1A)                                                                                                                                                                                                                             |
 
-Also update [supabase/schema.sql](../../supabase/schema.sql) and [src/types/database.ts](../../src/types/database.ts) in the same PRs (hand-maintained mirror).
+Also update [supabase/schema.sql](../../supabase/schema.sql) and [src/types/database.ts](../../src/types/database.ts) when implementation PRs require it (hand-maintained mirror). Phase 1B typically does **not** need `database.ts` changes unless a new unique index is mirrored in schema only.
 
 **Do not rewrite** historical BC/OGR seed migrations.
 
@@ -544,56 +554,69 @@ Leave originals on `prospects` (dual-write source of truth for UI).
 
 ## 11. OGR backfill algorithm
 
-1. **Pre-count snapshot** (§ end checklists).
-2. Run seeds migration (principals, lines, territories, assignments). Assert Eagle Peak / Big Fish account counts = 0.
-3. Resolve `ogr_line_id` and OGR `sales_line_territories` ids for `bc`, `or`, `wa`.
+> **Superseded for territory auto-assignment by Phase 1B execution (§22).**  
+> Original draft assigned OR/WA automatically. **Phase 1B assigns only BC.**  
+> OGR still *owns* OR/WA rights on `sales_line_territories` from 1A seeds; retailer location is **not** inferred as a line-account assignment.
+
+High-level steps (exact execution in §22):
+
+1. **Pre-count snapshot** and hard-stop preflight (§22.1).
+2. Confirm 1A seeds: Eagle Peak / Big Fish / prospective account counts = 0.
+3. Resolve `ogr_line_id` and OGR–BC `sales_line_territories` id only (for auto-assignment).
 4. `INSERT INTO retailer_line_accounts … SELECT … FROM prospects` with mapped columns; `retailer_id = prospects.id`.
-5. **Territory assignment:**
+5. **Territory assignment (Phase 1B rule):**
    - Join `prospects.territory_id` → `territories.code`.
-   - If code in (`bc`,`or`,`wa`): set `sales_line_territory_id` to matching OGR assignment.
-   - If code in (`ca`,`ab`) or unknown: leave NULL, set `backfill_review_reason`, insert `migration_review_queue` row.
-   - **Never** infer from address/city.
-6. **Orders gate:**
-   - If any `orders.line_id` references a non-OGR line → **stop backfill**, queue those order ids, fail go/no-go.
-   - Else stamp all orders to OGR line account; set `line_id = ogr` where null; set financial columns: `original_amount = total_amount_cad`, `original_currency = 'CAD'`, `exchange_rate = 1`, `exchange_rate_date = order_date`, `converted_amount = total_amount_cad`, `converted_currency = 'CAD'`, `conversion_source = 'legacy_cad_column'`.
-7. Stamp calls, system_messages, reorder settings, gmail, calendar, threads, wholesale requests, attribution.
+   - If code = `bc`: set `sales_line_territory_id` to the OGR–BC assignment.
+   - If code in (`or`,`wa`,`ca`,`ab`,`norcal`) or unknown / join miss: leave NULL, set `backfill_review_reason`, insert `migration_review_queue` row.
+   - **Never** infer from address/city/region.
+6. **Orders / calls gate:**
+   - If any `orders.line_id` or `calls.line_id` references a non-OGR line → **hard stop** (abort migration). Prefer fail immediately so a partial stamp cannot commit.
+   - Else stamp all stampable orders to OGR line account; set `line_id = ogr` where null; set financial columns: `original_amount = total_amount_cad`, `original_currency = 'CAD'`, `exchange_rate = 1`, `exchange_rate_date = order_date`, `converted_amount = total_amount_cad`, `converted_currency = 'CAD'`, `conversion_source = 'legacy_cad_column'`.
+7. Stamp calls, system_messages, reorder settings, gmail, calendar, threads, wholesale requests, attribution, prospect_updates (when prospect exists).
 8. Contacts → `retailer_line_contacts`.
-9. **Orphans:** `calls` / `prospect_updates` / messages with `prospect_id` not in `prospects` → review queue; **do not delete**.
-10. Assert:
-    - `count(retailer_line_accounts where ogr) = count(prospects)`
-    - Eagle Peak / Big Fish / prospective account counts = 0
-    - `retailer_line_targets` count = 0
-    - OGR active territory codes = `{bc,or,wa}` only
+9. **Orphans:** `calls` / `prospect_updates` with `prospect_id` not in `prospects` → review queue; **do not delete**.
+10. Assert reconciliation (§22.9).
+
+**Do not begin dual-write in 1B** — that is Phase 1C.
 
 ---
 
 ## 12. Handling of orphaned or ambiguous records
 
-| Case                                               | Action                                                                                          |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Prospect on CA or AB                               | Line account created; territory NULL; review queue                                              |
-| Prospect territory missing / unknown code          | Same                                                                                            |
-| Call / update / message with unknown `prospect_id` | Review queue; leave row unchanged except skip stamp                                             |
-| Order with non-OGR `line_id`                       | **Hard stop** before mass stamp                                                                 |
-| Order with null `line_id`                          | Map to OGR **only after** confirming all non-null line_ids are OGR                              |
-| Duplicate-looking retailers                        | Do **not** merge; optional later review queue reason `possible_duplicate` (not auto in Phase 1) |
-| Big Fish / Eagle Peak                              | Never auto-create accounts from OGR geography                                                   |
+| Case                                                      | Action                                                                                          |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Prospect on BC                                            | Line account created; `sales_line_territory_id` = OGR–BC                                        |
+| Prospect on OR, WA, CA, AB, norcal                        | Line account created; territory NULL; review queue (`non_bc_territory`)                         |
+| Prospect territory missing / unknown code                 | Same (`ambiguous_territory`)                                                                    |
+| Call / update with unknown `prospect_id`                  | Review queue; leave row unchanged except skip stamp                                             |
+| Linked row with non-null `prospect_id` that misses        | Review queue; skip stamp (rare where FK exists)                                                 |
+| Null `prospect_id` on Gmail/Calendar/thread/wholesale     | **Do not** queue (normal unlinked state)                                                        |
+| Order / call with non-OGR `line_id`                       | **Hard stop** — abort migration before mass stamp                                               |
+| Order with null `line_id`                                 | Map to OGR **only after** confirming all non-null line_ids are OGR                              |
+| Call with null `line_id` and orphan prospect              | Leave `line_id` null; queue orphan; do not invent OGR                                           |
+| Duplicate-looking retailers                               | Do **not** merge; optional later review queue reason `possible_duplicate` (not auto in Phase 1) |
+| Big Fish / Eagle Peak / BKG / prospective                 | Never auto-create accounts from OGR geography                                                   |
 
 ---
 
-## 13. Temporary dual-write strategy
+## 13. Temporary dual-write strategy (Phase 1C — not 1B)
 
-While UI still writes `prospects` (flag off):
+> Dual-write belongs to **Phase 1C** (`20260814130000_multi_line_phase1_dual_write.sql`).  
+> Phase 1B must **not** create this migration or install these triggers.
+
+While UI still writes `prospects` (flag off), Phase 1C will add:
 
 | Trigger                               | Behavior                                                                                                                     |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `AFTER INSERT OR UPDATE ON prospects` | Upsert OGR `retailer_line_accounts` commercial fields for that `retailer_id`                                                 |
 | `AFTER INSERT ON account_contacts`    | Insert OGR `retailer_line_contacts` (ignore conflict)                                                                        |
 | `BEFORE INSERT ON orders` (and peers) | If `retailer_line_account_id` IS NULL and retailer resolves, set to OGR account; set financial defaults when CAD-only insert |
-| `BEFORE INSERT OR UPDATE` guards      | Prospective / order / outreach protections from §7.3                                                                         |
+
+Prospective / order / outreach guards from §7.3 already shipped in **Phase 1A**.
 
 Dual-write does **not** create Eagle Peak or Big Fish accounts.  
-Dual-write does **not** change React islands or API handlers in Phase 1.
+Dual-write does **not** change React islands or API handlers in Phase 1.  
+Recursion guards (`pg_trigger_depth()` / update-only-if-changed) are required in 1C.
 
 ---
 
@@ -687,9 +710,12 @@ select reason, count(*) from migration_review_queue where resolved_at is null gr
 
 | Stage                           | Procedure                                                                                                                            |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| After tables+seeds only (PR1)   | Reverse migrations 2 then 1 (`DROP` new tables/columns; restore `territories_code_check`). `prospects` untouched.                    |
-| After backfill+dual-write (PR2) | Disable/drop triggers first; reverse migrations 4→3→2→1. Snapshot restore if partial failure mid-backfill.                           |
-| Snapshot required before PR2    | `prospects`, `orders`, `calls`, `account_contacts`, `system_messages`, `account_reorder_settings`, gmail/calendar links, attribution |
+| After tables+seeds only (1A)    | Reverse migrations 3→2→1 (`DROP` new tables/columns; restore `territories_code_check`). `prospects` untouched.                      |
+| After OGR backfill only (1B)    | Data-only reverse (§22.10). Leave 1A schema in place. Snapshot restore if mid-backfill failure.                                      |
+| After dual-write (1C)           | Disable/drop triggers first; then reverse 1B data; then reverse 1A if needed.                                                        |
+| Snapshot required before 1B     | `prospects`, `orders`, `calls`, `account_contacts`, `system_messages`, `account_reorder_settings`, gmail/calendar links, attribution, `prospect_updates` |
+
+`prospects` remains source of truth for the app throughout Phase 1 — rollback never needs to reconstruct UI data from line accounts.
 
 `prospects` remains source of truth for the app throughout Phase 1 — rollback never needs to reconstruct UI data from line accounts.
 
@@ -697,35 +723,58 @@ select reason, count(*) from migration_review_queue where resolved_at is null gr
 
 ## 17. Required fixtures and tests
 
-Prefer SQL fixture tests and/or Vitest that read migration SQL (pattern: [src/lib/google/crmLinkLifecycle.test.ts](../../src/lib/google/crmLinkLifecycle.test.ts)).
+Prefer SQL fixture tests and/or Vitest that read migration SQL (pattern: [src/lib/multiLinePhase1aSchema.test.ts](../../src/lib/multiLinePhase1aSchema.test.ts)).
 
-1. **Schema:** partial unique rejects second non-terminated account for same retailer×line.
-2. **Composite FK:** attaching Eagle Peak territory id to OGR account fails.
-3. **Target trigger:** insert target for `ogr` fails; for a prospective fixture line succeeds.
-4. **Account trigger:** insert line account for prospective line fails.
-5. **Order trigger:** order against prospective line account fails.
-6. **Seeds:** BKG `status=paused`, `active=false`; Big Fish `status=confirmed`, zero territories; Eagle Peak currency USD / commission 0.1.
-7. **Backfill fixture:** mixed `account_status`; territories BC/OR/WA/CA; null `line_id` orders; orphan call → counts + review queue.
-8. **Financial backfill:** CAD legacy columns populated; no invented USD.
-9. **`npm run check`** on every Phase 1 PR.
+**Phase 1A (done):**
 
-No UI / Playwright changes in Phase 1.
+1. Schema: partial unique rejects second non-terminated account for same retailer×line.
+2. Composite FK: attaching Eagle Peak territory id to OGR account fails.
+3. Target trigger: insert target for `ogr` fails; for a prospective fixture line succeeds.
+4. Account trigger: insert line account for prospective line fails.
+5. Order trigger: order against prospective line account fails.
+6. Seeds: BKG `status=paused`, `active=false`; Big Fish `status=confirmed`, zero territories; Eagle Peak currency USD / commission 0.1.
+7. Promote-with-targets: leaving prospective while targets exist is blocked.
+
+**Phase 1B (planned):**
+
+8. Backfill SQL-text tests in `multiLinePhase1bBackfill.test.ts` (§22.11).
+9. Local disposable-DB runbook: mixed `account_status`; territories BC vs non-BC; null `line_id` orders; orphan call → counts + review queue.
+10. Financial backfill: CAD legacy columns populated; no invented USD.
+11. `npm run check` on the Phase 1B PR.
+
+No UI / Playwright changes in Phase 1. Dual-write tests are Phase 1C.
 
 ---
 
 ## 18. Exact files expected to change during implementation
 
+### Phase 1A (done)
+
 | File                                                                    | Change                              |
 | ----------------------------------------------------------------------- | ----------------------------------- |
-| `supabase/migrations/20260814100000_multi_line_phase1_tables.sql`       | **New**                             |
-| `supabase/migrations/20260814110000_multi_line_phase1_line_seeds.sql`   | **New**                             |
-| `supabase/migrations/20260814120000_multi_line_phase1_ogr_backfill.sql` | **New**                             |
-| `supabase/migrations/20260814130000_multi_line_phase1_dual_write.sql`   | **New**                             |
-| [supabase/schema.sql](../../supabase/schema.sql)                        | Mirror new objects                  |
+| `supabase/migrations/20260814100000_multi_line_phase1_tables.sql`       | Created                             |
+| `supabase/migrations/20260814110000_multi_line_phase1_line_seeds.sql`   | Created                             |
+| `supabase/migrations/20260814115000_multi_line_phase1a_block_promote_with_targets.sql` | Created (promote-with-targets fix) |
+| [supabase/schema.sql](../../supabase/schema.sql)                        | Mirrored 1A objects                 |
 | [src/types/database.ts](../../src/types/database.ts)                    | New tables/columns/enums            |
-| New test files under `src/lib/` or `src/test/`                          | Constraint / migration string tests |
+| `src/lib/multiLinePhase1aSchema.test.ts`                                | Constraint / migration string tests |
 
-**Do not change in Phase 1 implementation:** React islands, API routes, `LINE_SELECT` consumers for behavior, historical migrations, production data outside the controlled backfill migration, public RPCs.
+### Phase 1B (planned — not started)
+
+| File                                                                    | Change                              |
+| ----------------------------------------------------------------------- | ----------------------------------- |
+| `supabase/migrations/20260814120000_multi_line_phase1_ogr_backfill.sql` | **New** — backfill DML, optional review-queue unique, assertions |
+| [supabase/schema.sql](../../supabase/schema.sql)                        | Only if the unique index (or equivalent) is added |
+| `src/lib/multiLinePhase1bBackfill.test.ts`                              | **New** |
+| This plan document                                                      | 1B results section after implementation |
+
+### Phase 1C (deferred)
+
+| File                                                                    | Change                              |
+| ----------------------------------------------------------------------- | ----------------------------------- |
+| `supabase/migrations/20260814130000_multi_line_phase1_dual_write.sql`   | **New** — dual-write triggers only  |
+
+**Do not change in Phase 1B implementation:** React islands, API routes, `LINE_SELECT` consumers for behavior, historical migrations, `database.ts` (unless a type-affecting schema add is approved), production/staging data, public RPCs, dual-write migration.
 
 ---
 
@@ -747,19 +796,33 @@ No UI / Playwright changes in Phase 1.
 
 ## 20. Phase 1 acceptance criteria
 
-- [ ] Four migrations applied in order on a fresh migrate path; `schema.sql` and `database.ts` match.
-- [ ] `ogr` status `active`, territories BC/OR/WA with `rights_type=unconfirmed`.
-- [ ] `eagle-peak` onboarding, USD, 10%, OR/WA active, norcal proposed, zero accounts.
-- [ ] `big-fish` confirmed, no invented commercial fields, zero territories, zero accounts.
-- [ ] `bkg` paused / inactive, unused.
-- [ ] One OGR line account per prospect; ids preserved.
+### Phase 1A (done)
+
+- [x] Tables + seeds + promote-with-targets migrations applied on local path; `schema.sql` and `database.ts` match.
+- [x] `ogr` status `active`, territories BC/OR/WA with `rights_type=unconfirmed`.
+- [x] `eagle-peak` onboarding, USD, 10%, OR/WA/norcal proposed, zero accounts.
+- [x] `big-fish` confirmed, no invented commercial fields, zero territories, zero accounts.
+- [x] `bkg` paused / inactive, unused.
+- [x] Prospective guards exist; targets table empty.
+- [x] Staff UI behavior unchanged; public OGR site unchanged.
+
+### Phase 1B (planned)
+
+- [ ] One OGR line account per prospect; ids preserved; legacy columns untouched.
+- [ ] Status map `prospect|active_account|inactive` → `prospect|opened|inactive`.
+- [ ] Only BC accounts receive `sales_line_territory_id`; all other geos queued.
 - [ ] Operational stamps complete or queued; orphans not deleted.
 - [ ] Financial columns filled for OGR CAD orders without inventing USD.
-- [ ] Dual-write triggers keep OGR accounts synced on prospect writes.
-- [ ] Prospective guards exist; targets table empty.
-- [ ] Staff UI behavior unchanged; public OGR site unchanged.
+- [ ] Null OGR-safe `line_id` filled; conflicting non-OGR `line_id` never committed.
+- [ ] Zero Eagle Peak / Big Fish / BKG / prospective accounts; zero targets.
+- [ ] Migration idempotent and transactional; rollback documented.
 - [ ] Validation queries pass; `npm run check` passes.
-- [ ] Rollback procedure documented and dry-runnable for PR1.
+- [ ] No dual-write, no UI/API cutover, no staging/production apply.
+
+### Phase 1C (deferred)
+
+- [ ] Dual-write triggers keep OGR accounts synced on prospect writes.
+- [ ] Staging smoke: insert prospect → OGR account appears.
 
 ---
 
@@ -784,67 +847,80 @@ No UI / Playwright changes in Phase 1.
 
 ## Appendix A — Recommended migration-file sequence
 
-1. `20260814100000_multi_line_phase1_tables.sql`
-2. `20260814110000_multi_line_phase1_line_seeds.sql`
-3. `20260814120000_multi_line_phase1_ogr_backfill.sql`
-4. `20260814130000_multi_line_phase1_dual_write.sql`
+1. `20260814100000_multi_line_phase1_tables.sql` — **1A done**
+2. `20260814110000_multi_line_phase1_line_seeds.sql` — **1A done**
+3. `20260814115000_multi_line_phase1a_block_promote_with_targets.sql` — **1A done**
+4. `20260814120000_multi_line_phase1_ogr_backfill.sql` — **1B**
+5. `20260814130000_multi_line_phase1_dual_write.sql` — **1C (not now)**
 
 ---
 
 ## Appendix B — Pre-migration count checklist
 
-Record before applying PR2:
+Record before applying Phase 1B (`…120000`):
 
 - [ ] `prospects` total + by `account_status`
-- [ ] `prospects` by territory code
+- [ ] `prospects` by territory code (expect mostly `bc`; note any `or`/`wa`/`ca`/`ab`)
 - [ ] `orders` total + by `line_id` null/non-null
 - [ ] Distinct non-null `orders.line_id` codes (must be empty or only `ogr`)
+- [ ] Distinct non-null `calls.line_id` codes (must be empty or only `ogr`)
 - [ ] `calls`, orphan call count
+- [ ] `prospect_updates`, orphan update count
 - [ ] `account_contacts`, `account_reorder_settings`
 - [ ] `system_messages`, gmail/calendar links, threads, wholesale requests, attribution
+- [ ] Confirm `retailer_line_accounts` count is 0 before first 1B apply (or only prior OGR rows if re-running idempotently)
 
 ---
 
 ## Appendix C — Post-backfill validation checklist
 
 - [ ] OGR account count = prospect count
-- [ ] Eagle Peak / Big Fish / prospective accounts = 0
+- [ ] Eagle Peak / Big Fish / BKG / prospective accounts = 0
 - [ ] Big Fish territories = 0
 - [ ] OGR territories = bc, or, wa only; `unconfirmed`
 - [ ] Eagle Peak territories = or, wa, norcal (proposed)
 - [ ] Orders with known accounts have `retailer_line_account_id`
 - [ ] Prospective order count = 0
 - [ ] Targets count = 0
-- [ ] Review queue explains every CA/AB/orphan case
-- [ ] Dual-write: insert test prospect (in staging) creates OGR line account
+- [ ] Review queue explains every non-BC / ambiguous / orphan case
+- [ ] BC accounts have OGR–BC territory; non-BC accounts have NULL territory
+- [ ] Dual-write smoke (**Phase 1C only**): insert test prospect creates OGR line account
 
 ---
 
 ## Appendix D — Go / no-go decision gate
 
+### Phase 1B implementation
+
 **GO only if all are true:**
 
-1. Epic + this plan approved.
-2. Production/staging backup taken.
-3. Pre-count checklist recorded.
-4. Every existing `orders.line_id` is NULL or OGR.
+1. Phase 1A migrations present on disposable local DB; this plan revision approved.
+2. Pre-count checklist recorded (Appendix B).
+3. Every existing `orders.line_id` / `calls.line_id` is NULL or OGR.
+4. OGR–BC `sales_line_territories` row exists and is active.
 5. No conflicting directory import running.
-6. Implementers will not invent Big Fish commercial terms or assign OGR CA/AB.
+6. Implementers will not invent Big Fish commercial terms, assign OGR CA/AB/OR/WA to line accounts, invent USD, clone non-OGR accounts, or start dual-write (1C).
 
-**NO-GO if:** non-OGR orders exist; backup missing; or remaining open questions are misread as “invent defaults.”
+**NO-GO if:** non-OGR orders/calls exist; OGR–BC missing; non-OGR operational accounts already exist; backup/snapshot missing for any non-local apply; or remaining open questions are misread as “invent defaults.”
+
+### Production apply (later, not part of 1B coding PR)
+
+Requires separate go/no-go: staging validation + production backup.
 
 ---
 
 ## Appendix E — Rollback triggers
 
-Roll back immediately if:
+Roll back Phase 1B immediately if:
 
 - OGR account count ≠ prospect count after backfill
-- Any Eagle Peak / Big Fish / prospective operational account auto-created
+- Any Eagle Peak / Big Fish / BKG / prospective operational account auto-created
 - Public `get_public_active_lines` returns non-OGR unexpectedly
 - Staff UI errors on prospect list/convert due to type or trigger failure
-- Dual-write recursion or write amplification detected
 - Financial backfill invents USD or nulls `total_amount_cad`
+- Non-BC accounts received an auto-assigned `sales_line_territory_id`
+
+Roll back Phase 1C (when implemented) if dual-write recursion or write amplification is detected.
 
 ---
 
@@ -865,27 +941,32 @@ Roll back immediately if:
 
 ## Appendix G — Recommended PR breakdown for Phase 1
 
-### PR 1 — Tables, seeds, types (no operational backfill)
+### PR 1 — Tables, seeds, types (no operational backfill) — **done (1A)**
 
-- Migrations `…100000` + `…110000`
+- Migrations `…100000` + `…110000` + `…115000`
 - `schema.sql` + `database.ts`
 - Schema constraint tests (composite FK, enums, seed assertions)
 - **No** dual-write; **no** production account stamp
 
-### PR 2 — OGR backfill + dual-write
+### PR 2 — OGR backfill only (Phase 1B)
 
-- Migrations `…120000` + `…130000`
-- Pre/post validation SQL as comments or staging runbook
-- Backfill fixture tests
-- Staging apply → validation checklist → production with snapshot
+- Migration `…120000` only
+- Pre/post validation SQL as comments or local disposable-DB runbook
+- Backfill fixture / SQL-text tests (`multiLinePhase1bBackfill.test.ts`)
+- Local disposable DB apply → validation checklist
+- **No** dual-write; **no** staging/production apply in the 1B implementation PR unless separately approved
 
-Rollback of PR2 does not require reverting PR1 if triggers are dropped first and nullable columns left in place (expand/contract safe). Full reverse still available.
+### PR 3 — Dual-write (Phase 1C)
+
+- Migration `…130000`
+- Recursion guards; staging smoke: insert prospect → OGR account
+- Rollback of PR3 does not require reverting PR1/PR2 if triggers are dropped first and nullable columns left in place (expand/contract safe).
 
 ---
 
 ## Implementation results — Phase 1A (additive schema only)
 
-**Status:** Phase 1A implemented in the local repository. Phase 1 overall is **not** complete (1B backfill / dual-write deferred).  
+**Status:** Phase 1A implemented in the local repository. Phase 1 overall is **not** complete. Phase 1B is **planned** (see §22); dual-write is **Phase 1C**.  
 **Date:** 2026-08-14  
 **Branch tip at implementation:** `feature/multi-line-multi-territory-implementation` (docs HEAD was `4ec008b` before this work).
 
@@ -895,8 +976,10 @@ Rollback of PR2 does not require reverting PR1 if triggers are dropped first and
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | `supabase/migrations/20260814100000_multi_line_phase1_tables.sql`     | Tables, column extensions, indexes, composite FK, views, enforcement triggers, RLS     |
 | `supabase/migrations/20260814110000_multi_line_phase1_line_seeds.sql` | Principals, line status/commercial seeds, norcal geo, OGR + Eagle Peak territory seeds |
+| `supabase/migrations/20260814115000_multi_line_phase1a_block_promote_with_targets.sql` | Block leaving prospective while targets exist |
 
-**Not created (Phase 1B):** `…120000` OGR backfill, `…130000` dual-write.
+**Not created (Phase 1B):** `…120000` OGR backfill.  
+**Not created (Phase 1C):** `…130000` dual-write.
 
 ### Schema and type files changed
 
@@ -913,6 +996,7 @@ Rollback of PR2 does not require reverting PR1 if triggers are dropped first and
 | Targets only on prospective lines            | `BEFORE INSERT/UPDATE` trigger `retailer_line_targets_prospective_only`                                |
 | No operational accounts on prospective lines | Trigger `retailer_line_accounts_not_prospective`                                                       |
 | No orders / outreach on prospective lines    | Triggers on `orders` and `system_messages`                                                             |
+| Leave prospective blocked while targets exist | Trigger `lines_leave_prospective_without_targets`                                                     |
 | Activity / productivity                      | Views only (`retailer_line_account_activity`, `retailer_line_account_productivity`)                    |
 
 ### Tests added
@@ -921,25 +1005,34 @@ Rollback of PR2 does not require reverting PR1 if triggers are dropped first and
 
 ### Validation results
 
-- `npm run check` — **passed** (lint, typecheck, format, 800 tests)
+- `npm run check` — **passed** (lint, typecheck, format, 801 tests after promote-with-targets fix)
 - No production migration applied
 - No OGR backfill / no `retailer_line_accounts` seeded
 
 ### Deviations from the plan
 
 1. **Eagle Peak territory assignments seeded as `proposed` only** (not `active`). Phase 1A prompt forbids active Eagle Peak grants; plan § seeds said OR/WA `active`. Documented in the seeds migration header.
-2. **Enforcement triggers shipped in the tables migration (1A)** rather than waiting for the dual-write migration (1B), so prospective guards are testable without backfill.
+2. **Enforcement triggers shipped in the tables migration (1A)** rather than waiting for the dual-write migration (1C), so prospective guards are testable without backfill.
 3. **`lines.status` column default** is temporarily `'active'` during expand (to protect existing ogr/bkg rows), then seeds set default to `'prospective'` and add the acquisition_stage combined CHECK.
 4. Fixture/type updates in a few existing tests (`lines.test.ts`, order/gmail/calendar fixtures) so hand-written `Database` types compile; **no UI behavior changes**.
+5. **Promote-with-targets gap fixed** in `…115000` after local verification found status update could leave invalid targets.
 
-### Deferred Phase 1B work
+### Deferred Phase 1B work (planned in §22 — not started)
 
 - OGR `retailer_line_accounts` backfill and operational stamps
-- Dual-write triggers from `prospects` / contacts / orders
 - Financial CAD → `original_*` backfill with `legacy_cad_column`
-- `migration_review_queue` population for CA/AB/orphans
+- `migration_review_queue` population for non-BC / ambiguous / orphans
+- Migration `20260814120000_*` only
+
+### Deferred Phase 1C work
+
+- Dual-write triggers from `prospects` / contacts / orders
+- Migration `20260814130000_*`
+- Staging dual-write smoke test
+
+### Deferred later
+
 - Activating Eagle Peak OR/WA grants when approved
-- Migrations `20260814120000_*` and `20260814130000_*`
 
 ### Rollback instructions for Phase 1A
 
@@ -948,10 +1041,299 @@ Rollback of PR2 does not require reverting PR1 if triggers are dropped first and
 3. Application remains compatible with empty new tables; rolling back types/migrations in git restores the prior compile surface.
 4. `prospects` and existing operational rows are untouched by 1A seeds (no account stamp).
 
-**Phase 1 is not complete.** Do not start Phase 1B until explicitly approved.
+**Phase 1 is not complete.** Phase 1B implementation must wait for explicit approval after this plan revision.
 
 ---
 
-**Historical note:** The planning stop-line below applied before Phase 1A was authorized.
+## 22. Phase 1B execution plan (OGR backfill and validation)
 
-**Stop:** documentation complete. Do not begin migration implementation until this plan is approved.
+**Status:** Planned / not started.  
+**Date:** 2026-08-14  
+**Scope:** Documentation and future implementation of `20260814120000_multi_line_phase1_ogr_backfill.sql` only.  
+**Out of scope:** Dual-write (`…130000`), application cutover, staging/production apply, Eagle Peak/Big Fish account creation.
+
+### Locked rules (do not re-litigate)
+
+- Preserve all existing IDs and legacy columns (`prospects.id`, `account_status`, `territory_id`, `orders.line_id`, `total_amount_cad`, etc.).
+- One OGR `retailer_line_accounts` row per existing `prospects` row. `retailer_id = prospects.id`.
+- Do not clone accounts into Eagle Peak, Big Fish, or BKG.
+- Do not create operational accounts for prospective lines.
+- Do not infer missing territory or currency. Do not combine CAD and USD.
+- If a record cannot be safely attributed to OGR, queue it — do not guess.
+- Dual-write and application cutover are **Phase 1C / Phase 2+**. Phase 1B does not create `…130000` or change React/API behavior.
+
+```mermaid
+flowchart TD
+  preflight[Preflight counts and hard stops]
+  insertRla[Insert one OGR line account per prospect]
+  terr{territories.code = bc?}
+  assignBc[Set OGR-BC sales_line_territory_id]
+  queueTerr[NULL territory plus review queue]
+  stamp[Stamp contacts and operational FKs]
+  finance[Fill CAD original_* only]
+  orphans[Queue orphans do not delete]
+  assert[End-of-migration assertions]
+  preflight --> insertRla
+  insertRla --> terr
+  terr -->|yes| assignBc
+  terr -->|no or ambiguous| queueTerr
+  assignBc --> stamp
+  queueTerr --> stamp
+  stamp --> finance
+  finance --> orphans
+  orphans --> assert
+```
+
+Postgres applies one migration file in one transaction. Any `RAISE EXCEPTION` rolls the entire backfill back.
+
+### 22.1 Preflight counts and data-quality checks
+
+Record and assert **inside the migration before DML**:
+
+- `count(prospects)`, `account_status` breakdown, `territories.code` breakdown.
+- `count(orders)`, null vs non-null `orders.line_id`, distinct non-null line codes.
+- Same for `calls.line_id`.
+- Counts: `account_contacts`, `account_reorder_settings`, `system_messages`, `gmail_thread_links`, `calendar_event_links`, `message_threads`, `wholesale_order_requests`, `account_conversion_attribution`, `prospect_updates`.
+- Orphan counts: `calls` / `prospect_updates` whose `prospect_id` is not in `prospects`.
+- Phase 1A invariants still hold: OGR BC/OR/WA `unconfirmed`; Eagle Peak / Big Fish / prospective `retailer_line_accounts` = 0; `retailer_line_targets` = 0.
+
+**Hard stop (abort migration) if any of these are true:**
+
+1. Any `orders.line_id` or `calls.line_id` references a line whose `code <> 'ogr'`.
+2. `lines.code = 'ogr'` is missing or `status <> 'active'`.
+3. OGR–BC `sales_line_territories` row is missing or not `active`.
+4. Any existing `retailer_line_accounts` for `eagle-peak`, `big-fish`, `bkg`, or `status = 'prospective'`.
+5. Conflicting directory import is running (manual go/no-go; not a SQL assert).
+
+Prefer **fail immediately** on non-OGR `line_id` so a partial stamp cannot commit. Surface offending IDs in the exception message / operator runbook.
+
+### 22.2 One OGR line account per existing `prospects` row
+
+`INSERT … SELECT` from `prospects` with `sales_line_id = ogr.id`, `retailer_id = prospects.id`.
+
+Copy commercial/planning columns from §10.2. Leave `prospects` columns untouched.
+
+Idempotent predicate: insert only where no non-terminated OGR account exists for that `retailer_id` (matches `retailer_line_accounts_retailer_line_operational_uidx`).
+
+### 22.3 Existing-status-to-`relationship_status` mapping
+
+| `prospects.account_status` | `relationship_status` |
+| -------------------------- | --------------------- |
+| `prospect`                 | `prospect`            |
+| `active_account`           | `opened`              |
+| `inactive`                 | `inactive`            |
+
+Do not invent `qualified` or `terminated`. Unexpected `account_status` → hard stop (CHECK on `prospects` already limits the three values).
+
+### 22.4 OGR territory assignment (BC only)
+
+Join `prospects.territory_id` → `territories.code`. Never read address/city/region.
+
+| Geo | Line account | `sales_line_territory_id` | Review |
+| --- | ------------ | ------------------------- | ------ |
+| `bc` | Created | OGR–BC assignment | No |
+| `or`, `wa`, `ca`, `ab`, `norcal`, unknown, join miss | Created | NULL | Yes — `backfill_review_reason` + queue |
+
+OGR–OR and OGR–WA rights rows stay on `sales_line_territories`. They are **not** auto-attached to retailer accounts.
+
+Standard reasons: `non_bc_territory`, `ambiguous_territory`.
+
+### 22.5 Mapping of contacts, orders, calls, messages, reorder settings, and linked records
+
+Stamp `retailer_line_account_id` to the OGR account for that retailer. Skip when the parent prospect/account id is null. Do not delete anything.
+
+| Source | Join key | Also |
+| ------ | -------- | ---- |
+| `account_contacts` | `account_id` | Insert `retailer_line_contacts` with same `role` / `is_primary`; `ON CONFLICT (retailer_line_account_id, account_contact_id) DO NOTHING` |
+| `orders` | `account_id` | After hard-stop: set `line_id = ogr` where null; fill CAD financials (§22.6) |
+| `calls` | `prospect_id` | Stamp only if prospect exists; set `line_id = ogr` where null **and** prospect exists |
+| `system_messages` | `prospect_id` | Stamp when non-null and prospect exists |
+| `account_reorder_settings` | `account_id` | Stamp |
+| `gmail_thread_links`, `calendar_event_links`, `message_threads` | `prospect_id` | Stamp when non-null and prospect exists |
+| `wholesale_order_requests` | `prospect_id` | Stamp when non-null; do **not** copy USD wholesale totals onto CAD order columns |
+| `account_conversion_attribution` | `prospect_id` | Stamp |
+| `prospect_updates` | `prospect_id` | Stamp when prospect exists (no new `prospect_id` FK) |
+
+**Do not stamp:** `profiles` (buyer identity stays retailer-level), catalog tables, `outreach_goal_settings`.
+
+Idempotent stamps: `UPDATE … SET retailer_line_account_id = … WHERE retailer_line_account_id IS NULL`.
+
+### 22.6 Treatment of null or conflicting `line_id` values
+
+| Case | Action |
+| ---- | ------ |
+| `orders.line_id` / `calls.line_id` is non-OGR | Hard stop. Do not stamp the rest of the table. |
+| `orders.line_id` is null | After hard-stop passes, set to OGR and stamp RLA. |
+| `calls.line_id` is null and prospect exists | Set to OGR and stamp RLA. |
+| `calls.line_id` is null and prospect is orphan | Leave `line_id` null; queue orphan; do not invent OGR. |
+| Catalog `line_id` (required) | Untouched. |
+| Wholesale items / public RPCs | Untouched. |
+
+Financial backfill for stamped orders (CAD only):
+
+- `original_amount = total_amount_cad`
+- `original_currency = 'CAD'`
+- `exchange_rate = 1`
+- `exchange_rate_date = order_date`
+- `converted_amount = total_amount_cad`
+- `converted_currency = 'CAD'`
+- `conversion_source = 'legacy_cad_column'`
+- Do **not** alter `total_amount_cad`. Do **not** invent USD.
+
+Optional parallel on `calls` estimate columns when `order_value_cad` is present: same CAD/`legacy_cad_column` pattern; treat as estimate, not booked revenue.
+
+### 22.7 Orphan detection without deleting records
+
+Queue and leave the source row unchanged (except skip stamp):
+
+- `calls.prospect_id` not in `prospects`
+- `prospect_updates.prospect_id` not in `prospects`
+- Linked rows with a non-null `prospect_id` that does not resolve (should be rare where an FK exists)
+
+Do **not** queue every null-`prospect_id` Gmail/Calendar/thread/wholesale row (normal unlinked state). Do not auto-merge lookalike retailers.
+
+### 22.8 Idempotent and transactional backfill behavior
+
+- One migration = one transaction.
+- Re-apply safe: skip existing OGR accounts; stamp only null RLA FKs; fill financials only where `original_currency IS NULL` (or `conversion_source IS NULL`); insert review rows with `WHERE NOT EXISTS (entity_type, entity_id, reason, resolved_at IS NULL)`.
+- Optional small schema add in the same 1B migration: partial unique on `migration_review_queue (entity_type, entity_id, reason) WHERE resolved_at IS NULL`. If added, mirror in [supabase/schema.sql](../../supabase/schema.sql). No new tables/columns on operational entities.
+- End-of-migration `ASSERT` / `RAISE EXCEPTION` if reconciliation fails (§22.9).
+
+### 22.9 Validation queries and expected count reconciliation
+
+After DML, migration must fail unless:
+
+- `count(retailer_line_accounts where ogr) = count(prospects)`
+- Eagle Peak / Big Fish / BKG / prospective operational accounts = 0
+- `retailer_line_targets` = 0
+- OGR active SLT codes still exactly `{bc, or, wa}`, all `unconfirmed`
+- Every `orders` row with a known `account_id` has `retailer_line_account_id` pointing at that retailer’s OGR account
+- Every stamped order/call `line_id` is OGR
+- `orders` with filled `original_*` use `CAD` / rate `1` / `conversion_source = 'legacy_cad_column'`; `total_amount_cad` unchanged; no USD invented
+- BC prospects have OGR–BC `sales_line_territory_id`; non-BC accounts have NULL territory and an unresolved queue row
+- Orphan calls/updates appear in the queue; source row counts unchanged
+- `prospects.id` set unchanged
+
+See also §15 and Appendix C.
+
+### 22.10 Rollback strategy (1B only)
+
+1B does not install dual-write, so rollback is data-only:
+
+1. `UPDATE` operational tables: `retailer_line_account_id = NULL`; clear `original_*` / call estimate columns where `conversion_source = 'legacy_cad_column'` (do not null `total_amount_cad` / `order_value_cad`). Optionally revert `line_id` only if a pre-backfill snapshot recorded which were null — prefer snapshot restore for `line_id` if unsure.
+2. `DELETE` OGR `retailer_line_contacts` then OGR `retailer_line_accounts` (cascade covers contacts if deleted from accounts).
+3. `DELETE` unresolved 1B `migration_review_queue` rows.
+4. Leave 1A tables, seeds, and triggers in place.
+
+Snapshot before any non-local apply: `prospects`, `orders`, `calls`, `account_contacts`, `system_messages`, `account_reorder_settings`, Gmail/Calendar links, threads, wholesale requests, attribution, `prospect_updates`.
+
+`prospects` remains UI source of truth. Rollback never reconstructs the staff app from line accounts.
+
+### 22.11 Required tests
+
+Follow the 1A pattern ([src/lib/multiLinePhase1aSchema.test.ts](../../src/lib/multiLinePhase1aSchema.test.ts)): SQL-text assertions, plus a documented local disposable-DB runbook (not CI Postgres unless already present).
+
+New file: `src/lib/multiLinePhase1bBackfill.test.ts`
+
+Assert the 1B migration SQL:
+
+- Inserts OGR accounts from `prospects` and never inserts Eagle Peak / Big Fish / BKG / prospective accounts
+- Maps the three `account_status` values only
+- Assigns territory only when `territories.code = 'bc'`
+- Queues non-BC / ambiguous / orphans; never `DELETE` from operational tables
+- Hard-stops on non-OGR `orders.line_id` / `calls.line_id`
+- Fills CAD `legacy_cad_column` only; no USD literals on orders
+- Uses idempotent `WHERE NOT EXISTS` / `IS NULL` predicates
+- Contains end-of-migration count assertions
+
+Local disposable DB (implementation time): apply full chain through `…120000`; run §22.9 queries; confirm empty new tables before 1B and reconciled counts after. `npm run check` on the 1B PR.
+
+No Playwright / UI tests. Do not weaken 1A tests that forbid backfill inside `…100000` / `…110000`.
+
+### 22.12 Exact files Phase 1B implementation will change
+
+| File | Change |
+| ---- | ------ |
+| `supabase/migrations/20260814120000_multi_line_phase1_ogr_backfill.sql` | **New** — backfill DML, optional review-queue unique, assertions |
+| [supabase/schema.sql](../../supabase/schema.sql) | Only if the unique index (or equivalent) is added |
+| `src/lib/multiLinePhase1bBackfill.test.ts` | **New** |
+| This plan document | 1B results section later |
+
+**Do not change in 1B:** `src/types/database.ts` (no new columns unless the unique index needs no type change), React islands, API routes, `LINE_SELECT`, historical migrations, `…130000` dual-write, production/staging data, public RPCs.
+
+### 22.13 Blocking preflight queries
+
+```sql
+-- Must be 0
+select l.code, count(*)
+from orders o
+join lines l on l.id = o.line_id
+where l.code <> 'ogr'
+group by 1;
+
+select l.code, count(*)
+from calls c
+join lines l on l.id = c.line_id
+where l.code <> 'ogr'
+group by 1;
+
+-- Must exist
+select id, status, default_currency from lines where code = 'ogr';
+-- status = active, default_currency = CAD
+
+select t.code, slt.status, slt.rights_type
+from sales_line_territories slt
+join lines l on l.id = slt.sales_line_id
+join territories t on t.id = slt.territory_id
+where l.code = 'ogr';
+-- bc/or/wa active unconfirmed; no ca/ab
+
+-- Must be 0
+select l.code, count(rla.id)
+from lines l
+left join retailer_line_accounts rla on rla.sales_line_id = l.id
+where l.code in ('eagle-peak','big-fish','bkg') or l.status = 'prospective'
+group by 1;
+```
+
+Also record Appendix B counts (prospects by status/geo, orders, calls, contacts, messages, orphans) before apply.
+
+### 22.14 Recommended migration sequence
+
+1. `20260814100000_multi_line_phase1_tables.sql` — done (1A)
+2. `20260814110000_multi_line_phase1_line_seeds.sql` — done (1A)
+3. `20260814115000_multi_line_phase1a_block_promote_with_targets.sql` — done (1A fix)
+4. **`20260814120000_multi_line_phase1_ogr_backfill.sql` — Phase 1B**
+5. `20260814130000_multi_line_phase1_dual_write.sql` — **Phase 1C, not now**
+
+Local only until a later go/no-go. No production apply in 1B.
+
+### 22.15 Go / no-go for 1B implementation
+
+**GO** if: 1A migrations are applied on the disposable local DB; blocking preflight queries return the expected zeros/seeds; implementers will not assign OR/WA/CA/AB, invent USD, clone non-OGR accounts, or start dual-write.
+
+**NO-GO** if: any non-OGR `orders.line_id` / `calls.line_id` exists; OGR–BC assignment missing; non-OGR operational accounts already exist; or the work would touch staging/production.
+
+### 22.16 Phase 1B acceptance criteria
+
+- One OGR line account per `prospects` row; IDs preserved; legacy columns untouched
+- Status map `prospect|active_account|inactive` → `prospect|opened|inactive`
+- Only BC accounts receive `sales_line_territory_id`; all other geos queued
+- Contacts and listed operational tables stamped or queued; orphans not deleted
+- Null OGR-safe `line_id` filled; conflicting non-OGR `line_id` never committed
+- CAD `original_*` filled without inventing USD or altering `total_amount_cad`
+- Zero Eagle Peak / Big Fish / BKG / prospective accounts; zero targets
+- Migration idempotent and transactional; rollback documented
+- Tests + `npm run check` pass
+- No dual-write, no UI/API cutover, no staging/production apply
+
+### 22.17 Remaining Phase 1C work (out of scope for 1B)
+
+- `20260814130000_multi_line_phase1_dual_write.sql`: `AFTER` upsert OGR accounts from `prospects` / contacts; `BEFORE INSERT` fill `retailer_line_account_id` + CAD defaults on new orders
+- Recursion guards (`pg_trigger_depth()` / update-only-if-changed)
+- Staging dual-write smoke: insert prospect → OGR account appears
+- Application cutover and `FEATURE_MULTI_LINE_UI` remain Phase 2+
+
+---
+
+**Stop:** Phase 1B planning complete in this document. Do not implement the OGR backfill migration until Phase 1B implementation is separately approved. Do not begin Phase 1C dual-write.
