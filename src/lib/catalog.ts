@@ -250,27 +250,43 @@ export function catalogItemStub(
   };
 }
 
-export async function fetchCatalogItems(): Promise<{
+export type FetchCatalogItemsOptions = {
+  /** Prefer explicit line UUID when available from line context. */
+  lineId?: string;
+  /** Fallback line code; defaults to `ogr` when neither is set (flag-off path). */
+  lineCode?: string;
+};
+
+export async function fetchCatalogItems(options: FetchCatalogItemsOptions = {}): Promise<{
   data: CatalogItem[];
   error: string | null;
 }> {
-  const { data: line, error: lineError } = await supabase
-    .from('lines')
-    .select('id')
-    .eq('code', 'ogr')
-    .maybeSingle();
+  let lineId = options.lineId?.trim() || null;
 
-  if (lineError) {
-    return { data: [], error: lineError.message };
-  }
-  if (!line) {
-    return { data: [], error: 'Old Guys Rule line not found' };
+  if (!lineId) {
+    const code = (options.lineCode?.trim() || 'ogr').toLowerCase();
+    const { data: line, error: lineError } = await supabase
+      .from('lines')
+      .select('id')
+      .eq('code', code)
+      .maybeSingle();
+
+    if (lineError) {
+      return { data: [], error: lineError.message };
+    }
+    if (!line) {
+      return {
+        data: [],
+        error: code === 'ogr' ? 'Old Guys Rule line not found' : `Line not found: ${code}`,
+      };
+    }
+    lineId = line.id;
   }
 
   const { data, error } = await supabase
     .from('catalog_items')
     .select(CATALOG_ITEM_SELECT)
-    .eq('line_id', line.id)
+    .eq('line_id', lineId)
     .order('page', { ascending: true })
     .order('sku', { ascending: true });
 

@@ -32,6 +32,7 @@ describe('mapLineRow', () => {
       code: 'ogr',
       name: 'Old Guys Rule',
       active: true,
+      status: 'active',
       tagline: 'Now Repping',
       description: 'Apparel & lifestyle goods.',
       heroImagePath: 'line-1/brand/hero.jpg',

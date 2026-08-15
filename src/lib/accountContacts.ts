@@ -124,11 +124,54 @@ export async function fetchContactsForAccount(
   };
 }
 
+export type FetchAllContactsOptions = {
+  /**
+   * When set, only contacts for retailers with a non-terminated RLA on this line
+   * (via retailer_line_contacts when present).
+   */
+  salesLineId?: string;
+};
+
 /** All contacts joined with store fields for the Contacts directory. */
-export async function fetchAllContacts(): Promise<{
+export async function fetchAllContacts(options: FetchAllContactsOptions = {}): Promise<{
   data: ContactDirectoryRow[];
   error: string | null;
 }> {
+  let allowedContactIds: Set<string> | null = null;
+  let allowedAccountIds: Set<number> | null = null;
+
+  if (options.salesLineId) {
+    const { data: rlaRows, error: rlaError } = await supabase
+      .from('retailer_line_accounts')
+      .select('id, retailer_id')
+      .eq('sales_line_id', options.salesLineId)
+      .neq('relationship_status', 'terminated');
+
+    if (rlaError) {
+      return { data: [], error: rlaError.message };
+    }
+
+    const lineAccountIds = (rlaRows ?? []).map((r) => r.id);
+    allowedAccountIds = new Set((rlaRows ?? []).map((r) => r.retailer_id));
+
+    if (lineAccountIds.length === 0) {
+      return { data: [], error: null };
+    }
+
+    const { data: junctionRows, error: junctionError } = await supabase
+      .from('retailer_line_contacts')
+      .select('account_contact_id')
+      .in('retailer_line_account_id', lineAccountIds);
+
+    if (junctionError) {
+      return { data: [], error: junctionError.message };
+    }
+
+    if ((junctionRows ?? []).length > 0) {
+      allowedContactIds = new Set((junctionRows ?? []).map((r) => r.account_contact_id));
+    }
+  }
+
   const { data, error } = await supabase
     .from('account_contacts')
     .select(ACCOUNT_CONTACT_SELECT)
@@ -138,7 +181,13 @@ export async function fetchAllContacts(): Promise<{
     return { data: [], error: error.message };
   }
 
-  const contacts = ((data ?? []) as AccountContactRow[]).map(mapAccountContactRow);
+  let contacts = ((data ?? []) as AccountContactRow[]).map(mapAccountContactRow);
+  if (allowedContactIds) {
+    contacts = contacts.filter((c) => allowedContactIds.has(c.id));
+  } else if (allowedAccountIds) {
+    contacts = contacts.filter((c) => allowedAccountIds.has(c.accountId));
+  }
+
   const accountIds = [...new Set(contacts.map((c) => c.accountId))];
   if (accountIds.length === 0) {
     return { data: [], error: null };

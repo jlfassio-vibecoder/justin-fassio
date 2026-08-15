@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ClipboardList, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import { supabase } from '@/lib/supabase';
 import type { OutreachBriefingDto } from '@/lib/outreachBriefing';
 import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
@@ -105,6 +106,7 @@ function LeadList({
 }
 
 export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingTabProps) {
+  const lineCtx = useOptionalLineContext();
   const [briefing, setBriefing] = useState<OutreachBriefingDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +119,11 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
     async function load() {
       setLoading(true);
       setError(null);
-      const result = await staffGet('/api/staff/outreach/briefing');
+      const qs =
+        lineCtx.multiLineUi && lineCtx.salesLineId
+          ? `?sales_line_id=${encodeURIComponent(lineCtx.salesLineId)}`
+          : '';
+      const result = await staffGet(`/api/staff/outreach/briefing${qs}`);
       if (!active) return;
       if (!result.ok) {
         setBriefing(null);
@@ -133,7 +139,7 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
     return () => {
       active = false;
     };
-  }, [reloadToken]);
+  }, [reloadToken, lineCtx.multiLineUi, lineCtx.salesLineId]);
 
   async function runPrepNow() {
     setPrepBusy(true);

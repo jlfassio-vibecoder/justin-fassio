@@ -14,6 +14,7 @@ import {
   type OutcomeFilter,
 } from '@/lib/callAggregates';
 import { fetchCalls, type CallRow } from '@/lib/calls';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import type { Prospect } from '@/lib/prospects';
 
 interface CallsTabProps {
@@ -24,6 +25,8 @@ interface CallsTabProps {
 
 export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProps) {
   const { openAssist } = useAiAssist();
+  const lineCtx = useOptionalLineContext();
+  const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const [calls, setCalls] = useState<CallRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -37,7 +40,7 @@ export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProp
     async function load() {
       setLoading(true);
       setFetchError(null);
-      const { data, error } = await fetchCalls(500);
+      const { data, error } = await fetchCalls(salesLineId ? { limit: 500, salesLineId } : 500);
 
       if (!active) return;
       if (error) {
@@ -54,7 +57,7 @@ export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProp
     return () => {
       active = false;
     };
-  }, [reloadToken]);
+  }, [reloadToken, salesLineId]);
 
   const filtered = useMemo(
     () => filterCalls(calls, { search, channel, outcome }, prospects),

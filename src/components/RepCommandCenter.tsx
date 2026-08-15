@@ -17,19 +17,24 @@ import { useLandedCostCalculator } from '@/hooks/useLandedCostCalculator';
 import { useStaffLiveChatInbox } from '@/hooks/useStaffLiveChatInbox';
 import { fetchAllContacts, type ContactDirectoryRow } from '@/lib/accountContacts';
 import { fetchCatalogItems, type CatalogItem } from '@/lib/catalog';
-import { fetchOgrCatalogSettings, type CatalogSupplierTerms } from '@/lib/catalogSettings';
+import { fetchCatalogSettings, type CatalogSupplierTerms } from '@/lib/catalogSettings';
+import { useOptionalLineContext } from '@/lib/lineContext';
+import { persistLastLineSlug } from '@/lib/lineContextStorage';
 import { fetchNeedsMappingCount, type MessageThread } from '@/lib/messages';
 import { fetchProspects, type Prospect } from '@/lib/prospects';
+import { resolveLineAccountForSlug } from '@/lib/retailerLineAccounts';
 import {
   upsertOpenLiveChat,
   surfaceLiveChatAsPill,
   type OpenLiveChatSlot,
 } from '@/lib/staffChatDockState';
 import { fetchTerritories, type Territory } from '@/lib/territories';
-import type { TabKey } from '@/types';
+import type { LineKey, TabKey } from '@/types';
 
 interface RepCommandCenterProps {
   defaultTab?: TabKey;
+  multiLineUi?: boolean;
+  lineAccountId?: string;
 }
 
 function parseAppDeepLinks(): {
@@ -49,7 +54,16 @@ function parseAppDeepLinks(): {
   return { sku, draftId, prospectId };
 }
 
-export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterProps) {
+export function RepCommandCenter({
+  defaultTab = 'catalog',
+  multiLineUi = false,
+  lineAccountId,
+}: RepCommandCenterProps) {
+  const lineCtx = useOptionalLineContext();
+  const salesLineId = multiLineUi ? lineCtx.salesLineId : null;
+  const lineSlug = (multiLineUi ? lineCtx.lineSlug : 'ogr') as LineKey | null;
+  const lineReady = !multiLineUi || (!lineCtx.loading && Boolean(salesLineId));
+
   const initialLinks = parseAppDeepLinks();
   const [activeTab, setActiveTab] = useState<TabKey>(defaultTab);
   const [modalOpen, setModalOpen] = useState(false);
@@ -73,6 +87,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
     initialLinks.prospectId,
   );
   const [deepLinkAccountId, setDeepLinkAccountId] = useState<number | null>(null);
+  const [lineAccountError, setLineAccountError] = useState<string | null>(null);
 
   // URL prospectId may belong to an active account — remap once directory is loaded.
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
@@ -170,15 +185,55 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
     setContactsReloadToken((n) => n + 1);
   }, []);
 
+  // Wrong-line account detail isolation (audit §7.1 / epic §10).
   useEffect(() => {
+    if (!multiLineUi || !lineAccountId || !lineSlug) return;
+    let active = true;
+    void resolveLineAccountForSlug({ lineSlug, lineAccountId }).then((result) => {
+      if (!active) return;
+      if (!result.ok) {
+        setLineAccountError(
+          result.reason === 'wrong_line'
+            ? 'This account does not belong to the selected line.'
+            : 'Account not found.',
+        );
+        return;
+      }
+      setLineAccountError(null);
+      setDeepLinkAccountId(result.retailerId);
+      setActiveTab('accounts');
+    });
+    return () => {
+      active = false;
+    };
+  }, [multiLineUi, lineAccountId, lineSlug]);
+
+  function navigateToLine(slug: LineKey) {
+    lineCtx.selectLineSlug(slug);
+    persistLastLineSlug(slug);
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', activeTab);
+    window.location.assign(`/app/lines/${slug}?${params.toString()}`);
+  }
+
+  useEffect(() => {
+    if (multiLineUi && !lineReady) return;
+
     let active = true;
     const isInitial = directoryReloadToken === 0;
 
     async function load() {
-      if (isInitial) {
+      if (isInitial || multiLineUi) {
         setDirectoryLoading(true);
       }
       setDirectoryError(null);
+      const scoped = multiLineUi && salesLineId ? { salesLineId } : {};
+      const catalogOpts =
+        multiLineUi && salesLineId
+          ? { lineId: salesLineId }
+          : multiLineUi && lineSlug
+            ? { lineCode: lineSlug }
+            : {};
       const [
         catalogResult,
         supplierTermsResult,
@@ -186,11 +241,11 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
         territoriesResult,
         contactsResult,
       ] = await Promise.all([
-        fetchCatalogItems(),
-        fetchOgrCatalogSettings(),
-        fetchProspects(),
+        fetchCatalogItems(catalogOpts),
+        fetchCatalogSettings(catalogOpts),
+        fetchProspects(scoped),
         fetchTerritories(),
-        fetchAllContacts(),
+        fetchAllContacts(scoped),
       ]);
 
       if (!active) return;
@@ -224,12 +279,14 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
     return () => {
       active = false;
     };
-  }, [directoryReloadToken]);
+  }, [directoryReloadToken, multiLineUi, salesLineId, lineSlug, lineReady]);
 
   useEffect(() => {
     if (contactsReloadToken === 0) return;
+    if (multiLineUi && !lineReady) return;
     let active = true;
-    void fetchAllContacts().then((result) => {
+    const scoped = multiLineUi && salesLineId ? { salesLineId } : {};
+    void fetchAllContacts(scoped).then((result) => {
       if (!active) return;
       if (result.error) return;
       setContacts(result.data);
@@ -237,7 +294,7 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
     return () => {
       active = false;
     };
-  }, [contactsReloadToken]);
+  }, [contactsReloadToken, multiLineUi, salesLineId, lineReady]);
 
   useEffect(() => {
     let active = true;
@@ -257,16 +314,43 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
     setModalOpen(true);
   }
 
+  if (multiLineUi && lineAccountId && lineAccountError) {
+    return (
+      <div className="bg-bg font-body text-ink mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-3 px-7">
+        <h1 className="m-0 text-2xl">Account not found</h1>
+        <p className="text-ink/70 m-0 text-sm">{lineAccountError}</p>
+        <a
+          href={lineSlug ? `/app/lines/${lineSlug}/accounts` : '/app'}
+          className="font-heading text-accent-700 no-underline"
+        >
+          Back to accounts
+        </a>
+      </div>
+    );
+  }
+
+  const headerSubtitle = multiLineUi
+    ? lineCtx.name
+      ? `Independent Sales Representative — ${lineCtx.name}`
+      : 'Independent Sales Representative'
+    : 'Independent Sales Representative — British Columbia';
+
   return (
     <div className="bg-bg font-body text-ink min-h-screen">
       <header className="border-ink/15 bg-bg/95 sticky top-0 z-30 border-b backdrop-blur">
         <div className="mx-auto max-w-[1400px]">
           <Header
-            activeLine="ogr"
-            onSelectOgr={() => {}}
+            activeLine={lineSlug ?? 'ogr'}
+            onSelectOgr={() => {
+              if (multiLineUi) navigateToLine('ogr');
+            }}
             onLogCall={() => openModal()}
             onOpenMessages={() => setActiveTab('messages')}
             messagesNeedsMappingCount={messagesNeedsMappingCount}
+            multiLineUi={multiLineUi}
+            representedLines={lineCtx.representedLines}
+            onSelectLine={navigateToLine}
+            subtitle={headerSubtitle}
           />
           <TabNav
             activeTab={activeTab}
@@ -280,7 +364,10 @@ export function RepCommandCenter({ defaultTab = 'catalog' }: RepCommandCenterPro
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-[1400px] flex-col gap-5 px-7 pt-6 pb-16">
+      <main
+        key={multiLineUi ? (salesLineId ?? 'loading') : 'legacy'}
+        className="mx-auto flex max-w-[1400px] flex-col gap-5 px-7 pt-6 pb-16"
+      >
         {directoryLoading && (
           <p className="text-ink/60 m-0 text-sm">Loading catalog and prospect directory…</p>
         )}

@@ -244,9 +244,46 @@ async function loadRecentConversions(
 export async function assembleOutreachBriefing(params: {
   client: Client;
   asOf?: Date;
+  /** Phase 2: when set to a non-OGR represented line, return empty book lists. */
+  salesLineId?: string | null;
+  salesLineCode?: string | null;
 }): Promise<{ ok: true; briefing: OutreachBriefingDto } | { ok: false; error: string }> {
   const client = params.client;
   const asOf = params.asOf ?? new Date();
+  const lineCode = params.salesLineCode?.trim().toLowerCase() || null;
+
+  // Empty books for Eagle Peak / Big Fish — never fall back to OGR outreach rows.
+  if (lineCode && lineCode !== 'ogr') {
+    const asOfDate = formatOutreachPreparationDate(asOf, 'America/Vancouver');
+    const sellingDate = briefingSellingDate(asOf, 'America/Vancouver');
+    const empty: OutreachBriefingDto = {
+      asOfDate,
+      sellingDate,
+      prep: {
+        run: null,
+        status: 'missing',
+        message: `No outreach book for ${lineCode} yet.`,
+      },
+      goal: {
+        monthlyTarget: 0,
+        mtdAccounts: 0,
+        remainingGoal: 0,
+        projectedAttainment: 0,
+        recommendedDailySends: 0,
+        rateSource: 'none',
+        goalMet: false,
+      },
+      drafts: [],
+      channelAllocation: null,
+      callToday: [],
+      hot: [],
+      warm: [],
+      recentEngagement: [],
+      recentConversions: [],
+      performance: null,
+    };
+    return { ok: true, briefing: empty };
+  }
 
   const snap = await loadOutreachGoalDashboardSnapshot({ client, asOf });
   if (!snap.ok) return { ok: false, error: snap.error };

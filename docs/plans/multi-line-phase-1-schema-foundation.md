@@ -1436,3 +1436,45 @@ Foundation §13 / executable plan §4.3 specified `AFTER INSERT ON account_conta
 - No reverse sync; no application cutover; no Phase 2
 
 **Phase 1 schema foundation (1A–1C) is complete locally.** Do not begin Phase 2 until separately approved. Do not commit/push/deploy unless separately requested.
+
+## Implementation results — Phase 2
+
+**Date:** 2026-08-14  
+**Branch:** `feature/multi-line-multi-territory-implementation`  
+**Scope:** Reads + navigation only (`FEATURE_MULTI_LINE_UI` server flag, default off). No write cutover. No commit/push/deploy. No hosted DB. No Phase 3.
+
+### Baseline / reconciliation (local disposable DB)
+
+| Check                            | Result                                                            |
+| -------------------------------- | ----------------------------------------------------------------- |
+| prospects                        | 607                                                               |
+| OGR non-terminated RLAs          | 607                                                               |
+| OGR catalog items                | 190                                                               |
+| Eagle Peak / Big Fish / BKG RLAs | 0 / 0 / 0                                                         |
+| Line statuses                    | ogr=active, eagle-peak=onboarding, big-fish=confirmed, bkg=paused |
+
+### Delivered
+
+- `src/lib/staffFeatures.ts` + `/api/staff/features` (`requireApprovedStaffClient`; no `PUBLIC_` flag)
+- `LINE_SELECT` + `fetchRepresentedLines` (ogr / eagle-peak / big-fish; excludes bkg + prospective)
+- `LineContext` + Header picker (flag on); sessionStorage `rcc.lastLineSlug`
+- Astro wrappers under `src/pages/app/lines/**` reusing `AuthGate` / `RepCommandCenter`
+- Flag off: `/app/lines/*` redirects to `/app` (optional `?tab=` preserved)
+- Flag on: bare `/app` redirects to `/app/lines/:lastOrOgr`; URL slug is source of truth
+- Scoped reads: prospects (via RLA), catalog/settings by `lineId`, contacts via junction, calls/orders **fetch** filters, outreach GET briefing/leads accept `sales_line_id` (non-OGR → empty books)
+- Cross-line badge helper + empty-safe chips (`lineName` + `relationship_status` only)
+- Wrong-line `lineAccountId` → inline 404; invalid slug → Unknown line
+- Vitest `src/lib/multiLinePhase2Reads.test.ts`; `npm run check` passed
+
+### Residual risk (documented; not exit blockers)
+
+- Messages / calendar lists remain globally prospect-linked in Phase 2 (not fully line-isolated)
+- Outreach **prep POST / send** and legacy writes remain OGR / 1C-protected (Phase 3+)
+
+### Explicit exclusions honored
+
+- No convert / `insertOrder` / `LogCallModal` / contact mutation / prep-send changes
+- No Phase 1C migration edits; no Eagle Peak / Big Fish cloning; no AI prompt changes
+- No hosted/staging/production DB access; no commit/push unless separately requested
+
+**Phase 2 line-context reads are complete locally.** Do not begin Phase 3 until separately approved.

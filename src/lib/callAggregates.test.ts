@@ -54,10 +54,9 @@ function call(
     order_value_cad: 0,
     call_date: '2026-08-01',
     notes: null,
-    ...EMPTY_PROSPECT_PLANNING,
-    ...EMPTY_PROSPECT_TAXONOMY,
-    ...BC_PROSPECT_TERRITORY,
     objection_tags: [],
+    line_id: null,
+    retailer_line_account_id: null,
     ...partial,
   };
 }

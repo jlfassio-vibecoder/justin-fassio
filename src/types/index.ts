@@ -10,7 +10,8 @@ export type TabKey =
   | 'messages'
   | 'calendar';
 
-export type LineKey = 'ogr' | 'bkg';
+/** Represented sales lines in the Phase 2 picker (excludes bkg / prospective). */
+export type LineKey = 'ogr' | 'eagle-peak' | 'big-fish';
 
 export interface ModalPrefill {
   storeId: number | null;

@@ -104,6 +104,11 @@ export interface Prospect extends ProspectPlanningFields, ProspectTaxonomyFields
 export interface FetchProspectsOptions {
   /** When set, only rows with this account_status are returned. */
   accountStatus?: AccountStatus;
+  /**
+   * When set (flag-on line context), restrict to retailers with a non-terminated
+   * retailer_line_account on this sales line. Omit for flag-off / legacy global reads.
+   */
+  salesLineId?: string;
 }
 
 function asStringArray(raw: unknown): string[] {
@@ -172,6 +177,41 @@ export async function fetchProspects(options: FetchProspectsOptions = {}): Promi
   data: Prospect[];
   error: string | null;
 }> {
+  if (options.salesLineId) {
+    const { data: rlaRows, error: rlaError } = await supabase
+      .from('retailer_line_accounts')
+      .select('retailer_id')
+      .eq('sales_line_id', options.salesLineId)
+      .neq('relationship_status', 'terminated');
+
+    if (rlaError) {
+      return { data: [], error: rlaError.message };
+    }
+
+    const retailerIds = [
+      ...new Set((rlaRows ?? []).map((r) => r.retailer_id).filter((id) => Number.isFinite(id))),
+    ];
+    if (retailerIds.length === 0) {
+      return { data: [], error: null };
+    }
+
+    let scoped = supabase
+      .from('prospects')
+      .select(PROSPECT_SELECT)
+      .in('id', retailerIds)
+      .order('id', { ascending: true });
+
+    if (options.accountStatus) {
+      scoped = scoped.eq('account_status', options.accountStatus);
+    }
+
+    const { data, error } = await scoped;
+    if (error) {
+      return { data: [], error: error.message };
+    }
+    return { data: (data ?? []).map(mapProspectRow), error: null };
+  }
+
   let query = supabase.from('prospects').select(PROSPECT_SELECT).order('id', { ascending: true });
 
   if (options.accountStatus) {
