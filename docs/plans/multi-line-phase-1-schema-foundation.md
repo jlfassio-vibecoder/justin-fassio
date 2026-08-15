@@ -1,6 +1,6 @@
 # Phase 1 Plan: Multi-Line Schema Foundation
 
-**Status:** Phase 1A implemented. Phase 1B OGR backfill **implemented** (local validation complete). Dual-write remains **Phase 1C**. Overall Phase 1 is incomplete until 1C.  
+**Status:** Phase 1A + Phase 1B + Phase 1C dual-write **implemented** (local validation complete). Overall Phase 1 schema foundation is complete; application cutover remains Phase 2+.  
 **Epic:** [docs/epics/multi-line-multi-territory-crm.md](../epics/multi-line-multi-territory-crm.md)  
 **Current-state audit:** [docs/multi-line-territory-audit.md](../multi-line-territory-audit.md)  
 **Branch inspected (plan authorship):** `feature/multi-line-multi-territory-implementation` at `a1b2e57` (docs commit on `main` `879a24a`)  
@@ -11,11 +11,11 @@ Settled business decisions in the epic **supersede** audit §8.4 / §14 items 1�
 
 **Phase split (expand/contract):**
 
-| Sub-phase | Scope                                      | Status                        |
-| --------- | ------------------------------------------ | ----------------------------- |
-| **1A**    | Additive tables, seeds, prospective guards | Done                          |
-| **1B**    | OGR backfill + validation only             | Done locally (results below)  |
-| **1C**    | Dual-write triggers (`…130000`)            | Deferred — do not begin in 1B |
+| Sub-phase | Scope                                      | Status                       |
+| --------- | ------------------------------------------ | ---------------------------- |
+| **1A**    | Additive tables, seeds, prospective guards | Done                         |
+| **1B**    | OGR backfill + validation only             | Done locally (results below) |
+| **1C**    | Dual-write triggers (`…130000`)            | Done locally (results below) |
 
 ---
 
@@ -1383,4 +1383,56 @@ Local only until a later go/no-go. No production apply in 1B.
 - No Eagle Peak / Big Fish / BKG / prospective operational accounts
 - No invented USD; BC-only territory auto-assign
 
-**Phase 1 is not complete** until Phase 1C dual-write. Do not begin 1C until separately approved.
+**Phase 1C dual-write was implemented after this 1B note** — see Implementation results — Phase 1C below.
+
+---
+
+## Implementation results — Phase 1C (dual-write)
+
+**Status:** Implemented and validated on disposable local Supabase only.  
+**Date:** 2026-08-14  
+**Branch tip at implementation:** `feature/multi-line-multi-territory-implementation`  
+**Executable plan:** [plan/multi-line-phase-1c-dual-write.md](../../plan/multi-line-phase-1c-dual-write.md)
+
+### Approved override vs foundation §13
+
+Foundation §13 / executable plan §4.3 specified `AFTER INSERT ON account_contacts` only. Implementation uses the approved clarification: **`AFTER INSERT OR UPDATE ON account_contacts`**, syncing `role` / `is_primary` / `notes` only when `IS DISTINCT FROM`, with primary-clear before setting junction primary. DELETE remains `ON DELETE CASCADE`.
+
+### Files created / changed
+
+| File                                                                  | Role                                                         |
+| --------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `supabase/migrations/20260814130000_multi_line_phase1_dual_write.sql` | OGR dual-write helpers, sync triggers, BEFORE INSERT fillers |
+| `supabase/schema.sql`                                                 | Mirrored 1C functions/triggers                               |
+| `src/lib/multiLinePhase1cDualWrite.test.ts`                           | SQL-text assertions for 1C migration                         |
+
+### Local validation snapshot
+
+| Check                                             | Result                                                                        |
+| ------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Preflight                                         | OGR active; OGR–BC SLT active; 607=607 OGR RLAs; EP/BF/BKG = 0                |
+| BC prospect insert                                | OGR RLA + BC SLT; `relationship_status = prospect`                            |
+| Non-BC prospect insert                            | NULL SLT + `non_bc_territory` review queue                                    |
+| Convert / demote                                  | `opened` ↔ `prospect` synced                                                  |
+| Name-only prospect update                         | Does not rewrite RLA commercial columns                                       |
+| Contact insert / role+notes update / primary flip | Junction synced; unique primary preserved                                     |
+| Contact delete                                    | Junction removed via cascade                                                  |
+| Order / call insert                               | RLA + `line_id = ogr` + CAD `legacy_cad_column`; `total_amount_cad` unchanged |
+| EP / Big Fish / BKG / prospective RLA             | Still 0                                                                       |
+
+### Commands run
+
+- `npx supabase migration up --local` — applied `…130000`
+- Local transactional smoke (`BEGIN` … `ROLLBACK`)
+- `npx vitest run src/lib/multiLinePhase1cDualWrite.test.ts`
+- `npm run check`
+
+### Explicit exclusions honored
+
+- No UI / API / route / feature-flag changes
+- No `database.ts` changes
+- No hosted/staging/production apply
+- No Eagle Peak / Big Fish / BKG / prospective operational accounts
+- No reverse sync; no application cutover; no Phase 2
+
+**Phase 1 schema foundation (1A–1C) is complete locally.** Do not begin Phase 2 until separately approved. Do not commit/push/deploy unless separately requested.
