@@ -104,16 +104,11 @@ export function buildEaglePeakOrderConversion(input: {
   originalAmountUsd: unknown;
   exchangeRate: unknown;
   exchangeRateDate: unknown;
-  conversionSource?: unknown;
 }): { ok: true; stamp: EaglePeakOrderConversionStamp } | { ok: false; error: string } {
   const originalAmountUsd = asFiniteNumber(input.originalAmountUsd);
   const exchangeRate = asFiniteNumber(input.exchangeRate);
   const exchangeRateDate =
     typeof input.exchangeRateDate === 'string' ? input.exchangeRateDate.trim() : '';
-  const conversionSource =
-    typeof input.conversionSource === 'string' && input.conversionSource.trim()
-      ? input.conversionSource.trim()
-      : EAGLE_PEAK_ORDER_CONVERSION_SOURCE;
 
   if (originalAmountUsd == null || originalAmountUsd < 0) {
     return {
@@ -146,7 +141,7 @@ export function buildEaglePeakOrderConversion(input: {
       total_amount_cad: totalAmountCad,
       exchange_rate: exchangeRate,
       exchange_rate_date: exchangeRateDate,
-      conversion_source: conversionSource,
+      conversion_source: EAGLE_PEAK_ORDER_CONVERSION_SOURCE,
       converted_amount: totalAmountCad,
       converted_currency: 'CAD',
     },
@@ -172,11 +167,15 @@ export async function insertOrder(
       return { data: null, error: 'Eagle Peak selling is not enabled' };
     }
     if (options.lineCode === 'eagle-peak') {
+      const providedCurrency =
+        typeof payload.original_currency === 'string' ? payload.original_currency.trim() : '';
+      if (providedCurrency && providedCurrency !== 'USD') {
+        return { data: null, error: 'Eagle Peak orders require original_currency = USD' };
+      }
       const built = buildEaglePeakOrderConversion({
         originalAmountUsd: payload.original_amount,
         exchangeRate: payload.exchange_rate,
         exchangeRateDate: payload.exchange_rate_date ?? payload.order_date,
-        conversionSource: payload.conversion_source,
       });
       if (!built.ok) {
         return { data: null, error: built.error };

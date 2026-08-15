@@ -300,6 +300,58 @@ describe('Phase 6 insertOrder USD conversion', () => {
     expect(payload.line_id).not.toBe('line-ogr');
   });
 
+  it('ignores caller conversion_source and rejects non-USD original_currency', async () => {
+    const overridden = await insertOrder(
+      {
+        account_id: 9,
+        order_type: 'initial',
+        season: 'fathers_day',
+        order_date: '2026-08-15',
+        original_amount: 200,
+        original_currency: 'USD',
+        exchange_rate: 1.38,
+        exchange_rate_date: '2026-08-15',
+        conversion_source: 'legacy_cad_column',
+        line_id: 'line-ep',
+        retailer_line_account_id: 'rla-ep',
+      },
+      {
+        writesEnabled: true,
+        lineCode: 'eagle-peak',
+        lineDefaultCurrency: 'USD',
+        eaglePeakSellingEnabled: true,
+      },
+    );
+    expect(overridden.error).toBeNull();
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ conversion_source: 'staff_usd_cad' }),
+    );
+
+    insertMock.mockClear();
+    const cadLabeled = await insertOrder(
+      {
+        account_id: 9,
+        order_type: 'initial',
+        season: 'fathers_day',
+        order_date: '2026-08-15',
+        original_amount: 200,
+        original_currency: 'CAD',
+        exchange_rate: 1.38,
+        exchange_rate_date: '2026-08-15',
+        line_id: 'line-ep',
+        retailer_line_account_id: 'rla-ep',
+      },
+      {
+        writesEnabled: true,
+        lineCode: 'eagle-peak',
+        lineDefaultCurrency: 'USD',
+        eaglePeakSellingEnabled: true,
+      },
+    );
+    expect(cadLabeled.error).toMatch(/original_currency = USD/);
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
   it('OGR still rejects USD original_currency', async () => {
     const usd = await insertOrder(
       {
