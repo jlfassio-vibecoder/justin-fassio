@@ -3,6 +3,11 @@ import { streamText, stepCountIs, convertToModelMessages, type UIMessage } from 
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { createAgentCrmTools } from '@/lib/agentCrmTools';
 import { checkAgentRateLimit, rateLimitResponse } from '@/lib/agentRateLimit';
+import {
+  gateStaffAiContext,
+  parseOptionalPositiveInt,
+  parseOptionalUuidField,
+} from '@/lib/aiLineContext';
 import { objectionCatalogBlurb } from '@/lib/objectionCatalog';
 
 export const prerender = false;
@@ -43,9 +48,14 @@ export const POST: APIRoute = async ({ request }) => {
     return rateLimitResponse(limited.retryAfterSec);
   }
 
-  let body: { messages?: unknown };
+  let body: {
+    messages?: unknown;
+    salesLineId?: unknown;
+    retailerLineAccountId?: unknown;
+    prospectId?: unknown;
+  };
   try {
-    body = (await request.json()) as { messages?: unknown };
+    body = (await request.json()) as typeof body;
   } catch {
     return jsonError('Invalid JSON body', 400);
   }
@@ -54,15 +64,37 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonError('Provide messages', 400);
   }
 
-  const tools = createAgentCrmTools(gate.supabase);
+  const prospectId = parseOptionalPositiveInt(body.prospectId);
+  const gated = await gateStaffAiContext({
+    client: gate.supabase,
+    salesLineId: parseOptionalUuidField(body.salesLineId),
+    retailerLineAccountId: parseOptionalUuidField(body.retailerLineAccountId),
+    prospectId,
+    kind: prospectId != null ? 'account' : 'line_level',
+  });
+  if (!gated.ok) {
+    return jsonError(gated.error, gated.status);
+  }
+
+  const tools = createAgentCrmTools(gate.supabase, gated.ctx ?? undefined);
   // AI SDK 6+: convertToModelMessages is async (supports async Tool.toModelOutput).
   const modelMessages = await convertToModelMessages(body.messages);
+
+  const system = gated.ctx
+    ? [
+        gated.ctx.aiProfile.systemPrompt || gated.ctx.aiProfile.persona,
+        gated.ctx.aiProfile.apfPrompt,
+        `When the user asks about buyer feedback or objections, give 2-3 short talk tracks. Known catalog tags: ${objectionCatalogBlurb()}. Do not invent other tag names.`,
+      ]
+        .filter(Boolean)
+        .join(' ')
+    : SYSTEM_PROMPT;
 
   // Model strings like openai/gpt-4o route through Vercel AI Gateway (OIDC on Vercel; AI_GATEWAY_API_KEY locally).
   // Spend caps: stepCountIs(5) + maxOutputTokens; request rate: checkAgentRateLimit (per user, in-memory).
   const result = streamText({
     model: 'openai/gpt-4o',
-    system: SYSTEM_PROMPT,
+    system,
     messages: modelMessages,
     tools,
     stopWhen: stepCountIs(5),

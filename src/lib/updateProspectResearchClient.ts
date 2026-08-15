@@ -20,6 +20,8 @@ export async function previewProspectResearchUpdate(input: {
   prospectId: number;
   websiteUrl?: string;
   mode?: ProspectResearchMode;
+  salesLineId?: string;
+  retailerLineAccountId?: string;
 }): Promise<PreviewProspectResearchClientResult> {
   const token = await bearerToken();
   if (!token) {
@@ -36,6 +38,8 @@ export async function previewProspectResearchUpdate(input: {
       prospectId: input.prospectId,
       websiteUrl: input.websiteUrl,
       mode: input.mode ?? 'update',
+      salesLineId: input.salesLineId,
+      retailerLineAccountId: input.retailerLineAccountId,
     }),
   });
 
@@ -58,6 +62,8 @@ export async function applyProspectResearchUpdate(input: {
   prospectId: number;
   fields: EnrichedProspectFields | FillBlankProspectFields;
   mode?: ProspectResearchMode;
+  salesLineId?: string;
+  retailerLineAccountId?: string;
 }): Promise<ApplyProspectResearchClientResult> {
   const token = await bearerToken();
   if (!token) {
@@ -74,6 +80,8 @@ export async function applyProspectResearchUpdate(input: {
       prospectId: input.prospectId,
       fields: input.fields,
       mode: input.mode ?? 'update',
+      salesLineId: input.salesLineId,
+      retailerLineAccountId: input.retailerLineAccountId,
     }),
   });
 

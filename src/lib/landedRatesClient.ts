@@ -37,7 +37,9 @@ function parseRatesPayload(raw: unknown): LandedRatesPayload | null {
 /**
  * Client call to POST /api/pricing/landed-rates with the current session Bearer token.
  */
-export async function fetchLandedRates(): Promise<FetchLandedRatesResult> {
+export async function fetchLandedRates(input?: {
+  salesLineId?: string;
+}): Promise<FetchLandedRatesResult> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) {
@@ -50,7 +52,7 @@ export async function fetchLandedRates(): Promise<FetchLandedRatesResult> {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({}),
+    body: JSON.stringify(input?.salesLineId ? { salesLineId: input.salesLineId } : {}),
   });
 
   let payload: { ok?: boolean; rates?: unknown; error?: string } = {};

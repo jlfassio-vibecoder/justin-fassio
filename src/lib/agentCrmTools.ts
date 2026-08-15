@@ -1,6 +1,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import type { AgentSupabase } from '@/lib/agentAuth';
+import type { StaffAiContext } from '@/lib/aiLineContext';
 import { computeReorderSuggestion } from '@/lib/reorderCadence';
 import type { ApparelSeason } from '@/types/database';
 
@@ -40,8 +41,9 @@ export function truncateNotes(notes: string | null | undefined, max = NOTES_MAX)
 /**
  * AI SDK tools that read CRM rows under the caller's JWT + RLS.
  * No service role; no OpenAI keys — DB reads only.
+ * Optional ctx binds catalog/calls/orders to the request line (Phase 4 flag on).
  */
-export function createAgentCrmTools(supabase: AgentSupabase) {
+export function createAgentCrmTools(supabase: AgentSupabase, ctx?: StaffAiContext) {
   return {
     getProspectSummary: tool({
       description:
@@ -81,12 +83,11 @@ export function createAgentCrmTools(supabase: AgentSupabase) {
       }),
       execute: async ({ prospectId, limit }) => {
         const clamped = clampCallLimit(limit);
-        const { data, error } = await supabase
-          .from('calls')
-          .select(CALL_SELECT)
-          .eq('prospect_id', prospectId)
-          .order('call_date', { ascending: false })
-          .limit(clamped);
+        let query = supabase.from('calls').select(CALL_SELECT).eq('prospect_id', prospectId);
+        if (ctx) {
+          query = query.eq('line_id', ctx.salesLineId);
+        }
+        const { data, error } = await query.order('call_date', { ascending: false }).limit(clamped);
 
         if (error) {
           return { error: error.message };
@@ -111,7 +112,9 @@ export function createAgentCrmTools(supabase: AgentSupabase) {
           .describe(`Product line code (default ${DEFAULT_LINE_CODE})`),
       }),
       execute: async ({ prospectId, lineCode }) => {
-        const code = (lineCode?.trim() || DEFAULT_LINE_CODE).toLowerCase();
+        if (ctx?.mode === 'research_only') {
+          return { error: 'Catalog tools are not available for this sales line' };
+        }
 
         const { data: prospect, error: prospectError } = await supabase
           .from('prospects')
@@ -125,6 +128,29 @@ export function createAgentCrmTools(supabase: AgentSupabase) {
         if (!prospect) {
           return { error: 'Prospect not found' };
         }
+
+        if (ctx) {
+          const { data: items, error: itemsError } = await supabase
+            .from('catalog_items')
+            .select(CATALOG_ANCHOR_SELECT)
+            .eq('line_id', ctx.salesLineId)
+            .order('is_name_drop', { ascending: false })
+            .order('is_new', { ascending: false })
+            .order('page', { ascending: true })
+            .limit(CATALOG_ANCHOR_LIMIT);
+
+          if (itemsError) {
+            return { error: itemsError.message };
+          }
+
+          return {
+            prospect,
+            line: { id: ctx.salesLineId, code: ctx.code, name: ctx.name },
+            catalogAnchors: items ?? [],
+          };
+        }
+
+        const code = (lineCode?.trim() || DEFAULT_LINE_CODE).toLowerCase();
 
         const { data: line, error: lineError } = await supabase
           .from('lines')
@@ -167,6 +193,10 @@ export function createAgentCrmTools(supabase: AgentSupabase) {
         accountId: z.number().int().positive().describe('Account / prospect id (positive integer)'),
       }),
       execute: async ({ accountId }) => {
+        if (ctx?.mode === 'research_only' || (ctx && ctx.operationalWriteGate !== 'allow')) {
+          return { error: 'Reorder writes are not available for this sales line' };
+        }
+
         const { data: prospect, error: prospectError } = await supabase
           .from('prospects')
           .select(PROSPECT_SELECT)
@@ -180,10 +210,14 @@ export function createAgentCrmTools(supabase: AgentSupabase) {
           return { error: 'Account not found' };
         }
 
-        const { data: orders, error: ordersError } = await supabase
+        let orderQuery = supabase
           .from('orders')
           .select(ORDER_SELECT_FOR_REORDER)
-          .eq('account_id', accountId)
+          .eq('account_id', accountId);
+        if (ctx) {
+          orderQuery = orderQuery.eq('line_id', ctx.salesLineId);
+        }
+        const { data: orders, error: ordersError } = await orderQuery
           .order('order_date', { ascending: false })
           .limit(ORDER_HISTORY_LIMIT);
 

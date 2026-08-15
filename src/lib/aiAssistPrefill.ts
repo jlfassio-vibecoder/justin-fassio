@@ -13,6 +13,19 @@ export type AiAssistPrefill = {
 
 export type CallDraftFormat = 'email' | 'script';
 
+export type AiAssistPrefillLine = {
+  multiLineAi?: boolean;
+  lineName?: string | null;
+};
+
+/** Flag-off copy kept verbatim so existing APF tests stay green. */
+function lineRepPhrase(line: AiAssistPrefillLine | undefined, withOgrBrand: boolean): string {
+  if (line?.multiLineAi && line.lineName?.trim()) {
+    return `a ${line.lineName.trim()} sales rep`;
+  }
+  return withOgrBrand ? 'a BC wholesale apparel rep (Old Guys Rule)' : 'a BC wholesale apparel rep';
+}
+
 function prospectLabel(chip: AiAssistContextChip): string | null {
   if (chip.prospectId == null) return null;
   const name = chip.prospectName?.trim();
@@ -46,6 +59,7 @@ export function formatAssistChipLabel(chip: AiAssistContextChip): string {
 export function buildCallDraft(
   chip: AiAssistContextChip,
   format: CallDraftFormat = 'email',
+  line?: AiAssistPrefillLine,
 ): string {
   const outcome = chip.outcome?.trim() || 'a recent call';
   const label = prospectLabel(chip);
@@ -56,30 +70,30 @@ export function buildCallDraft(
     : ' Do not invent store details.';
 
   if (format === 'script') {
-    return `I just logged outcome "${outcome}"${scope}.${feedback} Draft a 30–60 second phone or in-person talk track for a BC wholesale apparel rep (Old Guys Rule). Match tone to the outcome.${ground}`;
+    return `I just logged outcome "${outcome}"${scope}.${feedback} Draft a 30–60 second phone or in-person talk track for ${lineRepPhrase(line, true)}. Match tone to the outcome.${ground}`;
   }
 
-  return `I just logged outcome "${outcome}"${scope}.${feedback} Draft a short follow-up email (subject + body) for a BC wholesale apparel rep (Old Guys Rule). Match tone to the outcome.${ground}`;
+  return `I just logged outcome "${outcome}"${scope}.${feedback} Draft a short follow-up email (subject + body) for ${lineRepPhrase(line, true)}. Match tone to the outcome.${ground}`;
 }
 
 /** Draft composer text from a CRM context chip (user edits/sends; not auto-sent). */
-export function buildAssistDraft(chip: AiAssistContextChip): string {
+export function buildAssistDraft(chip: AiAssistContextChip, line?: AiAssistPrefillLine): string {
   const label = prospectLabel(chip);
   const outcome = chip.outcome?.trim();
 
   if (outcome && label) {
-    return buildCallDraft(chip, 'email');
+    return buildCallDraft(chip, 'email', line);
   }
 
   if (label) {
     return `Summarize ${label} call history and suggest next steps.`;
   }
 
-  return 'Help me coach through a recent buyer objection for a BC wholesale apparel rep.';
+  return `Help me coach through a recent buyer objection for ${lineRepPhrase(line, false)}.`;
 }
 
 /** Objection-coach draft from tags (+ optional prospect). */
-export function buildObjectionDraft(chip: AiAssistContextChip): string {
+export function buildObjectionDraft(chip: AiAssistContextChip, line?: AiAssistPrefillLine): string {
   const tags = (chip.objectionTags ?? []).map((t) => t.trim()).filter(Boolean);
   const tagPhrase =
     tags.length === 0
@@ -93,28 +107,33 @@ export function buildObjectionDraft(chip: AiAssistContextChip): string {
     ? ' Ground in recent call tags if available via tools; do not invent store facts.'
     : ' Do not invent store facts.';
 
-  return `Help me handle ${tagPhrase}${scope}. Give 2-3 short talk tracks for a BC wholesale apparel rep.${ground}`;
+  return `Help me handle ${tagPhrase}${scope}. Give 2-3 short talk tracks for ${lineRepPhrase(line, false)}.${ground}`;
 }
 
 /**
  * Prospects Suggest draft: CRM-grounded summary + numbered follow-ups.
  * Prefer prospect id; falls back to a generic prompt if missing.
  */
-export function buildSuggestDraft(chip: AiAssistContextChip): string {
+export function buildSuggestDraft(chip: AiAssistContextChip, line?: AiAssistPrefillLine): string {
   const label = prospectLabel(chip);
   if (!label) {
-    return 'Summarize a prospect call history and give 3–5 concrete next follow-up actions as a numbered list for a BC wholesale apparel rep. Use CRM tools when a prospect id is available; do not invent store facts.';
+    return `Summarize a prospect call history and give 3–5 concrete next follow-up actions as a numbered list for ${lineRepPhrase(line, false)}. Use CRM tools when a prospect id is available; do not invent store facts.`;
   }
-  return `For ${label}, use CRM tools to load the store and recent calls. Write a short call-history summary, then give 3–5 concrete next follow-up actions as a numbered list for a BC wholesale apparel rep (Old Guys Rule). Do not invent store facts.`;
+  return `For ${label}, use CRM tools to load the store and recent calls. Write a short call-history summary, then give 3–5 concrete next follow-up actions as a numbered list for ${lineRepPhrase(line, true)}. Do not invent store facts.`;
 }
 
 /**
  * Prospects APF Brief draft: fit score, background, and walk-in script via getAccountProductFit.
  */
-export function buildApfDraft(chip: AiAssistContextChip): string {
+export function buildApfDraft(chip: AiAssistContextChip, line?: AiAssistPrefillLine): string {
   const label = prospectLabel(chip);
+  const lineHint = line?.multiLineAi
+    ? line.lineName?.trim()
+      ? `${line.lineName.trim()} line only — do not default to another line's catalog`
+      : 'the current sales line only — do not default to another line'
+    : 'default Old Guys Rule / ogr line';
   if (!label) {
-    return 'Prepare an account-product-fit brief for a prospect: call getAccountProductFit with a prospect id (default Old Guys Rule / ogr line), then reply with Fit score (1–10) + rationale, a 2–3 sentence Background, and an Initial call/walk-in script (Opener, Product Anchor citing 1–2 real catalog items, CTA). Do not invent store or catalog facts.';
+    return `Prepare an account-product-fit brief for a prospect: call getAccountProductFit with a prospect id (${lineHint}), then reply with Fit score (1–10) + rationale, a 2–3 sentence Background, and an Initial call/walk-in script (Opener, Product Anchor citing 1–2 real catalog items, CTA). Do not invent store or catalog facts.`;
   }
-  return `For ${label}, call getAccountProductFit (default Old Guys Rule / ogr line). Reply with: (1) Fit score (1–10) and short rationale from category/region/fit vs catalog; (2) Background — 2–3 sentences on store positioning; (3) Initial call/walk-in script with Opener, Product Anchor (1–2 real SKUs/names from the tool), and CTA. Do not invent store or catalog facts.`;
+  return `For ${label}, call getAccountProductFit (${lineHint}). Reply with: (1) Fit score (1–10) and short rationale from category/region/fit vs catalog; (2) Background — 2–3 sentences on store positioning; (3) Initial call/walk-in script with Opener, Product Anchor (1–2 real SKUs/names from the tool), and CTA. Do not invent store or catalog facts.`;
 }

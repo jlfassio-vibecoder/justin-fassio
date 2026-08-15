@@ -136,7 +136,42 @@ const SEARCH_PROMPT = [
 /**
  * Research current USD→CAD and optional landed-cost tax/freight factors via AI Gateway + Perplexity.
  */
-export async function researchUsdCadLandedFactors(): Promise<ResearchUsdCadLandedFactorsResult> {
+export async function researchUsdCadLandedFactors(options?: {
+  lineCode?: string;
+  persona?: string;
+}): Promise<ResearchUsdCadLandedFactorsResult> {
+  const ogrStrategy = !options?.lineCode || options.lineCode === 'ogr';
+  const searchPrompt = ogrStrategy
+    ? SEARCH_PROMPT
+    : [
+        options?.persona?.trim() ||
+          'You research pricing inputs for wholesale landed costs for this sales line.',
+        'You MUST call the web search tool first.',
+        'Priority: a CURRENT published USD to CAD rate (CAD per 1 USD) from Bank of Canada or another reputable FX source.',
+        'Do not use Old Guys Rule, Vista CA, or BC GST-PST framing unless this line is Old Guys Rule.',
+        'Do not invent commercial terms, freight, or tax.',
+        'CRITICAL: After the search tool returns, you MUST write a final plain-text brief that includes the USD/CAD number.',
+        'Never end on a tool call alone. Do not return an empty message.',
+      ].join('\n');
+  const extractPrompt = ogrStrategy
+    ? [
+        'Extract structured CAD landed-cost factors for a BC apparel wholesale rep.',
+        'fx is required: CAD per 1 USD from the research brief (typical range ~1.2–1.5).',
+        'Only use FX values that appear in the research — never invent an exchange rate.',
+        'gstRate should be 0.05 when the brief confirms federal GST 5%; otherwise null.',
+        'freightRate and otherTaxRate only when the brief gives a credible figure; otherwise null — never invent.',
+        'brief: one or two short sentences summarizing sources/figures.',
+        'asOf: ISO timestamp if the brief quotes a dated rate; otherwise null.',
+      ]
+    : [
+        options?.persona?.trim() ||
+          'Extract structured USD/CAD landed-cost factors for this sales line.',
+        'fx is required: CAD per 1 USD from the research brief when present.',
+        'Only use FX values that appear in the research — never invent an exchange rate.',
+        'Do not invent freight, GST, or provincial tax. Do not use Old Guys Rule or BC-only framing.',
+        'brief: one or two short sentences summarizing sources/figures.',
+        'asOf: ISO timestamp if the brief quotes a dated rate; otherwise null.',
+      ];
   let researchBrief: string;
   try {
     const search = await generateText({
@@ -147,7 +182,7 @@ export async function researchUsdCadLandedFactors(): Promise<ResearchUsdCadLande
           maxResults: 5,
         }),
       },
-      prompt: SEARCH_PROMPT,
+      prompt: searchPrompt,
     });
 
     researchBrief = collectResearchContext(search);
@@ -187,17 +222,7 @@ export async function researchUsdCadLandedFactors(): Promise<ResearchUsdCadLande
       model: 'openai/gpt-4o',
       schema: landedRatesSchema,
       schemaName: 'LandedRates',
-      prompt: [
-        'Extract structured CAD landed-cost factors for a BC apparel wholesale rep.',
-        'fx is required: CAD per 1 USD from the research brief (typical range ~1.2–1.5).',
-        'Only use FX values that appear in the research — never invent an exchange rate.',
-        'gstRate should be 0.05 when the brief confirms federal GST 5%; otherwise null.',
-        'freightRate and otherTaxRate only when the brief gives a credible figure; otherwise null — never invent.',
-        'brief: one or two short sentences summarizing sources/figures.',
-        'asOf: ISO timestamp if the brief quotes a dated rate; otherwise null.',
-        'Web research brief:',
-        researchBrief,
-      ].join('\n'),
+      prompt: [...extractPrompt, 'Web research brief:', researchBrief].join('\n'),
     });
     return { ok: true, rates: normalizePayload(result.object, researchBrief) };
   } catch (err) {

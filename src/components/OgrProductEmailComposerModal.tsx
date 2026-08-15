@@ -23,6 +23,8 @@ import {
 } from '@/lib/ogrProductEmailLimits';
 import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { sendOgrProductEmail } from '@/lib/sendOgrProductEmailClient';
+import { useOptionalLineContext } from '@/lib/lineContext';
+import { staffAiPostFields } from '@/lib/staffAiClientContext';
 
 const MAX_TO = OGR_PRODUCT_EMAIL_MAX_TO;
 const MAX_RECIPIENT_NAME = OGR_PRODUCT_EMAIL_MAX_RECIPIENT_NAME;
@@ -73,6 +75,7 @@ function OgrProductEmailComposerForm({
   cardHtml,
   draft,
 }: Omit<OgrProductEmailComposerModalProps, 'open'>) {
+  const line = useOptionalLineContext();
   const isDraftReview = draft != null;
   const [to, setTo] = useState(draft?.to ?? '');
   const [recipientName, setRecipientName] = useState(draft?.toName ?? '');
@@ -113,8 +116,15 @@ function OgrProductEmailComposerForm({
     setError(null);
     setRegenerating(true);
     try {
+      const aiFields = await staffAiPostFields({
+        multiLineAi: line.multiLineAi,
+        salesLineId: line.salesLineId,
+        prospectId: draft.prospectId,
+      });
       const generated = await generateAgentProductOutreachDraft({
         existingDraftId: draft.id,
+        salesLineId: aiFields.salesLineId,
+        retailerLineAccountId: aiFields.retailerLineAccountId,
         target: {
           preparationDate: formatOutreachPreparationDate(),
           prospectId: draft.prospectId,

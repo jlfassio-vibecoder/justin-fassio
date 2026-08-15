@@ -31,6 +31,8 @@ export type CompanyWebResearchInput = {
    * emphasize official site + street address + phone + apparel evidence.
    */
   fillBlanksFocus?: boolean;
+  /** When set (non-OGR line), replaces the default BC / Old Guys Rule research persona. */
+  persona?: string;
 };
 
 /**
@@ -101,7 +103,8 @@ export async function researchCompany(
         }),
       },
       prompt: [
-        'You research BC retailers for Old Guys Rule wholesale apparel reps.',
+        input.persona?.trim() ||
+          'You research BC retailers for Old Guys Rule wholesale apparel reps.',
         'Use the web search tool to find current public information about THIS exact company.',
         urlInstructions,
         locationLine,

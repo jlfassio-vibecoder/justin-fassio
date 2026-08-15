@@ -1520,3 +1520,47 @@ Throwaway Eagle Peak RLA on retailer `1` (existing OGR prospect): RLA set `opene
 - No commit/push unless separately requested
 
 **Phase 3 writes on line accounts are complete locally.** Do not begin Phase 4 until separately approved. Do not commit/push/deploy unless separately requested.
+
+## Implementation results — Phase 4
+
+**Date:** 2026-08-15  
+**Branch:** `feature/multi-line-multi-territory-implementation`  
+**Scope:** Staff AI isolation (`FEATURE_MULTI_LINE_AI` server flag, default off). No EP/BF selling flags. No territory admin. No public catalog/chat changes. No prep/send/cron signature changes. No commit/push/deploy. No hosted DB. No Phase 5.
+
+### Baseline / reconciliation (local disposable DB)
+
+| Check                            | Result                                                                              |
+| -------------------------------- | ----------------------------------------------------------------------------------- |
+| prospects                        | 607 (Phase 4 start; live recount skipped — Docker daemon not running at completion) |
+| OGR non-terminated RLAs          | 607                                                                                 |
+| OGR catalog items                | 190                                                                                 |
+| Eagle Peak / Big Fish / BKG RLAs | 0 / 0 / 0 at start; isolation tests mocked (no throwaway EP RLA created)            |
+| Line statuses                    | ogr=active CAD, eagle-peak=onboarding USD, big-fish=confirmed, bkg=paused           |
+| Flag default                     | `FEATURE_MULTI_LINE_AI` off (not `PUBLIC_`); snapshot AND `FEATURE_MULTI_LINE_UI`   |
+
+### Delivered
+
+- `FEATURE_MULTI_LINE_AI` on `StaffFeatureFlags` + `/api/staff/features` snapshot; AuthGate / LineContext `multiLineAi` (client cannot read the non-`PUBLIC_` env)
+- Additive `supabase/migrations/20260816090000_multi_line_phase4_ai_profiles.sql` (Phase 1–3 files untouched): `lines.ai_profile` seed for ogr / eagle-peak / big-fish; `retailer_field_changes.sales_line_id` + `retailer_line_account_id`
+- `resolveStaffAiContext` / `gateStaffAiContext`: flag on → require `sales_line_id`; account kind requires matching RLA; `bkg` / declined / terminated → 400; never silent OGR default
+- Bound staff AI: agent, enrich, research-update (+ apply), landed-rates, generate-draft; CRM tools catalog/calls/orders `.eq('line_id', ctx.salesLineId)`; EP APF empty catalog; prospective `research_only`; EP/BF reorder writes rejected
+- OGR/BC persona and BC city mappers only when line is ogr (or flag off). Geography `prospects.territory_id` insert still uses the existing NOT NULL BC fallback
+- Apply research writes `retailer_field_changes` (`source = 'ai'`) when flag on; skips `buyer_verified` / `/^verified$/i` identity fields without confirm
+- Islands POST `salesLineId` + optional RLA via `staffAiPostFields` when snapshot on (`AIAssistantModal`, Add via AI, research, catalog landed-rates, generate-draft)
+- Vitest `src/lib/multiLinePhase4Ai.test.ts`; `npm run check` passed (141 files / 854 tests)
+
+### Isolation
+
+No throwaway Eagle Peak RLA was inserted (APF / resolver tests used mocks). Local EP/BF/BKG operational counts were 0 at baseline; no isolation rows to roll back.
+
+### Explicit exclusions honored
+
+- No `FEATURE_EAGLE_PEAK_*` / Big Fish selling or outreach flags; staff selling UI stays Phase 3-blocked
+- No Phase 1–3 migration rewrites; no hosted/staging/production DB
+- No `outreachNightlyPrep` / prep POST / send / cron signature changes; generate-draft only
+- No public live-chat (`/api/chat/ai-reply`) or public catalog RPC changes
+- No territory admin CRUD; no Messages/Calendar **list** filtering
+- Prettier whitespace wrap on `plan/multi-line-phase4-ai-isolation.md` so `format:check` passes (no decision changes)
+- No commit/push unless separately requested
+
+**Phase 4 staff AI isolation is complete locally.** Do not begin Phase 5 until separately approved. Do not commit/push/deploy unless separately requested.

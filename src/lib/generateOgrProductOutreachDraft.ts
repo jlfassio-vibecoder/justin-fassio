@@ -353,6 +353,8 @@ export type GenerateOgrProductOutreachDraftInput = {
   userId: string | null;
   existingDraftId?: string;
   automationRunId?: string | null;
+  /** When set (staff generate-draft with AI flag on), load published SKUs for this line only. */
+  salesLineId?: string;
 };
 
 export type GenerateOgrProductOutreachDraftResult =
@@ -429,7 +431,9 @@ export async function generateOgrProductOutreachDraft(
   });
   if (!crm.ok) return { ok: false, error: crm.error };
 
-  const loaded = await loadPublishedOgrProductForEmail(client, target.catalogItemId);
+  const loaded = await loadPublishedOgrProductForEmail(client, target.catalogItemId, {
+    salesLineId: input.salesLineId,
+  });
   if (!loaded.ok) {
     return { ok: false, error: loaded.message };
   }
@@ -528,6 +532,7 @@ export type GenerateOgrProductOutreachDraftsInput = {
   userId: string | null;
   regenerate?: boolean;
   automationRunId?: string | null;
+  salesLineId?: string;
 };
 
 export type GenerateOgrProductOutreachDraftsResult = {
@@ -565,6 +570,7 @@ export async function generateOgrProductOutreachDrafts(
       target,
       userId: input.userId,
       automationRunId: input.automationRunId,
+      salesLineId: input.salesLineId,
     });
     if (!generated.ok) {
       results.push({ prospectId: target.prospectId, error: generated.error });

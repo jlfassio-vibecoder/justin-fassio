@@ -91,6 +91,7 @@ export interface Database {
           effective_date: string | null;
           termination_date: string | null;
           productivity_thresholds: Record<string, unknown> | null;
+          ai_profile: Record<string, unknown> | null;
           created_at: string;
           updated_at: string;
         };
@@ -113,6 +114,7 @@ export interface Database {
           effective_date?: string | null;
           termination_date?: string | null;
           productivity_thresholds?: Record<string, unknown> | null;
+          ai_profile?: Record<string, unknown> | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -135,6 +137,7 @@ export interface Database {
           effective_date?: string | null;
           termination_date?: string | null;
           productivity_thresholds?: Record<string, unknown> | null;
+          ai_profile?: Record<string, unknown> | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -390,6 +393,8 @@ export interface Database {
           new_value: unknown;
           source: RetailerFieldChangeSource;
           actor_id: string | null;
+          sales_line_id: string | null;
+          retailer_line_account_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -400,6 +405,8 @@ export interface Database {
           new_value?: unknown;
           source?: RetailerFieldChangeSource;
           actor_id?: string | null;
+          sales_line_id?: string | null;
+          retailer_line_account_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -410,6 +417,8 @@ export interface Database {
           new_value?: unknown;
           source?: RetailerFieldChangeSource;
           actor_id?: string | null;
+          sales_line_id?: string | null;
+          retailer_line_account_id?: string | null;
           created_at?: string;
         };
         Relationships: [];

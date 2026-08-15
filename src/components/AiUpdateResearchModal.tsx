@@ -12,6 +12,8 @@ import {
   applyProspectResearchUpdate,
   previewProspectResearchUpdate,
 } from '@/lib/updateProspectResearchClient';
+import { useOptionalLineContext } from '@/lib/lineContext';
+import { staffAiPostFields } from '@/lib/staffAiClientContext';
 
 interface AiUpdateResearchModalProps {
   open: boolean;
@@ -52,6 +54,7 @@ function AiUpdateResearchModalInner({
   onApplied: (prospect: Prospect) => void;
   mode: ProspectResearchMode;
 }) {
+  const line = useOptionalLineContext();
   const fillBlanks = mode === 'fill-blanks';
   const [websiteUrl, setWebsiteUrl] = useState(prospect.website?.trim() ?? '');
   const [busyPreview, setBusyPreview] = useState(true);
@@ -66,26 +69,36 @@ function AiUpdateResearchModalInner({
   useEffect(() => {
     let active = true;
 
-    void previewProspectResearchUpdate({
+    void staffAiPostFields({
+      multiLineAi: line.multiLineAi,
+      salesLineId: line.salesLineId,
       prospectId: prospect.id,
-      websiteUrl: prospect.website?.trim() || undefined,
-      mode,
-    }).then((result) => {
-      if (!active) return;
-      setBusyPreview(false);
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      setCurrent(result.preview.current);
-      setProposed(result.preview.proposed);
-      setFields(result.preview.fields);
-    });
+    })
+      .then((aiFields) =>
+        previewProspectResearchUpdate({
+          prospectId: prospect.id,
+          websiteUrl: prospect.website?.trim() || undefined,
+          mode,
+          salesLineId: aiFields.salesLineId,
+          retailerLineAccountId: aiFields.retailerLineAccountId,
+        }),
+      )
+      .then((result) => {
+        if (!active) return;
+        setBusyPreview(false);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        setCurrent(result.preview.current);
+        setProposed(result.preview.proposed);
+        setFields(result.preview.fields);
+      });
 
     return () => {
       active = false;
     };
-  }, [prospect.id, prospect.website, mode]);
+  }, [prospect.id, prospect.website, mode, line.multiLineAi, line.salesLineId]);
 
   const diffs = current && proposed ? buildResearchUpdateDiffs(current, proposed, mode) : [];
   const busy = busyPreview || busyApply;
@@ -104,6 +117,11 @@ function AiUpdateResearchModalInner({
       prospectId: prospect.id,
       websiteUrl: websiteUrl.trim() || undefined,
       mode,
+      ...(await staffAiPostFields({
+        multiLineAi: line.multiLineAi,
+        salesLineId: line.salesLineId,
+        prospectId: prospect.id,
+      })),
     });
     setBusyPreview(false);
     if (!result.ok) {
@@ -123,6 +141,11 @@ function AiUpdateResearchModalInner({
       prospectId: prospect.id,
       fields,
       mode,
+      ...(await staffAiPostFields({
+        multiLineAi: line.multiLineAi,
+        salesLineId: line.salesLineId,
+        prospectId: prospect.id,
+      })),
     });
     setBusyApply(false);
     if (!result.ok) {

@@ -26,6 +26,7 @@ interface CallsTabProps {
 export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProps) {
   const { openAssist } = useAiAssist();
   const lineCtx = useOptionalLineContext();
+  const prefillLine = { multiLineAi: lineCtx.multiLineAi, lineName: lineCtx.name };
   const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const [calls, setCalls] = useState<CallRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,7 +175,7 @@ export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProp
                           outcome: call.outcome,
                           objectionTags: tags.length > 0 ? tags : undefined,
                         };
-                        openAssist({ chips, draft: buildCallDraft(chips, 'email') });
+                        openAssist({ chips, draft: buildCallDraft(chips, 'email', prefillLine) });
                       }}
                     >
                       Draft
@@ -188,7 +189,7 @@ export function CallsTab({ prospects, onLogCall, reloadToken = 0 }: CallsTabProp
                           prospectName: name,
                           objectionTags: tags.length > 0 ? tags : undefined,
                         };
-                        openAssist({ chips, draft: buildObjectionDraft(chips) });
+                        openAssist({ chips, draft: buildObjectionDraft(chips, prefillLine) });
                       }}
                     >
                       Coach

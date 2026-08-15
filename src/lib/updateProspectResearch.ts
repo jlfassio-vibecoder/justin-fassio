@@ -14,6 +14,12 @@ import {
   type ProspectResearchMode,
 } from '@/lib/fillBlankProspectFields';
 import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
+import {
+  insertRetailerFieldChanges,
+  isVerifiedIdentityField,
+  isVerifiedIdentityStatus,
+  type RetailerFieldChangeInsert,
+} from '@/lib/retailerFieldChanges';
 import type { Database, ProspectRow } from '@/types/database';
 
 type ProspectUpdate = Database['public']['Tables']['prospects']['Update'];
@@ -31,6 +37,56 @@ export type PreviewProspectResearchResult =
 
 export type ApplyProspectResearchResult =
   { ok: true; prospect: Prospect } | { ok: false; error: string };
+
+export type ApplyProspectResearchAiAudit = {
+  actorId: string;
+  salesLineId: string;
+  retailerLineAccountId: string | null;
+  confirmVerifiedOverwrite?: boolean;
+};
+
+function shouldSkipVerifiedIdentity(
+  current: Prospect,
+  audit: ApplyProspectResearchAiAudit | undefined,
+): boolean {
+  if (!audit || audit.confirmVerifiedOverwrite === true) return false;
+  return isVerifiedIdentityStatus({
+    buyerVerified: current.buyerVerified,
+    verificationStatus: current.verificationStatus,
+  });
+}
+
+async function writeAiFieldChanges(
+  supabase: AgentSupabase,
+  input: {
+    retailerId: number;
+    current: Prospect;
+    patch: Record<string, unknown>;
+    audit: ApplyProspectResearchAiAudit;
+  },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const rows: RetailerFieldChangeInsert[] = [];
+  for (const [fieldPath, newValue] of Object.entries(input.patch)) {
+    const camel = fieldPath.includes('_')
+      ? fieldPath.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
+      : fieldPath;
+    const oldValue =
+      (input.current as unknown as Record<string, unknown>)[camel] ??
+      (input.current as unknown as Record<string, unknown>)[fieldPath];
+    rows.push({
+      retailerId: input.retailerId,
+      fieldPath,
+      oldValue: oldValue ?? null,
+      newValue: newValue ?? null,
+      source: 'ai',
+      actorId: input.audit.actorId,
+      salesLineId: input.audit.salesLineId,
+      retailerLineAccountId: input.audit.retailerLineAccountId,
+    });
+  }
+  if (rows.length === 0) return { ok: true };
+  return insertRetailerFieldChanges(supabase, rows);
+}
 
 async function fetchProspectById(
   supabase: AgentSupabase,
@@ -58,7 +114,13 @@ function parseResearchMode(mode: unknown): ProspectResearchMode {
  */
 export async function previewProspectResearchUpdate(
   supabase: AgentSupabase,
-  input: { id: number; websiteUrl?: string; mode?: ProspectResearchMode },
+  input: {
+    id: number;
+    websiteUrl?: string;
+    mode?: ProspectResearchMode;
+    lineCode?: string;
+    aiPersona?: string;
+  },
 ): Promise<PreviewProspectResearchResult> {
   const mode = parseResearchMode(input.mode);
   const existing = await fetchProspectById(supabase, input.id);
@@ -73,6 +135,8 @@ export async function previewProspectResearchUpdate(
     const inferred = await inferFillBlankProspectFields({
       current,
       websiteUrl,
+      lineCode: input.lineCode,
+      aiPersona: input.aiPersona,
     });
     if (!inferred.ok) {
       return inferred;
@@ -93,6 +157,8 @@ export async function previewProspectResearchUpdate(
   const inferred = await inferEnrichedProspectFields({
     companyName: current.name,
     websiteUrl,
+    aiPersona: input.aiPersona,
+    lineCode: input.lineCode,
   });
   if (!inferred.ok) {
     return inferred;
@@ -120,6 +186,8 @@ export async function applyProspectResearchUpdate(
     id: number;
     fields: EnrichedProspectFields | FillBlankProspectFields;
     mode?: ProspectResearchMode;
+    lineCode?: string;
+    aiAudit?: ApplyProspectResearchAiAudit;
   },
 ): Promise<ApplyProspectResearchResult> {
   const mode = parseResearchMode(input.mode);
@@ -136,13 +204,27 @@ export async function applyProspectResearchUpdate(
     }
 
     const merged = mergeFillBlankFields(existing.data, parsed.data);
-    if (Object.keys(merged.dbPatch).length === 0) {
+    const dbPatch = { ...merged.dbPatch } as Record<string, unknown>;
+    if (input.aiAudit && shouldSkipVerifiedIdentity(existing.data, input.aiAudit)) {
+      for (const key of Object.keys(dbPatch)) {
+        if (
+          isVerifiedIdentityField(key) ||
+          key === 'name' ||
+          key === 'address' ||
+          key === 'phone' ||
+          key === 'website'
+        ) {
+          delete dbPatch[key];
+        }
+      }
+    }
+    if (Object.keys(dbPatch).length === 0) {
       return { ok: true, prospect: existing.data };
     }
 
     const { data, error } = await supabase
       .from('prospects')
-      .update(merged.dbPatch as ProspectUpdate)
+      .update(dbPatch as ProspectUpdate)
       .eq('id', input.id)
       .select(PROSPECT_SELECT)
       .single();
@@ -152,6 +234,15 @@ export async function applyProspectResearchUpdate(
     }
     if (!data) {
       return { ok: false, error: 'Update returned no row' };
+    }
+    if (input.aiAudit) {
+      const audit = await writeAiFieldChanges(supabase, {
+        retailerId: input.id,
+        current: existing.data,
+        patch: dbPatch,
+        audit: input.aiAudit,
+      });
+      if (!audit.ok) return audit;
     }
     return { ok: true, prospect: mapProspectRow(data as ProspectRow) };
   }
@@ -164,17 +255,33 @@ export async function applyProspectResearchUpdate(
   const fields = parsed.data;
   const fit = formatProspectFit(fields.fitScore, fields.notes);
 
+  const patch: Record<string, unknown> = {
+    name: fields.name.trim(),
+    category: fields.category,
+    region: fields.region,
+    city: fields.city.trim(),
+    address: fields.address?.trim() || '',
+    phone: fields.phone?.trim() || '',
+    fit,
+  };
+
+  let currentForAudit: Prospect | null = null;
+  if (input.aiAudit) {
+    const existing = await fetchProspectById(supabase, input.id);
+    if (existing.error || !existing.data) {
+      return { ok: false, error: existing.error ?? 'Prospect not found' };
+    }
+    currentForAudit = existing.data;
+    if (shouldSkipVerifiedIdentity(existing.data, input.aiAudit)) {
+      delete patch.name;
+      delete patch.address;
+      delete patch.phone;
+    }
+  }
+
   const { data, error } = await supabase
     .from('prospects')
-    .update({
-      name: fields.name.trim(),
-      category: fields.category,
-      region: fields.region,
-      city: fields.city.trim(),
-      address: fields.address?.trim() || '',
-      phone: fields.phone?.trim() || '',
-      fit,
-    })
+    .update(patch as ProspectUpdate)
     .eq('id', input.id)
     .select(PROSPECT_SELECT)
     .single();
@@ -184,6 +291,15 @@ export async function applyProspectResearchUpdate(
   }
   if (!data) {
     return { ok: false, error: 'Update returned no row' };
+  }
+  if (input.aiAudit && currentForAudit) {
+    const audit = await writeAiFieldChanges(supabase, {
+      retailerId: input.id,
+      current: currentForAudit,
+      patch,
+      audit: input.aiAudit,
+    });
+    if (!audit.ok) return audit;
   }
 
   return { ok: true, prospect: mapProspectRow(data as ProspectRow) };

@@ -94,27 +94,32 @@ function isPubliclyAvailable(row: EmailOgrProductRow): boolean {
 export async function loadPublishedOgrProductForEmail(
   supabase: AgentSupabase,
   productId: string,
+  options?: { salesLineId?: string },
 ): Promise<LoadPublishedOgrProductForEmailResult> {
   const id = productId.trim();
   if (!id) {
     return { ok: false, reason: 'not_found', message: 'Product not found' };
   }
 
-  const { data: line, error: lineError } = await supabase
-    .from('lines')
-    .select('id')
-    .eq('code', 'ogr')
-    .maybeSingle();
+  let lineId = options?.salesLineId?.trim() || '';
+  if (!lineId) {
+    const { data: line, error: lineError } = await supabase
+      .from('lines')
+      .select('id')
+      .eq('code', 'ogr')
+      .maybeSingle();
 
-  if (lineError || !line) {
-    return { ok: false, reason: 'not_found', message: 'Product not found' };
+    if (lineError || !line) {
+      return { ok: false, reason: 'not_found', message: 'Product not found' };
+    }
+    lineId = line.id;
   }
 
   const { data, error } = await supabase
     .from('catalog_items')
     .select(EMAIL_OGR_PRODUCT_SELECT)
     .eq('id', id)
-    .eq('line_id', line.id)
+    .eq('line_id', lineId)
     .maybeSingle();
 
   if (error) {

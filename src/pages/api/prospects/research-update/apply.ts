@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
+import { gateStaffAiContext, parseOptionalUuidField } from '@/lib/aiLineContext';
 import { applyProspectResearchUpdate } from '@/lib/updateProspectResearch';
 
 export const prerender = false;
@@ -16,7 +17,14 @@ export const POST: APIRoute = async ({ request }) => {
   const gate = await requireApprovedStaffClient(request);
   if (!gate.ok) return gate.response;
 
-  let body: { prospectId?: unknown; fields?: unknown; mode?: unknown };
+  let body: {
+    prospectId?: unknown;
+    fields?: unknown;
+    mode?: unknown;
+    salesLineId?: unknown;
+    retailerLineAccountId?: unknown;
+    confirmVerifiedOverwrite?: unknown;
+  };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -40,10 +48,30 @@ export const POST: APIRoute = async ({ request }) => {
 
   const mode = body.mode === 'fill-blanks' ? 'fill-blanks' : 'update';
 
+  const gated = await gateStaffAiContext({
+    client: gate.supabase,
+    salesLineId: parseOptionalUuidField(body.salesLineId),
+    retailerLineAccountId: parseOptionalUuidField(body.retailerLineAccountId),
+    prospectId,
+    kind: 'account',
+  });
+  if (!gated.ok) {
+    return jsonError(gated.error, gated.status);
+  }
+
   const result = await applyProspectResearchUpdate(gate.supabase, {
     id: prospectId,
     fields: body.fields as Parameters<typeof applyProspectResearchUpdate>[1]['fields'],
     mode,
+    aiAudit: gated.ctx
+      ? {
+          actorId: gate.userId,
+          salesLineId: gated.ctx.salesLineId,
+          retailerLineAccountId: gated.ctx.retailerLineAccountId,
+          confirmVerifiedOverwrite: body.confirmVerifiedOverwrite === true,
+        }
+      : undefined,
+    lineCode: gated.ctx?.code,
   });
   if (!result.ok) {
     return jsonError(result.error, 502);

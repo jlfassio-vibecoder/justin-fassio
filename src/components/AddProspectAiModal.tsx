@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input } from '@/components/ui/Input';
 import { enrichProspect, type EnrichProspectInput } from '@/lib/enrichProspect';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import type { Prospect } from '@/lib/prospects';
+import { staffAiPostFields } from '@/lib/staffAiClientContext';
 
 export type AddProspectAiInitialValues = {
   companyName?: string;
@@ -31,6 +33,7 @@ export function AddProspectAiModal({
   initialValues,
   enrichSeeds,
 }: AddProspectAiModalProps) {
+  const line = useOptionalLineContext();
   const [companyName, setCompanyName] = useState(() => initialValues?.companyName?.trim() ?? '');
   const [websiteUrl, setWebsiteUrl] = useState(() => initialValues?.websiteUrl?.trim() ?? '');
   const [busy, setBusy] = useState(false);
@@ -57,6 +60,10 @@ export function AddProspectAiModal({
     }
 
     setBusy(true);
+    const aiFields = await staffAiPostFields({
+      multiLineAi: line.multiLineAi,
+      salesLineId: line.salesLineId,
+    });
     const result = await enrichProspect({
       companyName: name,
       websiteUrl: websiteUrl.trim() || undefined,
@@ -66,6 +73,7 @@ export function AddProspectAiModal({
       city: enrichSeeds?.city,
       retailChannelHint: enrichSeeds?.retailChannelHint,
       territoryCode: enrichSeeds?.territoryCode,
+      salesLineId: aiFields.salesLineId,
     });
     setBusy(false);
 

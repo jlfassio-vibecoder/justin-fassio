@@ -66,7 +66,7 @@ export type CreateEnrichedProspectInput = {
   city?: string;
   /** Buyer retail channel hint for research + category mapping. */
   retailChannelHint?: string;
-  /** Territory code (bc/ab/ca/or/wa). Defaults to British Columbia. */
+  /** Territory code (bc/ab/ca/or/wa). Defaults to British Columbia unless a non-OGR line is set. */
   territoryCode?: string;
   /** When provided (e.g. by contact enrich), skip a second web search. */
   researchBrief?: string | null;
@@ -75,6 +75,10 @@ export type CreateEnrichedProspectInput = {
    * primary contact must pass false; only one primary per account is allowed.
    */
   createBuyerContact?: boolean;
+  /** Phase 4: bind insert + prompts to this sales line when AI flag is on. */
+  salesLineId?: string;
+  lineCode?: string;
+  aiPersona?: string;
 };
 
 export type CreateEnrichedProspectResult =
@@ -112,6 +116,25 @@ export function proposedProspectFromFields(
     phone: fields.phone?.trim() || '',
     fit: formatProspectFit(fields.fitScore, fields.notes),
   };
+}
+
+async function stampLineAccountIfNeeded(
+  supabase: AgentSupabase,
+  input: CreateEnrichedProspectInput,
+  prospectId: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!input.salesLineId || input.lineCode === 'bkg') {
+    return { ok: true };
+  }
+  const { error } = await supabase.from('retailer_line_accounts').insert({
+    retailer_id: prospectId,
+    sales_line_id: input.salesLineId,
+    relationship_status: 'prospect',
+  });
+  if (error && !isUniqueViolation(error.message)) {
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
 }
 
 function isUniqueViolation(message: string): boolean {
@@ -238,6 +261,7 @@ export async function inferEnrichedProspectFields(
       contactName,
       city: citySeed,
       retailCategoryHint: retailChannelHint,
+      persona: input.aiPersona,
     });
     researchBrief = research.brief;
   }
@@ -267,7 +291,8 @@ export async function inferEnrichedProspectFields(
       schema: enrichedProspectSchema,
       schemaName: 'EnrichedProspect',
       prompt: [
-        'You help a BC wholesale apparel sales rep (Old Guys Rule) onboard a new retailer prospect.',
+        input.aiPersona?.trim() ||
+          'You help a BC wholesale apparel sales rep (Old Guys Rule) onboard a new retailer prospect.',
         'Infer structured CRM fields from the company name, optional official website, and web research brief.',
         'Prefer known inbound form facts (city/phone/channel) over guesses when they conflict with thin research.',
         CATEGORY_MAPPING_GUIDANCE,
@@ -307,6 +332,8 @@ export async function createEnrichedProspect(
   }
 
   const { fields, researchBrief } = inferred;
+  // Geography FK is NOT NULL; BC remains the insert default. OGR/BC *AI* strategy
+  // (persona, region rubric) is already gated via input.aiPersona / lineCode.
   const territory = await resolveTerritoryIdByCode(
     supabase,
     input.territoryCode?.trim() || BC_TERRITORY_CODE,
@@ -332,6 +359,10 @@ export async function createEnrichedProspect(
     if (!contact.ok) {
       return { ok: false, error: contact.error };
     }
+    const stamped = await stampLineAccountIfNeeded(supabase, input, first.prospect.id);
+    if (!stamped.ok) {
+      return { ok: false, error: stamped.error };
+    }
     return { ok: true, prospect: first.prospect, researchBrief };
   }
   if (!isUniqueViolation(first.error)) {
@@ -347,6 +378,10 @@ export async function createEnrichedProspect(
     const contact = await insertBuyerContact(supabase, retry.prospect.id, input);
     if (!contact.ok) {
       return { ok: false, error: contact.error };
+    }
+    const stamped = await stampLineAccountIfNeeded(supabase, input, retry.prospect.id);
+    if (!stamped.ok) {
+      return { ok: false, error: stamped.error };
     }
     return { ok: true, prospect: retry.prospect, researchBrief };
   }

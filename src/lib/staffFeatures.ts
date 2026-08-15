@@ -8,6 +8,8 @@ export type StaffFeatureFlags = {
   FEATURE_MULTI_LINE_UI: boolean;
   /** Enables writes on line accounts as source of truth. Default off. Not PUBLIC_. */
   FEATURE_MULTI_LINE_WRITES: boolean;
+  /** Isolates staff AI behind explicit sales_line_id. Default off. Not PUBLIC_. */
+  FEATURE_MULTI_LINE_AI: boolean;
 };
 
 const TRUTHY = new Set(['1', 'true', 'yes', 'on']);
@@ -42,6 +44,11 @@ export function isMultiLineWritesEnabled(): boolean {
   return parseFeatureFlag(readEnv('FEATURE_MULTI_LINE_WRITES'));
 }
 
+/** Read FEATURE_MULTI_LINE_AI from server env (default off). */
+export function isMultiLineAiEnabled(): boolean {
+  return parseFeatureFlag(readEnv('FEATURE_MULTI_LINE_AI'));
+}
+
 /** Snapshot of staff feature flags for approved-staff API responses. */
 export function getStaffFeatureFlags(): StaffFeatureFlags {
   const ui = isMultiLineUiEnabled();
@@ -49,5 +56,7 @@ export function getStaffFeatureFlags(): StaffFeatureFlags {
     FEATURE_MULTI_LINE_UI: ui,
     // Writes without the picker leaves salesLineId null and blocks selling UI.
     FEATURE_MULTI_LINE_WRITES: isMultiLineWritesEnabled() && ui,
+    // AI without the picker cannot send salesLineId; snapshot stays off.
+    FEATURE_MULTI_LINE_AI: isMultiLineAiEnabled() && ui,
   };
 }

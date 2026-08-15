@@ -66,6 +66,7 @@ export function ActiveAccountsTab({
 }: ActiveAccountsTabProps) {
   const { openAssist } = useAiAssist();
   const lineCtx = useOptionalLineContext();
+  const prefillLine = { multiLineAi: lineCtx.multiLineAi, lineName: lineCtx.name };
   const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const [territoryCode, setTerritoryCode] = useState(BC_TERRITORY_CODE);
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
@@ -344,17 +345,19 @@ export function ActiveAccountsTab({
                 {
                   id: 'suggest',
                   label: 'Recommend Next Action',
-                  onSelect: () => openAssist({ chips, draft: buildSuggestDraft(chips) }),
+                  onSelect: () =>
+                    openAssist({ chips, draft: buildSuggestDraft(chips, prefillLine) }),
                 },
                 {
                   id: 'brief',
                   label: 'Generate Account Brief',
-                  onSelect: () => openAssist({ chips, draft: buildApfDraft(chips) }),
+                  onSelect: () => openAssist({ chips, draft: buildApfDraft(chips, prefillLine) }),
                 },
                 {
                   id: 'ask',
                   label: 'Ask AI About Account',
-                  onSelect: () => openAssist({ chips, draft: buildAssistDraft(chips) }),
+                  onSelect: () =>
+                    openAssist({ chips, draft: buildAssistDraft(chips, prefillLine) }),
                 },
               ],
             },
