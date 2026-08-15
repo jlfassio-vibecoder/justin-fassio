@@ -88,6 +88,8 @@ describe('AuthGate', () => {
             FEATURE_MULTI_LINE_WRITES: false,
             FEATURE_MULTI_LINE_AI: false,
             FEATURE_LINE_TERRITORY_ADMIN: false,
+            FEATURE_EAGLE_PEAK_SELLING: false,
+            FEATURE_EAGLE_PEAK_OUTREACH: false,
           },
         }),
       }),

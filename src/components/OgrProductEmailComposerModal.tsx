@@ -76,6 +76,7 @@ function OgrProductEmailComposerForm({
   draft,
 }: Omit<OgrProductEmailComposerModalProps, 'open'>) {
   const line = useOptionalLineContext();
+  const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
   const isDraftReview = draft != null;
   const [to, setTo] = useState(draft?.to ?? '');
   const [recipientName, setRecipientName] = useState(draft?.toName ?? '');
@@ -99,6 +100,10 @@ function OgrProductEmailComposerForm({
 
   async function handleRegenerate() {
     if (!draft || busy) return;
+    if (eaglePeakOutreachBlocked) {
+      setError('Eagle Peak outreach is not enabled');
+      return;
+    }
     if (draft.prospectId == null || !draft.accountContactId || !draft.catalogItemId) {
       setError('Draft is missing CRM associations required to regenerate');
       return;

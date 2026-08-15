@@ -1606,3 +1606,48 @@ No throwaway Eagle Peak or Big Fish RLA was inserted. EP create-OR mock inserts 
 - No commit/push unless separately requested
 
 **Phase 5 territory administration is complete locally.** Do not begin Phase 6 until separately approved. Do not commit/push/deploy unless separately requested.
+
+## Implementation results — Phase 6
+
+**Date:** 2026-08-15  
+**Branch:** `feature/multi-line-multi-territory-implementation`  
+**Scope:** Eagle Peak onboarding readiness behind three default-off flags. Staff may open EP line accounts and log convert/order/call only when `FEATURE_EAGLE_PEAK_SELLING` is on. No invented catalog. No public EP showroom. No Phase 7. No commit/push/deploy. No hosted DB.
+
+### Baseline / reconciliation (local disposable DB)
+
+| Check                            | Result                                                                                                                                                  |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| prospects                        | 607 (Phase 4 start; live recount skipped — Docker daemon not running at completion)                                                                     |
+| OGR non-terminated RLAs          | 607                                                                                                                                                     |
+| OGR catalog items                | 190                                                                                                                                                     |
+| Eagle Peak / Big Fish / BKG RLAs | 0 / 0 / 0 at start; isolation tests mocked (no throwaway EP RLA, order, or catalog invent)                                                              |
+| Line statuses                    | ogr=active CAD, eagle-peak=onboarding USD `active=false`, big-fish=confirmed, bkg=paused                                                                |
+| Flag defaults                    | All three `FEATURE_EAGLE_PEAK_*` off (not `PUBLIC_`). Selling snapshot AND UI AND writes; outreach snapshot AND UI only; public catalog raw/server-only |
+
+### Delivered
+
+- `FEATURE_EAGLE_PEAK_SELLING` / `OUTREACH` / `PUBLIC_CATALOG` readers + `/api/staff/features` snapshot. AuthGate / LineContext wire `eaglePeakSelling` and `eaglePeakOutreach` only (islands cannot read the non-`PUBLIC_` env). Public catalog is omitted from AuthGate / LineContext — enabling it in Phase 6 is a no-op
+- `assertLineAllowsOperationalWrite`: Eagle Peak `onboarding`/`active` + selling snapshot → `allow`. Flag off stays `ui_blocked`. Big Fish stays `ui_blocked`. `bkg` / prospective / declined / terminated stay `reject`
+- Convert remains RLA-only for non-OGR (`prospects.account_status` unchanged; reorder upsert still skipped). Server convert/order reject EP when selling is off
+- `insertOrder`: EP requires `total_amount_cad`; stamps `original_currency=USD` from line default; does not treat USD as CAD 1:1; OGR still rejects USD original
+- Directory: when the current line is Eagle Peak and the selling snapshot is on, Prospects vs Active Accounts split on RLA `relationship_status` (`prospect`/`qualified` vs `opened`). OGR and flag-off keep `account_status`
+- Generate-draft: EP requires outreach snapshot (403 when off); fail-closed 400 on empty catalog. Prep POST / send / cron / `outreachNightlyPrep` signatures unchanged and still have no `salesLineId` / EP recipient selection
+- Public `get_public_ogr_*` still `code = 'ogr'`; no `get_public_eagle_peak_*`; EP `lines.active` stays false
+- Vitest `src/lib/multiLinePhase6EaglePeak.test.ts`; `npm run check` passed (143 files / 879 tests)
+
+### Isolation
+
+No throwaway Eagle Peak RLA, order, or catalog row was inserted. Selling/outreach/currency tests used mocks. Local EP/BF/BKG operational counts were 0 at baseline; no isolation rows to roll back.
+
+### Explicit exclusions honored
+
+- No `FEATURE_BIG_FISH_*` / `FEATURE_PROSPECTIVE_LINES`; Big Fish selling stays blocked
+- No invented/imported Eagle Peak catalog or canopy SKUs; Phase 4 APF stays empty
+- No public EP showroom; `lines.active` / `status` not flipped
+- No Phase 1–5 migration rewrites (EP SLT rows stay `proposed` until staff activates OR/WA in Phase 5 admin)
+- Convert/import/AI / `territoryCodeFromProvince` still do not write `sales_line_territory_id`
+- No Messages/Calendar **list** filtering; no OGR clone
+- Nightly prep/send/cron still OGR-book only. Scoped prep (`salesLineId` on those signatures) is a later change, not Phase 7
+- No commit/push unless separately requested
+
+**Phase 6 Eagle Peak onboarding is complete locally.** Do not begin Phase 7 until separately approved. Do not commit/push/deploy unless separately requested.

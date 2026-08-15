@@ -12,7 +12,25 @@ export type StaffFeatureFlags = {
   FEATURE_MULTI_LINE_AI: boolean;
   /** Enables line-territory rights CRUD. Default off. Not PUBLIC_. */
   FEATURE_LINE_TERRITORY_ADMIN: boolean;
+  /**
+   * Eagle Peak convert / orders / calls / reorder / junction.
+   * Snapshot is selling && UI && writes. Default off. Not PUBLIC_.
+   */
+  FEATURE_EAGLE_PEAK_SELLING: boolean;
+  /**
+   * Staff generate-draft / briefing product pick in Eagle Peak context.
+   * Snapshot is outreach && UI (does not AND writes). Default off. Not PUBLIC_.
+   */
+  FEATURE_EAGLE_PEAK_OUTREACH: boolean;
+  /**
+   * Reserved public EP catalog flag (Phase 6 no-op). Raw server value only.
+   * Default off. Not PUBLIC_. Not wired to AuthGate / LineContext.
+   */
+  FEATURE_EAGLE_PEAK_PUBLIC_CATALOG: boolean;
 };
+
+/** Island snapshot omits the reserved public-catalog flag (no showroom in Phase 6). */
+export type StaffIslandFeatureFlags = Omit<StaffFeatureFlags, 'FEATURE_EAGLE_PEAK_PUBLIC_CATALOG'>;
 
 const TRUTHY = new Set(['1', 'true', 'yes', 'on']);
 
@@ -56,6 +74,21 @@ export function isLineTerritoryAdminEnabled(): boolean {
   return parseFeatureFlag(readEnv('FEATURE_LINE_TERRITORY_ADMIN'));
 }
 
+/** Read FEATURE_EAGLE_PEAK_SELLING from server env (default off). */
+export function isEaglePeakSellingEnabled(): boolean {
+  return parseFeatureFlag(readEnv('FEATURE_EAGLE_PEAK_SELLING'));
+}
+
+/** Read FEATURE_EAGLE_PEAK_OUTREACH from server env (default off). */
+export function isEaglePeakOutreachEnabled(): boolean {
+  return parseFeatureFlag(readEnv('FEATURE_EAGLE_PEAK_OUTREACH'));
+}
+
+/** Read FEATURE_EAGLE_PEAK_PUBLIC_CATALOG from server env (default off). Phase 6 no-op. */
+export function isEaglePeakPublicCatalogEnabled(): boolean {
+  return parseFeatureFlag(readEnv('FEATURE_EAGLE_PEAK_PUBLIC_CATALOG'));
+}
+
 /** Snapshot of staff feature flags for approved-staff API responses. */
 export function getStaffFeatureFlags(): StaffFeatureFlags {
   const ui = isMultiLineUiEnabled();
@@ -67,5 +100,11 @@ export function getStaffFeatureFlags(): StaffFeatureFlags {
     FEATURE_MULTI_LINE_AI: isMultiLineAiEnabled() && ui,
     // Territory admin without the picker has no current salesLineId.
     FEATURE_LINE_TERRITORY_ADMIN: isLineTerritoryAdminEnabled() && ui,
+    // Selling without picker/writes would hit the OGR legacy convert path.
+    FEATURE_EAGLE_PEAK_SELLING: isEaglePeakSellingEnabled() && ui && isMultiLineWritesEnabled(),
+    // Outreach generate-draft needs the picker to send salesLineId; do not AND writes.
+    FEATURE_EAGLE_PEAK_OUTREACH: isEaglePeakOutreachEnabled() && ui,
+    // Reserved; Phase 6 does not add public RPCs or a showroom.
+    FEATURE_EAGLE_PEAK_PUBLIC_CATALOG: isEaglePeakPublicCatalogEnabled(),
   };
 }

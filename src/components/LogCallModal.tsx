@@ -75,6 +75,7 @@ export function LogCallModal({
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
     line.multiLineWrites,
+    line.eaglePeakSelling,
   );
 
   const selected = storeId != null ? prospects.find((p) => p.id === storeId) : undefined;
@@ -138,6 +139,7 @@ export function LogCallModal({
       const ensured = await ensureRetailerLineAccount({
         retailerId: storeId,
         salesLineId: line.salesLineId,
+        eaglePeakSellingEnabled: line.eaglePeakSelling,
       });
       if (ensured.gate === 'reject' || ensured.error || !ensured.data) {
         setError(ensured.error ?? 'Operational writes are not allowed for this line');

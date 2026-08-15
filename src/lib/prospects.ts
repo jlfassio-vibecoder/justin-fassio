@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { AccountStatus, ProspectRow } from '@/types/database';
+import type { AccountStatus, ProspectRow, RelationshipStatus } from '@/types/database';
 import {
   clampSecondaryChannels,
   coercePrimaryRetailChannel,
@@ -99,6 +99,8 @@ export interface Prospect extends ProspectPlanningFields, ProspectTaxonomyFields
   territoryId: string;
   territoryCode: string | null;
   territoryName: string | null;
+  /** Present when fetchProspects is scoped to a sales line (Phase 6 EP directory). */
+  lineRelationshipStatus?: RelationshipStatus | null;
 }
 
 export interface FetchProspectsOptions {
@@ -180,7 +182,7 @@ export async function fetchProspects(options: FetchProspectsOptions = {}): Promi
   if (options.salesLineId) {
     const { data: rlaRows, error: rlaError } = await supabase
       .from('retailer_line_accounts')
-      .select('retailer_id')
+      .select('retailer_id, relationship_status')
       .eq('sales_line_id', options.salesLineId)
       .neq('relationship_status', 'terminated');
 
@@ -188,9 +190,13 @@ export async function fetchProspects(options: FetchProspectsOptions = {}): Promi
       return { data: [], error: rlaError.message };
     }
 
-    const retailerIds = [
-      ...new Set((rlaRows ?? []).map((r) => r.retailer_id).filter((id) => Number.isFinite(id))),
-    ];
+    const statusByRetailer = new Map<number, RelationshipStatus>();
+    for (const row of rlaRows ?? []) {
+      if (Number.isFinite(row.retailer_id)) {
+        statusByRetailer.set(row.retailer_id, row.relationship_status as RelationshipStatus);
+      }
+    }
+    const retailerIds = [...statusByRetailer.keys()];
     if (retailerIds.length === 0) {
       return { data: [], error: null };
     }
@@ -209,7 +215,13 @@ export async function fetchProspects(options: FetchProspectsOptions = {}): Promi
     if (error) {
       return { data: [], error: error.message };
     }
-    return { data: (data ?? []).map(mapProspectRow), error: null };
+    return {
+      data: (data ?? []).map((row) => ({
+        ...mapProspectRow(row),
+        lineRelationshipStatus: statusByRetailer.get(row.id) ?? null,
+      })),
+      error: null,
+    };
   }
 
   let query = supabase.from('prospects').select(PROSPECT_SELECT).order('id', { ascending: true });

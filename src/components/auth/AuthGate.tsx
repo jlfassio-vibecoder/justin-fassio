@@ -17,7 +17,7 @@ import { persistLastLineSlug, readLastLineSlug } from '@/lib/lineContextStorage'
 import { isRepresentedLineCode } from '@/lib/lines';
 import { pingAuthorizedServer } from '@/lib/serverPing';
 import { createStaffAvatarSignedUrl, staffAccountInitials } from '@/lib/staffAccount';
-import type { StaffFeatureFlags } from '@/lib/staffFeatures';
+import type { StaffIslandFeatureFlags } from '@/lib/staffFeatures';
 import type { TabKey } from '@/types';
 
 export type AuthGatePage = 'app' | 'account';
@@ -71,14 +71,16 @@ function StaffToolbarAvatar({
   );
 }
 
-const STAFF_FEATURES_OFF: StaffFeatureFlags = {
+const STAFF_FEATURES_OFF: StaffIslandFeatureFlags = {
   FEATURE_MULTI_LINE_UI: false,
   FEATURE_MULTI_LINE_WRITES: false,
   FEATURE_MULTI_LINE_AI: false,
   FEATURE_LINE_TERRITORY_ADMIN: false,
+  FEATURE_EAGLE_PEAK_SELLING: false,
+  FEATURE_EAGLE_PEAK_OUTREACH: false,
 };
 
-async function fetchStaffFeatures(): Promise<StaffFeatureFlags> {
+async function fetchStaffFeatures(): Promise<StaffIslandFeatureFlags> {
   try {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
@@ -89,12 +91,14 @@ async function fetchStaffFeatures(): Promise<StaffFeatureFlags> {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return STAFF_FEATURES_OFF;
-    const payload = (await res.json()) as { features?: StaffFeatureFlags };
+    const payload = (await res.json()) as { features?: StaffIslandFeatureFlags };
     return {
       FEATURE_MULTI_LINE_UI: Boolean(payload.features?.FEATURE_MULTI_LINE_UI),
       FEATURE_MULTI_LINE_WRITES: Boolean(payload.features?.FEATURE_MULTI_LINE_WRITES),
       FEATURE_MULTI_LINE_AI: Boolean(payload.features?.FEATURE_MULTI_LINE_AI),
       FEATURE_LINE_TERRITORY_ADMIN: Boolean(payload.features?.FEATURE_LINE_TERRITORY_ADMIN),
+      FEATURE_EAGLE_PEAK_SELLING: Boolean(payload.features?.FEATURE_EAGLE_PEAK_SELLING),
+      FEATURE_EAGLE_PEAK_OUTREACH: Boolean(payload.features?.FEATURE_EAGLE_PEAK_OUTREACH),
     };
   } catch {
     return STAFF_FEATURES_OFF;
@@ -116,7 +120,7 @@ function AuthGateInner({
   const [pingBusy, setPingBusy] = useState(false);
   const [pingStatus, setPingStatus] = useState<string | null>(null);
   const [defaultTab] = useState<TabKey | undefined>(() => pathTab ?? tabFromSearch());
-  const [features, setFeatures] = useState<StaffFeatureFlags | null>(null);
+  const [features, setFeatures] = useState<StaffIslandFeatureFlags | null>(null);
   const [featuresLoading, setFeaturesLoading] = useState(page === 'app' || page === 'account');
 
   useEffect(() => {
@@ -144,6 +148,8 @@ function AuthGateInner({
   const multiLineWrites = Boolean(features?.FEATURE_MULTI_LINE_WRITES);
   const multiLineAi = Boolean(features?.FEATURE_MULTI_LINE_AI);
   const multiLineTerritoryAdmin = Boolean(features?.FEATURE_LINE_TERRITORY_ADMIN);
+  const eaglePeakSelling = Boolean(features?.FEATURE_EAGLE_PEAK_SELLING);
+  const eaglePeakOutreach = Boolean(features?.FEATURE_EAGLE_PEAK_OUTREACH);
   const urlLineSlug = lineSlugProp?.trim().toLowerCase() || null;
   const unknownLine = Boolean(urlLineSlug && !isRepresentedLineCode(urlLineSlug));
 
@@ -154,6 +160,8 @@ function AuthGateInner({
   const effectiveMultiLineWrites = staffAppOrAccount ? multiLineWrites : false;
   const effectiveMultiLineAi = staffAppOrAccount ? multiLineAi : false;
   const effectiveMultiLineTerritoryAdmin = staffAppOrAccount ? multiLineTerritoryAdmin : false;
+  const effectiveEaglePeakSelling = staffAppOrAccount ? eaglePeakSelling : false;
+  const effectiveEaglePeakOutreach = staffAppOrAccount ? eaglePeakOutreach : false;
 
   // Flag off + line-prefixed URL → redirect to /app preserving ?tab=
   useEffect(() => {
@@ -259,6 +267,8 @@ function AuthGateInner({
       multiLineWrites={effectiveMultiLineWrites}
       multiLineAi={effectiveMultiLineAi}
       multiLineTerritoryAdmin={effectiveMultiLineTerritoryAdmin}
+      eaglePeakSelling={effectiveEaglePeakSelling}
+      eaglePeakOutreach={effectiveEaglePeakOutreach}
       urlLineSlug={urlLineSlug}
     >
       {page === 'account' ? (

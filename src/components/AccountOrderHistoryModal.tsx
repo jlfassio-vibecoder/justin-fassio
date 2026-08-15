@@ -13,7 +13,8 @@ import {
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { resolveOgrLineId } from '@/lib/lines';
 import { filterOrdersBySeason, type SeasonFilter } from '@/lib/orderAggregates';
-import { insertOrder, type OrderRow } from '@/lib/orders';
+import { insertOrder, buildEaglePeakOrderConversion, type OrderRow } from '@/lib/orders';
+import { loadLandedRatesPersistence } from '@/lib/landedRatesStorage';
 import type { Prospect } from '@/lib/prospects';
 import {
   ensureRetailerLineAccount,
@@ -79,7 +80,21 @@ function OrderHistoryForm({
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
     line.multiLineWrites,
+    line.eaglePeakSelling,
   );
+  const isEpOrder = line.lineSlug === 'eagle-peak' && line.eaglePeakSelling;
+  const [amountUsd, setAmountUsd] = useState('');
+  const [exchangeRate, setExchangeRate] = useState(() =>
+    isEpOrder ? String(loadLandedRatesPersistence().fx) : '',
+  );
+  const epPreview = isEpOrder
+    ? buildEaglePeakOrderConversion({
+        originalAmountUsd: amountUsd,
+        exchangeRate,
+        exchangeRateDate: orderDate,
+      })
+    : null;
+  const epPreviewCad = epPreview?.ok ? epPreview.stamp.total_amount_cad.toFixed(2) : null;
 
   const filteredOrders = useMemo(
     () => filterOrdersBySeason(orders, seasonFilter),
@@ -91,7 +106,18 @@ function OrderHistoryForm({
     setError(null);
 
     const amount = amountCad === '' ? 0 : Number(amountCad);
-    if (Number.isNaN(amount) || amount < 0) {
+    let epStamp: ReturnType<typeof buildEaglePeakOrderConversion> | null = null;
+    if (isEpOrder) {
+      epStamp = buildEaglePeakOrderConversion({
+        originalAmountUsd: amountUsd,
+        exchangeRate,
+        exchangeRateDate: orderDate,
+      });
+      if (!epStamp.ok) {
+        setError(epStamp.error);
+        return;
+      }
+    } else if (Number.isNaN(amount) || amount < 0) {
       setError('Enter a valid order amount (CAD).');
       return;
     }
@@ -103,6 +129,7 @@ function OrderHistoryForm({
       const ensured = await ensureRetailerLineAccount({
         retailerId: account.id,
         salesLineId: line.salesLineId,
+        eaglePeakSellingEnabled: line.eaglePeakSelling,
       });
       if (ensured.gate === 'reject' || ensured.error || !ensured.data) {
         setBusy(false);
@@ -118,7 +145,14 @@ function OrderHistoryForm({
           order_type: orderType,
           season,
           order_date: orderDate,
-          total_amount_cad: amount,
+          total_amount_cad: epStamp?.ok ? epStamp.stamp.total_amount_cad : amount,
+          original_amount: epStamp?.ok ? epStamp.stamp.original_amount : undefined,
+          original_currency: epStamp?.ok ? epStamp.stamp.original_currency : undefined,
+          exchange_rate: epStamp?.ok ? epStamp.stamp.exchange_rate : undefined,
+          exchange_rate_date: epStamp?.ok ? epStamp.stamp.exchange_rate_date : undefined,
+          conversion_source: epStamp?.ok ? epStamp.stamp.conversion_source : undefined,
+          converted_amount: epStamp?.ok ? epStamp.stamp.converted_amount : undefined,
+          converted_currency: epStamp?.ok ? epStamp.stamp.converted_currency : undefined,
           status,
           notes: notes.trim() || null,
         },
@@ -126,6 +160,7 @@ function OrderHistoryForm({
           writesEnabled: true,
           lineCode: meta.data?.code ?? line.lineSlug,
           lineDefaultCurrency: meta.data?.defaultCurrency ?? null,
+          eaglePeakSellingEnabled: line.eaglePeakSelling,
         },
       );
       if (orderResult.error) {
@@ -349,18 +384,47 @@ function OrderHistoryForm({
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel>Amount (CAD)</FieldLabel>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0"
-                  value={amountCad}
-                  onChange={(e) => setAmountCad(e.target.value)}
-                  disabled={busy}
-                />
-              </Field>
+              {isEpOrder ? (
+                <>
+                  <Field>
+                    <FieldLabel>Amount (USD)</FieldLabel>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                      value={amountUsd}
+                      onChange={(e) => setAmountUsd(e.target.value)}
+                      disabled={busy}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>USD to CAD rate</FieldLabel>
+                    <Input
+                      type="number"
+                      min="0.01"
+                      step="0.0001"
+                      placeholder="1.45"
+                      value={exchangeRate}
+                      onChange={(e) => setExchangeRate(e.target.value)}
+                      disabled={busy}
+                    />
+                  </Field>
+                </>
+              ) : (
+                <Field>
+                  <FieldLabel>Amount (CAD)</FieldLabel>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={amountCad}
+                    onChange={(e) => setAmountCad(e.target.value)}
+                    disabled={busy}
+                  />
+                </Field>
+              )}
               <Field>
                 <FieldLabel>Status</FieldLabel>
                 <Select
@@ -376,6 +440,12 @@ function OrderHistoryForm({
                 </Select>
               </Field>
             </div>
+
+            {isEpOrder && epPreviewCad != null ? (
+              <p className="text-ink/60 m-0 text-sm">
+                CAD reporting amount: {epPreviewCad} (rate date = order date)
+              </p>
+            ) : null}
 
             <Field>
               <FieldLabel>Notes</FieldLabel>
