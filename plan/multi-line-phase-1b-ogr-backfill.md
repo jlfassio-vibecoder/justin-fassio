@@ -16,14 +16,14 @@ This document is the **agent-executable** Phase 1B implementation brief. Follow 
 
 ## Locked decisions (no agent discretion)
 
-| Decision | Choice |
-| -------- | ------ |
-| Territory auto-assign | **BC only** → OGR–BC; OR/WA/CA/AB/norcal/unknown → NULL + review queue |
-| Non-OGR `orders`/`calls`.`line_id` | **Hard stop** immediately (no queue-then-fail) |
-| Review-queue uniqueness | **Add** partial unique index `(entity_type, entity_id, reason) WHERE resolved_at IS NULL` in `…120000`; mirror in `schema.sql` |
-| Call estimate multi-currency columns | **Fill** when `order_value_cad IS NOT NULL` and conversion fields null, same CAD/`legacy_cad_column` pattern |
-| `src/types/database.ts` | **Do not change** |
-| Dual-write / UI / API / hosted DB | **Forbidden** in 1B |
+| Decision                             | Choice                                                                                                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| Territory auto-assign                | **BC only** → OGR–BC; OR/WA/CA/AB/norcal/unknown → NULL + review queue                                                         |
+| Non-OGR `orders`/`calls`.`line_id`   | **Hard stop** immediately (no queue-then-fail)                                                                                 |
+| Review-queue uniqueness              | **Add** partial unique index `(entity_type, entity_id, reason) WHERE resolved_at IS NULL` in `…120000`; mirror in `schema.sql` |
+| Call estimate multi-currency columns | **Fill** when `order_value_cad IS NOT NULL` and conversion fields null, same CAD/`legacy_cad_column` pattern                   |
+| `src/types/database.ts`              | **Do not change**                                                                                                              |
+| Dual-write / UI / API / hosted DB    | **Forbidden** in 1B                                                                                                            |
 
 ---
 
@@ -64,12 +64,12 @@ Those remain **Phase 1C** (dual-write) or **Phase 2+** (application cutover).
 
 ## 2. Exact files to create or modify
 
-| File | Action |
-| ---- | ------ |
+| File                                                                    | Action                                                           |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | `supabase/migrations/20260814120000_multi_line_phase1_ogr_backfill.sql` | **Create** — backfill DML, review-queue unique index, assertions |
-| `supabase/schema.sql` | **Modify** — add review-queue partial unique index only |
-| `src/lib/multiLinePhase1bBackfill.test.ts` | **Create** — migration SQL string assertions |
-| `docs/plans/multi-line-phase-1-schema-foundation.md` | **Modify** — 1B implementation-results section after success |
+| `supabase/schema.sql`                                                   | **Modify** — add review-queue partial unique index only          |
+| `src/lib/multiLinePhase1bBackfill.test.ts`                              | **Create** — migration SQL string assertions                     |
+| `docs/plans/multi-line-phase-1-schema-foundation.md`                    | **Modify** — 1B implementation-results section after success     |
 
 **Do not touch:** `src/types/database.ts`, React/API, historical migrations, `…130000`, production/staging data, public RPCs.
 
@@ -202,9 +202,9 @@ Mirror the same index in `supabase/schema.sql` next to the existing `migration_r
 
 | `prospects.account_status` | `relationship_status` |
 | -------------------------- | --------------------- |
-| `prospect` | `prospect` |
-| `active_account` | `opened` |
-| `inactive` | `inactive` |
+| `prospect`                 | `prospect`            |
+| `active_account`           | `opened`              |
+| `inactive`                 | `inactive`            |
 
 Do not invent `qualified` or `terminated`.
 
@@ -220,11 +220,11 @@ Never insert RLAs for Eagle Peak, Big Fish, BKG, or prospective lines.
 
 Join `prospects.territory_id` → `territories.code`. **Never** read address/city/region.
 
-| Geo | `sales_line_territory_id` | `backfill_review_reason` | Review queue |
-| --- | ------------------------- | ------------------------ | ------------ |
-| `bc` | OGR–BC assignment id | NULL | No |
-| `or`, `wa`, `ca`, `ab`, `norcal` | NULL | `non_bc_territory` | Yes |
-| Unknown / join miss | NULL | `ambiguous_territory` | Yes |
+| Geo                              | `sales_line_territory_id` | `backfill_review_reason` | Review queue |
+| -------------------------------- | ------------------------- | ------------------------ | ------------ |
+| `bc`                             | OGR–BC assignment id      | NULL                     | No           |
+| `or`, `wa`, `ca`, `ab`, `norcal` | NULL                      | `non_bc_territory`       | Yes          |
+| Unknown / join miss              | NULL                      | `ambiguous_territory`    | Yes          |
 
 OGR–OR and OGR–WA rights rows remain on `sales_line_territories`. They are **not** auto-attached to retailer accounts.
 
@@ -232,29 +232,29 @@ OGR–OR and OGR–WA rights rows remain on `sales_line_territories`. They are *
 
 Stamp `retailer_line_account_id` to the OGR account for that retailer. Use `WHERE retailer_line_account_id IS NULL`. Skip when parent prospect/account id is null. **Do not delete** anything.
 
-| Source | Join key | Also |
-| ------ | -------- | ---- |
-| `account_contacts` | `account_id` | Insert `retailer_line_contacts` with same `role` / `is_primary`; `ON CONFLICT (retailer_line_account_id, account_contact_id) DO NOTHING` |
-| `orders` | `account_id` | Set `line_id = ogr` where null; fill CAD financials (§4.5) |
-| `calls` | `prospect_id` | Stamp only if prospect exists; set `line_id = ogr` where null **and** prospect exists |
-| `system_messages` | `prospect_id` | Stamp when non-null and prospect exists |
-| `account_reorder_settings` | `account_id` | Stamp |
-| `gmail_thread_links`, `calendar_event_links`, `message_threads` | `prospect_id` | Stamp when non-null and prospect exists |
-| `wholesale_order_requests` | `prospect_id` | Stamp when non-null; **do not** copy USD wholesale totals onto CAD order columns |
-| `account_conversion_attribution` | `prospect_id` | Stamp |
-| `prospect_updates` | `prospect_id` | Stamp when prospect exists (no new `prospect_id` FK) |
+| Source                                                          | Join key      | Also                                                                                                                                     |
+| --------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `account_contacts`                                              | `account_id`  | Insert `retailer_line_contacts` with same `role` / `is_primary`; `ON CONFLICT (retailer_line_account_id, account_contact_id) DO NOTHING` |
+| `orders`                                                        | `account_id`  | Set `line_id = ogr` where null; fill CAD financials (§4.5)                                                                               |
+| `calls`                                                         | `prospect_id` | Stamp only if prospect exists; set `line_id = ogr` where null **and** prospect exists                                                    |
+| `system_messages`                                               | `prospect_id` | Stamp when non-null and prospect exists                                                                                                  |
+| `account_reorder_settings`                                      | `account_id`  | Stamp                                                                                                                                    |
+| `gmail_thread_links`, `calendar_event_links`, `message_threads` | `prospect_id` | Stamp when non-null and prospect exists                                                                                                  |
+| `wholesale_order_requests`                                      | `prospect_id` | Stamp when non-null; **do not** copy USD wholesale totals onto CAD order columns                                                         |
+| `account_conversion_attribution`                                | `prospect_id` | Stamp                                                                                                                                    |
+| `prospect_updates`                                              | `prospect_id` | Stamp when prospect exists (no new `prospect_id` FK)                                                                                     |
 
 **Do not stamp:** `profiles`, catalog tables, `outreach_goal_settings`.
 
 ### 4.5 Null / conflicting `line_id` and CAD financial backfill
 
-| Case | Action |
-| ---- | ------ |
-| `orders.line_id` / `calls.line_id` is non-OGR | Hard stop (preflight); never commit stamps |
-| `orders.line_id` is null | After hard-stop passes, set to OGR and stamp RLA |
-| `calls.line_id` is null and prospect exists | Set to OGR and stamp RLA |
+| Case                                           | Action                                                |
+| ---------------------------------------------- | ----------------------------------------------------- |
+| `orders.line_id` / `calls.line_id` is non-OGR  | Hard stop (preflight); never commit stamps            |
+| `orders.line_id` is null                       | After hard-stop passes, set to OGR and stamp RLA      |
+| `calls.line_id` is null and prospect exists    | Set to OGR and stamp RLA                              |
 | `calls.line_id` is null and prospect is orphan | Leave `line_id` null; queue orphan; do not invent OGR |
-| Catalog / wholesale items / public RPCs | Untouched |
+| Catalog / wholesale items / public RPCs        | Untouched                                             |
 
 **Orders financial fill** (only where `conversion_source IS NULL` or `original_currency IS NULL`):
 
