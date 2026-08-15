@@ -862,6 +862,10 @@ create index if not exists migration_review_queue_unresolved_idx
   on migration_review_queue (entity_type, created_at)
   where resolved_at is null;
 
+create unique index if not exists migration_review_queue_unresolved_entity_uidx
+  on migration_review_queue (entity_type, entity_id, reason)
+  where resolved_at is null;
+
 -- Transitional FKs from operational tables → retailer_line_accounts
 do $$
 begin
