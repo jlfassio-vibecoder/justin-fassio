@@ -437,6 +437,16 @@ export async function assignRetailerLineTerritory(
   if (rlaError) return { ok: false, status: 400, error: rlaError.message };
   if (!rla) return { ok: false, status: 404, error: 'Line account not found' };
 
+  const { data: line, error: lineError } = await client
+    .from('lines')
+    .select('id, code, status')
+    .eq('id', rla.sales_line_id)
+    .maybeSingle();
+  if (lineError) return { ok: false, status: 400, error: lineError.message };
+  if (!line) return { ok: false, status: 400, error: TERRITORY_ADMIN_ERRORS.lineNotAllowed };
+  const writeGate = assertTerritoryAdminWrite(line);
+  if (!writeGate.ok) return writeGate;
+
   const nextId: string | null = input.salesLineTerritoryId;
   if (nextId) {
     const { data: slt, error: sltError } = await client
@@ -507,11 +517,15 @@ export async function fetchAssignableGeosClient(
       rows.map((row) => row.parent_territory_id).filter((id): id is string => Boolean(id)),
     ),
   ];
-  const parents =
-    parentIds.length === 0
-      ? []
-      : ((await supabase.from('territories').select('id, code, name').in('id', parentIds)).data ??
-        []);
+  let parents: Array<{ id: string; code: string; name: string }> = [];
+  if (parentIds.length > 0) {
+    const parentResult = await supabase
+      .from('territories')
+      .select('id, code, name')
+      .in('id', parentIds);
+    if (parentResult.error) return { ok: false, error: parentResult.error.message };
+    parents = parentResult.data ?? [];
+  }
   const parentById = new Map(parents.map((row) => [row.id, row]));
   return {
     ok: true,

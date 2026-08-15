@@ -82,6 +82,7 @@ type MockOpts = {
   } | null;
   sltForAssign?: { id: string; sales_line_id: string; status: string } | null;
   rlaCount?: number;
+  line?: TerritoryAdminLine | null;
 };
 
 function mockClient(opts: MockOpts = {}) {
@@ -98,6 +99,9 @@ function mockClient(opts: MockOpts = {}) {
       }
       if (table === 'retailer_line_accounts') {
         return { data: opts.rla ?? null, error: null, count: opts.rlaCount ?? 0 };
+      }
+      if (table === 'lines') {
+        return { data: opts.line === undefined ? OGR_LINE : opts.line, error: null };
       }
       return { data: null, error: null };
     };
@@ -316,6 +320,27 @@ describe('Phase 5 line + geo allowlists', () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe(TERRITORY_ADMIN_ERRORS.rlaMismatch);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('rejects RLA assign on Big Fish / bkg even if an SLT row exists', async () => {
+    const { client, updates } = mockClient({
+      line: BF_LINE,
+      rla: {
+        id: 'rla-bf',
+        retailer_id: 1,
+        sales_line_id: BF_LINE.id,
+        sales_line_territory_id: null,
+        relationship_status: 'opened',
+      },
+      sltForAssign: { id: 'slt-bf', sales_line_id: BF_LINE.id, status: 'active' },
+    });
+    const result = await assignRetailerLineTerritory(client, {
+      retailerLineAccountId: 'rla-bf',
+      salesLineTerritoryId: 'slt-bf',
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe(TERRITORY_ADMIN_ERRORS.bigFishNotConfigured);
     expect(updates).toHaveLength(0);
   });
 
