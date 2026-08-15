@@ -247,12 +247,18 @@ export function isLineAccountWritePath(
   return Boolean(options?.writesEnabled && options.salesLineId);
 }
 
+export type OperationalWriteOptions = {
+  eaglePeakSellingEnabled?: boolean;
+  bigFishSellingEnabled?: boolean;
+  defaultCurrency?: string | null;
+};
+
 export function assertLineAllowsOperationalWrite(
   line: {
     code: string;
     status: string;
   },
-  options?: { eaglePeakSellingEnabled?: boolean },
+  options?: OperationalWriteOptions,
 ): OperationalWriteGate {
   if (line.status === 'prospective' || line.status === 'declined' || line.status === 'terminated') {
     return 'reject';
@@ -268,27 +274,48 @@ export function assertLineAllowsOperationalWrite(
     }
     return 'ui_blocked';
   }
-  if (line.code === 'big-fish') return 'ui_blocked';
+  if (line.code === 'big-fish') {
+    const currency =
+      typeof options?.defaultCurrency === 'string' ? options.defaultCurrency.trim() : '';
+    if (
+      options?.bigFishSellingEnabled &&
+      currency &&
+      (line.status === 'confirmed' || line.status === 'onboarding' || line.status === 'active')
+    ) {
+      return 'allow';
+    }
+    return 'ui_blocked';
+  }
   return 'reject';
 }
 
 /** Staff selling UI (convert/order/call/reorder/junction) is OGR-only when writes are on. */
 export function isStaffSellingUiBlocked(
-  line: { code: string; status: string } | null,
+  line: { code: string; status: string; defaultCurrency?: string | null } | null,
   writesEnabled: boolean,
-  eaglePeakSellingEnabled = false,
+  options: OperationalWriteOptions = {},
 ): boolean {
   if (!writesEnabled) return false;
   if (!line) return true;
-  return assertLineAllowsOperationalWrite(line, { eaglePeakSellingEnabled }) !== 'allow';
+  return (
+    assertLineAllowsOperationalWrite(line, {
+      eaglePeakSellingEnabled: options.eaglePeakSellingEnabled,
+      bigFishSellingEnabled: options.bigFishSellingEnabled,
+      defaultCurrency: options.defaultCurrency ?? line.defaultCurrency,
+    }) !== 'allow'
+  );
 }
 
-/** When the EP selling snapshot is on, split the current line's directory on RLA status. */
+/** When a non-OGR selling snapshot is on, split the current line's directory on RLA status. */
 export function usesLineRelationshipDirectorySplit(options: {
   eaglePeakSelling: boolean;
+  bigFishSelling?: boolean;
   lineCode: string | null | undefined;
 }): boolean {
-  return Boolean(options.eaglePeakSelling && options.lineCode === 'eagle-peak');
+  return Boolean(
+    (options.eaglePeakSelling && options.lineCode === 'eagle-peak') ||
+    (options.bigFishSelling && options.lineCode === 'big-fish'),
+  );
 }
 
 export function splitDirectoryByAccountOrLineRelationship<
@@ -359,6 +386,7 @@ export async function ensureRetailerLineAccount(input: {
   retailerId: number;
   salesLineId: string;
   eaglePeakSellingEnabled?: boolean;
+  bigFishSellingEnabled?: boolean;
 }): Promise<{
   data: RetailerLineAccountRow | null;
   error: string | null;
@@ -371,6 +399,8 @@ export async function ensureRetailerLineAccount(input: {
 
   const gate = assertLineAllowsOperationalWrite(line.data, {
     eaglePeakSellingEnabled: input.eaglePeakSellingEnabled,
+    bigFishSellingEnabled: input.bigFishSellingEnabled,
+    defaultCurrency: line.data.defaultCurrency,
   });
   if (gate === 'reject') {
     return { data: null, error: 'Operational writes are not allowed for this line', gate };

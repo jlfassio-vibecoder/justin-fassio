@@ -73,9 +73,15 @@ export function LogCallModal({
   const [convertPrefillCad, setConvertPrefillCad] = useState<number | null>(null);
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
-    line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
+    line.lineSlug && line.status
+      ? { code: line.lineSlug, status: line.status, defaultCurrency: line.defaultCurrency }
+      : null,
     line.multiLineWrites,
-    line.eaglePeakSelling,
+    {
+      eaglePeakSellingEnabled: line.eaglePeakSelling,
+      bigFishSellingEnabled: line.bigFishSelling,
+      defaultCurrency: line.defaultCurrency,
+    },
   );
 
   const selected = storeId != null ? prospects.find((p) => p.id === storeId) : undefined;
@@ -140,6 +146,7 @@ export function LogCallModal({
         retailerId: storeId,
         salesLineId: line.salesLineId,
         eaglePeakSellingEnabled: line.eaglePeakSelling,
+        bigFishSellingEnabled: line.bigFishSelling,
       });
       if (ensured.gate === 'reject' || ensured.error || !ensured.data) {
         setError(ensured.error ?? 'Operational writes are not allowed for this line');

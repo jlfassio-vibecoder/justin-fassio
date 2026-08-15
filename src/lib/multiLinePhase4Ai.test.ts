@@ -32,6 +32,8 @@ function epCtx(overrides: Partial<StaffAiContext> = {}): StaffAiContext {
       currency: 'USD',
       icp: '',
       rubric: '',
+      researchNotes: '',
+      geoInterest: '',
     },
     retailerLineAccountId: '22222222-2222-4222-8222-222222222222',
     retailerId: 1,

@@ -5,6 +5,7 @@ import { OwnerWholesaleBuyersPanel } from '@/components/auth/OwnerWholesaleBuyer
 import { PendingApprovalScreen } from '@/components/auth/PendingApprovalScreen';
 import { WrongPortalScreen } from '@/components/auth/WrongPortalScreen';
 import { StaffAccountPage } from '@/components/staff/StaffAccountPage';
+import { ProspectiveLinesWorkspace } from '@/components/ProspectiveLinesWorkspace';
 import { RepCommandCenter } from '@/components/RepCommandCenter';
 import { AIAssistantModal } from '@/components/ui/AIAssistantModal';
 import { Button } from '@/components/ui/Button';
@@ -20,7 +21,7 @@ import { createStaffAvatarSignedUrl, staffAccountInitials } from '@/lib/staffAcc
 import type { StaffIslandFeatureFlags } from '@/lib/staffFeatures';
 import type { TabKey } from '@/types';
 
-export type AuthGatePage = 'app' | 'account';
+export type AuthGatePage = 'app' | 'account' | 'prospective';
 
 const TAB_KEYS: TabKey[] = [
   'briefing',
@@ -78,6 +79,9 @@ const STAFF_FEATURES_OFF: StaffIslandFeatureFlags = {
   FEATURE_LINE_TERRITORY_ADMIN: false,
   FEATURE_EAGLE_PEAK_SELLING: false,
   FEATURE_EAGLE_PEAK_OUTREACH: false,
+  FEATURE_BIG_FISH_SELLING: false,
+  FEATURE_BIG_FISH_OUTREACH: false,
+  FEATURE_PROSPECTIVE_LINES: false,
 };
 
 async function fetchStaffFeatures(): Promise<StaffIslandFeatureFlags> {
@@ -99,6 +103,9 @@ async function fetchStaffFeatures(): Promise<StaffIslandFeatureFlags> {
       FEATURE_LINE_TERRITORY_ADMIN: Boolean(payload.features?.FEATURE_LINE_TERRITORY_ADMIN),
       FEATURE_EAGLE_PEAK_SELLING: Boolean(payload.features?.FEATURE_EAGLE_PEAK_SELLING),
       FEATURE_EAGLE_PEAK_OUTREACH: Boolean(payload.features?.FEATURE_EAGLE_PEAK_OUTREACH),
+      FEATURE_BIG_FISH_SELLING: Boolean(payload.features?.FEATURE_BIG_FISH_SELLING),
+      FEATURE_BIG_FISH_OUTREACH: Boolean(payload.features?.FEATURE_BIG_FISH_OUTREACH),
+      FEATURE_PROSPECTIVE_LINES: Boolean(payload.features?.FEATURE_PROSPECTIVE_LINES),
     };
   } catch {
     return STAFF_FEATURES_OFF;
@@ -121,7 +128,9 @@ function AuthGateInner({
   const [pingStatus, setPingStatus] = useState<string | null>(null);
   const [defaultTab] = useState<TabKey | undefined>(() => pathTab ?? tabFromSearch());
   const [features, setFeatures] = useState<StaffIslandFeatureFlags | null>(null);
-  const [featuresLoading, setFeaturesLoading] = useState(page === 'app' || page === 'account');
+  const [featuresLoading, setFeaturesLoading] = useState(
+    page === 'app' || page === 'account' || page === 'prospective',
+  );
 
   useEffect(() => {
     if (!loading && configured && !session) {
@@ -130,7 +139,11 @@ function AuthGateInner({
   }, [loading, configured, session]);
 
   useEffect(() => {
-    if ((page !== 'app' && page !== 'account') || !session || !isApprovedStaff(profile)) {
+    if (
+      (page !== 'app' && page !== 'account' && page !== 'prospective') ||
+      !session ||
+      !isApprovedStaff(profile)
+    ) {
       return;
     }
     let active = true;
@@ -150,11 +163,16 @@ function AuthGateInner({
   const multiLineTerritoryAdmin = Boolean(features?.FEATURE_LINE_TERRITORY_ADMIN);
   const eaglePeakSelling = Boolean(features?.FEATURE_EAGLE_PEAK_SELLING);
   const eaglePeakOutreach = Boolean(features?.FEATURE_EAGLE_PEAK_OUTREACH);
+  const bigFishSelling = Boolean(features?.FEATURE_BIG_FISH_SELLING);
+  const bigFishOutreach = Boolean(features?.FEATURE_BIG_FISH_OUTREACH);
   const urlLineSlug = lineSlugProp?.trim().toLowerCase() || null;
   const unknownLine = Boolean(urlLineSlug && !isRepresentedLineCode(urlLineSlug));
 
+  const prospectiveLines = Boolean(features?.FEATURE_PROSPECTIVE_LINES);
   const staffAppOrAccount =
-    (page === 'app' || page === 'account') && Boolean(session) && isApprovedStaff(profile);
+    (page === 'app' || page === 'account' || page === 'prospective') &&
+    Boolean(session) &&
+    isApprovedStaff(profile);
   const effectiveFeaturesLoading = staffAppOrAccount ? featuresLoading : false;
   const effectiveMultiLineUi = staffAppOrAccount ? multiLineUi : false;
   const effectiveMultiLineWrites = staffAppOrAccount ? multiLineWrites : false;
@@ -162,6 +180,15 @@ function AuthGateInner({
   const effectiveMultiLineTerritoryAdmin = staffAppOrAccount ? multiLineTerritoryAdmin : false;
   const effectiveEaglePeakSelling = staffAppOrAccount ? eaglePeakSelling : false;
   const effectiveEaglePeakOutreach = staffAppOrAccount ? eaglePeakOutreach : false;
+  const effectiveBigFishSelling = staffAppOrAccount ? bigFishSelling : false;
+  const effectiveBigFishOutreach = staffAppOrAccount ? bigFishOutreach : false;
+
+  // Flag off + prospective URLs → redirect to /app
+  useEffect(() => {
+    if (page !== 'prospective' || effectiveFeaturesLoading || features == null) return;
+    if (features.FEATURE_PROSPECTIVE_LINES) return;
+    window.location.replace('/app');
+  }, [page, effectiveFeaturesLoading, features]);
 
   // Flag off + line-prefixed URL → redirect to /app preserving ?tab=
   useEffect(() => {
@@ -224,12 +251,37 @@ function AuthGateInner({
     return <PendingApprovalScreen email={user?.email} variant="pending" />;
   }
 
-  if (featuresLoading && (page === 'app' || page === 'account') && isApprovedStaff(profile)) {
+  if (
+    featuresLoading &&
+    (page === 'app' || page === 'account' || page === 'prospective') &&
+    isApprovedStaff(profile)
+  ) {
     return (
       <div className="text-ink/60 flex min-h-dvh items-center justify-center px-6 text-sm">
         Checking session…
       </div>
     );
+  }
+
+  if (page === 'prospective' && !effectiveFeaturesLoading && features != null) {
+    if (!features.FEATURE_PROSPECTIVE_LINES) {
+      return (
+        <div className="text-ink/60 flex min-h-dvh items-center justify-center px-6 text-sm">
+          Redirecting…
+        </div>
+      );
+    }
+    if (!isApprovedOwner(profile)) {
+      return (
+        <div className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-3 px-6">
+          <h1 className="m-0 text-2xl">Forbidden</h1>
+          <p className="text-ink/70 m-0 text-sm">Prospective Lines is available to owners only.</p>
+          <a href="/app" className="font-heading text-accent-700 no-underline">
+            Back to command center
+          </a>
+        </div>
+      );
+    }
   }
 
   if (page === 'app' && effectiveMultiLineUi && unknownLine) {
@@ -261,35 +313,45 @@ function AuthGateInner({
     );
   }
 
-  const appShell = (
-    <LineProvider
-      multiLineUi={effectiveMultiLineUi}
-      multiLineWrites={effectiveMultiLineWrites}
-      multiLineAi={effectiveMultiLineAi}
-      multiLineTerritoryAdmin={effectiveMultiLineTerritoryAdmin}
-      eaglePeakSelling={effectiveEaglePeakSelling}
-      eaglePeakOutreach={effectiveEaglePeakOutreach}
-      urlLineSlug={urlLineSlug}
-    >
-      {page === 'account' ? (
-        <StaffAccountPage />
-      ) : (
-        <RepCommandCenter
-          defaultTab={defaultTab}
-          multiLineUi={effectiveMultiLineUi}
-          lineAccountId={lineAccountId}
-        />
-      )}
-    </LineProvider>
-  );
+  const appShell =
+    page === 'prospective' ? (
+      <ProspectiveLinesWorkspace lineSlug={urlLineSlug} />
+    ) : (
+      <LineProvider
+        multiLineUi={effectiveMultiLineUi}
+        multiLineWrites={effectiveMultiLineWrites}
+        multiLineAi={effectiveMultiLineAi}
+        multiLineTerritoryAdmin={effectiveMultiLineTerritoryAdmin}
+        eaglePeakSelling={effectiveEaglePeakSelling}
+        eaglePeakOutreach={effectiveEaglePeakOutreach}
+        bigFishSelling={effectiveBigFishSelling}
+        bigFishOutreach={effectiveBigFishOutreach}
+        urlLineSlug={urlLineSlug}
+      >
+        {page === 'account' ? (
+          <StaffAccountPage />
+        ) : (
+          <RepCommandCenter
+            defaultTab={defaultTab}
+            multiLineUi={effectiveMultiLineUi}
+            lineAccountId={lineAccountId}
+          />
+        )}
+      </LineProvider>
+    );
 
   return (
     <AiAssistProvider>
       <div>
         <div className="border-ink/10 bg-surface/60 text-ink/70 flex flex-wrap items-center justify-end gap-3 border-b px-7 py-2 text-xs">
-          {page === 'account' ? (
+          {page === 'account' || page === 'prospective' ? (
             <a href="/app" className="text-ink/80 hover:text-ink no-underline">
               Command Center
+            </a>
+          ) : null}
+          {isApprovedOwner(profile) && prospectiveLines ? (
+            <a href="/app/prospective-lines" className="text-ink/80 hover:text-ink no-underline">
+              Prospective Lines
             </a>
           ) : null}
           <a

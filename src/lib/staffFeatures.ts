@@ -27,10 +27,33 @@ export type StaffFeatureFlags = {
    * Default off. Not PUBLIC_. Not wired to AuthGate / LineContext.
    */
   FEATURE_EAGLE_PEAK_PUBLIC_CATALOG: boolean;
+  /**
+   * Big Fish convert / orders / calls / reorder / junction.
+   * Snapshot is selling && UI && writes. Default off. Not PUBLIC_.
+   */
+  FEATURE_BIG_FISH_SELLING: boolean;
+  /**
+   * Staff generate-draft / briefing product pick in Big Fish context.
+   * Snapshot is outreach && UI (does not AND writes). Default off. Not PUBLIC_.
+   */
+  FEATURE_BIG_FISH_OUTREACH: boolean;
+  /**
+   * Reserved public BF catalog flag (Phase 7 no-op). Raw server value only.
+   * Default off. Not PUBLIC_. Not wired to AuthGate / LineContext.
+   */
+  FEATURE_BIG_FISH_PUBLIC_CATALOG: boolean;
+  /**
+   * Owner Prospective Lines acquisition workspace.
+   * Snapshot is prospective && UI (does not AND writes). Default off. Not PUBLIC_.
+   */
+  FEATURE_PROSPECTIVE_LINES: boolean;
 };
 
-/** Island snapshot omits the reserved public-catalog flag (no showroom in Phase 6). */
-export type StaffIslandFeatureFlags = Omit<StaffFeatureFlags, 'FEATURE_EAGLE_PEAK_PUBLIC_CATALOG'>;
+/** Island snapshot omits reserved public-catalog flags (no EP/BF showroom). */
+export type StaffIslandFeatureFlags = Omit<
+  StaffFeatureFlags,
+  'FEATURE_EAGLE_PEAK_PUBLIC_CATALOG' | 'FEATURE_BIG_FISH_PUBLIC_CATALOG'
+>;
 
 const TRUTHY = new Set(['1', 'true', 'yes', 'on']);
 
@@ -89,6 +112,26 @@ export function isEaglePeakPublicCatalogEnabled(): boolean {
   return parseFeatureFlag(readEnv('FEATURE_EAGLE_PEAK_PUBLIC_CATALOG'));
 }
 
+/** Read FEATURE_BIG_FISH_SELLING from server env (default off). */
+export function isBigFishSellingEnabled(): boolean {
+  return parseFeatureFlag(readEnv('FEATURE_BIG_FISH_SELLING'));
+}
+
+/** Read FEATURE_BIG_FISH_OUTREACH from server env (default off). */
+export function isBigFishOutreachEnabled(): boolean {
+  return parseFeatureFlag(readEnv('FEATURE_BIG_FISH_OUTREACH'));
+}
+
+/** Read FEATURE_BIG_FISH_PUBLIC_CATALOG from server env (default off). Phase 7 no-op. */
+export function isBigFishPublicCatalogEnabled(): boolean {
+  return parseFeatureFlag(readEnv('FEATURE_BIG_FISH_PUBLIC_CATALOG'));
+}
+
+/** Read FEATURE_PROSPECTIVE_LINES from server env (default off). */
+export function isProspectiveLinesEnabled(): boolean {
+  return parseFeatureFlag(readEnv('FEATURE_PROSPECTIVE_LINES'));
+}
+
 /** Snapshot of staff feature flags for approved-staff API responses. */
 export function getStaffFeatureFlags(): StaffFeatureFlags {
   const ui = isMultiLineUiEnabled();
@@ -106,5 +149,13 @@ export function getStaffFeatureFlags(): StaffFeatureFlags {
     FEATURE_EAGLE_PEAK_OUTREACH: isEaglePeakOutreachEnabled() && ui,
     // Reserved; Phase 6 does not add public RPCs or a showroom.
     FEATURE_EAGLE_PEAK_PUBLIC_CATALOG: isEaglePeakPublicCatalogEnabled(),
+    // Selling without picker/writes would hit the OGR legacy convert path.
+    FEATURE_BIG_FISH_SELLING: isBigFishSellingEnabled() && ui && isMultiLineWritesEnabled(),
+    // Outreach generate-draft needs the picker to send salesLineId; do not AND writes.
+    FEATURE_BIG_FISH_OUTREACH: isBigFishOutreachEnabled() && ui,
+    // Reserved; Phase 7 does not add public RPCs or a showroom.
+    FEATURE_BIG_FISH_PUBLIC_CATALOG: isBigFishPublicCatalogEnabled(),
+    // Acquisition workspace without the picker has no line routes.
+    FEATURE_PROSPECTIVE_LINES: isProspectiveLinesEnabled() && ui,
   };
 }

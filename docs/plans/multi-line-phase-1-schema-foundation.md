@@ -1651,3 +1651,99 @@ No throwaway Eagle Peak RLA, order, or catalog row was inserted. Selling/outreac
 - No commit/push unless separately requested
 
 **Phase 6 Eagle Peak onboarding is complete locally.** Do not begin Phase 7 until separately approved. Do not commit/push/deploy unless separately requested.
+
+## Implementation results — Phase 7
+
+**Date:** 2026-08-15  
+**Branch:** `feature/multi-line-multi-territory-implementation`  
+**Scope:** Big Fish configuration readiness behind three default-off flags. Commercial terms stay null/empty. Selling stays blocked until `default_currency` is set by a later data-only change. No invented catalog or territories. No Phase 8. No commit/push/deploy. No hosted DB.
+
+### Baseline / reconciliation (local disposable DB)
+
+| Check                            | Result                                                                                                                                                |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| prospects                        | 607 (Phase 4 start; live recount skipped — Docker daemon not running at completion)                                                                   |
+| OGR non-terminated RLAs          | 607                                                                                                                                                   |
+| OGR catalog items                | 190                                                                                                                                                   |
+| Eagle Peak / Big Fish / BKG RLAs | 0 / 0 / 0 at start; isolation tests mocked (no throwaway BF RLA, order, SLT, or catalog invent)                                                       |
+| Line statuses                    | ogr=active CAD, eagle-peak=onboarding USD `active=false`, big-fish=confirmed currency/commission null `active=false`, bkg=paused                      |
+| Flag defaults                    | All three `FEATURE_BIG_FISH_*` off (not `PUBLIC_`). Selling snapshot AND UI AND writes; outreach snapshot AND UI only; public catalog raw/server-only |
+
+### Delivered
+
+- `FEATURE_BIG_FISH_SELLING` / `OUTREACH` / `PUBLIC_CATALOG` readers + `/api/staff/features` snapshot. AuthGate / LineContext wire `bigFishSelling` and `bigFishOutreach` only (islands cannot read the non-`PUBLIC_` env). Public catalog is omitted from AuthGate / LineContext / `StaffIslandFeatureFlags` — enabling it in Phase 7 is a no-op
+- `assertLineAllowsOperationalWrite`: Big Fish `confirmed`/`onboarding`/`active` + selling snapshot + non-empty `default_currency` → `allow`. Current seed (confirmed, null currency) stays `ui_blocked` even with the selling flag on. Eagle Peak gates unchanged. `bkg` / prospective / declined / terminated stay `reject`
+- Convert remains RLA-only for non-OGR (`prospects.account_status` unchanged; reorder upsert still skipped). Server convert/order reject BF when selling is off or currency is missing
+- `insertOrder`: BF rejects missing/blank `default_currency` before the CAD fallback; USD fixture reuses `buildEaglePeakOrderConversion` and forces `conversion_source=staff_usd_cad`; non-USD original rejected; unknown currency rejected; OGR still rejects USD original
+- Directory: when the current line is Big Fish and the selling snapshot is on, Prospects vs Active Accounts split on RLA `relationship_status`. LineContext exposes `defaultCurrency` from the existing `LINE_SELECT` so the UI gate matches the server gate
+- Generate-draft: BF requires outreach snapshot (403 when off); fail-closed 400 on empty catalog (same helper as EP). Prep POST / send / cron / `outreachNightlyPrep` signatures unchanged and still have no `salesLineId` / BF recipient selection
+- Public `get_public_ogr_*` still `code = 'ogr'`; no `get_public_big_fish_*`; BF `lines.active` stays false; territory admin stays `bigFishNotConfigured` with no `BF_ALLOWED_GEO`
+- Vitest `src/lib/multiLinePhase7BigFish.test.ts`; `npm run check` passed (144 files / 895 tests)
+
+### Isolation
+
+No throwaway Big Fish RLA, order, SLT, or catalog row was inserted. Selling/outreach/currency tests used mocks. Local EP/BF/BKG operational counts were 0 at baseline; no isolation rows to roll back.
+
+### Explicit exclusions honored
+
+- No invented Big Fish legal name, currency, commission, territories, or catalog; no status auto-flip; no status-admin UI
+- No `FEATURE_PROSPECTIVE_LINES` / `retailer_line_targets` writers / `/app/prospective-lines`
+- No public BF showroom; `lines.active` / `status` not flipped
+- No Phase 1–6 migration rewrites
+- Convert/import/AI / `territoryCodeFromProvince` still do not write `sales_line_territory_id`
+- No Messages/Calendar **list** filtering; no OGR/EP clone
+- Nightly prep/send/cron still OGR-book only. Scoped prep (`salesLineId` on those signatures) is a later change, not Phase 8
+- No commit/push unless separately requested
+
+**Phase 7 Big Fish configuration readiness is complete locally.** Do not begin Phase 8 until separately approved. Do not commit/push/deploy unless separately requested.
+
+## Implementation results — Phase 8
+
+**Date:** 2026-08-15  
+**Branch:** `feature/multi-line-multi-territory-implementation`  
+**Scope:** Owner-only Prospective Lines acquisition workspace behind `FEATURE_PROSPECTIVE_LINES`. Research + retailer targets only. Promote/decline never create RLAs. No picker expansion. No Phase 9. No commit/push/deploy. No hosted DB.
+
+### Baseline / reconciliation (local disposable DB)
+
+| Check                            | Result                                                                                          |
+| -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| prospects                        | 607 (Phase 4 start; live recount skipped)                                                       |
+| OGR non-terminated RLAs          | 607                                                                                             |
+| OGR catalog items                | 190                                                                                             |
+| Eagle Peak / Big Fish / BKG RLAs | 0 / 0 / 0 at start; isolation tests mocked (no throwaway prospective RLA, order, or catalog)    |
+| Prospective line rows / targets  | 0 / 0 at start; create/promote/target tests mocked                                              |
+| Flag default                     | `FEATURE_PROSPECTIVE_LINES` off (not `PUBLIC_`). Snapshot AND UI only; does not AND writes       |
+
+### Delivered
+
+- `FEATURE_PROSPECTIVE_LINES` reader + `/api/staff/features` snapshot (`prospective && UI`). AuthGate wires the island snapshot; LineContext is unchanged. Islands cannot read the non-`PUBLIC_` env
+- Owner gate: `requireApprovedOwnerClient` (`is_approved_owner()`). Reps: no nav, APIs 403. Flag off: `/app/prospective-lines` redirects to `/app`; APIs 403
+- Routes: `/app/prospective-lines` list + `/app/prospective-lines/:lineSlug` research workspace. Prospective slugs are not mounted on `/app/lines/:lineSlug`. Owner toolbar link when snapshot is on (not a picker chip)
+- Owner APIs for prospective CRUD, targets, and promote/decline. Soft cap 12 (`warned: true` on the 13th). Reserved codes `ogr` / `eagle-peak` / `big-fish` / `bkg`. Create defaults: `status=prospective`, `active=false`, null currency/commission, new principal, empty-catalog research `ai_profile`. Research notes live in `lines.ai_profile` (`icp`, `researchNotes`, `geoInterest`). No `sales_line_territories` writes
+- Targets use `retailer_line_targets` only. Opening a target does not call `ensureRetailerLineAccount`. Islands do not `insert` `lines` or `retailer_line_targets`
+- Promote/decline: POST `{ status: 'confirmed' | 'onboarding' | 'declined' }`, nulls `acquisition_stage`, does not set `active=true`, does not insert RLAs. Targets remaining → 409 (Phase 1A trigger kept)
+- generate-draft `research_only` → **403**. `insertOrder` / convert refuse prospective via `assertProspectiveOperationalWriteForbidden` (no CAD fallback). Prep/send/cron signatures unchanged (still OGR-only). No `get_public_*` for prospective
+- Vitest `src/lib/multiLinePhase8Prospective.test.ts`; `npm run check` passed (145 files / 906 tests)
+
+### Isolation
+
+No throwaway prospective line, target, RLA, or order row was inserted against the local DB. Create/promote/target/order tests used mocks. Represented picker and EP/BF/BKG operational counts were not changed.
+
+### Follow-up (not Phase 9)
+
+Promoted lines are represented in DB (`confirmed` / `onboarding`) but stay out of the v1 picker. `LineKey` / `REPRESENTED_LINE_CODES` remain `ogr` / `eagle-peak` / `big-fish`. Do not add promoted slugs to `/app/lines/*` until a later picker expansion.
+
+### Explicit exclusions honored
+
+- No `LineKey` / represented picker / `/app/lines/:newSlug` expansion
+- No invented candidate names, catalogs, currencies, commissions, or territories
+- No auto-creating RLAs or SLT from targets; Phase 1A `lines_leave_prospective_without_targets` kept
+- No Phase 1–7 migration rewrites
+- No `salesLineId` on prep/send/cron
+- No public showroom / `get_public_*` for prospective
+- No quotes table; no convert/order/outreach chrome on the acquisition workspace
+- No EP/BF selling flag changes; no Phase 9 dual-write drop / `staff_line_memberships` RLS
+- No commit/push unless separately requested
+
+**Phase 8 Prospective Lines acquisition pipeline is complete locally.** Do not begin Phase 9 until separately approved. Do not commit/push/deploy unless separately requested.
+
