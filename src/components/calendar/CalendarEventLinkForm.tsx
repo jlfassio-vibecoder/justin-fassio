@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import type { CalendarEventLinkPublic } from '@/lib/google/calendarEventLinks';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import {
   confirmCalendarEventLinkClient,
   getCalendarEventLinkStateClient,
@@ -20,6 +21,7 @@ export function CalendarEventLinkForm({
   onLinked,
   onUnlinked,
 }: CalendarEventLinkFormProps) {
+  const line = useOptionalLineContext();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +82,7 @@ export function CalendarEventLinkForm({
     const result = await confirmCalendarEventLinkClient({
       eventId,
       prospectId,
+      salesLineId: line.multiLineWrites ? line.salesLineId : null,
     });
     setBusy(false);
     if (!result.ok) {

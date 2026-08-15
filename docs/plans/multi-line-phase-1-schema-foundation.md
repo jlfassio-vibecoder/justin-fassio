@@ -1478,3 +1478,45 @@ Foundation §13 / executable plan §4.3 specified `AFTER INSERT ON account_conta
 - No hosted/staging/production DB access; no commit/push unless separately requested
 
 **Phase 2 line-context reads are complete locally.** Do not begin Phase 3 until separately approved.
+
+## Implementation results — Phase 3
+
+**Date:** 2026-08-15  
+**Branch:** `feature/multi-line-multi-territory-implementation`  
+**Scope:** Writes on line accounts (`FEATURE_MULTI_LINE_WRITES` server flag, default off). No EP/BF selling flags. No AI / territory admin / Messages-Calendar list filtering. No commit/push/deploy. No hosted DB. No Phase 4.
+
+### Baseline / reconciliation (local disposable DB)
+
+| Check                            | Result                                                            |
+| -------------------------------- | ----------------------------------------------------------------- |
+| prospects                        | 607                                                               |
+| OGR non-terminated RLAs          | 607                                                               |
+| OGR catalog items                | 190                                                               |
+| Eagle Peak / Big Fish / BKG RLAs | 0 / 0 / 0 after isolation cleanup                                 |
+| outreach_goal_settings           | 1 row, `sales_line_id` NOT NULL → ogr                             |
+| Line statuses                    | ogr=active, eagle-peak=onboarding, big-fish=confirmed, bkg=paused |
+| Flag default                     | `FEATURE_MULTI_LINE_WRITES` off (not `PUBLIC_`)                   |
+
+### Delivered
+
+- `FEATURE_MULTI_LINE_WRITES` on `StaffFeatureFlags` + `/api/staff/features` snapshot; AuthGate / LineContext wiring (client cannot read the non-`PUBLIC_` env)
+- Additive `supabase/migrations/20260815120000_multi_line_phase3_write_guards.sql` (1C `…130000` file untouched): goal `sales_line_id` backfill then NOT NULL; operational write guards; order/call `line_id`↔RLA match; `CREATE OR REPLACE` fillers so represented non-OGR `line_id` is not overwritten with OGR
+- RLA helpers: `assertLineAllowsOperationalWrite`, `ensureRetailerLineAccount`, status/notes/junction
+- Flag-on writers: convert/demote dual-write OGR; EP/BF RLA-only; orders stamp CAD/`legacy_cad_column` (no USD on OGR); notes/contacts/calls/reorder/attribution
+- Staff selling UI blocked for EP/BF (`ui_blocked` / `reject`)
+- New Gmail/Calendar/thread **link stamps** when line context is known; list helpers remain prospect-global
+- Per-line outreach goals GET/PATCH (`sales_line_id`); missing EP/BF → empty/zero; prep/send/cron signatures unchanged
+- Vitest `src/lib/multiLinePhase3Writes.test.ts`; `npm run check` passed (140 files / 843 tests)
+
+### Isolation
+
+Throwaway Eagle Peak RLA on retailer `1` (existing OGR prospect): RLA set `opened`; `prospects.account_status` and `converted_at` unchanged. Mismatched `line_id`/RLA insert rejected. `bkg` RLA insert rejected. EP/BF/BKG operational counts returned to 0.
+
+### Explicit exclusions honored
+
+- No `FEATURE_EAGLE_PEAK_*` / Big Fish selling flags; no staff convert/order/call/reorder/junction for EP/BF
+- No Phase 1C migration rewrite; no AI prompt changes; no territory admin; no hosted DB
+- No Messages/Calendar **list** filtering; no prep/send/cron signature changes
+- No commit/push unless separately requested
+
+**Phase 3 writes on line accounts are complete locally.** Do not begin Phase 4 until separately approved. Do not commit/push/deploy unless separately requested.

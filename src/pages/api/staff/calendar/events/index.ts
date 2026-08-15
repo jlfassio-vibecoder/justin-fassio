@@ -22,6 +22,8 @@ import {
   CalendarValidationError,
   parseCalendarEventWriteBody,
 } from '@/lib/google/calendarValidation';
+import { parseOptionalSalesLineId } from '@/lib/resolveSalesLineQuery';
+import { isMultiLineWritesEnabled } from '@/lib/staffFeatures';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
 
 export const prerender = false;
@@ -57,6 +59,12 @@ function parseOptionalContactId(body: unknown): string | null {
   if (body == null || typeof body !== 'object') return null;
   const raw = (body as { accountContactId?: unknown }).accountContactId;
   return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
+}
+
+function parseOptionalLineIdFromBody(body: unknown): string | null {
+  if (body == null || typeof body !== 'object') return null;
+  if (!isMultiLineWritesEnabled()) return null;
+  return parseOptionalSalesLineId((body as { salesLineId?: unknown }).salesLineId);
 }
 
 function cacheFromEvent(event: CalendarEventDetail) {
@@ -120,6 +128,7 @@ export const POST: APIRoute = async ({ request }) => {
     const input = parseCalendarEventWriteBody(body);
     const prospectId = parseOptionalProspectId(body);
     const accountContactId = parseOptionalContactId(body);
+    const salesLineId = parseOptionalLineIdFromBody(body);
     const { accessToken, connection } = await withCalendarToken(gate.userId);
     const event = await createCalendarEvent({ accessToken, input });
 
@@ -134,6 +143,7 @@ export const POST: APIRoute = async ({ request }) => {
         googleEventId: event.id,
         prospectId,
         accountContactId,
+        salesLineId,
         calendarId: PRIMARY_CALENDAR_ID,
         cache: cacheFromEvent(event),
       });

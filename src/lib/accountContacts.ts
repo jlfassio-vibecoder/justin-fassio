@@ -267,8 +267,38 @@ export async function searchContactsByName(
   return { data: hits, error: null };
 }
 
+async function maybeUpsertLineContactJunction(
+  contact: AccountContact,
+  options?: { writesEnabled?: boolean; salesLineId?: string | null },
+): Promise<string | null> {
+  if (!options?.writesEnabled || !options.salesLineId) return null;
+
+  const { data: rla, error: rlaError } = await supabase
+    .from('retailer_line_accounts')
+    .select('id')
+    .eq('retailer_id', contact.accountId)
+    .eq('sales_line_id', options.salesLineId)
+    .neq('relationship_status', 'terminated')
+    .maybeSingle();
+  if (rlaError) return rlaError.message;
+  if (!rla) return 'Line account not found';
+
+  const { error } = await supabase.from('retailer_line_contacts').upsert(
+    {
+      retailer_line_account_id: rla.id,
+      account_contact_id: contact.id,
+      role: contact.role,
+      is_primary: contact.isPrimary,
+      notes: contact.notes,
+    },
+    { onConflict: 'retailer_line_account_id,account_contact_id' },
+  );
+  return error?.message ?? null;
+}
+
 export async function insertAccountContact(
   input: AccountContactInsert,
+  options?: { writesEnabled?: boolean; salesLineId?: string | null },
 ): Promise<{ data: AccountContact | null; error: string | null }> {
   const { data, error } = await supabase
     .from('account_contacts')
@@ -280,12 +310,16 @@ export async function insertAccountContact(
     return { data: null, error: error.message };
   }
 
-  return { data: mapAccountContactRow(data as AccountContactRow), error: null };
+  const mapped = mapAccountContactRow(data as AccountContactRow);
+  const junctionError = await maybeUpsertLineContactJunction(mapped, options);
+  if (junctionError) return { data: null, error: junctionError };
+  return { data: mapped, error: null };
 }
 
 export async function updateAccountContact(
   id: string,
   input: AccountContactUpdate,
+  options?: { writesEnabled?: boolean; salesLineId?: string | null },
 ): Promise<{ data: AccountContact | null; error: string | null }> {
   const { data, error } = await supabase
     .from('account_contacts')
@@ -298,7 +332,10 @@ export async function updateAccountContact(
     return { data: null, error: error.message };
   }
 
-  return { data: mapAccountContactRow(data as AccountContactRow), error: null };
+  const mapped = mapAccountContactRow(data as AccountContactRow);
+  const junctionError = await maybeUpsertLineContactJunction(mapped, options);
+  if (junctionError) return { data: null, error: junctionError };
+  return { data: mapped, error: null };
 }
 
 export async function deleteAccountContact(id: string): Promise<{ error: string | null }> {

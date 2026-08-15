@@ -230,7 +230,47 @@ export async function fetchProspects(options: FetchProspectsOptions = {}): Promi
 export async function updateProspectNotes(
   id: number,
   notes: string | null,
+  options?: { writesEnabled?: boolean; salesLineId?: string | null },
 ): Promise<{ data: Prospect | null; error: string | null }> {
+  const writesOn = Boolean(options?.writesEnabled && options.salesLineId);
+  if (writesOn && options?.salesLineId) {
+    const salesLineId = options.salesLineId;
+    const { data: line, error: lineError } = await supabase
+      .from('lines')
+      .select('code')
+      .eq('id', salesLineId)
+      .maybeSingle();
+    if (lineError) return { data: null, error: lineError.message };
+    if (!line) return { data: null, error: 'Sales line not found' };
+
+    const { data: rla, error: rlaError } = await supabase
+      .from('retailer_line_accounts')
+      .select('id')
+      .eq('retailer_id', id)
+      .eq('sales_line_id', salesLineId)
+      .neq('relationship_status', 'terminated')
+      .maybeSingle();
+    if (rlaError) return { data: null, error: rlaError.message };
+    if (!rla) return { data: null, error: 'Line account not found' };
+
+    const { error: notesError } = await supabase
+      .from('retailer_line_accounts')
+      .update({ notes })
+      .eq('id', rla.id);
+    if (notesError) return { data: null, error: notesError.message };
+
+    if (line.code !== 'ogr') {
+      const { data: prospect, error: prospectError } = await supabase
+        .from('prospects')
+        .select(PROSPECT_SELECT)
+        .eq('id', id)
+        .maybeSingle();
+      if (prospectError) return { data: null, error: prospectError.message };
+      if (!prospect) return { data: null, error: 'Account not found' };
+      return { data: { ...mapProspectRow(prospect as ProspectListRow), notes }, error: null };
+    }
+  }
+
   const { data, error } = await supabase
     .from('prospects')
     .update({ notes })

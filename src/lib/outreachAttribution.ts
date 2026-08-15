@@ -189,6 +189,7 @@ export type RecordConversionAttributionInput = {
   /** When true and staff selected None, do not infer last-touch. */
   forceNone?: boolean;
   client?: Client;
+  retailerLineAccountId?: string | null;
 };
 
 export async function recordConversionAttribution(
@@ -301,6 +302,9 @@ export async function recordConversionAttribution(
       productName: attributed?.productName ?? null,
       productSku: attributed?.productSku ?? null,
     },
+    ...(input.retailerLineAccountId
+      ? { retailer_line_account_id: input.retailerLineAccountId }
+      : {}),
   };
 
   const { data, error } = await client

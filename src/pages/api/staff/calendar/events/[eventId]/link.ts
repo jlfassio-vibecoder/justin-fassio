@@ -16,6 +16,8 @@ import {
 import { getCalendarEvent, CalendarClientError } from '@/lib/google/calendarClient';
 import { calendarClientErrorJsonResponse } from '@/lib/google/calendarErrors';
 import { GoogleTokenStoreError, loadConnectionForProfile } from '@/lib/google/tokenStore';
+import { parseOptionalSalesLineId } from '@/lib/resolveSalesLineQuery';
+import { isMultiLineWritesEnabled } from '@/lib/staffFeatures';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
 
 export const prerender = false;
@@ -79,7 +81,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   const eventId = eventIdFromParams(params);
   if (!eventId) return json({ ok: false, error: 'eventId is required' }, 400);
 
-  let body: { prospectId?: unknown; accountContactId?: unknown };
+  let body: { prospectId?: unknown; accountContactId?: unknown; salesLineId?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -95,6 +97,9 @@ export const POST: APIRoute = async ({ request, params }) => {
     typeof body.accountContactId === 'string' && body.accountContactId.trim()
       ? body.accountContactId.trim()
       : null;
+  const salesLineId = isMultiLineWritesEnabled()
+    ? parseOptionalSalesLineId(body.salesLineId)
+    : null;
 
   const admin = getServiceRoleClient();
   if (!admin) return json({ ok: false, error: 'Server misconfigured' }, 500);
@@ -113,6 +118,7 @@ export const POST: APIRoute = async ({ request, params }) => {
       googleEventId: eventId,
       prospectId,
       accountContactId,
+      salesLineId,
       calendarId: PRIMARY_CALENDAR_ID,
       cache: {
         title: event.title,

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
+import { isUuid } from '@/lib/resolveSalesLineQuery';
 
 type Client = SupabaseClient<Database>;
 
@@ -105,6 +106,7 @@ export async function upsertConfirmedCalendarEventLink(params: {
   prospectId: number;
   calendarId?: string;
   accountContactId?: string | null;
+  salesLineId?: string | null;
   cache?: CalendarEventLinkCache;
 }): Promise<CalendarEventLinkRow> {
   const calendarId = params.calendarId?.trim() || PRIMARY_CALENDAR_ID;
@@ -119,6 +121,20 @@ export async function upsertConfirmedCalendarEventLink(params: {
     if (!contact || contact.account_id !== params.prospectId) {
       throw new CalendarEventLinkError('accountContactId does not belong to prospectId');
     }
+  }
+
+  let retailerLineAccountId: string | undefined;
+  if (params.salesLineId && isUuid(params.salesLineId)) {
+    const { data: rla, error: rlaError } = await params.client
+      .from('retailer_line_accounts')
+      .select('id')
+      .eq('retailer_id', params.prospectId)
+      .eq('sales_line_id', params.salesLineId)
+      .neq('relationship_status', 'terminated')
+      .maybeSingle();
+    // Copilot suggestion ignored: keep PostgREST error messages like other calendar link helpers.
+    if (rlaError) throw new CalendarEventLinkError(rlaError.message);
+    retailerLineAccountId = rla?.id;
   }
 
   const { data, error } = await params.client
@@ -136,6 +152,7 @@ export async function upsertConfirmedCalendarEventLink(params: {
         end_at: params.cache?.endAt ?? null,
         meet_url: params.cache?.meetUrl ?? null,
         attendees: params.cache?.attendees ?? [],
+        ...(retailerLineAccountId ? { retailer_line_account_id: retailerLineAccountId } : {}),
       },
       { onConflict: 'google_connection_id,calendar_id,google_event_id' },
     )

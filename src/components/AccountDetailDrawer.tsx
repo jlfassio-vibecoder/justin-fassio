@@ -17,9 +17,11 @@ import {
 import { apparelSeasonLabel } from '@/lib/apparelSeasons';
 import type { AccountReorderSettingsRow } from '@/lib/accountReorderSettings';
 import { demoteToProspect } from '@/lib/convertToActiveAccount';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import { primaryRetailChannelLabel, updateProspectTaxonomy, type Prospect } from '@/lib/prospects';
 import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
 import { OutreachLeadStateChip } from '@/components/OutreachLeadStateChip';
+import { isStaffSellingUiBlocked } from '@/lib/retailerLineAccounts';
 import type { ApparelSeason } from '@/types/database';
 
 export interface AccountDetailSummary {
@@ -150,6 +152,11 @@ export function AccountDetailDrawer({
   const [demoteError, setDemoteError] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+  const line = useOptionalLineContext();
+  const sellingBlocked = isStaffSellingUiBlocked(
+    line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
+    line.multiLineWrites,
+  );
 
   if (!account) return null;
   const current = account;
@@ -165,6 +172,8 @@ export function AccountDetailDrawer({
     const result = await demoteToProspect({
       accountId: current.id,
       currentStatus: current.accountStatus,
+      writesEnabled: line.multiLineWrites,
+      salesLineId: line.multiLineWrites ? line.salesLineId : null,
     });
     setDemoteBusy(false);
 
@@ -325,27 +334,36 @@ export function AccountDetailDrawer({
               {demoteError}
             </p>
           ) : null}
-          <Button
-            variant="primary"
-            onClick={() => {
-              onLogOrder(account);
-              onClose();
-            }}
-          >
-            + Log Order / Reorder
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              onLogCall(account);
-              onClose();
-            }}
-          >
-            Log Call
-          </Button>
-          <Button variant="secondary" disabled={demoteBusy} onClick={() => void handleDemote()}>
-            {demoteBusy ? 'Moving…' : 'Move to Prospects'}
-          </Button>
+          {sellingBlocked ? (
+            <p className="text-ink/60 m-0 text-xs">
+              Selling for this line is not enabled yet (convert, orders, calls, and demote stay on
+              Old Guys Rule).
+            </p>
+          ) : (
+            <>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  onLogOrder(account);
+                  onClose();
+                }}
+              >
+                + Log Order / Reorder
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  onLogCall(account);
+                  onClose();
+                }}
+              >
+                Log Call
+              </Button>
+              <Button variant="secondary" disabled={demoteBusy} onClick={() => void handleDemote()}>
+                {demoteBusy ? 'Moving…' : 'Move to Prospects'}
+              </Button>
+            </>
+          )}
         </div>
       </aside>
 

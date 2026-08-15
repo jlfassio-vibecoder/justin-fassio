@@ -10,10 +10,16 @@ import {
   fetchAccountReorderSettings,
   upsertAccountReorderSettings,
 } from '@/lib/accountReorderSettings';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import { resolveOgrLineId } from '@/lib/lines';
 import { filterOrdersBySeason, type SeasonFilter } from '@/lib/orderAggregates';
 import { insertOrder, type OrderRow } from '@/lib/orders';
 import type { Prospect } from '@/lib/prospects';
+import {
+  ensureRetailerLineAccount,
+  fetchLineWriteMeta,
+  isStaffSellingUiBlocked,
+} from '@/lib/retailerLineAccounts';
 import { formatLocalIsoDate } from '@/lib/reorderCadence';
 import type { ApparelSeason, OrderStatus, OrderType } from '@/types/database';
 
@@ -69,6 +75,11 @@ function OrderHistoryForm({
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const line = useOptionalLineContext();
+  const sellingBlocked = isStaffSellingUiBlocked(
+    line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
+    line.multiLineWrites,
+  );
 
   const filteredOrders = useMemo(
     () => filterOrdersBySeason(orders, seasonFilter),
@@ -87,8 +98,73 @@ function OrderHistoryForm({
 
     setBusy(true);
 
+    let orderResult;
+    if (line.multiLineWrites && line.salesLineId) {
+      const ensured = await ensureRetailerLineAccount({
+        retailerId: account.id,
+        salesLineId: line.salesLineId,
+      });
+      if (ensured.gate === 'reject' || ensured.error || !ensured.data) {
+        setBusy(false);
+        setError(ensured.error ?? 'Operational writes are not allowed for this line');
+        return;
+      }
+      const meta = await fetchLineWriteMeta(line.salesLineId);
+      orderResult = await insertOrder(
+        {
+          account_id: account.id,
+          line_id: line.salesLineId,
+          retailer_line_account_id: ensured.data.id,
+          order_type: orderType,
+          season,
+          order_date: orderDate,
+          total_amount_cad: amount,
+          status,
+          notes: notes.trim() || null,
+        },
+        {
+          writesEnabled: true,
+          lineCode: meta.data?.code ?? line.lineSlug,
+          lineDefaultCurrency: meta.data?.defaultCurrency ?? null,
+        },
+      );
+      if (orderResult.error) {
+        setBusy(false);
+        setError(orderResult.error);
+        return;
+      }
+      if (meta.data?.code === 'ogr') {
+        const existing = await fetchAccountReorderSettings(account.id);
+        if (existing.error) {
+          setBusy(false);
+          setError(existing.error);
+          return;
+        }
+        const settingsResult = await upsertAccountReorderSettings({
+          account_id: account.id,
+          last_order_date: orderDate,
+          next_suggested_contact_date: existing.data?.next_suggested_contact_date ?? null,
+          seasonal_cadence_tags: existing.data?.seasonal_cadence_tags ?? [],
+          ai_reorder_notes: existing.data?.ai_reorder_notes ?? null,
+          retailer_line_account_id: ensured.data.id,
+        });
+        setBusy(false);
+        if (settingsResult.error) {
+          setError(settingsResult.error);
+          return;
+        }
+        onOrderSaved();
+        onClose();
+        return;
+      }
+      setBusy(false);
+      onOrderSaved();
+      onClose();
+      return;
+    }
+
     const lineId = await resolveOgrLineId();
-    const orderResult = await insertOrder({
+    orderResult = await insertOrder({
       account_id: account.id,
       line_id: lineId,
       order_type: orderType,
@@ -129,6 +205,24 @@ function OrderHistoryForm({
 
     onOrderSaved();
     onClose();
+  }
+
+  if (line.multiLineWrites && sellingBlocked) {
+    return (
+      <DialogBackdrop open onClose={onClose}>
+        <div className="gap-3.1 bg-surface p-4.1 flex max-w-[560px] flex-col rounded-xl shadow-lg">
+          <DialogTitle>Order history</DialogTitle>
+          <p className="text-ink/75 m-0 text-sm">
+            Selling for this line is not enabled yet. Order logging stays on Old Guys Rule.
+          </p>
+          <div className="flex justify-end">
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </DialogBackdrop>
+    );
   }
 
   return (

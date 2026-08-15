@@ -81,7 +81,10 @@ describe('AuthGate', () => {
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ ok: true, features: { FEATURE_MULTI_LINE_UI: false } }),
+        json: async () => ({
+          ok: true,
+          features: { FEATURE_MULTI_LINE_UI: false, FEATURE_MULTI_LINE_WRITES: false },
+        }),
       }),
     );
     Object.defineProperty(window, 'location', {
@@ -170,7 +173,7 @@ describe('AuthGate', () => {
     expect(screen.getByRole('link', { name: /Account/i })).toHaveAttribute('href', '/app/account');
   });
 
-  it('renders the account page without the command center', () => {
+  it('renders the account page without the command center', async () => {
     stubAuth({
       session: { access_token: 'tok' } as AuthState['session'],
       user: { email: 'justin@example.com' } as AuthState['user'],
@@ -182,7 +185,7 @@ describe('AuthGate', () => {
       }),
     });
     render(<AuthGate page="account" />);
-    expect(screen.getByText('Staff Account')).toBeInTheDocument();
+    expect(await screen.findByText('Staff Account')).toBeInTheDocument();
     expect(screen.queryByText('Rep Command Center')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Command Center' })).toHaveAttribute('href', '/app');
   });

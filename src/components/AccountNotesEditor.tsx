@@ -3,6 +3,7 @@ import { MentionTextarea } from '@/components/MentionTextarea';
 import { Button } from '@/components/ui/Button';
 import { Field, FieldLabel } from '@/components/ui/Input';
 import { updateProspectNotes } from '@/lib/prospects';
+import { useOptionalLineContext } from '@/lib/lineContext';
 
 interface AccountNotesEditorProps {
   accountId: number;
@@ -11,6 +12,7 @@ interface AccountNotesEditorProps {
 }
 
 export function AccountNotesEditor({ accountId, initialNotes, onSaved }: AccountNotesEditorProps) {
+  const line = useOptionalLineContext();
   const [draft, setDraft] = useState(initialNotes ?? '');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
@@ -23,7 +25,10 @@ export function AccountNotesEditor({ accountId, initialNotes, onSaved }: Account
     setError(null);
 
     const next = draft.trim() || null;
-    const result = await updateProspectNotes(accountId, next);
+    const result = await updateProspectNotes(accountId, next, {
+      writesEnabled: line.multiLineWrites,
+      salesLineId: line.multiLineWrites ? line.salesLineId : null,
+    });
     setBusy(false);
 
     if (result.error) {

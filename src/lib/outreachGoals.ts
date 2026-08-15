@@ -1,6 +1,7 @@
 /**
- * Phase 4 outreach goal settings (singleton).
- * Default monthly target = 5; planning conversion = 1.5%.
+ * Phase 4 outreach goal settings.
+ * Flag off: singleton (backfilled OGR row). Flag on: per-line; missing EP/BF → empty/zero.
+ * Prep/send/cron keep calling getOutreachGoalSettings(client) with no line id.
  * Not stored in catalog_settings.
  */
 
@@ -11,6 +12,7 @@ import type {
   OutreachGoalSettingsUpdate,
   SellingDayMode,
 } from '@/types/database';
+import { isMultiLineWritesEnabled } from '@/lib/staffFeatures';
 import { supabase } from '@/lib/supabase';
 
 type Client = SupabaseClient<Database>;
@@ -68,10 +70,13 @@ export function mapOutreachGoalSettingsRow(row: OutreachGoalSettingsRow): Outrea
   };
 }
 
-/** In-memory defaults when DB row is missing (tests / pre-migration). */
+const DEFAULT_GOAL_ROW_ID = '00000000-0000-4000-8000-000000000001';
+const EMPTY_LINE_GOAL_ROW_ID = '00000000-0000-4000-8000-000000000002';
+
+/** In-memory defaults when DB row is missing (tests / pre-migration / OGR fallback). */
 export function defaultOutreachGoalSettings(): OutreachGoalSettings {
   return {
-    id: '00000000-0000-4000-8000-000000000001',
+    id: DEFAULT_GOAL_ROW_ID,
     monthlyTarget: OUTREACH_GOAL_DEFAULTS.monthlyTarget,
     planningConversionRate: OUTREACH_GOAL_DEFAULTS.planningConversionRate,
     minAttributedConversions: OUTREACH_GOAL_DEFAULTS.minAttributedConversions,
@@ -89,17 +94,92 @@ export function defaultOutreachGoalSettings(): OutreachGoalSettings {
   };
 }
 
+/** Empty/zero KPIs when writes are on and the line has no goal row (EP/BF). */
+export function emptyLineOutreachGoalSettings(): OutreachGoalSettings {
+  return {
+    ...defaultOutreachGoalSettings(),
+    id: EMPTY_LINE_GOAL_ROW_ID,
+    monthlyTarget: 0,
+  };
+}
+
+function isUnpersistedGoalSettings(settings: OutreachGoalSettings): boolean {
+  return settings.id === DEFAULT_GOAL_ROW_ID || settings.id === EMPTY_LINE_GOAL_ROW_ID;
+}
+
+export type OutreachGoalQueryOptions = {
+  writesEnabled?: boolean;
+  salesLineId?: string | null;
+};
+
+async function resolveOgrSalesLineId(
+  client: Client,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const { data, error } = await client.from('lines').select('id').eq('code', 'ogr').maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: 'OGR sales line not found' };
+  return { ok: true, id: data.id };
+}
+
 export async function getOutreachGoalSettings(
   client: Client = supabase,
+  options?: OutreachGoalQueryOptions,
 ): Promise<{ ok: true; settings: OutreachGoalSettings } | { ok: false; error: string }> {
+  const writesOn = options?.writesEnabled ?? isMultiLineWritesEnabled();
+  const salesLineId = options?.salesLineId?.trim() || null;
+
+  if (!writesOn) {
+    const ogr = await resolveOgrSalesLineId(client);
+    if (ogr.ok) {
+      const { data, error } = await client
+        .from('outreach_goal_settings')
+        .select('*')
+        .eq('sales_line_id', ogr.id)
+        .maybeSingle();
+      if (!error) {
+        if (!data) return { ok: true, settings: defaultOutreachGoalSettings() };
+        return { ok: true, settings: mapOutreachGoalSettingsRow(data) };
+      }
+    }
+    const { data, error } = await client
+      .from('outreach_goal_settings')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    if (!data) return { ok: true, settings: defaultOutreachGoalSettings() };
+    return { ok: true, settings: mapOutreachGoalSettingsRow(data) };
+  }
+
+  let lineId = salesLineId;
+  if (!lineId) {
+    const ogr = await resolveOgrSalesLineId(client);
+    if (!ogr.ok) return ogr;
+    lineId = ogr.id;
+  }
+
   const { data, error } = await client
     .from('outreach_goal_settings')
     .select('*')
-    .limit(1)
+    .eq('sales_line_id', lineId)
     .maybeSingle();
   if (error) return { ok: false, error: error.message };
-  if (!data) return { ok: true, settings: defaultOutreachGoalSettings() };
-  return { ok: true, settings: mapOutreachGoalSettingsRow(data) };
+  if (data) return { ok: true, settings: mapOutreachGoalSettingsRow(data) };
+
+  if (!salesLineId) {
+    return { ok: true, settings: defaultOutreachGoalSettings() };
+  }
+
+  const { data: line, error: lineError } = await client
+    .from('lines')
+    .select('code')
+    .eq('id', salesLineId)
+    .maybeSingle();
+  if (lineError) return { ok: false, error: lineError.message };
+  if (line?.code && line.code !== 'ogr') {
+    return { ok: true, settings: emptyLineOutreachGoalSettings() };
+  }
+  return { ok: true, settings: defaultOutreachGoalSettings() };
 }
 
 export type UpdateOutreachGoalSettingsInput = {
@@ -107,13 +187,19 @@ export type UpdateOutreachGoalSettingsInput = {
   planningConversionRate?: number;
   businessTimezone?: string;
   updatedBy?: string | null;
+  writesEnabled?: boolean;
+  salesLineId?: string | null;
 };
 
 export async function updateOutreachGoalSettings(
   input: UpdateOutreachGoalSettingsInput,
   client: Client = supabase,
 ): Promise<{ ok: true; settings: OutreachGoalSettings } | { ok: false; error: string }> {
-  const current = await getOutreachGoalSettings(client);
+  const queryOpts: OutreachGoalQueryOptions = {
+    writesEnabled: input.writesEnabled,
+    salesLineId: input.salesLineId,
+  };
+  const current = await getOutreachGoalSettings(client, queryOpts);
   if (!current.ok) return current;
 
   const patch: OutreachGoalSettingsUpdate = {};
@@ -147,32 +233,43 @@ export async function updateOutreachGoalSettings(
     return current;
   }
 
-  const { data, error } = await client
-    .from('outreach_goal_settings')
-    .update(patch)
-    .eq('id', current.settings.id)
-    .select('*')
-    .maybeSingle();
+  const persistLine = async (): Promise<
+    { ok: true; id: string } | { ok: false; error: string }
+  > => {
+    const requested = input.salesLineId?.trim() || null;
+    if (requested) return { ok: true, id: requested };
+    return resolveOgrSalesLineId(client);
+  };
 
-  if (error) return { ok: false, error: error.message };
-  if (!data) {
-    // Seed missing row then update
-    const { data: inserted, error: insertErr } = await client
+  if (!isUnpersistedGoalSettings(current.settings)) {
+    const { data, error } = await client
       .from('outreach_goal_settings')
-      .insert({
-        monthly_target: patch.monthly_target ?? OUTREACH_GOAL_DEFAULTS.monthlyTarget,
-        planning_conversion_rate:
-          patch.planning_conversion_rate ?? OUTREACH_GOAL_DEFAULTS.planningConversionRate,
-        business_timezone: patch.business_timezone ?? OUTREACH_GOAL_DEFAULTS.businessTimezone,
-        updated_by: patch.updated_by ?? null,
-      })
+      .update(patch)
+      .eq('id', current.settings.id)
       .select('*')
       .maybeSingle();
-    if (insertErr || !inserted) {
-      return { ok: false, error: insertErr?.message ?? 'Failed to create goal settings' };
-    }
-    return { ok: true, settings: mapOutreachGoalSettingsRow(inserted) };
+
+    if (error) return { ok: false, error: error.message };
+    if (data) return { ok: true, settings: mapOutreachGoalSettingsRow(data) };
   }
 
-  return { ok: true, settings: mapOutreachGoalSettingsRow(data) };
+  const line = await persistLine();
+  if (!line.ok) return line;
+
+  const { data: inserted, error: insertErr } = await client
+    .from('outreach_goal_settings')
+    .insert({
+      sales_line_id: line.id,
+      monthly_target: patch.monthly_target ?? OUTREACH_GOAL_DEFAULTS.monthlyTarget,
+      planning_conversion_rate:
+        patch.planning_conversion_rate ?? OUTREACH_GOAL_DEFAULTS.planningConversionRate,
+      business_timezone: patch.business_timezone ?? OUTREACH_GOAL_DEFAULTS.businessTimezone,
+      updated_by: patch.updated_by ?? null,
+    })
+    .select('*')
+    .maybeSingle();
+  if (insertErr || !inserted) {
+    return { ok: false, error: insertErr?.message ?? 'Failed to create goal settings' };
+  }
+  return { ok: true, settings: mapOutreachGoalSettingsRow(inserted) };
 }

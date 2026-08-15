@@ -62,10 +62,47 @@ export async function fetchOrdersForAccounts(
   return { data: (data ?? []) as OrderRow[], error: null };
 }
 
+export type InsertOrderOptions = {
+  writesEnabled?: boolean;
+  lineCode?: string | null;
+  lineDefaultCurrency?: string | null;
+};
+
 export async function insertOrder(
   input: OrderInsert,
+  options: InsertOrderOptions = {},
 ): Promise<{ data: OrderRow | null; error: string | null }> {
-  const { data, error } = await supabase.from('orders').insert(input).select(ORDER_SELECT).single();
+  const payload: OrderInsert = { ...input };
+  if (options.writesEnabled) {
+    if (!payload.line_id || !payload.retailer_line_account_id) {
+      return {
+        data: null,
+        error: 'line_id and retailer_line_account_id are required',
+      };
+    }
+    if (options.lineCode === 'ogr' && payload.original_currency === 'USD') {
+      return { data: null, error: 'OGR orders cannot use USD as original_currency' };
+    }
+    if (!payload.original_currency) {
+      const originalCurrency =
+        options.lineCode === 'ogr' ? 'CAD' : (options.lineDefaultCurrency ?? 'CAD');
+      payload.original_currency = originalCurrency;
+      payload.original_amount = payload.original_amount ?? payload.total_amount_cad;
+      if (originalCurrency === 'CAD') {
+        payload.conversion_source = payload.conversion_source ?? 'legacy_cad_column';
+        payload.exchange_rate = payload.exchange_rate ?? 1;
+        payload.exchange_rate_date = payload.exchange_rate_date ?? payload.order_date;
+        payload.converted_amount = payload.converted_amount ?? payload.total_amount_cad;
+        payload.converted_currency = payload.converted_currency ?? 'CAD';
+      }
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('orders')
+    .insert(payload)
+    .select(ORDER_SELECT)
+    .single();
 
   if (error) {
     return { data: null, error: error.message };

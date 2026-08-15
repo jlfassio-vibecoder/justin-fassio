@@ -429,6 +429,7 @@ export async function confirmGmailThreadLinkClient(params: {
   threadId: string;
   prospectId: number;
   accountContactId?: string | null;
+  salesLineId?: string | null;
 }): Promise<
   { ok: true; link: GmailThreadLinkPublic } | ({ ok: false; error: string } & GateFlags)
 > {
@@ -444,6 +445,7 @@ export async function confirmGmailThreadLinkClient(params: {
     body: JSON.stringify({
       prospectId: params.prospectId,
       accountContactId: params.accountContactId ?? null,
+      salesLineId: params.salesLineId ?? null,
     }),
   });
   const body = (await res.json()) as {

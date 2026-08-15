@@ -13,6 +13,8 @@ import {
   type AccountContact,
 } from '@/lib/accountContacts';
 import type { AccountContactRole } from '@/types/database';
+import { useOptionalLineContext } from '@/lib/lineContext';
+import { isStaffSellingUiBlocked } from '@/lib/retailerLineAccounts';
 
 interface AccountContactsSectionProps {
   accountId: number;
@@ -29,6 +31,11 @@ const emptyForm = {
 };
 
 export function AccountContactsSection({ accountId }: AccountContactsSectionProps) {
+  const line = useOptionalLineContext();
+  const sellingBlocked = isStaffSellingUiBlocked(
+    line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
+    line.multiLineWrites,
+  );
   const [contacts, setContacts] = useState<AccountContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,10 +120,14 @@ export function AccountContactsSection({ accountId }: AccountContactsSectionProp
       is_primary: form.isPrimary,
     };
 
+    const writeOpts = {
+      writesEnabled: line.multiLineWrites,
+      salesLineId: line.multiLineWrites ? line.salesLineId : null,
+    };
     const result =
       editingId != null
-        ? await updateAccountContact(editingId, payload)
-        : await insertAccountContact({ account_id: accountId, ...payload });
+        ? await updateAccountContact(editingId, payload, writeOpts)
+        : await insertAccountContact({ account_id: accountId, ...payload }, writeOpts);
 
     setBusy(false);
     if (result.error) {
@@ -146,7 +157,7 @@ export function AccountContactsSection({ accountId }: AccountContactsSectionProp
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-heading m-0 text-base">Contacts</h3>
-        {!showForm ? (
+        {!showForm && !sellingBlocked ? (
           <Button
             type="button"
             variant="secondary"
@@ -166,7 +177,11 @@ export function AccountContactsSection({ accountId }: AccountContactsSectionProp
       ) : null}
 
       {!loading && contacts.length === 0 && !showForm ? (
-        <p className="text-ink/60 m-0 text-sm">No contacts yet. Add a buyer, manager, or owner.</p>
+        <p className="text-ink/60 m-0 text-sm">
+          {sellingBlocked
+            ? 'No line contacts on this account.'
+            : 'No contacts yet. Add a buyer, manager, or owner.'}
+        </p>
       ) : null}
 
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
@@ -191,30 +206,34 @@ export function AccountContactsSection({ accountId }: AccountContactsSectionProp
               </div>
             </dl>
             <div className="mt-2 flex gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                className="px-2 py-0.5 text-xs"
-                disabled={busy}
-                onClick={() => startEdit(contact)}
-              >
-                Edit
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="px-2 py-0.5 text-xs"
-                disabled={busy}
-                onClick={() => void handleDelete(contact)}
-              >
-                Delete
-              </Button>
+              {sellingBlocked ? null : (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="px-2 py-0.5 text-xs"
+                    disabled={busy}
+                    onClick={() => startEdit(contact)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="px-2 py-0.5 text-xs"
+                    disabled={busy}
+                    onClick={() => void handleDelete(contact)}
+                  >
+                    Delete
+                  </Button>
+                </>
+              )}
             </div>
           </li>
         ))}
       </ul>
 
-      {showForm ? (
+      {showForm && !sellingBlocked ? (
         <form
           className="border-ink/15 flex flex-col gap-2 rounded-md border p-3"
           onSubmit={(e) => void handleSubmit(e)}

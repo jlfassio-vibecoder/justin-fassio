@@ -1,6 +1,6 @@
 /**
  * Phase 2 line-scoped directory reads + cross-line badge helper.
- * Writes remain on legacy prospects / account_contacts (1C-protected).
+ * Phase 3 adds RLA write helpers behind FEATURE_MULTI_LINE_WRITES (callers pass snapshot).
  */
 
 import { supabase } from '@/lib/supabase';
@@ -12,7 +12,7 @@ import {
   type Prospect,
   type ProspectListRow,
 } from '@/lib/prospects';
-import type { RelationshipStatus } from '@/types/database';
+import type { AccountContactRole, LineStatus, RelationshipStatus } from '@/types/database';
 
 export type CrossLineBadge = {
   lineCode: string;
@@ -215,4 +215,205 @@ export async function fetchUnscopedDirectoryProspects(): Promise<{
   error: string | null;
 }> {
   return fetchProspects();
+}
+
+export type OperationalWriteGate = 'allow' | 'ui_blocked' | 'reject';
+
+export type LineWriteOptions = {
+  writesEnabled?: boolean;
+  salesLineId?: string | null;
+};
+
+export type LineWriteMeta = {
+  id: string;
+  code: string;
+  status: LineStatus;
+  defaultCurrency: string | null;
+};
+
+export type RetailerLineAccountRow = {
+  id: string;
+  retailerId: number;
+  salesLineId: string;
+  relationshipStatus: RelationshipStatus;
+  notes: string | null;
+};
+
+/** Writes path is used when the staff snapshot is on and the caller supplies line context. */
+export function isLineAccountWritePath(
+  options: LineWriteOptions | undefined,
+): options is { writesEnabled: true; salesLineId: string } {
+  return Boolean(options?.writesEnabled && options.salesLineId);
+}
+
+export function assertLineAllowsOperationalWrite(line: {
+  code: string;
+  status: string;
+}): OperationalWriteGate {
+  if (line.status === 'prospective' || line.status === 'declined' || line.status === 'terminated') {
+    return 'reject';
+  }
+  if (line.code === 'bkg') return 'reject';
+  if (line.code === 'ogr' && line.status === 'active') return 'allow';
+  if (line.code === 'eagle-peak' || line.code === 'big-fish') return 'ui_blocked';
+  return 'reject';
+}
+
+/** Staff selling UI (convert/order/call/reorder/junction) is OGR-only when writes are on. */
+export function isStaffSellingUiBlocked(
+  line: { code: string; status: string } | null,
+  writesEnabled: boolean,
+): boolean {
+  if (!writesEnabled) return false;
+  if (!line) return true;
+  return assertLineAllowsOperationalWrite(line) !== 'allow';
+}
+
+export async function fetchLineWriteMeta(
+  salesLineId: string,
+): Promise<{ data: LineWriteMeta | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('lines')
+    .select('id, code, status, default_currency')
+    .eq('id', salesLineId)
+    .maybeSingle();
+
+  if (error) return { data: null, error: error.message };
+  if (!data) return { data: null, error: 'Sales line not found' };
+  return {
+    data: {
+      id: data.id,
+      code: data.code,
+      status: data.status as LineStatus,
+      defaultCurrency: data.default_currency,
+    },
+    error: null,
+  };
+}
+
+export async function fetchOperationalLineAccount(input: {
+  retailerId: number;
+  salesLineId: string;
+}): Promise<{ data: RetailerLineAccountRow | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('retailer_line_accounts')
+    .select('id, retailer_id, sales_line_id, relationship_status, notes')
+    .eq('retailer_id', input.retailerId)
+    .eq('sales_line_id', input.salesLineId)
+    .neq('relationship_status', 'terminated')
+    .maybeSingle();
+
+  if (error) return { data: null, error: error.message };
+  if (!data) return { data: null, error: null };
+  return {
+    data: {
+      id: data.id,
+      retailerId: data.retailer_id,
+      salesLineId: data.sales_line_id,
+      relationshipStatus: data.relationship_status as RelationshipStatus,
+      notes: data.notes,
+    },
+    error: null,
+  };
+}
+
+export async function ensureRetailerLineAccount(input: {
+  retailerId: number;
+  salesLineId: string;
+}): Promise<{
+  data: RetailerLineAccountRow | null;
+  error: string | null;
+  gate: OperationalWriteGate;
+}> {
+  const line = await fetchLineWriteMeta(input.salesLineId);
+  if (line.error || !line.data) {
+    return { data: null, error: line.error ?? 'Sales line not found', gate: 'reject' };
+  }
+
+  const gate = assertLineAllowsOperationalWrite(line.data);
+  if (gate === 'reject') {
+    return { data: null, error: 'Operational writes are not allowed for this line', gate };
+  }
+
+  const existing = await fetchOperationalLineAccount(input);
+  if (existing.error) return { data: null, error: existing.error, gate };
+  if (existing.data) return { data: existing.data, error: null, gate };
+
+  const { data, error } = await supabase
+    .from('retailer_line_accounts')
+    .insert({
+      retailer_id: input.retailerId,
+      sales_line_id: input.salesLineId,
+      relationship_status: 'prospect',
+    })
+    .select('id, retailer_id, sales_line_id, relationship_status, notes')
+    .single();
+
+  if (error) return { data: null, error: error.message, gate };
+  return {
+    data: {
+      id: data.id,
+      retailerId: data.retailer_id,
+      salesLineId: data.sales_line_id,
+      relationshipStatus: data.relationship_status as RelationshipStatus,
+      notes: data.notes,
+    },
+    error: null,
+    gate,
+  };
+}
+
+export async function updateRetailerLineAccountStatus(input: {
+  lineAccountId: string;
+  relationshipStatus: RelationshipStatus;
+  convertedAt?: string | null;
+  initialOrderDate?: string | null;
+  notes?: string | null;
+}): Promise<{ error: string | null }> {
+  const patch: {
+    relationship_status: RelationshipStatus;
+    converted_at?: string | null;
+    initial_order_date?: string | null;
+    notes?: string | null;
+  } = { relationship_status: input.relationshipStatus };
+  if (input.convertedAt !== undefined) patch.converted_at = input.convertedAt;
+  if (input.initialOrderDate !== undefined) patch.initial_order_date = input.initialOrderDate;
+  if (input.notes !== undefined) patch.notes = input.notes;
+
+  const { error } = await supabase
+    .from('retailer_line_accounts')
+    .update(patch)
+    .eq('id', input.lineAccountId);
+  return { error: error?.message ?? null };
+}
+
+export async function updateRetailerLineAccountNotes(input: {
+  lineAccountId: string;
+  notes: string | null;
+}): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('retailer_line_accounts')
+    .update({ notes: input.notes })
+    .eq('id', input.lineAccountId);
+  return { error: error?.message ?? null };
+}
+
+export async function upsertRetailerLineContact(input: {
+  lineAccountId: string;
+  accountContactId: string;
+  role: AccountContactRole;
+  isPrimary?: boolean;
+  notes?: string | null;
+}): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('retailer_line_contacts').upsert(
+    {
+      retailer_line_account_id: input.lineAccountId,
+      account_contact_id: input.accountContactId,
+      role: input.role,
+      is_primary: input.isPrimary ?? false,
+      notes: input.notes ?? null,
+    },
+    { onConflict: 'retailer_line_account_id,account_contact_id' },
+  );
+  return { error: error?.message ?? null };
 }

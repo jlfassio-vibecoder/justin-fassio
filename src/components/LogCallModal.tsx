@@ -11,8 +11,10 @@ import { buildCallDraft, type CallDraftFormat } from '@/lib/aiAssistPrefill';
 import type { CatalogItem } from '@/lib/catalog';
 import { CALL_OUTCOMES } from '@/lib/callOutcomes';
 import { isConversionOutcome } from '@/lib/convertToActiveAccount';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import { OBJECTION_TAGS } from '@/lib/objectionCatalog';
 import type { Prospect } from '@/lib/prospects';
+import { ensureRetailerLineAccount, isStaffSellingUiBlocked } from '@/lib/retailerLineAccounts';
 import { supabase } from '@/lib/supabase';
 import type { CallInsert } from '@/types/database';
 
@@ -69,6 +71,11 @@ export function LogCallModal({
   const [error, setError] = useState<string | null>(null);
   const [convertProspect, setConvertProspect] = useState<Prospect | null>(null);
   const [convertPrefillCad, setConvertPrefillCad] = useState<number | null>(null);
+  const line = useOptionalLineContext();
+  const sellingBlocked = isStaffSellingUiBlocked(
+    line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
+    line.multiLineWrites,
+  );
 
   const selected = storeId != null ? prospects.find((p) => p.id === storeId) : undefined;
   const modalChannel = selected?.category ?? '';
@@ -127,6 +134,19 @@ export function LogCallModal({
       notes: notes.trim() || null,
     };
 
+    if (line.multiLineWrites && line.salesLineId) {
+      const ensured = await ensureRetailerLineAccount({
+        retailerId: storeId,
+        salesLineId: line.salesLineId,
+      });
+      if (ensured.gate === 'reject' || ensured.error || !ensured.data) {
+        setError(ensured.error ?? 'Operational writes are not allowed for this line');
+        return;
+      }
+      row.line_id = line.salesLineId;
+      row.retailer_line_account_id = ensured.data.id;
+    }
+
     setBusy(true);
     const { error: insertError } = await supabase.from('calls').insert(row);
     setBusy(false);
@@ -168,6 +188,29 @@ export function LogCallModal({
   }
 
   if (!open && !showConvert) return null;
+
+  if (showLogForm && line.multiLineWrites && sellingBlocked) {
+    return (
+      <DialogBackdrop open onClose={handleClose}>
+        <div className="gap-3.1 bg-surface p-4.1 flex max-w-[560px] flex-col rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <DialogTitle>Log Prospect Call</DialogTitle>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-transparent"
+              aria-label="Close"
+            >
+              <X size={18} strokeWidth={2.75} />
+            </button>
+          </div>
+          <p className="text-ink/75 m-0 text-sm">
+            Selling for this line is not enabled yet. Call logging stays on Old Guys Rule.
+          </p>
+        </div>
+      </DialogBackdrop>
+    );
+  }
 
   return (
     <>

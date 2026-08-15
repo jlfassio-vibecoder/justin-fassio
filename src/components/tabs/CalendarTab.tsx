@@ -17,8 +17,10 @@ import {
 import type { GoogleConnectionPublic } from '@/lib/google/connectionTypes';
 import type { CalendarEventDetail, CalendarEventSummary } from '@/lib/google/calendarTypes';
 import { fetchGoogleConnection } from '@/lib/googleConnectionClient';
+import { useOptionalLineContext } from '@/lib/lineContext';
 
 export function CalendarTab() {
+  const line = useOptionalLineContext();
   const [connection, setConnection] = useState<GoogleConnectionPublic | null>(null);
   const [connectionLoading, setConnectionLoading] = useState(true);
   const [events, setEvents] = useState<CalendarEventSummary[]>([]);
@@ -96,7 +98,10 @@ export function CalendarTab() {
   async function handleCreate(input: CalendarEventFormSubmit) {
     setFormBusy(true);
     setFormError(null);
-    const result = await createCalendarEventClient(input);
+    const result = await createCalendarEventClient({
+      ...input,
+      salesLineId: line.multiLineWrites ? line.salesLineId : null,
+    });
     setFormBusy(false);
     if (!result.ok) {
       setFormError(result.error);
@@ -118,7 +123,10 @@ export function CalendarTab() {
     if (!selectedId) return;
     setFormBusy(true);
     setFormError(null);
-    const result = await updateCalendarEventClient(selectedId, input);
+    const result = await updateCalendarEventClient(selectedId, {
+      ...input,
+      salesLineId: line.multiLineWrites ? line.salesLineId : null,
+    });
     setFormBusy(false);
     if (!result.ok) {
       setFormError(result.error);

@@ -13,6 +13,7 @@ import {
   searchProspectsForMapping,
 } from '@/lib/messages';
 import type { Prospect } from '@/lib/prospects';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import { supabase } from '@/lib/supabase';
 
 interface ConfirmMappingFormProps {
@@ -26,6 +27,7 @@ export function ConfirmMappingForm({
   latestPayload,
   onConfirmed,
 }: ConfirmMappingFormProps) {
+  const line = useOptionalLineContext();
   const [query, setQuery] = useState(
     () => latestPayload?.businessName || thread.businessName || '',
   );
@@ -105,6 +107,8 @@ export function ConfirmMappingForm({
       threadId: thread.id,
       prospectId: prospect.id,
       confirmedFingerprint: fingerprint,
+      writesEnabled: line.multiLineWrites,
+      salesLineId: line.multiLineWrites ? line.salesLineId : null,
     });
     setBusy(false);
 
