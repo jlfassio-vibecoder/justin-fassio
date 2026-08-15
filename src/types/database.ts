@@ -19,9 +19,58 @@ export type ConversionSource = 'outreach' | 'call' | 'wholesale' | 'manual';
 export type AttributionModel = 'staff_confirmed' | 'last_touch_inferred' | 'none';
 export type SellingDayMode = 'weekdays';
 
+/** Phase 1A multi-line CRM enums */
+export type LineStatus =
+  'prospective' | 'confirmed' | 'onboarding' | 'active' | 'paused' | 'declined' | 'terminated';
+export type AcquisitionStage =
+  | 'identified'
+  | 'researching'
+  | 'contact_requested'
+  | 'conversation'
+  | 'evaluating'
+  | 'negotiating'
+  | 'decision_pending';
+export type TerritoryLevel = 'country' | 'province_state' | 'region' | 'county';
+export type TerritoryRowStatus = 'active' | 'proposed';
+export type SalesLineTerritoryRightsType =
+  'exclusive' | 'limited_exclusive' | 'non_exclusive' | 'unconfirmed';
+export type SalesLineTerritoryStatus = 'proposed' | 'active' | 'expired' | 'disputed';
+export type RelationshipStatus = 'prospect' | 'qualified' | 'opened' | 'inactive' | 'terminated';
+export type RetailerLineTargetStatus = 'watching' | 'shortlist' | 'dropped';
+export type RetailerFieldChangeSource = 'user' | 'ai' | 'import' | 'calculated' | 'unknown';
+export type ActivityStatus = 'never_ordered' | 'active' | 'dormant';
+export type ProductivityClass = 'productive' | 'developing' | 'low_value' | 'unclassified';
+
 export interface Database {
   public: {
     Tables: {
+      principals: {
+        Row: {
+          id: string;
+          legal_name: string | null;
+          dba_name: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          legal_name?: string | null;
+          dba_name?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          legal_name?: string | null;
+          dba_name?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       lines: {
         Row: {
           id: string;
@@ -34,6 +83,14 @@ export interface Database {
           hero_image_url: string | null;
           sort_order: number;
           public_showroom_path: string | null;
+          principal_id: string | null;
+          status: LineStatus;
+          acquisition_stage: AcquisitionStage | null;
+          default_currency: string | null;
+          commission_rate: number | null;
+          effective_date: string | null;
+          termination_date: string | null;
+          productivity_thresholds: Record<string, unknown> | null;
           created_at: string;
           updated_at: string;
         };
@@ -48,6 +105,14 @@ export interface Database {
           hero_image_url?: string | null;
           sort_order?: number;
           public_showroom_path?: string | null;
+          principal_id?: string | null;
+          status?: LineStatus;
+          acquisition_stage?: AcquisitionStage | null;
+          default_currency?: string | null;
+          commission_rate?: number | null;
+          effective_date?: string | null;
+          termination_date?: string | null;
+          productivity_thresholds?: Record<string, unknown> | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -62,10 +127,26 @@ export interface Database {
           hero_image_url?: string | null;
           sort_order?: number;
           public_showroom_path?: string | null;
+          principal_id?: string | null;
+          status?: LineStatus;
+          acquisition_stage?: AcquisitionStage | null;
+          default_currency?: string | null;
+          commission_rate?: number | null;
+          effective_date?: string | null;
+          termination_date?: string | null;
+          productivity_thresholds?: Record<string, unknown> | null;
           created_at?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'lines_principal_id_fkey';
+            columns: ['principal_id'];
+            isOneToOne: false;
+            referencedRelation: 'principals';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       territories: {
         Row: {
@@ -75,6 +156,10 @@ export interface Database {
           country_code: string;
           sort_order: number;
           active: boolean;
+          level: TerritoryLevel;
+          parent_territory_id: string | null;
+          status: TerritoryRowStatus;
+          metadata: Record<string, unknown>;
           created_at: string;
           updated_at: string;
         };
@@ -85,6 +170,10 @@ export interface Database {
           country_code: string;
           sort_order?: number;
           active?: boolean;
+          level?: TerritoryLevel;
+          parent_territory_id?: string | null;
+          status?: TerritoryRowStatus;
+          metadata?: Record<string, unknown>;
           created_at?: string;
           updated_at?: string;
         };
@@ -95,8 +184,299 @@ export interface Database {
           country_code?: string;
           sort_order?: number;
           active?: boolean;
+          level?: TerritoryLevel;
+          parent_territory_id?: string | null;
+          status?: TerritoryRowStatus;
+          metadata?: Record<string, unknown>;
           created_at?: string;
           updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'territories_parent_territory_id_fkey';
+            columns: ['parent_territory_id'];
+            isOneToOne: false;
+            referencedRelation: 'territories';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      sales_line_territories: {
+        Row: {
+          id: string;
+          sales_line_id: string;
+          territory_id: string;
+          rights_type: SalesLineTerritoryRightsType;
+          status: SalesLineTerritoryStatus;
+          effective_date: string | null;
+          expiration_date: string | null;
+          contract_source: string | null;
+          restrictions: Record<string, unknown>;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          sales_line_id: string;
+          territory_id: string;
+          rights_type: SalesLineTerritoryRightsType;
+          status: SalesLineTerritoryStatus;
+          effective_date?: string | null;
+          expiration_date?: string | null;
+          contract_source?: string | null;
+          restrictions?: Record<string, unknown>;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          sales_line_id?: string;
+          territory_id?: string;
+          rights_type?: SalesLineTerritoryRightsType;
+          status?: SalesLineTerritoryStatus;
+          effective_date?: string | null;
+          expiration_date?: string | null;
+          contract_source?: string | null;
+          restrictions?: Record<string, unknown>;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      retailer_line_accounts: {
+        Row: {
+          id: string;
+          retailer_id: number;
+          sales_line_id: string;
+          sales_line_territory_id: string | null;
+          relationship_status: RelationshipStatus;
+          converted_at: string | null;
+          initial_order_date: string | null;
+          notes: string | null;
+          fit: string | null;
+          fit_score: number | null;
+          ideal_opening_units: number | null;
+          priority: string | null;
+          provisional_grade: string | null;
+          verification_status: string | null;
+          buyer_verified: boolean;
+          apparel_capability: string | null;
+          existing_ogr: string | null;
+          qualification_status: string | null;
+          next_action: string | null;
+          source_note: string | null;
+          region: string | null;
+          primary_district: string | null;
+          subterritory: string | null;
+          secondary_channels: unknown;
+          retail_subchannels: unknown;
+          venue_contexts: unknown;
+          lifestyle_themes: unknown;
+          retail_capabilities: unknown;
+          backfill_review_reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          retailer_id: number;
+          sales_line_id: string;
+          sales_line_territory_id?: string | null;
+          relationship_status: RelationshipStatus;
+          converted_at?: string | null;
+          initial_order_date?: string | null;
+          notes?: string | null;
+          fit?: string | null;
+          fit_score?: number | null;
+          ideal_opening_units?: number | null;
+          priority?: string | null;
+          provisional_grade?: string | null;
+          verification_status?: string | null;
+          buyer_verified?: boolean;
+          apparel_capability?: string | null;
+          existing_ogr?: string | null;
+          qualification_status?: string | null;
+          next_action?: string | null;
+          source_note?: string | null;
+          region?: string | null;
+          primary_district?: string | null;
+          subterritory?: string | null;
+          secondary_channels?: unknown;
+          retail_subchannels?: unknown;
+          venue_contexts?: unknown;
+          lifestyle_themes?: unknown;
+          retail_capabilities?: unknown;
+          backfill_review_reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          retailer_id?: number;
+          sales_line_id?: string;
+          sales_line_territory_id?: string | null;
+          relationship_status?: RelationshipStatus;
+          converted_at?: string | null;
+          initial_order_date?: string | null;
+          notes?: string | null;
+          fit?: string | null;
+          fit_score?: number | null;
+          ideal_opening_units?: number | null;
+          priority?: string | null;
+          provisional_grade?: string | null;
+          verification_status?: string | null;
+          buyer_verified?: boolean;
+          apparel_capability?: string | null;
+          existing_ogr?: string | null;
+          qualification_status?: string | null;
+          next_action?: string | null;
+          source_note?: string | null;
+          region?: string | null;
+          primary_district?: string | null;
+          subterritory?: string | null;
+          secondary_channels?: unknown;
+          retail_subchannels?: unknown;
+          venue_contexts?: unknown;
+          lifestyle_themes?: unknown;
+          retail_capabilities?: unknown;
+          backfill_review_reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      retailer_line_contacts: {
+        Row: {
+          id: string;
+          retailer_line_account_id: string;
+          account_contact_id: string;
+          role: AccountContactRole;
+          is_primary: boolean;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          retailer_line_account_id: string;
+          account_contact_id: string;
+          role: AccountContactRole;
+          is_primary?: boolean;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          retailer_line_account_id?: string;
+          account_contact_id?: string;
+          role?: AccountContactRole;
+          is_primary?: boolean;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      retailer_field_changes: {
+        Row: {
+          id: string;
+          retailer_id: number;
+          field_path: string;
+          old_value: unknown;
+          new_value: unknown;
+          source: RetailerFieldChangeSource;
+          actor_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          retailer_id: number;
+          field_path: string;
+          old_value?: unknown;
+          new_value?: unknown;
+          source?: RetailerFieldChangeSource;
+          actor_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          retailer_id?: number;
+          field_path?: string;
+          old_value?: unknown;
+          new_value?: unknown;
+          source?: RetailerFieldChangeSource;
+          actor_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      retailer_line_targets: {
+        Row: {
+          id: string;
+          retailer_id: number;
+          sales_line_id: string;
+          interest: string | null;
+          fit_notes: string | null;
+          suggested_geo: string | null;
+          status: RetailerLineTargetStatus;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          retailer_id: number;
+          sales_line_id: string;
+          interest?: string | null;
+          fit_notes?: string | null;
+          suggested_geo?: string | null;
+          status?: RetailerLineTargetStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          retailer_id?: number;
+          sales_line_id?: string;
+          interest?: string | null;
+          fit_notes?: string | null;
+          suggested_geo?: string | null;
+          status?: RetailerLineTargetStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      migration_review_queue: {
+        Row: {
+          id: string;
+          entity_type: string;
+          entity_id: string;
+          reason: string;
+          payload: Record<string, unknown>;
+          resolved_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          entity_type: string;
+          entity_id: string;
+          reason: string;
+          payload?: Record<string, unknown>;
+          resolved_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          entity_type?: string;
+          entity_id?: string;
+          reason?: string;
+          payload?: Record<string, unknown>;
+          resolved_at?: string | null;
+          created_at?: string;
         };
         Relationships: [];
       };
@@ -756,6 +1136,7 @@ export interface Database {
           prospect_id: number;
           status: string | null;
           note: string | null;
+          retailer_line_account_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -763,6 +1144,7 @@ export interface Database {
           prospect_id: number;
           status?: string | null;
           note?: string | null;
+          retailer_line_account_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -770,6 +1152,7 @@ export interface Database {
           prospect_id?: number;
           status?: string | null;
           note?: string | null;
+          retailer_line_account_id?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -784,6 +1167,14 @@ export interface Database {
           outcome: string;
           pmf_score: number | null;
           order_value_cad: number | null;
+          order_value_original_amount: number | null;
+          order_value_original_currency: string | null;
+          order_value_exchange_rate: number | null;
+          order_value_exchange_rate_date: string | null;
+          order_value_converted_amount: number | null;
+          order_value_converted_currency: string | null;
+          order_value_conversion_source: string | null;
+          retailer_line_account_id: string | null;
           objection_tags: string[];
           notes: string | null;
           follow_up_date: string | null;
@@ -799,6 +1190,14 @@ export interface Database {
           outcome: string;
           pmf_score?: number | null;
           order_value_cad?: number | null;
+          order_value_original_amount?: number | null;
+          order_value_original_currency?: string | null;
+          order_value_exchange_rate?: number | null;
+          order_value_exchange_rate_date?: string | null;
+          order_value_converted_amount?: number | null;
+          order_value_converted_currency?: string | null;
+          order_value_conversion_source?: string | null;
+          retailer_line_account_id?: string | null;
           objection_tags?: string[];
           notes?: string | null;
           follow_up_date?: string | null;
@@ -814,6 +1213,14 @@ export interface Database {
           outcome?: string;
           pmf_score?: number | null;
           order_value_cad?: number | null;
+          order_value_original_amount?: number | null;
+          order_value_original_currency?: string | null;
+          order_value_exchange_rate?: number | null;
+          order_value_exchange_rate_date?: string | null;
+          order_value_converted_amount?: number | null;
+          order_value_converted_currency?: string | null;
+          order_value_conversion_source?: string | null;
+          retailer_line_account_id?: string | null;
           objection_tags?: string[];
           notes?: string | null;
           follow_up_date?: string | null;
@@ -831,6 +1238,14 @@ export interface Database {
           season: ApparelSeason;
           order_date: string;
           total_amount_cad: number;
+          original_amount: number | null;
+          original_currency: string | null;
+          exchange_rate: number | null;
+          exchange_rate_date: string | null;
+          converted_amount: number | null;
+          converted_currency: string | null;
+          conversion_source: string | null;
+          retailer_line_account_id: string | null;
           status: OrderStatus;
           notes: string | null;
           created_at: string;
@@ -844,6 +1259,14 @@ export interface Database {
           season: ApparelSeason;
           order_date?: string;
           total_amount_cad?: number;
+          original_amount?: number | null;
+          original_currency?: string | null;
+          exchange_rate?: number | null;
+          exchange_rate_date?: string | null;
+          converted_amount?: number | null;
+          converted_currency?: string | null;
+          conversion_source?: string | null;
+          retailer_line_account_id?: string | null;
           status?: OrderStatus;
           notes?: string | null;
           created_at?: string;
@@ -857,6 +1280,14 @@ export interface Database {
           season?: ApparelSeason;
           order_date?: string;
           total_amount_cad?: number;
+          original_amount?: number | null;
+          original_currency?: string | null;
+          exchange_rate?: number | null;
+          exchange_rate_date?: string | null;
+          converted_amount?: number | null;
+          converted_currency?: string | null;
+          conversion_source?: string | null;
+          retailer_line_account_id?: string | null;
           status?: OrderStatus;
           notes?: string | null;
           created_at?: string;
@@ -871,6 +1302,7 @@ export interface Database {
           next_suggested_contact_date: string | null;
           seasonal_cadence_tags: string[];
           ai_reorder_notes: string | null;
+          retailer_line_account_id: string | null;
           updated_at: string;
         };
         Insert: {
@@ -879,6 +1311,7 @@ export interface Database {
           next_suggested_contact_date?: string | null;
           seasonal_cadence_tags?: string[];
           ai_reorder_notes?: string | null;
+          retailer_line_account_id?: string | null;
           updated_at?: string;
         };
         Update: {
@@ -887,6 +1320,7 @@ export interface Database {
           next_suggested_contact_date?: string | null;
           seasonal_cadence_tags?: string[];
           ai_reorder_notes?: string | null;
+          retailer_line_account_id?: string | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -1024,6 +1458,7 @@ export interface Database {
         Row: {
           id: string;
           prospect_id: number;
+          retailer_line_account_id: string | null;
           converted_at: string;
           converted_by: string | null;
           conversion_source: ConversionSource;
@@ -1047,6 +1482,7 @@ export interface Database {
         Insert: {
           id?: string;
           prospect_id: number;
+          retailer_line_account_id?: string | null;
           converted_at: string;
           converted_by?: string | null;
           conversion_source: ConversionSource;
@@ -1070,6 +1506,7 @@ export interface Database {
         Update: {
           id?: string;
           prospect_id?: number;
+          retailer_line_account_id?: string | null;
           converted_at?: string;
           converted_by?: string | null;
           conversion_source?: ConversionSource;
@@ -1156,6 +1593,7 @@ export interface Database {
           status: string;
           request_type: string;
           prospect_id: number | null;
+          retailer_line_account_id: string | null;
           idempotency_key: string | null;
           merchandise_subtotal_usd: number;
           total_units: number;
@@ -1183,6 +1621,7 @@ export interface Database {
           status?: string;
           request_type?: string;
           prospect_id?: number | null;
+          retailer_line_account_id?: string | null;
           idempotency_key?: string | null;
           merchandise_subtotal_usd?: number;
           total_units?: number;
@@ -1210,6 +1649,7 @@ export interface Database {
           status?: string;
           request_type?: string;
           prospect_id?: number | null;
+          retailer_line_account_id?: string | null;
           idempotency_key?: string | null;
           merchandise_subtotal_usd?: number;
           total_units?: number;
@@ -1261,6 +1701,7 @@ export interface Database {
         Row: {
           id: string;
           prospect_id: number | null;
+          retailer_line_account_id: string | null;
           mapping_status: string;
           identity_fingerprint: string;
           confirmed_fingerprint: string | null;
@@ -1279,6 +1720,7 @@ export interface Database {
         Insert: {
           id?: string;
           prospect_id?: number | null;
+          retailer_line_account_id?: string | null;
           mapping_status?: string;
           identity_fingerprint: string;
           confirmed_fingerprint?: string | null;
@@ -1297,6 +1739,7 @@ export interface Database {
         Update: {
           id?: string;
           prospect_id?: number | null;
+          retailer_line_account_id?: string | null;
           mapping_status?: string;
           identity_fingerprint?: string;
           confirmed_fingerprint?: string | null;
@@ -1433,6 +1876,7 @@ export interface Database {
           google_connection_id: string;
           gmail_thread_id: string;
           prospect_id: number | null;
+          retailer_line_account_id: string | null;
           account_contact_id: string | null;
           link_status: string;
           subject: string | null;
@@ -1448,6 +1892,7 @@ export interface Database {
           google_connection_id: string;
           gmail_thread_id: string;
           prospect_id?: number | null;
+          retailer_line_account_id?: string | null;
           account_contact_id?: string | null;
           link_status?: string;
           subject?: string | null;
@@ -1504,6 +1949,7 @@ export interface Database {
           calendar_id: string;
           google_event_id: string;
           prospect_id: number | null;
+          retailer_line_account_id: string | null;
           account_contact_id: string | null;
           link_status: string;
           title: string | null;
@@ -1520,6 +1966,7 @@ export interface Database {
           calendar_id?: string;
           google_event_id: string;
           prospect_id?: number | null;
+          retailer_line_account_id?: string | null;
           account_contact_id?: string | null;
           link_status?: string;
           title?: string | null;
@@ -1584,6 +2031,7 @@ export interface Database {
           intro_text: string | null;
           closing_text: string | null;
           prospect_id: number | null;
+          retailer_line_account_id: string | null;
           account_contact_id: string | null;
           sent_by: string | null;
           queued_at: string | null;
@@ -1622,6 +2070,7 @@ export interface Database {
           intro_text?: string | null;
           closing_text?: string | null;
           prospect_id?: number | null;
+          retailer_line_account_id?: string | null;
           account_contact_id?: string | null;
           sent_by?: string | null;
           queued_at?: string | null;
@@ -1660,6 +2109,7 @@ export interface Database {
           intro_text?: string | null;
           closing_text?: string | null;
           prospect_id?: number | null;
+          retailer_line_account_id?: string | null;
           account_contact_id?: string | null;
           sent_by?: string | null;
           queued_at?: string | null;
@@ -2035,3 +2485,10 @@ export type SystemMessageEventUpdate =
 export type ProductOutreachEngagementSeen =
   Database['public']['Tables']['product_outreach_engagement_seen']['Row'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];
+export type Principal = Database['public']['Tables']['principals']['Row'];
+export type SalesLineTerritory = Database['public']['Tables']['sales_line_territories']['Row'];
+export type RetailerLineAccount = Database['public']['Tables']['retailer_line_accounts']['Row'];
+export type RetailerLineContact = Database['public']['Tables']['retailer_line_contacts']['Row'];
+export type RetailerLineTarget = Database['public']['Tables']['retailer_line_targets']['Row'];
+export type RetailerFieldChange = Database['public']['Tables']['retailer_field_changes']['Row'];
+export type MigrationReviewQueueRow = Database['public']['Tables']['migration_review_queue']['Row'];

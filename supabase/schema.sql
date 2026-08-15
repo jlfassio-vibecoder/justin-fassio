@@ -20,8 +20,27 @@ end;
 $$;
 
 -- ─────────────────────────────────────────────────────────────────────────
+-- principals — legal entities behind sales lines (Phase 1A).
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists principals (
+  id uuid primary key default gen_random_uuid(),
+  legal_name text,
+  dba_name text,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists principals_set_updated_at on principals;
+create trigger principals_set_updated_at
+  before update on principals
+  for each row execute function set_updated_at();
+
+-- ─────────────────────────────────────────────────────────────────────────
 -- lines — the wholesale lines Justin reps (Old Guys Rule, Busted Knuckles
 -- Garage, and any future lines). Catalog items belong to a line.
+-- Phase 1A: status / acquisition_stage / principal / commercial fields.
+-- `active` remains the public-portfolio flag (independent of status).
 -- ─────────────────────────────────────────────────────────────────────────
 create table if not exists lines (
   id uuid primary key default gen_random_uuid(),
@@ -34,8 +53,42 @@ create table if not exists lines (
   hero_image_url text,
   sort_order integer not null default 0,
   public_showroom_path text,
+  principal_id uuid references principals (id) on delete set null,
+  status text not null default 'prospective'
+    check (status in (
+      'prospective',
+      'confirmed',
+      'onboarding',
+      'active',
+      'paused',
+      'declined',
+      'terminated'
+    )),
+  acquisition_stage text
+    check (
+      acquisition_stage is null
+      or acquisition_stage in (
+        'identified',
+        'researching',
+        'contact_requested',
+        'conversation',
+        'evaluating',
+        'negotiating',
+        'decision_pending'
+      )
+    ),
+  default_currency text,
+  commission_rate numeric(5, 4),
+  effective_date date,
+  termination_date date,
+  productivity_thresholds jsonb,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint lines_acquisition_stage_required_check
+    check (
+      (status = 'prospective' and acquisition_stage is not null)
+      or (status <> 'prospective' and acquisition_stage is null)
+    )
 );
 
 drop trigger if exists lines_set_updated_at on lines;
@@ -43,7 +96,10 @@ create trigger lines_set_updated_at
   before update on lines
   for each row execute function set_updated_at();
 
-insert into lines (code, name, active, tagline, description, sort_order, public_showroom_path)
+create index if not exists lines_principal_id_idx on lines (principal_id);
+create index if not exists lines_status_idx on lines (status);
+
+insert into lines (code, name, active, tagline, description, sort_order, public_showroom_path, status)
 values
   (
     'ogr',
@@ -52,9 +108,10 @@ values
     'Now Repping',
     'Apparel & lifestyle goods for the surf and skate crowd.',
     10,
-    '/old-guys-rule-wholesale'
+    '/old-guys-rule-wholesale',
+    'active'
   ),
-  ('bkg', 'Busted Knuckles Garage', false, null, null, 20, null)
+  ('bkg', 'Busted Knuckles Garage', false, null, null, 20, null, 'paused')
 on conflict (code) do nothing;
 
 -- ─────────────────────────────────────────────────────────────────────────
@@ -68,9 +125,15 @@ create table if not exists territories (
   country_code text not null,
   sort_order integer not null default 0,
   active boolean not null default true,
+  level text not null default 'province_state'
+    check (level in ('country', 'province_state', 'region', 'county')),
+  parent_territory_id uuid references territories (id),
+  status text not null default 'active'
+    check (status in ('active', 'proposed')),
+  metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint territories_code_check check (code in ('bc', 'ab', 'ca', 'or', 'wa')),
+  -- Phase 1A: five-code CHECK dropped to allow hierarchical regions (e.g. norcal).
   constraint territories_country_code_check check (country_code in ('CA', 'US'))
 );
 
@@ -79,14 +142,60 @@ create trigger territories_set_updated_at
   before update on territories
   for each row execute function set_updated_at();
 
-insert into territories (code, name, country_code, sort_order, active)
+create index if not exists territories_parent_territory_id_idx
+  on territories (parent_territory_id);
+
+create index if not exists territories_level_idx on territories (level);
+
+insert into territories (code, name, country_code, sort_order, active, level, status)
 values
-  ('bc', 'British Columbia', 'CA', 10, true),
-  ('ab', 'Alberta', 'CA', 20, true),
-  ('ca', 'California', 'US', 30, true),
-  ('or', 'Oregon', 'US', 40, true),
-  ('wa', 'Washington', 'US', 50, true)
+  ('bc', 'British Columbia', 'CA', 10, true, 'province_state', 'active'),
+  ('ab', 'Alberta', 'CA', 20, true, 'province_state', 'active'),
+  ('ca', 'California', 'US', 30, true, 'province_state', 'active'),
+  ('or', 'Oregon', 'US', 40, true, 'province_state', 'active'),
+  ('wa', 'Washington', 'US', 50, true, 'province_state', 'active')
 on conflict (code) do nothing;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- sales_line_territories — geographic rights for a particular line (Phase 1A).
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists sales_line_territories (
+  id uuid primary key default gen_random_uuid(),
+  sales_line_id uuid not null references lines (id) on delete cascade,
+  territory_id uuid not null references territories (id),
+  rights_type text not null
+    check (rights_type in (
+      'exclusive',
+      'limited_exclusive',
+      'non_exclusive',
+      'unconfirmed'
+    )),
+  status text not null
+    check (status in ('proposed', 'active', 'expired', 'disputed')),
+  effective_date date,
+  expiration_date date,
+  contract_source text,
+  restrictions jsonb not null default '{}'::jsonb,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint sales_line_territories_id_sales_line_uidx unique (id, sales_line_id)
+);
+
+create unique index if not exists sales_line_territories_line_territory_active_uidx
+  on sales_line_territories (sales_line_id, territory_id)
+  where status <> 'expired';
+
+create index if not exists sales_line_territories_sales_line_id_idx
+  on sales_line_territories (sales_line_id);
+
+create index if not exists sales_line_territories_territory_id_idx
+  on sales_line_territories (territory_id);
+
+drop trigger if exists sales_line_territories_set_updated_at on sales_line_territories;
+create trigger sales_line_territories_set_updated_at
+  before update on sales_line_territories
+  for each row execute function set_updated_at();
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- catalog_items — wholesale SKUs, scoped to a line. Seeded from the former
@@ -414,6 +523,7 @@ create table if not exists prospect_updates (
   prospect_id integer not null,
   status text,                        -- e.g. 'contacted', 'qualified', 'not a fit'
   note text,
+  retailer_line_account_id uuid,
   created_at timestamptz not null default now()
 );
 
@@ -432,6 +542,14 @@ create table if not exists calls (
   outcome text not null,              -- e.g. 'Closed PO / Written Order', 'Follow-up Scheduled'
   pmf_score smallint check (pmf_score between 1 and 10),
   order_value_cad numeric(10, 2) default 0,
+  order_value_original_amount numeric(12, 2),
+  order_value_original_currency text,
+  order_value_exchange_rate numeric(18, 8),
+  order_value_exchange_rate_date date,
+  order_value_converted_amount numeric(12, 2),
+  order_value_converted_currency text,
+  order_value_conversion_source text,
+  retailer_line_account_id uuid,
   objection_tags text[] not null default '{}',  -- buyer feedback checkboxes from the modal
   notes text,
   follow_up_date date,
@@ -467,6 +585,15 @@ create table if not exists orders (
     )),
   order_date date not null default current_date,
   total_amount_cad numeric(10, 2) not null default 0,
+  -- Phase 1A multi-currency expand (do not drop CAD)
+  original_amount numeric(12, 2),
+  original_currency text,
+  exchange_rate numeric(18, 8),
+  exchange_rate_date date,
+  converted_amount numeric(12, 2),
+  converted_currency text,
+  conversion_source text,
+  retailer_line_account_id uuid,
   status text not null default 'draft'
     check (status in ('draft', 'submitted', 'fulfilled')),
   notes text,
@@ -492,6 +619,7 @@ create table if not exists account_reorder_settings (
   next_suggested_contact_date date,
   seasonal_cadence_tags text[] not null default '{}',
   ai_reorder_notes text,
+  retailer_line_account_id uuid,
   updated_at timestamptz not null default now()
 );
 
@@ -592,6 +720,344 @@ create trigger account_contacts_set_updated_at
   for each row execute function set_updated_at();
 
 -- ─────────────────────────────────────────────────────────────────────────
+-- Multi-line CRM tables (Phase 1A) — after prospects + account_contacts exist.
+-- ─────────────────────────────────────────────────────────────────────────
+
+create table if not exists retailer_line_accounts (
+  id uuid primary key default gen_random_uuid(),
+  retailer_id integer not null references prospects (id) on delete cascade,
+  sales_line_id uuid not null references lines (id),
+  sales_line_territory_id uuid,
+  relationship_status text not null
+    check (relationship_status in (
+      'prospect',
+      'qualified',
+      'opened',
+      'inactive',
+      'terminated'
+    )),
+  converted_at timestamptz,
+  initial_order_date timestamptz,
+  notes text,
+  fit text,
+  fit_score smallint check (fit_score is null or (fit_score >= 1 and fit_score <= 10)),
+  ideal_opening_units integer,
+  priority text,
+  provisional_grade text,
+  verification_status text,
+  buyer_verified boolean not null default false,
+  apparel_capability text,
+  existing_ogr text,
+  qualification_status text,
+  next_action text,
+  source_note text,
+  region text,
+  primary_district text,
+  subterritory text,
+  secondary_channels jsonb not null default '[]'::jsonb,
+  retail_subchannels jsonb not null default '[]'::jsonb,
+  venue_contexts jsonb not null default '[]'::jsonb,
+  lifestyle_themes jsonb not null default '[]'::jsonb,
+  retail_capabilities jsonb not null default '[]'::jsonb,
+  backfill_review_reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint retailer_line_accounts_territory_same_line_fkey
+    foreign key (sales_line_territory_id, sales_line_id)
+    references sales_line_territories (id, sales_line_id)
+    match simple
+);
+
+create unique index if not exists retailer_line_accounts_retailer_line_operational_uidx
+  on retailer_line_accounts (retailer_id, sales_line_id)
+  where relationship_status <> 'terminated';
+
+create index if not exists retailer_line_accounts_sales_line_status_idx
+  on retailer_line_accounts (sales_line_id, relationship_status);
+
+create index if not exists retailer_line_accounts_retailer_id_idx
+  on retailer_line_accounts (retailer_id);
+
+drop trigger if exists retailer_line_accounts_set_updated_at on retailer_line_accounts;
+create trigger retailer_line_accounts_set_updated_at
+  before update on retailer_line_accounts
+  for each row execute function set_updated_at();
+
+create table if not exists retailer_line_contacts (
+  id uuid primary key default gen_random_uuid(),
+  retailer_line_account_id uuid not null
+    references retailer_line_accounts (id) on delete cascade,
+  account_contact_id uuid not null
+    references account_contacts (id) on delete cascade,
+  role text not null
+    check (role in ('buyer', 'manager', 'owner')),
+  is_primary boolean not null default false,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint retailer_line_contacts_account_contact_uidx
+    unique (retailer_line_account_id, account_contact_id)
+);
+
+create unique index if not exists retailer_line_contacts_one_primary_uidx
+  on retailer_line_contacts (retailer_line_account_id)
+  where is_primary;
+
+create index if not exists retailer_line_contacts_account_contact_id_idx
+  on retailer_line_contacts (account_contact_id);
+
+drop trigger if exists retailer_line_contacts_set_updated_at on retailer_line_contacts;
+create trigger retailer_line_contacts_set_updated_at
+  before update on retailer_line_contacts
+  for each row execute function set_updated_at();
+
+create table if not exists retailer_field_changes (
+  id uuid primary key default gen_random_uuid(),
+  retailer_id integer not null references prospects (id) on delete cascade,
+  field_path text not null,
+  old_value jsonb,
+  new_value jsonb,
+  source text not null default 'user'
+    check (source in ('user', 'ai', 'import', 'calculated', 'unknown')),
+  actor_id uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists retailer_field_changes_retailer_id_idx
+  on retailer_field_changes (retailer_id, created_at desc);
+
+create table if not exists retailer_line_targets (
+  id uuid primary key default gen_random_uuid(),
+  retailer_id integer not null references prospects (id) on delete cascade,
+  sales_line_id uuid not null references lines (id) on delete cascade,
+  interest text,
+  fit_notes text,
+  suggested_geo text,
+  status text not null default 'watching'
+    check (status in ('watching', 'shortlist', 'dropped')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint retailer_line_targets_retailer_line_uidx unique (retailer_id, sales_line_id)
+);
+
+create index if not exists retailer_line_targets_sales_line_id_idx
+  on retailer_line_targets (sales_line_id);
+
+drop trigger if exists retailer_line_targets_set_updated_at on retailer_line_targets;
+create trigger retailer_line_targets_set_updated_at
+  before update on retailer_line_targets
+  for each row execute function set_updated_at();
+
+create table if not exists migration_review_queue (
+  id uuid primary key default gen_random_uuid(),
+  entity_type text not null,
+  entity_id text not null,
+  reason text not null,
+  payload jsonb not null default '{}'::jsonb,
+  resolved_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists migration_review_queue_unresolved_idx
+  on migration_review_queue (entity_type, created_at)
+  where resolved_at is null;
+
+-- Transitional FKs from operational tables → retailer_line_accounts
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'orders_retailer_line_account_id_fkey'
+  ) then
+    alter table orders
+      add constraint orders_retailer_line_account_id_fkey
+      foreign key (retailer_line_account_id)
+      references retailer_line_accounts (id) on delete set null;
+  end if;
+end $$;
+
+create index if not exists orders_retailer_line_account_id_idx
+  on orders (retailer_line_account_id);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'calls_retailer_line_account_id_fkey'
+  ) then
+    alter table calls
+      add constraint calls_retailer_line_account_id_fkey
+      foreign key (retailer_line_account_id)
+      references retailer_line_accounts (id) on delete set null;
+  end if;
+end $$;
+
+create index if not exists calls_retailer_line_account_id_idx
+  on calls (retailer_line_account_id);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'prospect_updates_retailer_line_account_id_fkey'
+  ) then
+    alter table prospect_updates
+      add constraint prospect_updates_retailer_line_account_id_fkey
+      foreign key (retailer_line_account_id)
+      references retailer_line_accounts (id) on delete set null;
+  end if;
+end $$;
+
+create index if not exists prospect_updates_retailer_line_account_id_idx
+  on prospect_updates (retailer_line_account_id);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'account_reorder_settings_retailer_line_account_id_fkey'
+  ) then
+    alter table account_reorder_settings
+      add constraint account_reorder_settings_retailer_line_account_id_fkey
+      foreign key (retailer_line_account_id)
+      references retailer_line_accounts (id) on delete set null;
+  end if;
+end $$;
+
+create index if not exists account_reorder_settings_retailer_line_account_id_idx
+  on account_reorder_settings (retailer_line_account_id);
+
+-- Derived activity / productivity views
+create or replace view retailer_line_account_activity as
+select
+  rla.id as retailer_line_account_id,
+  case
+    when not exists (
+      select 1
+      from orders o
+      where o.retailer_line_account_id = rla.id
+        and o.status <> 'draft'
+    ) then 'never_ordered'
+    when exists (
+      select 1
+      from orders o
+      where o.retailer_line_account_id = rla.id
+        and o.status <> 'draft'
+        and o.order_date >= (current_date - 365)
+    ) then 'active'
+    else 'dormant'
+  end as activity_status
+from retailer_line_accounts rla;
+
+create or replace view retailer_line_account_productivity as
+select
+  rla.id as retailer_line_account_id,
+  case
+    when l.productivity_thresholds is null then 'unclassified'
+    else 'unclassified'
+  end as productivity_class
+from retailer_line_accounts rla
+join lines l on l.id = rla.sales_line_id;
+
+-- Enforcement triggers (cross-table rules)
+create or replace function public.enforce_retailer_line_target_prospective()
+returns trigger
+language plpgsql
+as $$
+declare
+  line_status text;
+begin
+  select status into line_status from lines where id = new.sales_line_id;
+  if line_status is null then
+    raise exception 'retailer_line_targets: sales_line_id % not found', new.sales_line_id;
+  end if;
+  if line_status <> 'prospective' then
+    raise exception
+      'retailer_line_targets may only reference prospective lines (got status %)',
+      line_status;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists retailer_line_targets_prospective_only on retailer_line_targets;
+create trigger retailer_line_targets_prospective_only
+  before insert or update of sales_line_id on retailer_line_targets
+  for each row execute function public.enforce_retailer_line_target_prospective();
+
+create or replace function public.enforce_retailer_line_account_not_prospective()
+returns trigger
+language plpgsql
+as $$
+declare
+  line_status text;
+begin
+  select status into line_status from lines where id = new.sales_line_id;
+  if line_status is null then
+    raise exception 'retailer_line_accounts: sales_line_id % not found', new.sales_line_id;
+  end if;
+  if line_status = 'prospective' then
+    raise exception 'retailer_line_accounts cannot be created for prospective lines';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists retailer_line_accounts_not_prospective on retailer_line_accounts;
+create trigger retailer_line_accounts_not_prospective
+  before insert or update of sales_line_id on retailer_line_accounts
+  for each row execute function public.enforce_retailer_line_account_not_prospective();
+
+create or replace function public.enforce_order_not_prospective_line()
+returns trigger
+language plpgsql
+as $$
+declare
+  line_status text;
+begin
+  if new.retailer_line_account_id is not null then
+    select l.status into line_status
+    from retailer_line_accounts rla
+    join lines l on l.id = rla.sales_line_id
+    where rla.id = new.retailer_line_account_id;
+    if line_status = 'prospective' then
+      raise exception 'orders cannot reference prospective-line accounts';
+    end if;
+  end if;
+  if new.line_id is not null then
+    select status into line_status from lines where id = new.line_id;
+    if line_status = 'prospective' then
+      raise exception 'orders.line_id cannot reference a prospective line';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists orders_not_prospective_line on orders;
+create trigger orders_not_prospective_line
+  before insert or update of retailer_line_account_id, line_id on orders
+  for each row execute function public.enforce_order_not_prospective_line();
+
+create or replace function public.enforce_system_message_not_prospective_line()
+returns trigger
+language plpgsql
+as $$
+declare
+  line_status text;
+begin
+  if new.retailer_line_account_id is not null then
+    select l.status into line_status
+    from retailer_line_accounts rla
+    join lines l on l.id = rla.sales_line_id
+    where rla.id = new.retailer_line_account_id;
+    if line_status = 'prospective' then
+      raise exception 'system_messages cannot reference prospective-line accounts';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+-- system_messages table is created later; trigger attached in that section.
+
+-- ─────────────────────────────────────────────────────────────────────────
 -- wholesale_order_requests — public B2B order-request submissions (not booked revenue).
 -- ─────────────────────────────────────────────────────────────────────────
 create sequence if not exists wholesale_order_request_number_seq;
@@ -623,6 +1089,7 @@ create table if not exists wholesale_order_requests (
   request_type text not null default 'order'
     check (request_type in ('order', 'inquiry')),
   prospect_id integer references prospects(id) on delete set null,
+  retailer_line_account_id uuid references retailer_line_accounts (id) on delete set null,
   idempotency_key text unique,
   merchandise_subtotal_usd numeric(12, 2) not null default 0,
   total_units integer not null default 0,
@@ -699,6 +1166,7 @@ create index if not exists buyer_product_likes_user_id_idx on buyer_product_like
 create table if not exists message_threads (
   id uuid primary key default gen_random_uuid(),
   prospect_id integer references prospects(id) on delete set null,
+  retailer_line_account_id uuid references retailer_line_accounts (id) on delete set null,
   mapping_status text not null default 'unmapped'
     check (mapping_status in ('unmapped', 'suggested', 'confirmed')),
   identity_fingerprint text not null,
@@ -1311,6 +1779,13 @@ grant execute on function public.get_public_active_lines() to anon, authenticate
 
 alter table lines enable row level security;
 alter table territories enable row level security;
+alter table principals enable row level security;
+alter table sales_line_territories enable row level security;
+alter table retailer_line_accounts enable row level security;
+alter table retailer_line_contacts enable row level security;
+alter table retailer_field_changes enable row level security;
+alter table retailer_line_targets enable row level security;
+alter table migration_review_queue enable row level security;
 alter table catalog_items enable row level security;
 alter table catalog_settings enable row level security;
 alter table catalog_variants enable row level security;
@@ -1342,6 +1817,48 @@ create policy "approved staff full access" on lines
 
 drop policy if exists "approved staff full access" on territories;
 create policy "approved staff full access" on territories
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on principals;
+create policy "approved staff full access" on principals
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on sales_line_territories;
+create policy "approved staff full access" on sales_line_territories
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on retailer_line_accounts;
+create policy "approved staff full access" on retailer_line_accounts
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on retailer_line_contacts;
+create policy "approved staff full access" on retailer_line_contacts
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on retailer_field_changes;
+create policy "approved staff full access" on retailer_field_changes
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on retailer_line_targets;
+create policy "approved staff full access" on retailer_line_targets
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on migration_review_queue;
+create policy "approved staff full access" on migration_review_queue
   for all to authenticated
   using (public.is_approved_staff())
   with check (public.is_approved_staff());
@@ -1619,6 +2136,7 @@ create table if not exists gmail_thread_links (
   google_connection_id uuid not null references google_account_connections (id) on delete cascade,
   gmail_thread_id text not null,
   prospect_id integer references prospects (id) on delete set null,
+  retailer_line_account_id uuid references retailer_line_accounts (id) on delete set null,
   account_contact_id uuid references account_contacts (id) on delete set null,
   link_status text not null default 'confirmed'
     check (link_status in ('suggested', 'confirmed')),
@@ -1662,6 +2180,7 @@ create table if not exists calendar_event_links (
   calendar_id text not null default 'primary',
   google_event_id text not null,
   prospect_id integer references prospects (id) on delete set null,
+  retailer_line_account_id uuid references retailer_line_accounts (id) on delete set null,
   account_contact_id uuid references account_contacts (id) on delete set null,
   link_status text not null default 'confirmed'
     check (link_status in ('suggested', 'confirmed')),
@@ -1728,6 +2247,7 @@ create table if not exists system_messages (
   intro_text text,
   closing_text text,
   prospect_id integer references prospects (id) on delete set null,
+  retailer_line_account_id uuid references retailer_line_accounts (id) on delete set null,
   account_contact_id uuid references account_contacts (id) on delete set null,
   sent_by uuid references auth.users (id) on delete set null,
   queued_at timestamptz,
@@ -1802,6 +2322,41 @@ create policy "approved staff full access" on system_messages
   using (public.is_approved_staff())
   with check (public.is_approved_staff());
 
+drop trigger if exists system_messages_not_prospective_line on system_messages;
+create trigger system_messages_not_prospective_line
+  before insert or update of retailer_line_account_id on system_messages
+  for each row execute function public.enforce_system_message_not_prospective_line();
+
+-- Block leaving prospective while research targets still exist (no auto-convert).
+create or replace function public.enforce_lines_leave_prospective_without_targets()
+returns trigger
+language plpgsql
+as $$
+declare
+  target_count integer;
+begin
+  if old.status = 'prospective' and new.status is distinct from 'prospective' then
+    select count(*) into target_count
+    from retailer_line_targets
+    where sales_line_id = old.id;
+
+    if target_count > 0 then
+      raise exception
+        'Cannot change line % from prospective while % retailer_line_targets exist; clear or archive targets before promotion',
+        old.code,
+        target_count;
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists lines_leave_prospective_without_targets on lines;
+create trigger lines_leave_prospective_without_targets
+  before update of status on lines
+  for each row execute function public.enforce_lines_leave_prospective_without_targets();
+
 -- ─────────────────────────────────────────────────────────────────────────
 -- account_conversion_attribution — convert → outreach message history + snapshots.
 -- Phase 4. Demote must NOT delete these rows. Requires system_messages.
@@ -1809,6 +2364,7 @@ create policy "approved staff full access" on system_messages
 create table if not exists account_conversion_attribution (
   id uuid primary key default gen_random_uuid(),
   prospect_id integer not null references prospects (id) on delete cascade,
+  retailer_line_account_id uuid references retailer_line_accounts (id) on delete set null,
   converted_at timestamptz not null,
   converted_by uuid references auth.users (id) on delete set null,
   conversion_source text not null
