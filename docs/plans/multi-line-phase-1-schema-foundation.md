@@ -717,8 +717,6 @@ select reason, count(*) from migration_review_queue where resolved_at is null gr
 
 `prospects` remains source of truth for the app throughout Phase 1 — rollback never needs to reconstruct UI data from line accounts.
 
-`prospects` remains source of truth for the app throughout Phase 1 — rollback never needs to reconstruct UI data from line accounts.
-
 ---
 
 ## 17. Required fixtures and tests

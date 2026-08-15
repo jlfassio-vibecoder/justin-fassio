@@ -96,6 +96,9 @@ create trigger lines_set_updated_at
   before update on lines
   for each row execute function set_updated_at();
 
+create index if not exists lines_principal_id_idx on lines (principal_id);
+create index if not exists lines_status_idx on lines (status);
+
 insert into lines (code, name, active, tagline, description, sort_order, public_showroom_path, status)
 values
   (
@@ -138,6 +141,11 @@ drop trigger if exists territories_set_updated_at on territories;
 create trigger territories_set_updated_at
   before update on territories
   for each row execute function set_updated_at();
+
+create index if not exists territories_parent_territory_id_idx
+  on territories (parent_territory_id);
+
+create index if not exists territories_level_idx on territories (level);
 
 insert into territories (code, name, country_code, sort_order, active, level, status)
 values
