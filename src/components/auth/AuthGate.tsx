@@ -70,24 +70,31 @@ function StaffToolbarAvatar({
   );
 }
 
+const STAFF_FEATURES_OFF: StaffFeatureFlags = {
+  FEATURE_MULTI_LINE_UI: false,
+  FEATURE_MULTI_LINE_WRITES: false,
+  FEATURE_MULTI_LINE_AI: false,
+};
+
 async function fetchStaffFeatures(): Promise<StaffFeatureFlags> {
   try {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     if (!token) {
-      return { FEATURE_MULTI_LINE_UI: false, FEATURE_MULTI_LINE_WRITES: false };
+      return STAFF_FEATURES_OFF;
     }
     const res = await fetch('/api/staff/features', {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) return { FEATURE_MULTI_LINE_UI: false, FEATURE_MULTI_LINE_WRITES: false };
+    if (!res.ok) return STAFF_FEATURES_OFF;
     const payload = (await res.json()) as { features?: StaffFeatureFlags };
     return {
       FEATURE_MULTI_LINE_UI: Boolean(payload.features?.FEATURE_MULTI_LINE_UI),
       FEATURE_MULTI_LINE_WRITES: Boolean(payload.features?.FEATURE_MULTI_LINE_WRITES),
+      FEATURE_MULTI_LINE_AI: Boolean(payload.features?.FEATURE_MULTI_LINE_AI),
     };
   } catch {
-    return { FEATURE_MULTI_LINE_UI: false, FEATURE_MULTI_LINE_WRITES: false };
+    return STAFF_FEATURES_OFF;
   }
 }
 
@@ -132,6 +139,7 @@ function AuthGateInner({
 
   const multiLineUi = Boolean(features?.FEATURE_MULTI_LINE_UI);
   const multiLineWrites = Boolean(features?.FEATURE_MULTI_LINE_WRITES);
+  const multiLineAi = Boolean(features?.FEATURE_MULTI_LINE_AI);
   const urlLineSlug = lineSlugProp?.trim().toLowerCase() || null;
   const unknownLine = Boolean(urlLineSlug && !isRepresentedLineCode(urlLineSlug));
 
@@ -140,6 +148,7 @@ function AuthGateInner({
   const effectiveFeaturesLoading = staffAppOrAccount ? featuresLoading : false;
   const effectiveMultiLineUi = staffAppOrAccount ? multiLineUi : false;
   const effectiveMultiLineWrites = staffAppOrAccount ? multiLineWrites : false;
+  const effectiveMultiLineAi = staffAppOrAccount ? multiLineAi : false;
 
   // Flag off + line-prefixed URL → redirect to /app preserving ?tab=
   useEffect(() => {
@@ -243,6 +252,7 @@ function AuthGateInner({
     <LineProvider
       multiLineUi={effectiveMultiLineUi}
       multiLineWrites={effectiveMultiLineWrites}
+      multiLineAi={effectiveMultiLineAi}
       urlLineSlug={urlLineSlug}
     >
       {page === 'account' ? (

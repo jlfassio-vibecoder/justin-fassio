@@ -17,6 +17,7 @@ import {
   type LandedCostFactors,
 } from '@/lib/landedCost';
 import { fetchLandedRates, type LandedRatesPayload } from '@/lib/landedRatesClient';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import { fetchLineByCode, type LinePortfolio } from '@/lib/lines';
 import {
   DEFAULT_KEYSTONE_MARGIN_RATE,
@@ -129,6 +130,7 @@ export function CatalogTab({
   deepLinkDraftId = null,
   onDeepLinkConsumed,
 }: CatalogTabProps) {
+  const line = useOptionalLineContext();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('ALL');
   const [flag, setFlag] = useState<CatalogFlagFilter>('ALL');
@@ -304,7 +306,9 @@ export function CatalogTab({
   async function handleUpdateRates() {
     setRatesBusy(true);
     setRatesError(null);
-    const result = await fetchLandedRates();
+    const result = await fetchLandedRates(
+      line.multiLineAi && line.salesLineId ? { salesLineId: line.salesLineId } : undefined,
+    );
     setRatesBusy(false);
     if (!result.ok) {
       setRatesError(result.error);

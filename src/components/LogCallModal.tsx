@@ -167,7 +167,10 @@ export function LogCallModal({
       outcome: savedOutcome,
       objectionTags: feedback.length > 0 ? feedback : undefined,
     };
-    const draft = buildCallDraft(chips, draftFormat);
+    const draft = buildCallDraft(chips, draftFormat, {
+      multiLineAi: line.multiLineAi,
+      lineName: line.name,
+    });
 
     clearForm();
 

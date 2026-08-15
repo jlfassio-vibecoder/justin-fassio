@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { checkAgentRateLimit, rateLimitResponse } from '@/lib/agentRateLimit';
+import { gateStaffAiContext, parseOptionalUuidField } from '@/lib/aiLineContext';
 import {
   generateOgrProductOutreachDraft,
   generateOgrProductOutreachDrafts,
@@ -129,6 +130,30 @@ export const POST: APIRoute = async ({ request }) => {
   const unsupported = rejectUnsupportedSendFields(body);
   if (unsupported) return jsonError(unsupported, 400);
 
+  const firstTarget = Array.isArray(body.targets) ? body.targets[0] : body.target;
+  const firstProspectId =
+    firstTarget && typeof firstTarget === 'object' && !Array.isArray(firstTarget)
+      ? (firstTarget as { prospectId?: unknown }).prospectId
+      : undefined;
+  const prospectId =
+    typeof firstProspectId === 'number' && Number.isFinite(firstProspectId)
+      ? firstProspectId
+      : null;
+
+  const gated = await gateStaffAiContext({
+    client: gate.supabase,
+    salesLineId: parseOptionalUuidField(body.salesLineId),
+    retailerLineAccountId: parseOptionalUuidField(body.retailerLineAccountId),
+    prospectId,
+    kind: prospectId != null ? 'account' : 'line_level',
+  });
+  if (!gated.ok) {
+    return jsonError(gated.error, gated.status);
+  }
+  if (gated.ctx?.mode === 'research_only') {
+    return jsonError('Outreach generate is not available for this sales line', 400);
+  }
+
   if (body.targets != null) {
     if (!Array.isArray(body.targets)) {
       return jsonError('targets must be an array', 400);
@@ -150,6 +175,7 @@ export const POST: APIRoute = async ({ request }) => {
       targets,
       userId: gate.userId,
       regenerate,
+      salesLineId: gated.ctx?.salesLineId,
     });
     return jsonOk({ results: batch.results });
   }
@@ -169,6 +195,7 @@ export const POST: APIRoute = async ({ request }) => {
     target: parsed.value,
     userId: gate.userId,
     existingDraftId,
+    salesLineId: gated.ctx?.salesLineId,
   });
   if (!generated.ok) {
     return jsonError(generated.error, 502);

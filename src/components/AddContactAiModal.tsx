@@ -6,7 +6,9 @@ import { Field, FieldLabel, Input } from '@/components/ui/Input';
 import type { AccountContact } from '@/lib/accountContacts';
 import { findCompanyMatches } from '@/lib/companyMatch';
 import { enrichContact } from '@/lib/enrichContact';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import type { Prospect } from '@/lib/prospects';
+import { staffAiPostFields } from '@/lib/staffAiClientContext';
 
 const STATUS_LABEL: Record<Prospect['accountStatus'], string> = {
   prospect: 'Prospect',
@@ -29,6 +31,7 @@ interface AddContactAiModalProps {
 type Step = 'form' | 'confirm';
 
 export function AddContactAiModal({ open, prospects, onClose, onCreated }: AddContactAiModalProps) {
+  const line = useOptionalLineContext();
   const [contactName, setContactName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -63,6 +66,11 @@ export function AddContactAiModal({ open, prospects, onClose, onCreated }: AddCo
   async function runEnrich(mode: 'create_prospect' | 'attach', accountId?: number) {
     setBusy(true);
     setError(null);
+    const aiFields = await staffAiPostFields({
+      multiLineAi: line.multiLineAi,
+      salesLineId: line.salesLineId,
+      prospectId: mode === 'attach' ? accountId : null,
+    });
     const result = await enrichContact({
       contactName: contactName.trim(),
       companyName: companyName.trim(),
@@ -71,6 +79,8 @@ export function AddContactAiModal({ open, prospects, onClose, onCreated }: AddCo
       websiteUrl: websiteUrl.trim() || undefined,
       mode,
       accountId,
+      salesLineId: aiFields.salesLineId,
+      retailerLineAccountId: aiFields.retailerLineAccountId,
     });
     setBusy(false);
 

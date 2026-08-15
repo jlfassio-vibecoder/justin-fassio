@@ -18,28 +18,28 @@ This document is the **agent-executable** Phase 4 implementation brief. Follow i
 
 ## Locked decisions (no agent discretion)
 
-| Decision                         | Choice                                                                                                                                                                                                                         |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Scope                            | Isolate **staff** AI when `FEATURE_MULTI_LINE_AI` is on. Phase 1–3 schema/reads/writes stay as shipped                                                                                                                         |
-| Feature flag                     | `FEATURE_MULTI_LINE_AI` — **server env**, default **off**, not `PUBLIC_`. Snapshot via existing `/api/staff/features`                                                                                                          |
-| Snapshot gating                  | `FEATURE_MULTI_LINE_AI = isMultiLineAiEnabled() && isMultiLineUiEnabled()` (same AND as writes after Copilot #79). Server libs/APIs call `isMultiLineAiEnabled()`; islands use snapshot + LineContext                          |
-| Flag off                         | Today’s AI signatures and implicit OGR/BC behavior unchanged so existing AI tests keep passing                                                                                                                                 |
-| Flag on                          | Every staff AI request requires explicit `sales_line_id`. Missing / unknown / `bkg` / `declined` / `terminated` → **400** with a clear error. **Never** silently default to OGR                                               |
-| Account-specific AI              | Also require `retailer_line_account_id` whose `(retailer_id, sales_line_id)` matches and `relationship_status <> 'terminated'`. Mismatch → 400                                                                                 |
-| Line-level AI                    | Add via AI (create), landed-rates, catalog-only APF with no prospect: `sales_line_id` required; RLA omitted                                                                                                                    |
-| Territory                        | **Read-only** `sales_line_territories` for that line. Inject permitted assignment ids. Named territory id must be in that set. **Do not** auto-assign from city/state (Phase 5). Big Fish has zero assignments → empty set    |
-| Profiles                         | Additive `lines.ai_profile jsonb` (epic v1). Seed OGR with current ICP/rubric/prompt keys; EP/BF with empty-catalog + no OGR apparel rubric. No invented Big Fish commercial terms. No `sales_line_ai_profiles` table in v1    |
-| Tools                            | Bind `createAgentCrmTools(supabase, ctx)` to request context. Remove default `lineCode = 'ogr'` when flag on. Filter calls/orders/notes by `line_id` / RLA. Catalog `.eq('line_id', ctx.salesLineId)` only                     |
-| Prospective                      | Research notes only. Refuse convert, operational writes, outreach generate/send, and represented-line catalogs                                                                                                                 |
-| Eagle Peak / Big Fish            | Own data only; empty catalogs stay empty (**zero OGR SKUs**). Staff selling UI stays blocked (Phase 3). Do **not** add Phase 6/7 flags                                                                                         |
+| Decision                         | Choice                                                                                                                                                                                                                                                      |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scope                            | Isolate **staff** AI when `FEATURE_MULTI_LINE_AI` is on. Phase 1–3 schema/reads/writes stay as shipped                                                                                                                                                      |
+| Feature flag                     | `FEATURE_MULTI_LINE_AI` — **server env**, default **off**, not `PUBLIC_`. Snapshot via existing `/api/staff/features`                                                                                                                                       |
+| Snapshot gating                  | `FEATURE_MULTI_LINE_AI = isMultiLineAiEnabled() && isMultiLineUiEnabled()` (same AND as writes after Copilot #79). Server libs/APIs call `isMultiLineAiEnabled()`; islands use snapshot + LineContext                                                       |
+| Flag off                         | Today’s AI signatures and implicit OGR/BC behavior unchanged so existing AI tests keep passing                                                                                                                                                              |
+| Flag on                          | Every staff AI request requires explicit `sales_line_id`. Missing / unknown / `bkg` / `declined` / `terminated` → **400** with a clear error. **Never** silently default to OGR                                                                             |
+| Account-specific AI              | Also require `retailer_line_account_id` whose `(retailer_id, sales_line_id)` matches and `relationship_status <> 'terminated'`. Mismatch → 400                                                                                                              |
+| Line-level AI                    | Add via AI (create), landed-rates, catalog-only APF with no prospect: `sales_line_id` required; RLA omitted                                                                                                                                                 |
+| Territory                        | **Read-only** `sales_line_territories` for that line. Inject permitted assignment ids. Named territory id must be in that set. **Do not** auto-assign from city/state (Phase 5). Big Fish has zero assignments → empty set                                  |
+| Profiles                         | Additive `lines.ai_profile jsonb` (epic v1). Seed OGR with current ICP/rubric/prompt keys; EP/BF with empty-catalog + no OGR apparel rubric. No invented Big Fish commercial terms. No `sales_line_ai_profiles` table in v1                                 |
+| Tools                            | Bind `createAgentCrmTools(supabase, ctx)` to request context. Remove default `lineCode = 'ogr'` when flag on. Filter calls/orders/notes by `line_id` / RLA. Catalog `.eq('line_id', ctx.salesLineId)` only                                                  |
+| Prospective                      | Research notes only. Refuse convert, operational writes, outreach generate/send, and represented-line catalogs                                                                                                                                              |
+| Eagle Peak / Big Fish            | Own data only; empty catalogs stay empty (**zero OGR SKUs**). Staff selling UI stays blocked (Phase 3). Do **not** add Phase 6/7 flags                                                                                                                      |
 | Provenance                       | AI Update / fill-blanks / Add-via-AI identity edits are **proposals**. Apply writes `retailer_field_changes` (`source = 'ai'`). Do not overwrite `buyer_verified === true` or `verification_status` matching `/^verified$/i` without explicit staff confirm |
-| Outreach prep / send / cron      | **Unchanged** (still OGR). Only `generate-draft` is Phase 4. Phase 6/7 outreach flags stay off                                                                                                                                 |
-| Public live chat / catalogs      | **Out of scope** (not staff CRM AI)                                                                                                                                                                                            |
-| Territory admin CRUD             | **Out of scope** (Phase 5)                                                                                                                                                                                                     |
-| Messages / calendar lists        | **Do not** line-filter (Phase 2 residual; not Phase 4)                                                                                                                                                                         |
-| Hosted / staging / production DB | **Forbidden**                                                                                                                                                                                                                  |
-| Phase 1–3 migrations             | **Do not rewrite** `…100000`–`…130000` or `…15120000`                                                                                                                                                                          |
-| Commit / push / deploy           | **Forbidden** unless the user separately asks after implementation                                                                                                                                                             |
+| Outreach prep / send / cron      | **Unchanged** (still OGR). Only `generate-draft` is Phase 4. Phase 6/7 outreach flags stay off                                                                                                                                                              |
+| Public live chat / catalogs      | **Out of scope** (not staff CRM AI)                                                                                                                                                                                                                         |
+| Territory admin CRUD             | **Out of scope** (Phase 5)                                                                                                                                                                                                                                  |
+| Messages / calendar lists        | **Do not** line-filter (Phase 2 residual; not Phase 4)                                                                                                                                                                                                      |
+| Hosted / staging / production DB | **Forbidden**                                                                                                                                                                                                                                               |
+| Phase 1–3 migrations             | **Do not rewrite** `…100000`–`…130000` or `…15120000`                                                                                                                                                                                                       |
+| Commit / push / deploy           | **Forbidden** unless the user separately asks after implementation                                                                                                                                                                                          |
 
 ```mermaid
 flowchart TD
@@ -84,27 +84,27 @@ Do **not** in Phase 4:
 
 ## Reinspection snapshot (plan authorship)
 
-| Check                         | Result                                                                                                                                                                      |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Branch                        | `feature/multi-line-multi-territory-implementation`                                                                                                                         |
-| HEAD at plan authorship       | `6027d14` (Phase 3 writes + Copilot follow-up on PR #79 **committed and pushed**)                                                                                           |
-| Phase 1–3 migrations          | Present: `…100000` through `…15120000`                                                                                                                                      |
-| `FEATURE_MULTI_LINE_AI`       | **Absent** (expected)                                                                                                                                                       |
-| `staffFeatures.ts`            | UI + writes only. Writes snapshot **AND-gated with UI** (Copilot #79). AI flag must follow the same snapshot rule                                                           |
-| Staff AI routes               | **Zero** accept `salesLineId` / `retailer_line_account_id`. Enrich accepts optional `territoryCode` and defaults to **BC**                                                  |
-| `agent.ts` SYSTEM_PROMPT      | Hardcoded “BC wholesale apparel… (Old Guys Rule)”                                                                                                                           |
-| `agentCrmTools.ts`            | `getAccountProductFit` filters catalog by `line_id` but **defaults `lineCode` to `ogr`**. `listRecentCalls` / `getReorderSuggestions` query by prospect/account id only     |
-| Reorder tool                  | **Upserts** shared `account_reorder_settings` (PK `account_id`) — cross-line leak + write                                                                                |
-| `retailer_field_changes`      | Table exists (Phase 1A); **no app writers**. No `sales_line_id` / RLA columns                                                                                               |
-| `lines.ai_profile`            | **Absent**                                                                                                                                                                  |
+| Check                         | Result                                                                                                                                                                            |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Branch                        | `feature/multi-line-multi-territory-implementation`                                                                                                                               |
+| HEAD at plan authorship       | `6027d14` (Phase 3 writes + Copilot follow-up on PR #79 **committed and pushed**)                                                                                                 |
+| Phase 1–3 migrations          | Present: `…100000` through `…15120000`                                                                                                                                            |
+| `FEATURE_MULTI_LINE_AI`       | **Absent** (expected)                                                                                                                                                             |
+| `staffFeatures.ts`            | UI + writes only. Writes snapshot **AND-gated with UI** (Copilot #79). AI flag must follow the same snapshot rule                                                                 |
+| Staff AI routes               | **Zero** accept `salesLineId` / `retailer_line_account_id`. Enrich accepts optional `territoryCode` and defaults to **BC**                                                        |
+| `agent.ts` SYSTEM_PROMPT      | Hardcoded “BC wholesale apparel… (Old Guys Rule)”                                                                                                                                 |
+| `agentCrmTools.ts`            | `getAccountProductFit` filters catalog by `line_id` but **defaults `lineCode` to `ogr`**. `listRecentCalls` / `getReorderSuggestions` query by prospect/account id only           |
+| Reorder tool                  | **Upserts** shared `account_reorder_settings` (PK `account_id`) — cross-line leak + write                                                                                         |
+| `retailer_field_changes`      | Table exists (Phase 1A); **no app writers**. No `sales_line_id` / RLA columns                                                                                                     |
+| `lines.ai_profile`            | **Absent**                                                                                                                                                                        |
 | `verification_status`         | Freeform **text** (not enum `verified`). `buyer_verified` is the boolean. Epic “verified” maps to `buyer_verified === true` **or** `verification_status` matching `/^verified$/i` |
-| `applyProspectResearchUpdate` | Writes `prospects` directly; no audit rows                                                                                                                                  |
-| Catalog fetch                 | Phase 2 scopes by `lineId`; [src/lib/catalog.ts](../src/lib/catalog.ts) still defaults omitted `lineCode` to `ogr`                                                           |
-| LineContext                   | Has `salesLineId` + `multiLineWrites`; **no** `multiLineAi`                                                                                                                 |
-| Outreach generate             | `generateOgrProductOutreachDraft` / `loadPublishedOgrProductForEmail` hardcode `lines.code = 'ogr'`                                                                         |
-| Prep / send / cron            | Unchanged (Phase 3 lock). Briefing GET already accepts `sales_line_id` (reads only)                                                                                         |
-| Public live chat              | OGR buyer prompt in `liveChat.ts` — **not staff**; out of Phase 4                                                                                                           |
-| Phase 3 results note          | Still says “no commit/push”; PR #79 supersedes that sentence                                                                                                                |
+| `applyProspectResearchUpdate` | Writes `prospects` directly; no audit rows                                                                                                                                        |
+| Catalog fetch                 | Phase 2 scopes by `lineId`; [src/lib/catalog.ts](../src/lib/catalog.ts) still defaults omitted `lineCode` to `ogr`                                                                |
+| LineContext                   | Has `salesLineId` + `multiLineWrites`; **no** `multiLineAi`                                                                                                                       |
+| Outreach generate             | `generateOgrProductOutreachDraft` / `loadPublishedOgrProductForEmail` hardcode `lines.code = 'ogr'`                                                                               |
+| Prep / send / cron            | Unchanged (Phase 3 lock). Briefing GET already accepts `sales_line_id` (reads only)                                                                                               |
+| Public live chat              | OGR buyer prompt in `liveChat.ts` — **not staff**; out of Phase 4                                                                                                                 |
+| Phase 3 results note          | Still says “no commit/push”; PR #79 supersedes that sentence                                                                                                                      |
 
 **Accepted Phase 3 recorded results (do not retest as a Phase 4 gate):** 607 prospects; 607 OGR RLAs; 190 OGR catalog items; Eagle Peak / Big Fish / BKG RLA = 0; `FEATURE_MULTI_LINE_WRITES` default off; Vitest + `npm run check` passed.
 
@@ -118,25 +118,25 @@ Auth for all of these: `requireApprovedStaffClient` + `prerender = false`. Rate 
 
 ### Account-specific (flag on: `sales_line_id` **and** matching RLA)
 
-| Surface            | Entry                                                                                          |
-| ------------------ | ---------------------------------------------------------------------------------------------- |
-| Ask AI / coach     | `AIAssistantModal` → `POST /api/agent` + `createAgentCrmTools`                                 |
-| Suggest            | `buildSuggestDraft` → `/api/agent`                                                             |
-| APF Brief          | `buildApfDraft` → `getAccountProductFit`                                                       |
-| Assist / call draft| `buildAssistDraft` / `buildCallDraft` / LogCallModal `openAssist`                              |
-| AI Update          | `AiUpdateResearchModal` → `/api/prospects/research-update` + `/apply`                          |
-| Fill blanks        | same research-update route, `mode = 'fill-blanks'`                                             |
-| Contact enrich     | `/api/contacts/enrich` when `accountId` is present                                             |
-| Outreach generate  | `POST /api/staff/ogr-product-email/generate-draft` for a retailer                              |
+| Surface             | Entry                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
+| Ask AI / coach      | `AIAssistantModal` → `POST /api/agent` + `createAgentCrmTools`        |
+| Suggest             | `buildSuggestDraft` → `/api/agent`                                    |
+| APF Brief           | `buildApfDraft` → `getAccountProductFit`                              |
+| Assist / call draft | `buildAssistDraft` / `buildCallDraft` / LogCallModal `openAssist`     |
+| AI Update           | `AiUpdateResearchModal` → `/api/prospects/research-update` + `/apply` |
+| Fill blanks         | same research-update route, `mode = 'fill-blanks'`                    |
+| Contact enrich      | `/api/contacts/enrich` when `accountId` is present                    |
+| Outreach generate   | `POST /api/staff/ogr-product-email/generate-draft` for a retailer     |
 
 ### Line-level (flag on: `sales_line_id` required; RLA omitted)
 
-| Surface         | Entry                                                          |
-| --------------- | -------------------------------------------------------------- |
-| Add via AI      | `/api/prospects/enrich` → `createEnrichedProspect`             |
-| Contact create  | `/api/contacts/enrich` when creating a prospect                |
-| Landed rates    | `POST /api/pricing/landed-rates`                               |
-| Catalog-only APF| Insights / agent with no `prospectId`                          |
+| Surface          | Entry                                              |
+| ---------------- | -------------------------------------------------- |
+| Add via AI       | `/api/prospects/enrich` → `createEnrichedProspect` |
+| Contact create   | `/api/contacts/enrich` when creating a prospect    |
+| Landed rates     | `POST /api/pricing/landed-rates`                   |
+| Catalog-only APF | Insights / agent with no `prospectId`              |
 
 ### Explicitly out of Phase 4
 
@@ -192,58 +192,58 @@ Auth for all of these: `requireApprovedStaffClient` + `prerender = false`. Rate 
 
 ### Create
 
-| File                                                                       | Role                                                                                          |
-| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `supabase/migrations/20260816NNNNNN_multi_line_phase4_ai_profiles.sql`     | Additive: `lines.ai_profile jsonb`; seed OGR/EP/BF; field-change line/RLA columns             |
-| `src/lib/aiLineContext.ts`                                                 | `resolveStaffAiContext`; request kinds `account` \| `line_level`                              |
-| `src/lib/salesLineAiProfiles.ts`                                           | Load/map `lines.ai_profile`                                                                   |
-| `src/lib/retailerFieldChanges.ts`                                          | Insert audit rows (`source = 'ai'`)                                                           |
-| `src/lib/multiLinePhase4Ai.test.ts`                                        | Flag, 400, APF EP empty catalog, leak filters, provenance, prep untouched                     |
+| File                                                                   | Role                                                                              |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `supabase/migrations/20260816NNNNNN_multi_line_phase4_ai_profiles.sql` | Additive: `lines.ai_profile jsonb`; seed OGR/EP/BF; field-change line/RLA columns |
+| `src/lib/aiLineContext.ts`                                             | `resolveStaffAiContext`; request kinds `account` \| `line_level`                  |
+| `src/lib/salesLineAiProfiles.ts`                                       | Load/map `lines.ai_profile`                                                       |
+| `src/lib/retailerFieldChanges.ts`                                      | Insert audit rows (`source = 'ai'`)                                               |
+| `src/lib/multiLinePhase4Ai.test.ts`                                    | Flag, 400, APF EP empty catalog, leak filters, provenance, prep untouched         |
 
 Use the next available `YYYYMMDDHHMMSS` timestamp after `20260815120000` (do not reuse Phase 1–3 versions). Apply **local disposable DB only**.
 
 ### Modify
 
-| File                                                      | Change                                                                                                                                      |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/staffFeatures.ts`                                | Add `FEATURE_MULTI_LINE_AI`, `isMultiLineAiEnabled()`, snapshot AND UI                                                                      |
-| `src/pages/api/staff/features.ts`                         | Already returns `getStaffFeatureFlags()` — type-only via staffFeatures                                                                      |
-| `src/components/auth/AuthGate.tsx`                        | Parse snapshot boolean; pass `multiLineAi` into `LineProvider`                                                                              |
-| `src/components/auth/AuthGate.test.tsx`                   | Stub the new boolean `false`                                                                                                                |
-| `src/lib/lineContext.tsx`                                 | Add `multiLineAi: boolean`                                                                                                                  |
-| `src/pages/api/agent.ts`                                  | Flag on: require `salesLineId` (+ RLA when prospect in body/chips); bind tools to ctx; system prompt from profile                           |
-| `src/lib/agentCrmTools.ts`                                | `createAgentCrmTools(supabase, ctx)`; no ogr default when flag on; filter calls/orders by line/RLA; APF catalog = ctx line (EP/BF → `[]`)   |
-| `src/lib/aiAssistPrefill.ts`                              | Line name from context when AI snapshot on; keep OGR copy when flag off                                                                     |
-| `src/pages/api/prospects/enrich.ts`                       | Accept `salesLineId`; 400 when flag on and missing; stop silent `territoryCode = bc` unless OGR ctx                                         |
-| `src/pages/api/contacts/enrich.ts`                        | Same; account-specific requires RLA                                                                                                         |
-| `src/pages/api/prospects/research-update/index.ts`        | Account context required when flag on                                                                                                       |
-| `src/pages/api/prospects/research-update/apply.ts`        | Same + verified-field guard + `retailer_field_changes`                                                                                      |
-| `src/pages/api/pricing/landed-rates.ts`                   | Require `salesLineId` when flag on; prompt from profile                                                                                     |
-| `src/pages/api/staff/ogr-product-email/generate-draft.ts` | Require line (+ RLA for retailer targets); refuse prospective; no OGR SKU fallback for EP/BF                                                |
-| `src/lib/createEnrichedProspect.ts`                       | OGR/BC strategy only when `ctx.code === 'ogr'`                                                                                              |
-| `src/lib/createEnrichedContact.ts`                        | Same                                                                                                                                         |
-| `src/lib/companyWebResearch.ts`                           | Profile persona; no “BC OGR reps” when not OGR                                                                                              |
-| `src/lib/fillBlankProspectFields.ts`                      | Line rubric from profile; BC mappers only for OGR                                                                                           |
-| `src/lib/prospectEnrichment/bcTerritory.ts`               | Keep as **OGR line strategy**, not global default                                                                                           |
-| `src/lib/updateProspectResearch.ts`                       | Preview unchanged; apply: audit rows; skip `buyer_verified` / `/^verified$/i` fields unless `confirmVerifiedOverwrite`                      |
-| `src/lib/generateOgrProductOutreachDraft.ts`              | Require line context when flag on                                                                                                           |
-| `src/lib/loadPublishedOgrProductForEmail.ts`              | Load published SKUs for **request line**, not hardcoded `ogr` when flag on                                                                  |
-| `src/lib/landedRatesResearch.ts`                          | Line profile framing                                                                                                                        |
-| `src/components/ui/AIAssistantModal.tsx`                  | POST `salesLineId` + optional RLA from LineContext when snapshot on                                                                         |
-| `src/components/tabs/ProspectsTab.tsx`                    | Pass line/RLA into assist + research + enrich                                                                                               |
-| `src/components/tabs/ActiveAccountsTab.tsx`               | Same                                                                                                                                         |
-| `src/components/tabs/CallsTab.tsx`                        | Same                                                                                                                                         |
-| `src/components/tabs/InsightsTab.tsx`                     | Same                                                                                                                                         |
-| `src/components/LogCallModal.tsx`                         | Pass line into `openAssist` when AI snapshot on (selling block stays Phase 3)                                                               |
-| `src/components/AiUpdateResearchModal.tsx`                | Pass account AI context                                                                                                                     |
-| `src/components/AddProspectAiModal.tsx`                   | Pass `salesLineId`; no silent BC                                                                                                            |
-| `src/components/AddContactAiModal.tsx`                    | Pass line + RLA when account-scoped                                                                                                         |
-| `src/components/messages/MessageThreadPanel.tsx`          | Add-via-AI from message: pass current line                                                                                                  |
-| `src/components/tabs/CatalogTab.tsx`                      | Landed-rates POST includes `salesLineId` when AI snapshot on                                                                                |
-| `src/components/OgrProductEmailComposerModal.tsx`         | Generate-draft includes line + RLA                                                                                                          |
-| `src/types/database.ts`                                   | Type-only: `lines.ai_profile`; field-change line/RLA columns                                                                                |
-| `supabase/schema.sql`                                     | Mirror column + seed comments                                                                                                               |
-| `docs/plans/multi-line-phase-1-schema-foundation.md`      | Append **Implementation results — Phase 4** after implementation                                                                            |
+| File                                                      | Change                                                                                                                                    |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/staffFeatures.ts`                                | Add `FEATURE_MULTI_LINE_AI`, `isMultiLineAiEnabled()`, snapshot AND UI                                                                    |
+| `src/pages/api/staff/features.ts`                         | Already returns `getStaffFeatureFlags()` — type-only via staffFeatures                                                                    |
+| `src/components/auth/AuthGate.tsx`                        | Parse snapshot boolean; pass `multiLineAi` into `LineProvider`                                                                            |
+| `src/components/auth/AuthGate.test.tsx`                   | Stub the new boolean `false`                                                                                                              |
+| `src/lib/lineContext.tsx`                                 | Add `multiLineAi: boolean`                                                                                                                |
+| `src/pages/api/agent.ts`                                  | Flag on: require `salesLineId` (+ RLA when prospect in body/chips); bind tools to ctx; system prompt from profile                         |
+| `src/lib/agentCrmTools.ts`                                | `createAgentCrmTools(supabase, ctx)`; no ogr default when flag on; filter calls/orders by line/RLA; APF catalog = ctx line (EP/BF → `[]`) |
+| `src/lib/aiAssistPrefill.ts`                              | Line name from context when AI snapshot on; keep OGR copy when flag off                                                                   |
+| `src/pages/api/prospects/enrich.ts`                       | Accept `salesLineId`; 400 when flag on and missing; stop silent `territoryCode = bc` unless OGR ctx                                       |
+| `src/pages/api/contacts/enrich.ts`                        | Same; account-specific requires RLA                                                                                                       |
+| `src/pages/api/prospects/research-update/index.ts`        | Account context required when flag on                                                                                                     |
+| `src/pages/api/prospects/research-update/apply.ts`        | Same + verified-field guard + `retailer_field_changes`                                                                                    |
+| `src/pages/api/pricing/landed-rates.ts`                   | Require `salesLineId` when flag on; prompt from profile                                                                                   |
+| `src/pages/api/staff/ogr-product-email/generate-draft.ts` | Require line (+ RLA for retailer targets); refuse prospective; no OGR SKU fallback for EP/BF                                              |
+| `src/lib/createEnrichedProspect.ts`                       | OGR/BC strategy only when `ctx.code === 'ogr'`                                                                                            |
+| `src/lib/createEnrichedContact.ts`                        | Same                                                                                                                                      |
+| `src/lib/companyWebResearch.ts`                           | Profile persona; no “BC OGR reps” when not OGR                                                                                            |
+| `src/lib/fillBlankProspectFields.ts`                      | Line rubric from profile; BC mappers only for OGR                                                                                         |
+| `src/lib/prospectEnrichment/bcTerritory.ts`               | Keep as **OGR line strategy**, not global default                                                                                         |
+| `src/lib/updateProspectResearch.ts`                       | Preview unchanged; apply: audit rows; skip `buyer_verified` / `/^verified$/i` fields unless `confirmVerifiedOverwrite`                    |
+| `src/lib/generateOgrProductOutreachDraft.ts`              | Require line context when flag on                                                                                                         |
+| `src/lib/loadPublishedOgrProductForEmail.ts`              | Load published SKUs for **request line**, not hardcoded `ogr` when flag on                                                                |
+| `src/lib/landedRatesResearch.ts`                          | Line profile framing                                                                                                                      |
+| `src/components/ui/AIAssistantModal.tsx`                  | POST `salesLineId` + optional RLA from LineContext when snapshot on                                                                       |
+| `src/components/tabs/ProspectsTab.tsx`                    | Pass line/RLA into assist + research + enrich                                                                                             |
+| `src/components/tabs/ActiveAccountsTab.tsx`               | Same                                                                                                                                      |
+| `src/components/tabs/CallsTab.tsx`                        | Same                                                                                                                                      |
+| `src/components/tabs/InsightsTab.tsx`                     | Same                                                                                                                                      |
+| `src/components/LogCallModal.tsx`                         | Pass line into `openAssist` when AI snapshot on (selling block stays Phase 3)                                                             |
+| `src/components/AiUpdateResearchModal.tsx`                | Pass account AI context                                                                                                                   |
+| `src/components/AddProspectAiModal.tsx`                   | Pass `salesLineId`; no silent BC                                                                                                          |
+| `src/components/AddContactAiModal.tsx`                    | Pass line + RLA when account-scoped                                                                                                       |
+| `src/components/messages/MessageThreadPanel.tsx`          | Add-via-AI from message: pass current line                                                                                                |
+| `src/components/tabs/CatalogTab.tsx`                      | Landed-rates POST includes `salesLineId` when AI snapshot on                                                                              |
+| `src/components/OgrProductEmailComposerModal.tsx`         | Generate-draft includes line + RLA                                                                                                        |
+| `src/types/database.ts`                                   | Type-only: `lines.ai_profile`; field-change line/RLA columns                                                                              |
+| `supabase/schema.sql`                                     | Mirror column + seed comments                                                                                                             |
+| `docs/plans/multi-line-phase-1-schema-foundation.md`      | Append **Implementation results — Phase 4** after implementation                                                                          |
 
 ### Do not touch
 
@@ -261,11 +261,11 @@ Use the next available `YYYYMMDDHHMMSS` timestamp after `20260815120000` (do not
 
 ### 3.1 Flag definition
 
-| Env var                     | Type   | Default   | Effect                                              |
-| --------------------------- | ------ | --------- | --------------------------------------------------- |
-| `FEATURE_MULTI_LINE_UI`     | server | off       | Already shipped                                     |
-| `FEATURE_MULTI_LINE_WRITES` | server | off       | Already shipped                                     |
-| `FEATURE_MULTI_LINE_AI`     | server | off/falsy | Strict staff AI context (this phase)                |
+| Env var                     | Type   | Default   | Effect                               |
+| --------------------------- | ------ | --------- | ------------------------------------ |
+| `FEATURE_MULTI_LINE_UI`     | server | off       | Already shipped                      |
+| `FEATURE_MULTI_LINE_WRITES` | server | off       | Already shipped                      |
+| `FEATURE_MULTI_LINE_AI`     | server | off/falsy | Strict staff AI context (this phase) |
 
 Never `PUBLIC_FEATURE_MULTI_LINE_AI`. Truthy values: `1`, `true`, `yes`, `on` (case-insensitive) via existing `parseFeatureFlag`.
 
@@ -275,15 +275,15 @@ Staff UI obtains booleans via `/api/staff/features` under `requireApprovedStaffC
 
 ### 3.2 Behavior matrix
 
-| Mode                         | Behavior                                                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| AI flag **off**              | Today’s agent/enrich/APF/fill-blanks/generate-draft (implicit OGR/BC)                                         |
-| AI on + `ogr` + valid ctx    | Profile prompts; catalog = 190 OGR SKUs; BC enrich strategy allowed                                           |
-| AI on + EP/BF + valid ctx    | Own data; empty catalog; no OGR SKUs/rubric; no convert/outreach/order tools                                  |
-| AI on + missing ctx          | **400** clear error; do not default OGR                                                                       |
-| AI on + mismatched RLA       | **400**                                                                                                       |
-| AI on + prospective          | Research notes only; refuse catalog/convert/generate-draft                                                    |
-| AI on + `bkg` / declined     | **400**                                                                                                       |
+| Mode                      | Behavior                                                                     |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| AI flag **off**           | Today’s agent/enrich/APF/fill-blanks/generate-draft (implicit OGR/BC)        |
+| AI on + `ogr` + valid ctx | Profile prompts; catalog = 190 OGR SKUs; BC enrich strategy allowed          |
+| AI on + EP/BF + valid ctx | Own data; empty catalog; no OGR SKUs/rubric; no convert/outreach/order tools |
+| AI on + missing ctx       | **400** clear error; do not default OGR                                      |
+| AI on + mismatched RLA    | **400**                                                                      |
+| AI on + prospective       | Research notes only; refuse catalog/convert/generate-draft                   |
+| AI on + `bkg` / declined  | **400**                                                                      |
 
 ### 3.3 Rollback
 
@@ -393,18 +393,18 @@ group by 1; -- expect 0
 
 ### 7.2 Required automated tests
 
-| #   | Assertion                                                                                                      |
-| --- | -------------------------------------------------------------------------------------------------------------- |
-| 1   | AI flag defaults off; snapshot false without UI; no `PUBLIC_FEATURE_MULTI_LINE_AI`                             |
-| 2   | Flag off: agent / enrich / APF default `ogr` still present in source; existing AI tests green                  |
-| 3   | Flag on + missing `salesLineId` → 400 (agent + one enrich or research-update route)                            |
-| 4   | Flag on + invalid / `bkg` / prospective catalog or convert tool → reject                                       |
-| 5   | Flag on + mismatched RLA / line → 400                                                                          |
-| 6   | APF Eagle Peak context: `catalogAnchors` empty; no OGR SKU fields                                              |
-| 7   | `listRecentCalls` / order fetch use `line_id` or RLA (source snapshot)                                         |
-| 8   | Apply research writes `retailer_field_changes`; verified / `buyer_verified` fields not in silent patch         |
-| 9   | Nightly prep file still has **no** `salesLineId` signature change                                              |
-| 10  | Phase 2 / Phase 3 Vitest files stay green                                                                      |
+| #   | Assertion                                                                                              |
+| --- | ------------------------------------------------------------------------------------------------------ |
+| 1   | AI flag defaults off; snapshot false without UI; no `PUBLIC_FEATURE_MULTI_LINE_AI`                     |
+| 2   | Flag off: agent / enrich / APF default `ogr` still present in source; existing AI tests green          |
+| 3   | Flag on + missing `salesLineId` → 400 (agent + one enrich or research-update route)                    |
+| 4   | Flag on + invalid / `bkg` / prospective catalog or convert tool → reject                               |
+| 5   | Flag on + mismatched RLA / line → 400                                                                  |
+| 6   | APF Eagle Peak context: `catalogAnchors` empty; no OGR SKU fields                                      |
+| 7   | `listRecentCalls` / order fetch use `line_id` or RLA (source snapshot)                                 |
+| 8   | Apply research writes `retailer_field_changes`; verified / `buyer_verified` fields not in silent patch |
+| 9   | Nightly prep file still has **no** `salesLineId` signature change                                      |
+| 10  | Phase 2 / Phase 3 Vitest files stay green                                                              |
 
 Isolation: if a throwaway EP RLA is created for APF, **delete** it (and any EP AI rows) so local EP/BF counts return to 0. Do not clone OGR catalog onto Eagle Peak.
 

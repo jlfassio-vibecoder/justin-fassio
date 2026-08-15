@@ -17,6 +17,8 @@ export async function enrichContact(input: {
   websiteUrl?: string;
   mode: CreateEnrichedContactMode;
   accountId?: number;
+  salesLineId?: string;
+  retailerLineAccountId?: string;
 }): Promise<EnrichContactResult> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -38,6 +40,8 @@ export async function enrichContact(input: {
       websiteUrl: input.websiteUrl,
       mode: input.mode,
       accountId: input.accountId,
+      salesLineId: input.salesLineId,
+      retailerLineAccountId: input.retailerLineAccountId,
     }),
   });
 

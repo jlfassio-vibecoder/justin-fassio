@@ -8,6 +8,8 @@ import { formatAssistChipLabel } from '@/lib/aiAssistPrefill';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Textarea } from '@/components/ui/Input';
+import { useOptionalLineContext } from '@/lib/lineContext';
+import { staffAiPostFields } from '@/lib/staffAiClientContext';
 import { supabase } from '@/lib/supabase';
 
 function messageText(message: UIMessage): string {
@@ -19,6 +21,10 @@ function messageText(message: UIMessage): string {
 
 export function AIAssistantModal() {
   const { open, setOpen, chip, setChip, composer, setComposer } = useAiAssist();
+  const line = useOptionalLineContext();
+  const multiLineAi = line.multiLineAi;
+  const salesLineId = line.salesLineId;
+  const prospectId = chip?.prospectId;
 
   const transport = useMemo(
     () =>
@@ -29,13 +35,24 @@ export function AIAssistantModal() {
           const token = data.session?.access_token;
           const headers: Record<string, string> = {};
           if (token) headers.Authorization = `Bearer ${token}`;
+          const aiFields = await staffAiPostFields({
+            multiLineAi,
+            salesLineId,
+            prospectId,
+          });
           return {
-            body: { id, messages, ...body },
+            body: {
+              id,
+              messages,
+              ...body,
+              ...aiFields,
+              ...(prospectId != null ? { prospectId } : {}),
+            },
             headers,
           };
         },
       }),
-    [],
+    [multiLineAi, salesLineId, prospectId],
   );
 
   const { messages, sendMessage, setMessages, status, error, clearError } = useChat({

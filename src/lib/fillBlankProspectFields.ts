@@ -250,16 +250,19 @@ export function mergeFillBlankFields(
 export function buildFillBlankProposal(
   current: Prospect,
   evidence: FillBlankEvidence,
+  options?: { lineCode?: string },
 ): FillBlankProspectFields {
+  const ogrStrategy = !options?.lineCode || options.lineCode === 'ogr';
   const retailCategory: RetailCategory =
     normalizeRetailCategory(current.retailCategory) ??
     normalizeRetailCategory(evidence.retailCategory) ??
     'Other / needs review';
 
-  const territoryFromCity =
-    current.territoryCode === 'bc' || current.territoryCode == null
+  const territoryFromCity = ogrStrategy
+    ? current.territoryCode === 'bc' || current.territoryCode == null
       ? mapBcTerritory({ city: current.city })
-      : { primaryDistrict: 'Needs mapping' as const, subterritory: 'Needs mapping' as const };
+      : { primaryDistrict: 'Needs mapping' as const, subterritory: 'Needs mapping' as const }
+    : { primaryDistrict: 'Needs mapping' as const, subterritory: 'Needs mapping' as const };
   const subterritory = !isBlankProspectValue('subterritory', current.subterritory)
     ? current.subterritory
     : territoryFromCity.subterritory !== 'Needs mapping'
@@ -368,6 +371,8 @@ export type InferFillBlankResult =
 export async function inferFillBlankProspectFields(input: {
   current: Prospect;
   websiteUrl?: string;
+  lineCode?: string;
+  aiPersona?: string;
 }): Promise<InferFillBlankResult> {
   const current = input.current;
   const companyName = current.name.trim();
@@ -382,6 +387,7 @@ export async function inferFillBlankProspectFields(input: {
     city: current.city,
     retailCategoryHint: current.retailCategory ?? undefined,
     fillBlanksFocus: true,
+    persona: input.aiPersona,
   });
   const researchBrief = research.brief;
 
@@ -399,7 +405,8 @@ export async function inferFillBlankProspectFields(input: {
       schema: fillBlankEvidenceSchema,
       schemaName: 'FillBlankEvidence',
       prompt: [
-        'Extract public evidence for a BC wholesale apparel prospect. Do NOT invent scores, priority, grade, or opening units.',
+        input.aiPersona?.trim() ||
+          'Extract public evidence for a BC wholesale apparel prospect. Do NOT invent scores, priority, grade, or opening units.',
         'Canonical retail categories must be one of the enum values (or Other / needs review).',
         'Apparel: Confirmed only with direct apparel evidence; Likely if format supports apparel; None if clearly no apparel; Unknown if unclear.',
         'strategicReference=true only with credible destination/reference evidence, not keywords alone.',
@@ -415,7 +422,7 @@ export async function inferFillBlankProspectFields(input: {
     return {
       ok: true,
       evidence: result.object,
-      fields: buildFillBlankProposal(current, result.object),
+      fields: buildFillBlankProposal(current, result.object, { lineCode: input.lineCode }),
       researchBrief,
     };
   } catch (err) {

@@ -82,6 +82,7 @@ create table if not exists lines (
   effective_date date,
   termination_date date,
   productivity_thresholds jsonb,
+  ai_profile jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint lines_acquisition_stage_required_check
@@ -820,11 +821,19 @@ create table if not exists retailer_field_changes (
   source text not null default 'user'
     check (source in ('user', 'ai', 'import', 'calculated', 'unknown')),
   actor_id uuid references auth.users (id) on delete set null,
+  sales_line_id uuid references lines (id),
+  retailer_line_account_id uuid references retailer_line_accounts (id),
   created_at timestamptz not null default now()
 );
 
 create index if not exists retailer_field_changes_retailer_id_idx
   on retailer_field_changes (retailer_id, created_at desc);
+
+create index if not exists retailer_field_changes_sales_line_id_idx
+  on retailer_field_changes (sales_line_id);
+
+create index if not exists retailer_field_changes_rla_id_idx
+  on retailer_field_changes (retailer_line_account_id);
 
 create table if not exists retailer_line_targets (
   id uuid primary key default gen_random_uuid(),

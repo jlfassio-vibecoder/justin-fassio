@@ -21,6 +21,7 @@ function tagStyle(item: TagCloudItem, max: number): CSSProperties {
 export function InsightsTab({ marginRangeDisplay, reloadToken = 0 }: InsightsTabProps) {
   const { openAssist } = useAiAssist();
   const lineCtx = useOptionalLineContext();
+  const prefillLine = { multiLineAi: lineCtx.multiLineAi, lineName: lineCtx.name };
   const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const [tags, setTags] = useState<TagCloudItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,7 +86,7 @@ export function InsightsTab({ marginRangeDisplay, reloadToken = 0 }: InsightsTab
                 title={`${item.count} call${item.count === 1 ? '' : 's'} — open AI coach`}
                 onClick={() => {
                   const chips = { objectionTags: [item.tag] };
-                  openAssist({ chips, draft: buildObjectionDraft(chips) });
+                  openAssist({ chips, draft: buildObjectionDraft(chips, prefillLine) });
                 }}
               >
                 {item.tag}

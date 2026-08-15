@@ -244,6 +244,8 @@ export async function generateAgentProductOutreachDraft(input: {
     };
   };
   existingDraftId?: string;
+  salesLineId?: string;
+  retailerLineAccountId?: string;
 }): Promise<
   | {
       ok: true;

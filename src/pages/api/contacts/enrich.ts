@@ -1,5 +1,10 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
+import {
+  gateStaffAiContext,
+  parseOptionalPositiveInt,
+  parseOptionalUuidField,
+} from '@/lib/aiLineContext';
 import { createEnrichedContact } from '@/lib/createEnrichedContact';
 
 export const prerender = false;
@@ -23,6 +28,8 @@ export const POST: APIRoute = async ({ request }) => {
     websiteUrl?: unknown;
     mode?: unknown;
     accountId?: unknown;
+    salesLineId?: unknown;
+    retailerLineAccountId?: unknown;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -52,6 +59,17 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonError('Account id is required to attach a contact', 400);
   }
 
+  const gated = await gateStaffAiContext({
+    client: gate.supabase,
+    salesLineId: parseOptionalUuidField(body.salesLineId),
+    retailerLineAccountId: parseOptionalUuidField(body.retailerLineAccountId),
+    prospectId: accountId ?? parseOptionalPositiveInt(body.accountId),
+    kind: mode === 'attach' ? 'account' : 'line_level',
+  });
+  if (!gated.ok) {
+    return jsonError(gated.error, gated.status);
+  }
+
   const phone = typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : undefined;
   const email = typeof body.email === 'string' && body.email.trim() ? body.email.trim() : undefined;
   const websiteUrl =
@@ -67,6 +85,9 @@ export const POST: APIRoute = async ({ request }) => {
     websiteUrl,
     mode,
     accountId,
+    salesLineId: gated.ctx?.salesLineId,
+    lineCode: gated.ctx?.code,
+    aiPersona: gated.ctx?.aiProfile.persona,
   });
 
   if (!result.ok) {

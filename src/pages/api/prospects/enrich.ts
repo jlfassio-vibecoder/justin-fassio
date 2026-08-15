@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { checkAgentRateLimit, rateLimitResponse } from '@/lib/agentRateLimit';
+import { gateStaffAiContext, parseOptionalUuidField } from '@/lib/aiLineContext';
 import { createEnrichedProspect } from '@/lib/createEnrichedProspect';
 
 export const prerender = false;
@@ -40,6 +41,15 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonError('Company name is required', 400);
   }
 
+  const gated = await gateStaffAiContext({
+    client: gate.supabase,
+    salesLineId: parseOptionalUuidField(body.salesLineId),
+    kind: 'line_level',
+  });
+  if (!gated.ok) {
+    return jsonError(gated.error, gated.status);
+  }
+
   const result = await createEnrichedProspect(gate.supabase, {
     companyName,
     websiteUrl: optionalString(body.websiteUrl),
@@ -49,6 +59,9 @@ export const POST: APIRoute = async ({ request }) => {
     city: optionalString(body.city),
     retailChannelHint: optionalString(body.retailChannelHint),
     territoryCode: optionalString(body.territoryCode),
+    salesLineId: gated.ctx?.salesLineId,
+    lineCode: gated.ctx?.code,
+    aiPersona: gated.ctx?.aiProfile.persona,
   });
   if (!result.ok) {
     return jsonError(result.error, 502);

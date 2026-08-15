@@ -37,6 +37,9 @@ export type CreateEnrichedContactInput = {
   mode: CreateEnrichedContactMode;
   /** Required when mode is `attach`. */
   accountId?: number;
+  salesLineId?: string;
+  lineCode?: string;
+  aiPersona?: string;
 };
 
 export type CreateEnrichedContactResult =
@@ -172,6 +175,7 @@ export async function createEnrichedContact(
     companyName,
     websiteUrl,
     contactName,
+    persona: input.aiPersona,
   });
   const researchBrief = research.brief;
 
@@ -222,6 +226,9 @@ export async function createEnrichedContact(
     contactName,
     researchBrief,
     createBuyerContact: false,
+    salesLineId: input.salesLineId,
+    lineCode: input.lineCode,
+    aiPersona: input.aiPersona,
   });
   if (!prospectResult.ok) {
     return prospectResult;

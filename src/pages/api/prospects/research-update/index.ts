@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
+import { gateStaffAiContext, parseOptionalUuidField } from '@/lib/aiLineContext';
 import { previewProspectResearchUpdate } from '@/lib/updateProspectResearch';
 
 export const prerender = false;
@@ -16,7 +17,13 @@ export const POST: APIRoute = async ({ request }) => {
   const gate = await requireApprovedStaffClient(request);
   if (!gate.ok) return gate.response;
 
-  let body: { prospectId?: unknown; websiteUrl?: unknown; mode?: unknown };
+  let body: {
+    prospectId?: unknown;
+    websiteUrl?: unknown;
+    mode?: unknown;
+    salesLineId?: unknown;
+    retailerLineAccountId?: unknown;
+  };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -41,10 +48,23 @@ export const POST: APIRoute = async ({ request }) => {
 
   const mode = body.mode === 'fill-blanks' ? 'fill-blanks' : 'update';
 
+  const gated = await gateStaffAiContext({
+    client: gate.supabase,
+    salesLineId: parseOptionalUuidField(body.salesLineId),
+    retailerLineAccountId: parseOptionalUuidField(body.retailerLineAccountId),
+    prospectId,
+    kind: 'account',
+  });
+  if (!gated.ok) {
+    return jsonError(gated.error, gated.status);
+  }
+
   const result = await previewProspectResearchUpdate(gate.supabase, {
     id: prospectId,
     websiteUrl,
     mode,
+    lineCode: gated.ctx?.code,
+    aiPersona: gated.ctx?.aiProfile.persona,
   });
   if (!result.ok) {
     return jsonError(result.error, 502);
