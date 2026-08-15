@@ -10,6 +10,7 @@ import { ProspectsTab } from '@/components/tabs/ProspectsTab';
 import { ActiveAccountsTab } from '@/components/tabs/ActiveAccountsTab';
 import { ContactsTab } from '@/components/tabs/ContactsTab';
 import { InsightsTab } from '@/components/tabs/InsightsTab';
+import { LineTerritoriesPanel } from '@/components/tabs/LineTerritoriesPanel';
 import { StaffChatDock } from '@/components/messages/StaffChatDock';
 import { CalendarTab } from '@/components/tabs/CalendarTab';
 import { MessagesTab } from '@/components/tabs/MessagesTab';
@@ -351,6 +352,9 @@ export function RepCommandCenter({
             representedLines={lineCtx.representedLines}
             onSelectLine={navigateToLine}
             subtitle={headerSubtitle}
+            territoriesHref={
+              multiLineUi && lineSlug ? `/app/lines/${lineSlug}/territories` : undefined
+            }
           />
           <TabNav
             activeTab={activeTab}
@@ -368,137 +372,144 @@ export function RepCommandCenter({
         key={multiLineUi ? (salesLineId ?? 'loading') : 'legacy'}
         className="mx-auto flex max-w-[1400px] flex-col gap-5 px-7 pt-6 pb-16"
       >
-        {directoryLoading && (
+        {activeTab !== 'territories' && directoryLoading && (
           <p className="text-ink/60 m-0 text-sm">Loading catalog and prospect directory…</p>
         )}
-        {directoryError && (
+        {activeTab !== 'territories' && directoryError && (
           <p className="text-accent-800 m-0 text-sm">
             Could not load directory data: {directoryError}
           </p>
         )}
 
-        {!directoryLoading && (catalog.length > 0 || prospects.length > 0 || !directoryError) && (
-          <>
-            {activeTab === 'briefing' && (
-              <AgentBriefingTab
-                onOpenDraft={openDraftDeepLink}
-                onOpenProspect={openProspectDeepLink}
-              />
-            )}
-            {activeTab === 'catalog' && (
-              <CatalogTab
-                catalog={catalog}
-                onCatalogChange={setCatalog}
-                supplierTerms={supplierTerms}
-                fx={fx}
-                setFx={setFx}
-                freightRate={freightRate}
-                setFreightRate={setFreightRate}
-                gstRate={gstRate}
-                setGstRate={setGstRate}
-                otherTaxRate={otherTaxRate}
-                setOtherTaxRate={setOtherTaxRate}
-                factors={factors}
-                researchBrief={researchBrief}
-                setResearchBrief={setResearchBrief}
-                ratesAsOf={ratesAsOf}
-                setRatesAsOf={setRatesAsOf}
-                keystoneMarginRate={keystoneMarginRate}
-                setKeystoneMarginRate={setKeystoneMarginRate}
-                marginRangeDisplay={marginRangeDisplay}
-                deepLinkSku={deepLinkSku}
-                deepLinkDraftId={deepLinkDraftId}
-                onDeepLinkConsumed={clearCatalogDeepLink}
-              />
-            )}
-            {activeTab === 'dashboard' && (
-              <DashboardTab
-                prospects={prospects}
-                onLogCall={() => openModal()}
-                reloadToken={callsReloadToken}
-              />
-            )}
-            {activeTab === 'calls' && (
-              <CallsTab
-                prospects={prospects}
-                onLogCall={() => openModal()}
-                reloadToken={callsReloadToken}
-              />
-            )}
-            {activeTab === 'prospects' && (
-              <ProspectsTab
-                prospects={pipelineProspects}
-                territories={territories}
-                onLogCall={(prospect) => openModal(prospect)}
-                onConverted={reloadDirectory}
-                onProspectCreated={(prospect) => {
-                  setProspects((prev) =>
-                    [...prev.filter((p) => p.id !== prospect.id), prospect].sort(
-                      (a, b) => a.id - b.id,
-                    ),
-                  );
-                }}
-                onProspectUpdated={(prospect) => {
-                  setProspects((prev) => prev.map((p) => (p.id === prospect.id ? prospect : p)));
-                }}
-                onNotesSaved={(id, notes) => {
-                  setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
-                }}
-                deepLinkProspectId={deepLinkProspectId}
-                onDeepLinkConsumed={clearProspectDeepLink}
-              />
-            )}
-            {activeTab === 'accounts' && (
-              <ActiveAccountsTab
-                accounts={activeAccounts}
-                territories={territories}
-                onLogCall={(account) => openModal(account)}
-                onNotesSaved={(id, notes) => {
-                  setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
-                }}
-                onProspectUpdated={(prospect) => {
-                  setProspects((prev) => prev.map((p) => (p.id === prospect.id ? prospect : p)));
-                }}
-                deepLinkAccountId={deepLinkAccountId}
-                onDeepLinkConsumed={clearAccountDeepLink}
-              />
-            )}
-            {activeTab === 'contacts' && (
-              <ContactsTab
-                contacts={contacts}
-                prospects={prospects}
-                onLogCall={(store) => openModal(store)}
-                onNotesSaved={(id, notes) => {
-                  setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
-                }}
-                onReloadContacts={reloadContacts}
-                onProspectCreated={(prospect) => {
-                  setProspects((prev) =>
-                    [...prev.filter((p) => p.id !== prospect.id), prospect].sort(
-                      (a, b) => a.id - b.id,
-                    ),
-                  );
-                }}
-              />
-            )}
-            {activeTab === 'messages' && (
-              <MessagesTab
-                reloadToken={messagesReloadToken}
-                onNeedsMappingCountChange={setMessagesNeedsMappingCount}
-                onOpenLiveChat={openLiveChat}
-                onSurfaceLiveChatPill={surfaceLiveChatPill}
-                onLogCall={(store) => openModal(store)}
-                onNotesSaved={(id, notes) => {
-                  setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
-                }}
-              />
-            )}
-            {activeTab === 'calendar' && <CalendarTab />}
-            {activeTab === 'insights' && (
-              <InsightsTab marginRangeDisplay={marginRangeDisplay} reloadToken={callsReloadToken} />
-            )}
-          </>
-        )}
+        {activeTab === 'territories' && <LineTerritoriesPanel />}
+
+        {activeTab !== 'territories' &&
+          !directoryLoading &&
+          (catalog.length > 0 || prospects.length > 0 || !directoryError) && (
+            <>
+              {activeTab === 'briefing' && (
+                <AgentBriefingTab
+                  onOpenDraft={openDraftDeepLink}
+                  onOpenProspect={openProspectDeepLink}
+                />
+              )}
+              {activeTab === 'catalog' && (
+                <CatalogTab
+                  catalog={catalog}
+                  onCatalogChange={setCatalog}
+                  supplierTerms={supplierTerms}
+                  fx={fx}
+                  setFx={setFx}
+                  freightRate={freightRate}
+                  setFreightRate={setFreightRate}
+                  gstRate={gstRate}
+                  setGstRate={setGstRate}
+                  otherTaxRate={otherTaxRate}
+                  setOtherTaxRate={setOtherTaxRate}
+                  factors={factors}
+                  researchBrief={researchBrief}
+                  setResearchBrief={setResearchBrief}
+                  ratesAsOf={ratesAsOf}
+                  setRatesAsOf={setRatesAsOf}
+                  keystoneMarginRate={keystoneMarginRate}
+                  setKeystoneMarginRate={setKeystoneMarginRate}
+                  marginRangeDisplay={marginRangeDisplay}
+                  deepLinkSku={deepLinkSku}
+                  deepLinkDraftId={deepLinkDraftId}
+                  onDeepLinkConsumed={clearCatalogDeepLink}
+                />
+              )}
+              {activeTab === 'dashboard' && (
+                <DashboardTab
+                  prospects={prospects}
+                  onLogCall={() => openModal()}
+                  reloadToken={callsReloadToken}
+                />
+              )}
+              {activeTab === 'calls' && (
+                <CallsTab
+                  prospects={prospects}
+                  onLogCall={() => openModal()}
+                  reloadToken={callsReloadToken}
+                />
+              )}
+              {activeTab === 'prospects' && (
+                <ProspectsTab
+                  prospects={pipelineProspects}
+                  territories={territories}
+                  onLogCall={(prospect) => openModal(prospect)}
+                  onConverted={reloadDirectory}
+                  onProspectCreated={(prospect) => {
+                    setProspects((prev) =>
+                      [...prev.filter((p) => p.id !== prospect.id), prospect].sort(
+                        (a, b) => a.id - b.id,
+                      ),
+                    );
+                  }}
+                  onProspectUpdated={(prospect) => {
+                    setProspects((prev) => prev.map((p) => (p.id === prospect.id ? prospect : p)));
+                  }}
+                  onNotesSaved={(id, notes) => {
+                    setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
+                  }}
+                  deepLinkProspectId={deepLinkProspectId}
+                  onDeepLinkConsumed={clearProspectDeepLink}
+                />
+              )}
+              {activeTab === 'accounts' && (
+                <ActiveAccountsTab
+                  accounts={activeAccounts}
+                  territories={territories}
+                  onLogCall={(account) => openModal(account)}
+                  onNotesSaved={(id, notes) => {
+                    setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
+                  }}
+                  onProspectUpdated={(prospect) => {
+                    setProspects((prev) => prev.map((p) => (p.id === prospect.id ? prospect : p)));
+                  }}
+                  deepLinkAccountId={deepLinkAccountId}
+                  onDeepLinkConsumed={clearAccountDeepLink}
+                />
+              )}
+              {activeTab === 'contacts' && (
+                <ContactsTab
+                  contacts={contacts}
+                  prospects={prospects}
+                  onLogCall={(store) => openModal(store)}
+                  onNotesSaved={(id, notes) => {
+                    setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
+                  }}
+                  onReloadContacts={reloadContacts}
+                  onProspectCreated={(prospect) => {
+                    setProspects((prev) =>
+                      [...prev.filter((p) => p.id !== prospect.id), prospect].sort(
+                        (a, b) => a.id - b.id,
+                      ),
+                    );
+                  }}
+                />
+              )}
+              {activeTab === 'messages' && (
+                <MessagesTab
+                  reloadToken={messagesReloadToken}
+                  onNeedsMappingCountChange={setMessagesNeedsMappingCount}
+                  onOpenLiveChat={openLiveChat}
+                  onSurfaceLiveChatPill={surfaceLiveChatPill}
+                  onLogCall={(store) => openModal(store)}
+                  onNotesSaved={(id, notes) => {
+                    setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
+                  }}
+                />
+              )}
+              {activeTab === 'calendar' && <CalendarTab />}
+              {activeTab === 'insights' && (
+                <InsightsTab
+                  marginRangeDisplay={marginRangeDisplay}
+                  reloadToken={callsReloadToken}
+                />
+              )}
+            </>
+          )}
       </main>
 
       <LogCallModal

@@ -237,6 +237,7 @@ export type RetailerLineAccountRow = {
   salesLineId: string;
   relationshipStatus: RelationshipStatus;
   notes: string | null;
+  salesLineTerritoryId: string | null;
 };
 
 /** Writes path is used when the staff snapshot is on and the caller supplies line context. */
@@ -297,7 +298,7 @@ export async function fetchOperationalLineAccount(input: {
 }): Promise<{ data: RetailerLineAccountRow | null; error: string | null }> {
   const { data, error } = await supabase
     .from('retailer_line_accounts')
-    .select('id, retailer_id, sales_line_id, relationship_status, notes')
+    .select('id, retailer_id, sales_line_id, relationship_status, notes, sales_line_territory_id')
     .eq('retailer_id', input.retailerId)
     .eq('sales_line_id', input.salesLineId)
     .neq('relationship_status', 'terminated')
@@ -312,6 +313,7 @@ export async function fetchOperationalLineAccount(input: {
       salesLineId: data.sales_line_id,
       relationshipStatus: data.relationship_status as RelationshipStatus,
       notes: data.notes,
+      salesLineTerritoryId: data.sales_line_territory_id,
     },
     error: null,
   };
@@ -346,7 +348,7 @@ export async function ensureRetailerLineAccount(input: {
       sales_line_id: input.salesLineId,
       relationship_status: 'prospect',
     })
-    .select('id, retailer_id, sales_line_id, relationship_status, notes')
+    .select('id, retailer_id, sales_line_id, relationship_status, notes, sales_line_territory_id')
     .single();
 
   if (error) return { data: null, error: error.message, gate };
@@ -357,6 +359,7 @@ export async function ensureRetailerLineAccount(input: {
       salesLineId: data.sales_line_id,
       relationshipStatus: data.relationship_status as RelationshipStatus,
       notes: data.notes,
+      salesLineTerritoryId: data.sales_line_territory_id,
     },
     error: null,
     gate,

@@ -7,7 +7,7 @@ const PATH_TAB_BY_SEGMENT: Record<string, TabKey> = {
   contacts: 'contacts',
   catalog: 'catalog',
   dashboard: 'dashboard',
-  territories: 'dashboard',
+  territories: 'territories',
 };
 
 /** Map a trailing path segment under /app/lines/:slug/:segment to a TabKey. */

@@ -24,6 +24,8 @@ export type LineContextValue = {
   multiLineWrites: boolean;
   /** Staff snapshot of FEATURE_MULTI_LINE_AI (not readable from PUBLIC_ env). */
   multiLineAi: boolean;
+  /** Staff snapshot of FEATURE_LINE_TERRITORY_ADMIN (not readable from PUBLIC_ env). */
+  multiLineTerritoryAdmin: boolean;
   salesLineId: string | null;
   lineSlug: LineKey | null;
   status: LineStatus | null;
@@ -48,6 +50,7 @@ type LineProviderProps = {
   multiLineUi: boolean;
   multiLineWrites?: boolean;
   multiLineAi?: boolean;
+  multiLineTerritoryAdmin?: boolean;
   /** URL slug when on /app/lines/:lineSlug; null on /app (resolved to last or ogr). */
   urlLineSlug?: string | null;
   children: ReactNode;
@@ -57,6 +60,7 @@ export function LineProvider({
   multiLineUi,
   multiLineWrites = false,
   multiLineAi = false,
+  multiLineTerritoryAdmin = false,
   urlLineSlug = null,
   children,
 }: LineProviderProps) {
@@ -120,6 +124,7 @@ export function LineProvider({
       multiLineUi,
       multiLineWrites,
       multiLineAi,
+      multiLineTerritoryAdmin,
       salesLineId: current?.id ?? null,
       lineSlug: unknownLine ? null : selectedSlug,
       status: current?.status ?? null,
@@ -134,6 +139,7 @@ export function LineProvider({
       multiLineUi,
       multiLineWrites,
       multiLineAi,
+      multiLineTerritoryAdmin,
       current,
       selectedSlug,
       loading,
@@ -163,6 +169,7 @@ export function useOptionalLineContext(): LineContextValue {
       multiLineUi: false,
       multiLineWrites: false,
       multiLineAi: false,
+      multiLineTerritoryAdmin: false,
       salesLineId: null,
       lineSlug: null,
       status: null,
