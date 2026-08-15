@@ -107,28 +107,53 @@ export async function fetchCrossLineBadges(input: {
   retailerId: number;
   currentSalesLineId: string;
 }): Promise<{ data: CrossLineBadge[]; error: string | null }> {
+  const batched = await fetchCrossLineBadgesForRetailers({
+    retailerIds: [input.retailerId],
+    currentSalesLineId: input.currentSalesLineId,
+  });
+  if (batched.error) return { data: [], error: batched.error };
+  return { data: batched.data.get(input.retailerId) ?? [], error: null };
+}
+
+/**
+ * Batch cross-line badge reads for a directory list (avoids per-row N+1).
+ * Payload remains name + relationship_status only.
+ */
+export async function fetchCrossLineBadgesForRetailers(input: {
+  retailerIds: number[];
+  currentSalesLineId: string;
+}): Promise<{ data: Map<number, CrossLineBadge[]>; error: string | null }> {
+  const ids = [...new Set(input.retailerIds.filter((id) => Number.isFinite(id)))];
+  const empty = new Map<number, CrossLineBadge[]>();
+  if (ids.length === 0) {
+    return { data: empty, error: null };
+  }
+
   const { data, error } = await supabase
     .from('retailer_line_accounts')
-    .select('relationship_status, sales_line_id, lines!inner(code, name)')
-    .eq('retailer_id', input.retailerId)
+    .select('retailer_id, relationship_status, sales_line_id, lines!inner(code, name)')
+    .in('retailer_id', ids)
     .neq('sales_line_id', input.currentSalesLineId)
     .neq('relationship_status', 'terminated');
 
   if (error) {
-    return { data: [], error: error.message };
+    return { data: empty, error: error.message };
   }
 
-  const badges: CrossLineBadge[] = [];
+  const byRetailer = new Map<number, CrossLineBadge[]>();
   for (const row of data ?? []) {
     const line = row.lines as unknown as { code: string; name: string } | null;
     if (!line?.code || !line?.name) continue;
-    badges.push({
+    const retailerId = row.retailer_id;
+    const list = byRetailer.get(retailerId) ?? [];
+    list.push({
       lineCode: line.code,
       lineName: line.name,
       relationshipStatus: row.relationship_status as RelationshipStatus,
     });
+    byRetailer.set(retailerId, list);
   }
-  return { data: badges, error: null };
+  return { data: byRetailer, error: null };
 }
 
 /** Shape guard for badge payloads used in tests — forbids commercial fields. */

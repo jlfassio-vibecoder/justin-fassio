@@ -1,32 +1,16 @@
-import { useEffect, useState } from 'react';
 import { Tag } from '@/components/ui/Tag';
-import { fetchCrossLineBadges, type CrossLineBadge } from '@/lib/retailerLineAccounts';
+import type { CrossLineBadge } from '@/lib/retailerLineAccounts';
 import { persistLastLineSlug } from '@/lib/lineContextStorage';
 import { isRepresentedLineCode } from '@/lib/lines';
 import type { LineKey } from '@/types';
 
 type CrossLineBadgeChipsProps = {
-  retailerId: number;
-  currentSalesLineId: string | null;
+  badges: CrossLineBadge[];
 };
 
 /** Empty-safe chips: name + relationship_status only. */
-export function CrossLineBadgeChips({ retailerId, currentSalesLineId }: CrossLineBadgeChipsProps) {
-  const [badges, setBadges] = useState<CrossLineBadge[]>([]);
-
-  useEffect(() => {
-    if (!currentSalesLineId) return;
-    let active = true;
-    void fetchCrossLineBadges({ retailerId, currentSalesLineId }).then((result) => {
-      if (!active) return;
-      setBadges(result.error ? [] : result.data);
-    });
-    return () => {
-      active = false;
-    };
-  }, [retailerId, currentSalesLineId]);
-
-  if (!currentSalesLineId || badges.length === 0) return null;
+export function CrossLineBadgeChips({ badges }: CrossLineBadgeChipsProps) {
+  if (badges.length === 0) return null;
 
   return (
     <span className="inline-flex flex-wrap items-center gap-1">

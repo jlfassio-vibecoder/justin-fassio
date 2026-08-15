@@ -7,6 +7,7 @@ import { CHANNEL_OPTIONS, REGION_OPTIONS } from '@/lib/directoryOptions';
 import { filterProspects } from '@/lib/prospectFilters';
 import { primaryRetailChannelLabel } from '@/lib/crmRetailTaxonomy';
 import type { Prospect } from '@/lib/prospects';
+import { fetchCrossLineBadgesForRetailers, type CrossLineBadge } from '@/lib/retailerLineAccounts';
 import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
 
 const channelTagVariant: Partial<
@@ -91,6 +92,9 @@ export function RetailerDirectory({
   const [channel, setChannel] = useState('ALL');
   const [territoryCodeInternal, setTerritoryCodeInternal] = useState(BC_TERRITORY_CODE);
   const territoryCode = territoryCodeProp ?? territoryCodeInternal;
+  const [badgesByRetailer, setBadgesByRetailer] = useState<Map<number, CrossLineBadge[]>>(
+    () => new Map(),
+  );
 
   function setTerritoryCode(code: string) {
     if (territoryCodeProp === undefined) {
@@ -108,6 +112,33 @@ export function RetailerDirectory({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [highlightedId]);
+
+  const retailerIdsKey = useMemo(
+    () =>
+      retailers
+        .map((r) => r.id)
+        .sort((a, b) => a - b)
+        .join(','),
+    [retailers],
+  );
+
+  useEffect(() => {
+    if (!currentSalesLineId || retailerIdsKey === '') {
+      return;
+    }
+    const ids = retailerIdsKey.split(',').map((s) => Number(s));
+    let active = true;
+    void fetchCrossLineBadgesForRetailers({
+      retailerIds: ids,
+      currentSalesLineId,
+    }).then((result) => {
+      if (!active) return;
+      setBadgesByRetailer(result.error ? new Map() : result.data);
+    });
+    return () => {
+      active = false;
+    };
+  }, [currentSalesLineId, retailerIdsKey]);
 
   const filtered = useMemo(
     () => filterProspects(retailers, { search, region, channel, territoryCode }),
@@ -212,8 +243,7 @@ export function RetailerDirectory({
                       <span className="inline-flex flex-col gap-1">
                         <span>{p.name}</span>
                         <CrossLineBadgeChips
-                          retailerId={p.id}
-                          currentSalesLineId={currentSalesLineId}
+                          badges={currentSalesLineId ? (badgesByRetailer.get(p.id) ?? []) : []}
                         />
                       </span>
                     </td>

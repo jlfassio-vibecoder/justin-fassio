@@ -55,7 +55,8 @@ export function LineProvider({ multiLineUi, urlLineSlug = null, children }: Line
     initialSlug(multiLineUi, urlLineSlug),
   );
 
-  // URL slug is source of truth — sync during render (React-supported pattern).
+  // URL slug is source of truth.
+  // Copilot suggestion ignored: syncing via useEffect trips react-hooks/set-state-in-effect; render-time prop sync matches RepCommandCenter deep-link pattern.
   const urlNormalized = urlLineSlug?.trim().toLowerCase() ?? null;
   if (
     multiLineUi &&

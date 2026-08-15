@@ -30,8 +30,6 @@ export function Header({
   onSelectLine,
   subtitle = 'Independent Sales Representative — British Columbia',
 }: HeaderProps) {
-  const activeMeta = representedLines.find((l) => l.code === activeLine);
-
   return (
     <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-7 py-3.5">
       <div className="gap-3.1 flex items-center">
@@ -69,6 +67,8 @@ export function Header({
                 </button>
               );
             })
+          ) : multiLineUi ? (
+            <span className="text-ink/50 px-3.5 py-1.5 text-sm">Loading lines…</span>
           ) : (
             <button
               onClick={onSelectOgr}
@@ -80,11 +80,6 @@ export function Header({
               Old Guys Rule
             </button>
           )}
-          {multiLineUi && activeMeta && representedLines.length === 0 ? (
-            <span className="text-ink/50 px-2 text-xs">
-              {activeMeta.name} · {lineStatusBadgeLabel(activeMeta.status)}
-            </span>
-          ) : null}
           <button
             type="button"
             onClick={onOpenMessages}
