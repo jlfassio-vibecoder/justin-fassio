@@ -34,12 +34,8 @@ export type RetailerFieldChangeInsert = {
   retailerLineAccountId?: string | null;
 };
 
-/** Insert one audit row. Soft-fails are returned as error strings. */
-export async function insertRetailerFieldChange(
-  client: AgentSupabase,
-  input: RetailerFieldChangeInsert,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { error } = await client.from('retailer_field_changes').insert({
+function toInsertRow(input: RetailerFieldChangeInsert) {
+  return {
     retailer_id: input.retailerId,
     field_path: input.fieldPath,
     old_value: input.oldValue as never,
@@ -48,18 +44,23 @@ export async function insertRetailerFieldChange(
     actor_id: input.actorId ?? null,
     sales_line_id: input.salesLineId ?? null,
     retailer_line_account_id: input.retailerLineAccountId ?? null,
-  });
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  };
+}
+
+/** Insert one audit row. Soft-fails are returned as error strings. */
+export async function insertRetailerFieldChange(
+  client: AgentSupabase,
+  input: RetailerFieldChangeInsert,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return insertRetailerFieldChanges(client, [input]);
 }
 
 export async function insertRetailerFieldChanges(
   client: AgentSupabase,
   rows: RetailerFieldChangeInsert[],
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  for (const row of rows) {
-    const result = await insertRetailerFieldChange(client, row);
-    if (!result.ok) return result;
-  }
+  if (rows.length === 0) return { ok: true };
+  const { error } = await client.from('retailer_field_changes').insert(rows.map(toInsertRow));
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }

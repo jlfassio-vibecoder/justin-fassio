@@ -64,7 +64,7 @@ async function writeAiFieldChanges(
     patch: Record<string, unknown>;
     audit: ApplyProspectResearchAiAudit;
   },
-): Promise<void> {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const rows: RetailerFieldChangeInsert[] = [];
   for (const [fieldPath, newValue] of Object.entries(input.patch)) {
     const camel = fieldPath.includes('_')
@@ -84,8 +84,8 @@ async function writeAiFieldChanges(
       retailerLineAccountId: input.audit.retailerLineAccountId,
     });
   }
-  if (rows.length === 0) return;
-  await insertRetailerFieldChanges(supabase, rows);
+  if (rows.length === 0) return { ok: true };
+  return insertRetailerFieldChanges(supabase, rows);
 }
 
 async function fetchProspectById(
@@ -236,12 +236,13 @@ export async function applyProspectResearchUpdate(
       return { ok: false, error: 'Update returned no row' };
     }
     if (input.aiAudit) {
-      await writeAiFieldChanges(supabase, {
+      const audit = await writeAiFieldChanges(supabase, {
         retailerId: input.id,
         current: existing.data,
         patch: dbPatch,
         audit: input.aiAudit,
       });
+      if (!audit.ok) return audit;
     }
     return { ok: true, prospect: mapProspectRow(data as ProspectRow) };
   }
@@ -292,12 +293,13 @@ export async function applyProspectResearchUpdate(
     return { ok: false, error: 'Update returned no row' };
   }
   if (input.aiAudit && currentForAudit) {
-    await writeAiFieldChanges(supabase, {
+    const audit = await writeAiFieldChanges(supabase, {
       retailerId: input.id,
       current: currentForAudit,
       patch,
       audit: input.aiAudit,
     });
+    if (!audit.ok) return audit;
   }
 
   return { ok: true, prospect: mapProspectRow(data as ProspectRow) };
