@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
+import { isUuid } from '@/lib/resolveSalesLineQuery';
 
 type Client = SupabaseClient<Database>;
 
@@ -123,7 +124,7 @@ export async function upsertConfirmedCalendarEventLink(params: {
   }
 
   let retailerLineAccountId: string | undefined;
-  if (params.salesLineId) {
+  if (params.salesLineId && isUuid(params.salesLineId)) {
     const { data: rla, error: rlaError } = await params.client
       .from('retailer_line_accounts')
       .select('id')
@@ -131,6 +132,7 @@ export async function upsertConfirmedCalendarEventLink(params: {
       .eq('sales_line_id', params.salesLineId)
       .neq('relationship_status', 'terminated')
       .maybeSingle();
+    // Copilot suggestion ignored: keep PostgREST error messages like other calendar link helpers.
     if (rlaError) throw new CalendarEventLinkError(rlaError.message);
     retailerLineAccountId = rla?.id;
   }

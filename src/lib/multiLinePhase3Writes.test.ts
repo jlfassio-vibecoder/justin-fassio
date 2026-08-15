@@ -51,6 +51,20 @@ describe('Phase 3 FEATURE_MULTI_LINE_WRITES flag', () => {
     if (prev !== undefined) process.env.FEATURE_MULTI_LINE_WRITES = prev;
   });
 
+  it('staff snapshot does not enable writes without the UI flag', () => {
+    const prevWrites = process.env.FEATURE_MULTI_LINE_WRITES;
+    const prevUi = process.env.FEATURE_MULTI_LINE_UI;
+    process.env.FEATURE_MULTI_LINE_WRITES = '1';
+    delete process.env.FEATURE_MULTI_LINE_UI;
+    expect(isMultiLineWritesEnabled()).toBe(true);
+    expect(getStaffFeatureFlags().FEATURE_MULTI_LINE_WRITES).toBe(false);
+    expect(getStaffFeatureFlags().FEATURE_MULTI_LINE_UI).toBe(false);
+    if (prevWrites !== undefined) process.env.FEATURE_MULTI_LINE_WRITES = prevWrites;
+    else delete process.env.FEATURE_MULTI_LINE_WRITES;
+    if (prevUi !== undefined) process.env.FEATURE_MULTI_LINE_UI = prevUi;
+    else delete process.env.FEATURE_MULTI_LINE_UI;
+  });
+
   it('features API and AuthGate snapshot the writes flag without PUBLIC_', () => {
     const api = readFileSync(resolve(root, 'src/pages/api/staff/features.ts'), 'utf8');
     expect(api).toMatch(/getStaffFeatureFlags/);

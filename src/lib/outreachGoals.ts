@@ -129,6 +129,18 @@ export async function getOutreachGoalSettings(
   const salesLineId = options?.salesLineId?.trim() || null;
 
   if (!writesOn) {
+    const ogr = await resolveOgrSalesLineId(client);
+    if (ogr.ok) {
+      const { data, error } = await client
+        .from('outreach_goal_settings')
+        .select('*')
+        .eq('sales_line_id', ogr.id)
+        .maybeSingle();
+      if (!error) {
+        if (!data) return { ok: true, settings: defaultOutreachGoalSettings() };
+        return { ok: true, settings: mapOutreachGoalSettingsRow(data) };
+      }
+    }
     const { data, error } = await client
       .from('outreach_goal_settings')
       .select('*')

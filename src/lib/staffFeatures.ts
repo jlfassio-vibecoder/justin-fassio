@@ -44,8 +44,10 @@ export function isMultiLineWritesEnabled(): boolean {
 
 /** Snapshot of staff feature flags for approved-staff API responses. */
 export function getStaffFeatureFlags(): StaffFeatureFlags {
+  const ui = isMultiLineUiEnabled();
   return {
-    FEATURE_MULTI_LINE_UI: isMultiLineUiEnabled(),
-    FEATURE_MULTI_LINE_WRITES: isMultiLineWritesEnabled(),
+    FEATURE_MULTI_LINE_UI: ui,
+    // Writes without the picker leaves salesLineId null and blocks selling UI.
+    FEATURE_MULTI_LINE_WRITES: isMultiLineWritesEnabled() && ui,
   };
 }
