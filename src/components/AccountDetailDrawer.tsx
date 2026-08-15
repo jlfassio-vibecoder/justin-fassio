@@ -262,6 +262,7 @@ export function AccountDetailDrawer({
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
     line.multiLineWrites,
+    line.eaglePeakSelling,
   );
 
   if (!account) return null;

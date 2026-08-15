@@ -27,6 +27,10 @@ export interface ConvertInitialOrderInput {
   /** YYYY-MM-DD; defaults to today (local). */
   orderDate?: string;
   lineId?: string | null;
+  originalAmountUsd?: number;
+  exchangeRate?: number;
+  exchangeRateDate?: string;
+  fxConversionSource?: string;
 }
 
 export interface ConvertAttributionInput {
@@ -44,6 +48,7 @@ export interface ConvertToActiveAccountInput {
   attribution?: ConvertAttributionInput;
   writesEnabled?: boolean;
   salesLineId?: string | null;
+  eaglePeakSellingEnabled?: boolean;
 }
 
 export type ConvertToActiveAccountResult =
@@ -145,6 +150,7 @@ export async function convertToActiveAccount(
   const ensured = await ensureRetailerLineAccount({
     retailerId: input.accountId,
     salesLineId,
+    eaglePeakSellingEnabled: input.eaglePeakSellingEnabled,
   });
   if (ensured.gate === 'reject' || ensured.error || !ensured.data) {
     return {
@@ -161,6 +167,9 @@ export async function convertToActiveAccount(
     return { ok: false, error: line.error ?? 'Sales line not found' };
   }
   const isOgr = line.data.code === 'ogr';
+  if (line.data.code === 'eagle-peak' && !input.eaglePeakSellingEnabled) {
+    return { ok: false, error: 'Eagle Peak selling is not enabled' };
+  }
   const nowIso = new Date().toISOString();
   const orderDate = input.initialOrder?.orderDate ?? todayIsoDate();
   const hasOrder = input.initialOrder != null;
@@ -201,6 +210,11 @@ export async function convertToActiveAccount(
         season: input.initialOrder.season,
         order_date: orderDate,
         total_amount_cad: input.initialOrder.totalAmountCad,
+        original_amount: input.initialOrder.originalAmountUsd ?? null,
+        original_currency: input.initialOrder.originalAmountUsd != null ? 'USD' : null,
+        exchange_rate: input.initialOrder.exchangeRate ?? null,
+        exchange_rate_date: input.initialOrder.exchangeRateDate ?? null,
+        conversion_source: input.initialOrder.fxConversionSource ?? null,
         status: 'submitted',
         notes: input.initialOrder.notes ?? null,
       },
@@ -208,6 +222,7 @@ export async function convertToActiveAccount(
         writesEnabled: true,
         lineCode: line.data.code,
         lineDefaultCurrency: line.data.defaultCurrency,
+        eaglePeakSellingEnabled: input.eaglePeakSellingEnabled,
       },
     );
 

@@ -247,16 +247,28 @@ export function isLineAccountWritePath(
   return Boolean(options?.writesEnabled && options.salesLineId);
 }
 
-export function assertLineAllowsOperationalWrite(line: {
-  code: string;
-  status: string;
-}): OperationalWriteGate {
+export function assertLineAllowsOperationalWrite(
+  line: {
+    code: string;
+    status: string;
+  },
+  options?: { eaglePeakSellingEnabled?: boolean },
+): OperationalWriteGate {
   if (line.status === 'prospective' || line.status === 'declined' || line.status === 'terminated') {
     return 'reject';
   }
   if (line.code === 'bkg') return 'reject';
   if (line.code === 'ogr' && line.status === 'active') return 'allow';
-  if (line.code === 'eagle-peak' || line.code === 'big-fish') return 'ui_blocked';
+  if (line.code === 'eagle-peak') {
+    if (
+      options?.eaglePeakSellingEnabled &&
+      (line.status === 'onboarding' || line.status === 'active')
+    ) {
+      return 'allow';
+    }
+    return 'ui_blocked';
+  }
+  if (line.code === 'big-fish') return 'ui_blocked';
   return 'reject';
 }
 
@@ -264,10 +276,34 @@ export function assertLineAllowsOperationalWrite(line: {
 export function isStaffSellingUiBlocked(
   line: { code: string; status: string } | null,
   writesEnabled: boolean,
+  eaglePeakSellingEnabled = false,
 ): boolean {
   if (!writesEnabled) return false;
   if (!line) return true;
-  return assertLineAllowsOperationalWrite(line) !== 'allow';
+  return assertLineAllowsOperationalWrite(line, { eaglePeakSellingEnabled }) !== 'allow';
+}
+
+/** When the EP selling snapshot is on, split the current line's directory on RLA status. */
+export function usesLineRelationshipDirectorySplit(options: {
+  eaglePeakSelling: boolean;
+  lineCode: string | null | undefined;
+}): boolean {
+  return Boolean(options.eaglePeakSelling && options.lineCode === 'eagle-peak');
+}
+
+export function splitDirectoryByAccountOrLineRelationship<
+  T extends { accountStatus: string; lineRelationshipStatus?: string | null },
+>(rows: T[], splitByLineRelationship: boolean): { pipeline: T[]; active: T[] } {
+  if (splitByLineRelationship) {
+    return {
+      pipeline: rows.filter((row) => row.lineRelationshipStatus !== 'opened'),
+      active: rows.filter((row) => row.lineRelationshipStatus === 'opened'),
+    };
+  }
+  return {
+    pipeline: rows.filter((row) => row.accountStatus !== 'active_account'),
+    active: rows.filter((row) => row.accountStatus === 'active_account'),
+  };
 }
 
 export async function fetchLineWriteMeta(
@@ -322,6 +358,7 @@ export async function fetchOperationalLineAccount(input: {
 export async function ensureRetailerLineAccount(input: {
   retailerId: number;
   salesLineId: string;
+  eaglePeakSellingEnabled?: boolean;
 }): Promise<{
   data: RetailerLineAccountRow | null;
   error: string | null;
@@ -332,7 +369,9 @@ export async function ensureRetailerLineAccount(input: {
     return { data: null, error: line.error ?? 'Sales line not found', gate: 'reject' };
   }
 
-  const gate = assertLineAllowsOperationalWrite(line.data);
+  const gate = assertLineAllowsOperationalWrite(line.data, {
+    eaglePeakSellingEnabled: input.eaglePeakSellingEnabled,
+  });
   if (gate === 'reject') {
     return { data: null, error: 'Operational writes are not allowed for this line', gate };
   }

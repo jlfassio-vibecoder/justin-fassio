@@ -35,6 +35,7 @@ export function AccountContactsSection({ accountId }: AccountContactsSectionProp
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
     line.multiLineWrites,
+    line.eaglePeakSelling,
   );
   const [contacts, setContacts] = useState<AccountContact[]>([]);
   const [loading, setLoading] = useState(true);

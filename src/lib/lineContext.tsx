@@ -26,6 +26,10 @@ export type LineContextValue = {
   multiLineAi: boolean;
   /** Staff snapshot of FEATURE_LINE_TERRITORY_ADMIN (not readable from PUBLIC_ env). */
   multiLineTerritoryAdmin: boolean;
+  /** Staff snapshot of FEATURE_EAGLE_PEAK_SELLING (selling && UI && writes). */
+  eaglePeakSelling: boolean;
+  /** Staff snapshot of FEATURE_EAGLE_PEAK_OUTREACH (outreach && UI). */
+  eaglePeakOutreach: boolean;
   salesLineId: string | null;
   lineSlug: LineKey | null;
   status: LineStatus | null;
@@ -51,6 +55,8 @@ type LineProviderProps = {
   multiLineWrites?: boolean;
   multiLineAi?: boolean;
   multiLineTerritoryAdmin?: boolean;
+  eaglePeakSelling?: boolean;
+  eaglePeakOutreach?: boolean;
   /** URL slug when on /app/lines/:lineSlug; null on /app (resolved to last or ogr). */
   urlLineSlug?: string | null;
   children: ReactNode;
@@ -61,6 +67,8 @@ export function LineProvider({
   multiLineWrites = false,
   multiLineAi = false,
   multiLineTerritoryAdmin = false,
+  eaglePeakSelling = false,
+  eaglePeakOutreach = false,
   urlLineSlug = null,
   children,
 }: LineProviderProps) {
@@ -125,6 +133,8 @@ export function LineProvider({
       multiLineWrites,
       multiLineAi,
       multiLineTerritoryAdmin,
+      eaglePeakSelling,
+      eaglePeakOutreach,
       salesLineId: current?.id ?? null,
       lineSlug: unknownLine ? null : selectedSlug,
       status: current?.status ?? null,
@@ -140,6 +150,8 @@ export function LineProvider({
       multiLineWrites,
       multiLineAi,
       multiLineTerritoryAdmin,
+      eaglePeakSelling,
+      eaglePeakOutreach,
       current,
       selectedSlug,
       loading,
@@ -170,6 +182,8 @@ export function useOptionalLineContext(): LineContextValue {
       multiLineWrites: false,
       multiLineAi: false,
       multiLineTerritoryAdmin: false,
+      eaglePeakSelling: false,
+      eaglePeakOutreach: false,
       salesLineId: null,
       lineSlug: null,
       status: null,

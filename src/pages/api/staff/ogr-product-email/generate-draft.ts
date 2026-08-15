@@ -16,8 +16,31 @@ import {
   requireRecipientEmail,
 } from '@/lib/ogrProductEmailDraftApi';
 import type { SelectedOutreachTarget } from '@/lib/outreachSelectTargets';
+import { getStaffFeatureFlags } from '@/lib/staffFeatures';
 
 export const prerender = false;
+
+export const EAGLE_PEAK_OUTREACH_DISABLED = 'Eagle Peak outreach is not enabled';
+export const EAGLE_PEAK_CATALOG_EMPTY = 'Catalog is empty for this sales line';
+
+export function assertEaglePeakGenerateDraftAllowed(input: {
+  lineCode: string | null | undefined;
+  outreachEnabled: boolean;
+}): { ok: true } | { ok: false; status: 403; error: string } {
+  if (input.lineCode === 'eagle-peak' && !input.outreachEnabled) {
+    return { ok: false, status: 403, error: EAGLE_PEAK_OUTREACH_DISABLED };
+  }
+  return { ok: true };
+}
+
+export function assertEaglePeakCatalogReadyForDraft(
+  itemCount: number,
+): { ok: true } | { ok: false; status: 400; error: string } {
+  if (itemCount <= 0) {
+    return { ok: false, status: 400, error: EAGLE_PEAK_CATALOG_EMPTY };
+  }
+  return { ok: true };
+}
 
 function isSelectionReasons(value: unknown): value is SelectedOutreachTarget['selectionReasons'] {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -152,6 +175,28 @@ export const POST: APIRoute = async ({ request }) => {
   }
   if (gated.ctx?.mode === 'research_only') {
     return jsonError('Outreach generate is not available for this sales line', 400);
+  }
+
+  const outreachGate = assertEaglePeakGenerateDraftAllowed({
+    lineCode: gated.ctx?.code,
+    outreachEnabled: getStaffFeatureFlags().FEATURE_EAGLE_PEAK_OUTREACH,
+  });
+  if (!outreachGate.ok) {
+    return jsonError(outreachGate.error, outreachGate.status);
+  }
+
+  if (gated.ctx?.code === 'eagle-peak') {
+    const { count, error: catalogError } = await gate.supabase
+      .from('catalog_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('line_id', gated.ctx.salesLineId);
+    if (catalogError) {
+      return jsonError(catalogError.message, 400);
+    }
+    const catalogGate = assertEaglePeakCatalogReadyForDraft(count ?? 0);
+    if (!catalogGate.ok) {
+      return jsonError(catalogGate.error, catalogGate.status);
+    }
   }
 
   if (body.targets != null) {

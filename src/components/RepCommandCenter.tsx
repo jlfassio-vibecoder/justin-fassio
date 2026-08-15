@@ -23,7 +23,11 @@ import { useOptionalLineContext } from '@/lib/lineContext';
 import { persistLastLineSlug } from '@/lib/lineContextStorage';
 import { fetchNeedsMappingCount, type MessageThread } from '@/lib/messages';
 import { fetchProspects, type Prospect } from '@/lib/prospects';
-import { resolveLineAccountForSlug } from '@/lib/retailerLineAccounts';
+import {
+  resolveLineAccountForSlug,
+  splitDirectoryByAccountOrLineRelationship,
+  usesLineRelationshipDirectorySplit,
+} from '@/lib/retailerLineAccounts';
 import {
   upsertOpenLiveChat,
   surfaceLiveChatAsPill,
@@ -64,6 +68,10 @@ export function RepCommandCenter({
   const salesLineId = multiLineUi ? lineCtx.salesLineId : null;
   const lineSlug = (multiLineUi ? lineCtx.lineSlug : 'ogr') as LineKey | null;
   const lineReady = !multiLineUi || (!lineCtx.loading && Boolean(salesLineId));
+  const splitByRla = usesLineRelationshipDirectorySplit({
+    eaglePeakSelling: lineCtx.eaglePeakSelling,
+    lineCode: lineSlug,
+  });
 
   const initialLinks = parseAppDeepLinks();
   const [activeTab, setActiveTab] = useState<TabKey>(defaultTab);
@@ -94,7 +102,10 @@ export function RepCommandCenter({
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (deepLinkProspectId != null && prospects.length > 0) {
     const match = prospects.find((p) => p.id === deepLinkProspectId);
-    if (match?.accountStatus === 'active_account') {
+    const opened = splitByRla
+      ? match?.lineRelationshipStatus === 'opened'
+      : match?.accountStatus === 'active_account';
+    if (match && opened) {
       setDeepLinkAccountId(match.id);
       setDeepLinkProspectId(null);
       if (activeTab === 'prospects') setActiveTab('accounts');
@@ -169,13 +180,9 @@ export function RepCommandCenter({
     marginRangeDisplay,
   } = useLandedCostCalculator(catalog);
 
-  const pipelineProspects = useMemo(
-    () => prospects.filter((p) => p.accountStatus !== 'active_account'),
-    [prospects],
-  );
-  const activeAccounts = useMemo(
-    () => prospects.filter((p) => p.accountStatus === 'active_account'),
-    [prospects],
+  const { pipeline: pipelineProspects, active: activeAccounts } = useMemo(
+    () => splitDirectoryByAccountOrLineRelationship(prospects, splitByRla),
+    [prospects, splitByRla],
   );
 
   const reloadDirectory = useCallback(() => {

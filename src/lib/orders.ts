@@ -66,7 +66,92 @@ export type InsertOrderOptions = {
   writesEnabled?: boolean;
   lineCode?: string | null;
   lineDefaultCurrency?: string | null;
+  eaglePeakSellingEnabled?: boolean;
 };
+
+/** Staff-confirmed USD→CAD booking stamp. Never copy CAD into original_amount. */
+export const EAGLE_PEAK_ORDER_CONVERSION_SOURCE = 'staff_usd_cad';
+
+export type EaglePeakOrderConversionStamp = {
+  original_amount: number;
+  original_currency: 'USD';
+  total_amount_cad: number;
+  exchange_rate: number;
+  exchange_rate_date: string;
+  conversion_source: string;
+  converted_amount: number;
+  converted_currency: 'CAD';
+};
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function asFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+/**
+ * Build a complete Eagle Peak conversion record.
+ * Requires USD original + FX rate + rate date. Does not treat USD as CAD 1:1.
+ */
+export function buildEaglePeakOrderConversion(input: {
+  originalAmountUsd: unknown;
+  exchangeRate: unknown;
+  exchangeRateDate: unknown;
+  conversionSource?: unknown;
+}): { ok: true; stamp: EaglePeakOrderConversionStamp } | { ok: false; error: string } {
+  const originalAmountUsd = asFiniteNumber(input.originalAmountUsd);
+  const exchangeRate = asFiniteNumber(input.exchangeRate);
+  const exchangeRateDate =
+    typeof input.exchangeRateDate === 'string' ? input.exchangeRateDate.trim() : '';
+  const conversionSource =
+    typeof input.conversionSource === 'string' && input.conversionSource.trim()
+      ? input.conversionSource.trim()
+      : EAGLE_PEAK_ORDER_CONVERSION_SOURCE;
+
+  if (originalAmountUsd == null || originalAmountUsd < 0) {
+    return {
+      ok: false,
+      error:
+        'Eagle Peak orders require original_amount in USD, exchange_rate, and exchange_rate_date',
+    };
+  }
+  if (exchangeRate == null || exchangeRate <= 0) {
+    return {
+      ok: false,
+      error:
+        'Eagle Peak orders require original_amount in USD, exchange_rate, and exchange_rate_date',
+    };
+  }
+  if (!exchangeRateDate) {
+    return {
+      ok: false,
+      error:
+        'Eagle Peak orders require original_amount in USD, exchange_rate, and exchange_rate_date',
+    };
+  }
+
+  const totalAmountCad = roundMoney(originalAmountUsd * exchangeRate);
+  return {
+    ok: true,
+    stamp: {
+      original_amount: roundMoney(originalAmountUsd),
+      original_currency: 'USD',
+      total_amount_cad: totalAmountCad,
+      exchange_rate: exchangeRate,
+      exchange_rate_date: exchangeRateDate,
+      conversion_source: conversionSource,
+      converted_amount: totalAmountCad,
+      converted_currency: 'CAD',
+    },
+  };
+}
 
 export async function insertOrder(
   input: OrderInsert,
@@ -82,6 +167,28 @@ export async function insertOrder(
     }
     if (options.lineCode === 'ogr' && payload.original_currency === 'USD') {
       return { data: null, error: 'OGR orders cannot use USD as original_currency' };
+    }
+    if (options.lineCode === 'eagle-peak' && !options.eaglePeakSellingEnabled) {
+      return { data: null, error: 'Eagle Peak selling is not enabled' };
+    }
+    if (options.lineCode === 'eagle-peak') {
+      const built = buildEaglePeakOrderConversion({
+        originalAmountUsd: payload.original_amount,
+        exchangeRate: payload.exchange_rate,
+        exchangeRateDate: payload.exchange_rate_date ?? payload.order_date,
+        conversionSource: payload.conversion_source,
+      });
+      if (!built.ok) {
+        return { data: null, error: built.error };
+      }
+      payload.original_amount = built.stamp.original_amount;
+      payload.original_currency = built.stamp.original_currency;
+      payload.total_amount_cad = built.stamp.total_amount_cad;
+      payload.exchange_rate = built.stamp.exchange_rate;
+      payload.exchange_rate_date = built.stamp.exchange_rate_date;
+      payload.conversion_source = built.stamp.conversion_source;
+      payload.converted_amount = built.stamp.converted_amount;
+      payload.converted_currency = built.stamp.converted_currency;
     }
     if (!payload.original_currency) {
       const originalCurrency =

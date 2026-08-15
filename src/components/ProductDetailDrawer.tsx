@@ -28,7 +28,8 @@ import {
 } from '@/lib/landedCost';
 import { patchCatalogItem } from '@/lib/updateCatalogItemClient';
 import type { CatalogItemPatch } from '@/lib/updateCatalogItem';
-import { buildOgrCollectionUrl, tryBuildOgrProductUrl } from '@/lib/productUrls';
+import { tryBuildOgrProductUrl, buildOgrCollectionUrl } from '@/lib/productUrls';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import {
   buildOgrProductEmailCardPlainText,
   copyOgrProductEmailCardToClipboard,
@@ -331,6 +332,8 @@ function ProductDetailDrawerInner({
   onSaved: (item: CatalogItem) => void;
   onNavigate: (sku: string) => void;
 }) {
+  const line = useOptionalLineContext();
+  const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => itemToDraft(item));
   const [busy, setBusy] = useState(false);
@@ -1822,13 +1825,19 @@ function ProductDetailDrawerInner({
                   <Button
                     type="button"
                     variant="secondary"
-                    disabled={!draft.publicSlug.trim() || !draft.isPubliclyPublished}
+                    disabled={
+                      eaglePeakOutreachBlocked ||
+                      !draft.publicSlug.trim() ||
+                      !draft.isPubliclyPublished
+                    }
                     title={
-                      !draft.publicSlug.trim()
-                        ? 'Public slug is required'
-                        : !draft.isPubliclyPublished
-                          ? 'Publish to send product email'
-                          : undefined
+                      eaglePeakOutreachBlocked
+                        ? 'Eagle Peak outreach is not enabled'
+                        : !draft.publicSlug.trim()
+                          ? 'Public slug is required'
+                          : !draft.isPubliclyPublished
+                            ? 'Publish to send product email'
+                            : undefined
                     }
                     onClick={() => {
                       setEmailReviewDraft(null);

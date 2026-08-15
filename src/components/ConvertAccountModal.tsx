@@ -8,7 +8,10 @@ import { APPAREL_SEASON_LABELS, APPAREL_SEASONS } from '@/lib/apparelSeasons';
 import type { CatalogItem } from '@/lib/catalog';
 import { convertToActiveAccount } from '@/lib/convertToActiveAccount';
 import { useOptionalLineContext } from '@/lib/lineContext';
+import { loadLandedRatesPersistence } from '@/lib/landedRatesStorage';
 import { resolveOgrLineId } from '@/lib/lines';
+import { buildEaglePeakOrderConversion } from '@/lib/orders';
+import { formatLocalIsoDate } from '@/lib/reorderCadence';
 import {
   listLinkedOutreachCandidates,
   type LinkedOutreachCandidate,
@@ -63,7 +66,28 @@ function ConvertAccountForm({
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
     line.multiLineWrites,
+    line.eaglePeakSelling,
   );
+  const isEpOrder = line.lineSlug === 'eagle-peak' && line.eaglePeakSelling;
+  const [amountUsd, setAmountUsd] = useState(() => {
+    if (!isEpOrder) return '';
+    if (prefillAmountCad == null || prefillAmountCad <= 0) return '';
+    const fx = loadLandedRatesPersistence().fx;
+    if (!(fx > 0)) return '';
+    return String(Math.round((prefillAmountCad / fx) * 100) / 100);
+  });
+  const [exchangeRate, setExchangeRate] = useState(() =>
+    isEpOrder ? String(loadLandedRatesPersistence().fx) : '',
+  );
+  const [exchangeRateDate, setExchangeRateDate] = useState(() => formatLocalIsoDate(new Date()));
+  const epPreview = isEpOrder
+    ? buildEaglePeakOrderConversion({
+        originalAmountUsd: amountUsd,
+        exchangeRate,
+        exchangeRateDate,
+      })
+    : null;
+  const epPreviewCad = epPreview?.ok ? epPreview.stamp.total_amount_cad.toFixed(2) : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -101,10 +125,24 @@ function ConvertAccountForm({
     setBusy(true);
 
     const amount = amountCad === '' ? 0 : Number(amountCad);
-    if (withOrder && (Number.isNaN(amount) || amount < 0)) {
+    if (withOrder && !isEpOrder && (Number.isNaN(amount) || amount < 0)) {
       setBusy(false);
       setError('Enter a valid order amount (CAD).');
       return;
+    }
+
+    let epStamp: ReturnType<typeof buildEaglePeakOrderConversion> | null = null;
+    if (withOrder && isEpOrder) {
+      epStamp = buildEaglePeakOrderConversion({
+        originalAmountUsd: amountUsd,
+        exchangeRate,
+        exchangeRateDate,
+      });
+      if (!epStamp.ok) {
+        setBusy(false);
+        setError(epStamp.error);
+        return;
+      }
     }
 
     let lineId: string | null = null;
@@ -126,10 +164,15 @@ function ConvertAccountForm({
       currentStatus,
       writesEnabled: line.multiLineWrites,
       salesLineId: line.multiLineWrites ? line.salesLineId : null,
+      eaglePeakSellingEnabled: line.eaglePeakSelling,
       initialOrder: withOrder
         ? {
             season,
-            totalAmountCad: amount,
+            totalAmountCad: epStamp?.ok ? epStamp.stamp.total_amount_cad : amount,
+            originalAmountUsd: epStamp?.ok ? epStamp.stamp.original_amount : undefined,
+            exchangeRate: epStamp?.ok ? epStamp.stamp.exchange_rate : undefined,
+            exchangeRateDate: epStamp?.ok ? epStamp.stamp.exchange_rate_date : undefined,
+            fxConversionSource: epStamp?.ok ? epStamp.stamp.conversion_source : undefined,
             notes: notes.trim() || null,
             lineId,
           }
@@ -196,7 +239,8 @@ function ConvertAccountForm({
 
         <p className="text-ink/75 m-0 text-sm">
           Promote <span className="text-ink font-semibold">{prospect.name}</span> to an active
-          account and optionally log the initial wholesale order (Old Guys Rule).
+          account and optionally log the initial wholesale order
+          {isEpOrder ? ' (Eagle Peak).' : ' (Old Guys Rule).'}
         </p>
 
         <Field>
@@ -214,18 +258,60 @@ function ConvertAccountForm({
           </Select>
         </Field>
 
-        <Field>
-          <FieldLabel>Estimated order value (CAD)</FieldLabel>
-          <Input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="0"
-            value={amountCad}
-            onChange={(e) => setAmountCad(e.target.value)}
-            disabled={busy}
-          />
-        </Field>
+        {isEpOrder ? (
+          <>
+            <Field>
+              <FieldLabel>Order value (USD)</FieldLabel>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0"
+                value={amountUsd}
+                onChange={(e) => setAmountUsd(e.target.value)}
+                disabled={busy}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>USD to CAD rate</FieldLabel>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.0001"
+                placeholder="1.45"
+                value={exchangeRate}
+                onChange={(e) => setExchangeRate(e.target.value)}
+                disabled={busy}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Rate date</FieldLabel>
+              <Input
+                type="date"
+                value={exchangeRateDate}
+                onChange={(e) => setExchangeRateDate(e.target.value)}
+                disabled={busy}
+                required
+              />
+            </Field>
+            {epPreviewCad != null ? (
+              <p className="text-ink/60 m-0 text-sm">CAD reporting amount: {epPreviewCad}</p>
+            ) : null}
+          </>
+        ) : (
+          <Field>
+            <FieldLabel>Estimated order value (CAD)</FieldLabel>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0"
+              value={amountCad}
+              onChange={(e) => setAmountCad(e.target.value)}
+              disabled={busy}
+            />
+          </Field>
+        )}
 
         <Field>
           <FieldLabel>Order notes</FieldLabel>
