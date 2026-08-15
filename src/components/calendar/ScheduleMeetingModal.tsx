@@ -5,6 +5,7 @@ import {
 } from '@/components/calendar/CalendarEventForm';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { createCalendarEventClient } from '@/lib/calendarClientBrowser';
+import { useOptionalLineContext } from '@/lib/lineContext';
 
 export type ScheduleMeetingModalProps = {
   open: boolean;
@@ -21,6 +22,7 @@ export function ScheduleMeetingModal({
   onClose,
   onCreated,
 }: ScheduleMeetingModalProps) {
+  const line = useOptionalLineContext();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +35,7 @@ export function ScheduleMeetingModal({
       ...input,
       prospectId,
       accountContactId: input.accountContactId ?? null,
+      salesLineId: line.multiLineWrites ? line.salesLineId : null,
     });
     setBusy(false);
     if (!result.ok) {

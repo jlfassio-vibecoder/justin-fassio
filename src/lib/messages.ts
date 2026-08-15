@@ -301,13 +301,29 @@ export async function confirmThreadMapping(args: {
   threadId: string;
   prospectId: number;
   confirmedFingerprint: string;
+  writesEnabled?: boolean;
+  salesLineId?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  let retailerLineAccountId: string | undefined;
+  if (args.writesEnabled && args.salesLineId) {
+    const { data: rla, error: rlaError } = await supabase
+      .from('retailer_line_accounts')
+      .select('id')
+      .eq('retailer_id', args.prospectId)
+      .eq('sales_line_id', args.salesLineId)
+      .neq('relationship_status', 'terminated')
+      .maybeSingle();
+    if (rlaError) return { ok: false, error: rlaError.message };
+    retailerLineAccountId = rla?.id;
+  }
+
   const { error } = await supabase
     .from('message_threads')
     .update({
       prospect_id: args.prospectId,
       mapping_status: 'confirmed',
       confirmed_fingerprint: args.confirmedFingerprint,
+      ...(retailerLineAccountId ? { retailer_line_account_id: retailerLineAccountId } : {}),
     })
     .eq('id', args.threadId);
 

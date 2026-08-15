@@ -96,6 +96,7 @@ export async function getCalendarEventClient(
 export type CreateCalendarEventClientInput = CalendarEventWriteInput & {
   prospectId?: number | null;
   accountContactId?: string | null;
+  salesLineId?: string | null;
 };
 
 export async function createCalendarEventClient(
@@ -239,6 +240,7 @@ export async function confirmCalendarEventLinkClient(params: {
   eventId: string;
   prospectId: number;
   accountContactId?: string | null;
+  salesLineId?: string | null;
 }): Promise<
   { ok: true; link: CalendarEventLinkPublic } | ({ ok: false; error: string } & GateFlags)
 > {
@@ -254,6 +256,7 @@ export async function confirmCalendarEventLinkClient(params: {
     body: JSON.stringify({
       prospectId: params.prospectId,
       accountContactId: params.accountContactId ?? null,
+      salesLineId: params.salesLineId ?? null,
     }),
   });
   const body = (await res.json()) as {

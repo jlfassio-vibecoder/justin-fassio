@@ -75,18 +75,19 @@ async function fetchStaffFeatures(): Promise<StaffFeatureFlags> {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     if (!token) {
-      return { FEATURE_MULTI_LINE_UI: false };
+      return { FEATURE_MULTI_LINE_UI: false, FEATURE_MULTI_LINE_WRITES: false };
     }
     const res = await fetch('/api/staff/features', {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) return { FEATURE_MULTI_LINE_UI: false };
+    if (!res.ok) return { FEATURE_MULTI_LINE_UI: false, FEATURE_MULTI_LINE_WRITES: false };
     const payload = (await res.json()) as { features?: StaffFeatureFlags };
     return {
       FEATURE_MULTI_LINE_UI: Boolean(payload.features?.FEATURE_MULTI_LINE_UI),
+      FEATURE_MULTI_LINE_WRITES: Boolean(payload.features?.FEATURE_MULTI_LINE_WRITES),
     };
   } catch {
-    return { FEATURE_MULTI_LINE_UI: false };
+    return { FEATURE_MULTI_LINE_UI: false, FEATURE_MULTI_LINE_WRITES: false };
   }
 }
 
@@ -106,7 +107,7 @@ function AuthGateInner({
   const [pingStatus, setPingStatus] = useState<string | null>(null);
   const [defaultTab] = useState<TabKey | undefined>(() => pathTab ?? tabFromSearch());
   const [features, setFeatures] = useState<StaffFeatureFlags | null>(null);
-  const [featuresLoading, setFeaturesLoading] = useState(page === 'app');
+  const [featuresLoading, setFeaturesLoading] = useState(page === 'app' || page === 'account');
 
   useEffect(() => {
     if (!loading && configured && !session) {
@@ -115,7 +116,7 @@ function AuthGateInner({
   }, [loading, configured, session]);
 
   useEffect(() => {
-    if (page !== 'app' || !session || !isApprovedStaff(profile)) {
+    if ((page !== 'app' && page !== 'account') || !session || !isApprovedStaff(profile)) {
       return;
     }
     let active = true;
@@ -130,14 +131,15 @@ function AuthGateInner({
   }, [page, session, profile]);
 
   const multiLineUi = Boolean(features?.FEATURE_MULTI_LINE_UI);
+  const multiLineWrites = Boolean(features?.FEATURE_MULTI_LINE_WRITES);
   const urlLineSlug = lineSlugProp?.trim().toLowerCase() || null;
   const unknownLine = Boolean(urlLineSlug && !isRepresentedLineCode(urlLineSlug));
 
-  // Non-app / non-staff: treat feature flag as off without syncing in an effect.
-  const effectiveFeaturesLoading =
-    page === 'app' && Boolean(session) && isApprovedStaff(profile) ? featuresLoading : false;
-  const effectiveMultiLineUi =
-    page === 'app' && Boolean(session) && isApprovedStaff(profile) ? multiLineUi : false;
+  const staffAppOrAccount =
+    (page === 'app' || page === 'account') && Boolean(session) && isApprovedStaff(profile);
+  const effectiveFeaturesLoading = staffAppOrAccount ? featuresLoading : false;
+  const effectiveMultiLineUi = staffAppOrAccount ? multiLineUi : false;
+  const effectiveMultiLineWrites = staffAppOrAccount ? multiLineWrites : false;
 
   // Flag off + line-prefixed URL → redirect to /app preserving ?tab=
   useEffect(() => {
@@ -200,7 +202,7 @@ function AuthGateInner({
     return <PendingApprovalScreen email={user?.email} variant="pending" />;
   }
 
-  if (featuresLoading && page === 'app' && isApprovedStaff(profile)) {
+  if (featuresLoading && (page === 'app' || page === 'account') && isApprovedStaff(profile)) {
     return (
       <div className="text-ink/60 flex min-h-dvh items-center justify-center px-6 text-sm">
         Checking session…
@@ -237,18 +239,23 @@ function AuthGateInner({
     );
   }
 
-  const appShell =
-    page === 'account' ? (
-      <StaffAccountPage />
-    ) : (
-      <LineProvider multiLineUi={effectiveMultiLineUi} urlLineSlug={urlLineSlug}>
+  const appShell = (
+    <LineProvider
+      multiLineUi={effectiveMultiLineUi}
+      multiLineWrites={effectiveMultiLineWrites}
+      urlLineSlug={urlLineSlug}
+    >
+      {page === 'account' ? (
+        <StaffAccountPage />
+      ) : (
         <RepCommandCenter
           defaultTab={defaultTab}
           multiLineUi={effectiveMultiLineUi}
           lineAccountId={lineAccountId}
         />
-      </LineProvider>
-    );
+      )}
+    </LineProvider>
+  );
 
   return (
     <AiAssistProvider>

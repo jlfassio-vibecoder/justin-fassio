@@ -3,12 +3,14 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardKicker, CardTitle } from '@/components/ui/Card';
 import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { useAuth } from '@/hooks/useAuth';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import { backfillRecentConversionAttribution } from '@/lib/outreachAttribution';
 import {
   getOutreachGoalSettings,
   updateOutreachGoalSettings,
   type OutreachGoalSettings,
 } from '@/lib/outreachGoals';
+import { supabase } from '@/lib/supabase';
 
 const TIMEZONES = [
   'America/Vancouver',
@@ -24,6 +26,9 @@ const idle: SectionState = { busy: false, error: null, success: null };
 
 export function OutreachGoalsSettingsCard() {
   const { user } = useAuth();
+  const line = useOptionalLineContext();
+  const writesEnabled = line.multiLineWrites;
+  const salesLineId = writesEnabled ? line.salesLineId : null;
   const [settings, setSettings] = useState<OutreachGoalSettings | null>(null);
   const [monthlyTarget, setMonthlyTarget] = useState('5');
   const [planningPct, setPlanningPct] = useState('1.5');
@@ -35,7 +40,10 @@ export function OutreachGoalsSettingsCard() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const result = await getOutreachGoalSettings();
+      const result = await getOutreachGoalSettings(supabase, {
+        writesEnabled,
+        salesLineId,
+      });
       if (cancelled) return;
       if (!result.ok) {
         setLoadError(result.error);
@@ -49,7 +57,7 @@ export function OutreachGoalsSettingsCard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [writesEnabled, salesLineId]);
 
   async function onSave(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -78,6 +86,8 @@ export function OutreachGoalsSettingsCard() {
       planningConversionRate: pct / 100,
       businessTimezone: timezone,
       updatedBy: user?.id ?? null,
+      writesEnabled,
+      salesLineId,
     });
     if (!result.ok) {
       setSaveState({ busy: false, error: result.error, success: null });

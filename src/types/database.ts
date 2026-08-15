@@ -1328,6 +1328,7 @@ export interface Database {
       outreach_goal_settings: {
         Row: {
           id: string;
+          sales_line_id: string;
           monthly_target: number;
           planning_conversion_rate: number;
           min_attributed_conversions: number;
@@ -1345,6 +1346,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
+          sales_line_id: string;
           monthly_target?: number;
           planning_conversion_rate?: number;
           min_attributed_conversions?: number;
@@ -1362,6 +1364,7 @@ export interface Database {
         };
         Update: {
           id?: string;
+          sales_line_id?: string;
           monthly_target?: number;
           planning_conversion_rate?: number;
           min_attributed_conversions?: number;
@@ -1908,6 +1911,7 @@ export interface Database {
           google_connection_id?: string;
           gmail_thread_id?: string;
           prospect_id?: number | null;
+          retailer_line_account_id?: string | null;
           account_contact_id?: string | null;
           link_status?: string;
           subject?: string | null;
@@ -1983,6 +1987,7 @@ export interface Database {
           calendar_id?: string;
           google_event_id?: string;
           prospect_id?: number | null;
+          retailer_line_account_id?: string | null;
           account_contact_id?: string | null;
           link_status?: string;
           title?: string | null;

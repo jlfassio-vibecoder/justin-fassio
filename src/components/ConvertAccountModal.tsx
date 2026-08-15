@@ -7,12 +7,14 @@ import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { APPAREL_SEASON_LABELS, APPAREL_SEASONS } from '@/lib/apparelSeasons';
 import type { CatalogItem } from '@/lib/catalog';
 import { convertToActiveAccount } from '@/lib/convertToActiveAccount';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import { resolveOgrLineId } from '@/lib/lines';
 import {
   listLinkedOutreachCandidates,
   type LinkedOutreachCandidate,
 } from '@/lib/outreachAttribution';
 import type { Prospect } from '@/lib/prospects';
+import { isStaffSellingUiBlocked } from '@/lib/retailerLineAccounts';
 import { supabase } from '@/lib/supabase';
 import type { ApparelSeason, ConversionSource } from '@/types/database';
 
@@ -57,6 +59,11 @@ function ConvertAccountForm({
   const [conversionSource, setConversionSource] =
     useState<ConversionSource>(defaultConversionSource);
   const [candidatesLoading, setCandidatesLoading] = useState(true);
+  const line = useOptionalLineContext();
+  const sellingBlocked = isStaffSellingUiBlocked(
+    line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
+    line.multiLineWrites,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -102,7 +109,7 @@ function ConvertAccountForm({
 
     let lineId: string | null = null;
     if (withOrder) {
-      lineId = await resolveOgrLineId();
+      lineId = line.multiLineWrites ? line.salesLineId : await resolveOgrLineId();
     }
 
     const selectedId = linkedMessageId === NONE_VALUE ? null : linkedMessageId;
@@ -117,6 +124,8 @@ function ConvertAccountForm({
     const result = await convertToActiveAccount({
       accountId,
       currentStatus,
+      writesEnabled: line.multiLineWrites,
+      salesLineId: line.multiLineWrites ? line.salesLineId : null,
       initialOrder: withOrder
         ? {
             season,
@@ -146,6 +155,24 @@ function ConvertAccountForm({
   function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     void runConvert(true);
+  }
+
+  if (line.multiLineWrites && sellingBlocked) {
+    return (
+      <DialogBackdrop open onClose={resetAndClose}>
+        <div className="gap-3.1 bg-surface p-4.1 flex max-w-[560px] flex-col rounded-xl shadow-lg">
+          <DialogTitle>Convert to Active Account</DialogTitle>
+          <p className="text-ink/75 m-0 text-sm">
+            Selling for this line is not enabled yet. Convert stays available for Old Guys Rule.
+          </p>
+          <div className="flex justify-end">
+            <Button type="button" variant="secondary" onClick={resetAndClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </DialogBackdrop>
+    );
   }
 
   return (

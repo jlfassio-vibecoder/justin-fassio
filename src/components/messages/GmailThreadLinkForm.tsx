@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import type { CrmEmailMatch } from '@/lib/google/crmEmailMatch';
 import type { GmailThreadLinkPublic } from '@/lib/google/gmailThreadLinks';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import {
   confirmGmailThreadLinkClient,
   getGmailThreadLinkStateClient,
@@ -17,6 +18,7 @@ export type GmailThreadLinkFormProps = {
 };
 
 export function GmailThreadLinkForm({ threadId, onLinked, onUnlinked }: GmailThreadLinkFormProps) {
+  const line = useOptionalLineContext();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +88,7 @@ export function GmailThreadLinkForm({ threadId, onLinked, onUnlinked }: GmailThr
       threadId,
       prospectId,
       accountContactId,
+      salesLineId: line.multiLineWrites ? line.salesLineId : null,
     });
     setBusy(false);
     if (!result.ok) {

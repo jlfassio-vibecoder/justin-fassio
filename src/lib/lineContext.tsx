@@ -20,6 +20,8 @@ import type { LineStatus } from '@/types/database';
 
 export type LineContextValue = {
   multiLineUi: boolean;
+  /** Staff snapshot of FEATURE_MULTI_LINE_WRITES (not readable from PUBLIC_ env). */
+  multiLineWrites: boolean;
   salesLineId: string | null;
   lineSlug: LineKey | null;
   status: LineStatus | null;
@@ -42,12 +44,18 @@ function initialSlug(multiLineUi: boolean, urlLineSlug: string | null): LineKey 
 
 type LineProviderProps = {
   multiLineUi: boolean;
+  multiLineWrites?: boolean;
   /** URL slug when on /app/lines/:lineSlug; null on /app (resolved to last or ogr). */
   urlLineSlug?: string | null;
   children: ReactNode;
 };
 
-export function LineProvider({ multiLineUi, urlLineSlug = null, children }: LineProviderProps) {
+export function LineProvider({
+  multiLineUi,
+  multiLineWrites = false,
+  urlLineSlug = null,
+  children,
+}: LineProviderProps) {
   const [representedLines, setRepresentedLines] = useState<LinePortfolio[]>([]);
   const [linesLoading, setLinesLoading] = useState(multiLineUi);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +114,7 @@ export function LineProvider({ multiLineUi, urlLineSlug = null, children }: Line
   const value = useMemo<LineContextValue>(
     () => ({
       multiLineUi,
+      multiLineWrites,
       salesLineId: current?.id ?? null,
       lineSlug: unknownLine ? null : selectedSlug,
       status: current?.status ?? null,
@@ -118,6 +127,7 @@ export function LineProvider({ multiLineUi, urlLineSlug = null, children }: Line
     }),
     [
       multiLineUi,
+      multiLineWrites,
       current,
       selectedSlug,
       loading,
@@ -145,6 +155,7 @@ export function useOptionalLineContext(): LineContextValue {
   return (
     ctx ?? {
       multiLineUi: false,
+      multiLineWrites: false,
       salesLineId: null,
       lineSlug: null,
       status: null,

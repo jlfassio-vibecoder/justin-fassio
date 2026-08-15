@@ -16,6 +16,8 @@ import {
   upsertConfirmedGmailThreadLink,
 } from '@/lib/google/gmailThreadLinks';
 import { GoogleTokenStoreError, loadConnectionForProfile } from '@/lib/google/tokenStore';
+import { parseOptionalSalesLineId } from '@/lib/resolveSalesLineQuery';
+import { isMultiLineWritesEnabled } from '@/lib/staffFeatures';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
 
 export const prerender = false;
@@ -82,7 +84,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   const threadId = typeof params.threadId === 'string' ? params.threadId.trim() : '';
   if (!threadId) return json({ ok: false, error: 'threadId is required' }, 400);
 
-  let body: { prospectId?: unknown; accountContactId?: unknown };
+  let body: { prospectId?: unknown; accountContactId?: unknown; salesLineId?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -98,6 +100,9 @@ export const POST: APIRoute = async ({ request, params }) => {
     typeof body.accountContactId === 'string' && body.accountContactId.trim()
       ? body.accountContactId.trim()
       : null;
+  const salesLineId = isMultiLineWritesEnabled()
+    ? parseOptionalSalesLineId(body.salesLineId)
+    : null;
 
   const admin = getServiceRoleClient();
   if (!admin) return json({ ok: false, error: 'Server misconfigured' }, 500);
@@ -119,6 +124,7 @@ export const POST: APIRoute = async ({ request, params }) => {
       gmailThreadId: threadId,
       prospectId,
       accountContactId,
+      salesLineId,
       cache: {
         subject: thread.subject,
         snippet: thread.snippet,

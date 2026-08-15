@@ -2,6 +2,13 @@ import { insertOrder } from '@/lib/orders';
 import { upsertAccountReorderSettings } from '@/lib/accountReorderSettings';
 import { recordConversionAttribution } from '@/lib/outreachAttribution';
 import { formatLocalIsoDate } from '@/lib/reorderCadence';
+import {
+  ensureRetailerLineAccount,
+  fetchLineWriteMeta,
+  fetchOperationalLineAccount,
+  isLineAccountWritePath,
+  updateRetailerLineAccountStatus,
+} from '@/lib/retailerLineAccounts';
 import { supabase } from '@/lib/supabase';
 import type { AccountStatus, ApparelSeason, ConversionSource } from '@/types/database';
 
@@ -35,6 +42,8 @@ export interface ConvertToActiveAccountInput {
   currentStatus: AccountStatus;
   initialOrder?: ConvertInitialOrderInput;
   attribution?: ConvertAttributionInput;
+  writesEnabled?: boolean;
+  salesLineId?: string | null;
 }
 
 export type ConvertToActiveAccountResult =
@@ -45,12 +54,7 @@ function todayIsoDate(): string {
   return formatLocalIsoDate(new Date());
 }
 
-/**
- * Promote a prospect to active_account, optionally logging an initial order.
- * Sequential client writes (no DB transaction) — a mid-step failure may leave
- * the prospect updated without an order/settings/attribution row.
- */
-export async function convertToActiveAccount(
+async function convertLegacy(
   input: ConvertToActiveAccountInput,
 ): Promise<ConvertToActiveAccountResult> {
   if (input.currentStatus === 'active_account') {
@@ -121,9 +125,137 @@ export async function convertToActiveAccount(
   return { ok: true, alreadyActive: false, convertedAt: nowIso, attributionError };
 }
 
+/**
+ * Promote a prospect to active_account, optionally logging an initial order.
+ * Sequential client writes (no DB transaction) — a mid-step failure may leave
+ * the prospect updated without an order/settings/attribution row.
+ */
+export async function convertToActiveAccount(
+  input: ConvertToActiveAccountInput,
+): Promise<ConvertToActiveAccountResult> {
+  const writeOpts = {
+    writesEnabled: input.writesEnabled,
+    salesLineId: input.salesLineId,
+  };
+  if (!isLineAccountWritePath(writeOpts)) {
+    return convertLegacy(input);
+  }
+
+  const { salesLineId } = writeOpts;
+  const ensured = await ensureRetailerLineAccount({
+    retailerId: input.accountId,
+    salesLineId,
+  });
+  if (ensured.gate === 'reject' || ensured.error || !ensured.data) {
+    return {
+      ok: false,
+      error: ensured.error ?? 'Operational writes are not allowed for this line',
+    };
+  }
+  if (ensured.data.relationshipStatus === 'opened') {
+    return { ok: true, alreadyActive: true };
+  }
+
+  const line = await fetchLineWriteMeta(salesLineId);
+  if (line.error || !line.data) {
+    return { ok: false, error: line.error ?? 'Sales line not found' };
+  }
+  const isOgr = line.data.code === 'ogr';
+  const nowIso = new Date().toISOString();
+  const orderDate = input.initialOrder?.orderDate ?? todayIsoDate();
+  const hasOrder = input.initialOrder != null;
+  const rlaId = ensured.data.id;
+
+  const rlaUpdate = await updateRetailerLineAccountStatus({
+    lineAccountId: rlaId,
+    relationshipStatus: 'opened',
+    convertedAt: nowIso,
+    initialOrderDate: hasOrder ? `${orderDate}T12:00:00.000Z` : null,
+  });
+  if (rlaUpdate.error) {
+    return { ok: false, error: rlaUpdate.error };
+  }
+
+  if (isOgr) {
+    const { error: updateError } = await supabase
+      .from('prospects')
+      .update({
+        account_status: 'active_account',
+        converted_at: nowIso,
+        initial_order_date: hasOrder ? `${orderDate}T12:00:00.000Z` : null,
+      })
+      .eq('id', input.accountId);
+
+    if (updateError) {
+      return { ok: false, error: updateError.message };
+    }
+  }
+
+  if (input.initialOrder) {
+    const orderResult = await insertOrder(
+      {
+        account_id: input.accountId,
+        line_id: salesLineId,
+        retailer_line_account_id: rlaId,
+        order_type: 'initial',
+        season: input.initialOrder.season,
+        order_date: orderDate,
+        total_amount_cad: input.initialOrder.totalAmountCad,
+        status: 'submitted',
+        notes: input.initialOrder.notes ?? null,
+      },
+      {
+        writesEnabled: true,
+        lineCode: line.data.code,
+        lineDefaultCurrency: line.data.defaultCurrency,
+      },
+    );
+
+    if (orderResult.error) {
+      return { ok: false, error: orderResult.error };
+    }
+  }
+
+  if (!isOgr) {
+    return { ok: true, alreadyActive: false, convertedAt: nowIso };
+  }
+
+  const settingsResult = await upsertAccountReorderSettings({
+    account_id: input.accountId,
+    last_order_date: hasOrder ? orderDate : null,
+    retailer_line_account_id: rlaId,
+  });
+
+  if (settingsResult.error) {
+    return { ok: false, error: settingsResult.error };
+  }
+
+  let attributionError: string | undefined;
+  const attr = input.attribution ?? {
+    conversionSource: 'manual' as const,
+    staffSelectedMessageId: null,
+  };
+  const attrResult = await recordConversionAttribution({
+    prospectId: input.accountId,
+    convertedAt: nowIso,
+    convertedBy: attr.convertedBy ?? null,
+    conversionSource: attr.conversionSource,
+    staffSelectedMessageId: attr.staffSelectedMessageId,
+    forceNone: attr.forceNone,
+    retailerLineAccountId: rlaId,
+  });
+  if (!attrResult.ok) {
+    attributionError = attrResult.error;
+  }
+
+  return { ok: true, alreadyActive: false, convertedAt: nowIso, attributionError };
+}
+
 export interface DemoteToProspectInput {
   accountId: number;
   currentStatus: AccountStatus;
+  writesEnabled?: boolean;
+  salesLineId?: string | null;
 }
 
 export type DemoteToProspectResult =
@@ -136,20 +268,75 @@ export type DemoteToProspectResult =
 export async function demoteToProspect(
   input: DemoteToProspectInput,
 ): Promise<DemoteToProspectResult> {
-  if (input.currentStatus !== 'active_account') {
-    return { ok: true, alreadyProspect: true };
+  const writeOpts = {
+    writesEnabled: input.writesEnabled,
+    salesLineId: input.salesLineId,
+  };
+  if (!isLineAccountWritePath(writeOpts)) {
+    if (input.currentStatus !== 'active_account') {
+      return { ok: true, alreadyProspect: true };
+    }
+
+    const { error: updateError } = await supabase
+      .from('prospects')
+      .update({
+        account_status: 'prospect',
+        converted_at: null,
+      })
+      .eq('id', input.accountId);
+
+    if (updateError) {
+      return { ok: false, error: updateError.message };
+    }
+
+    return { ok: true, alreadyProspect: false };
   }
 
-  const { error: updateError } = await supabase
-    .from('prospects')
-    .update({
-      account_status: 'prospect',
-      converted_at: null,
-    })
-    .eq('id', input.accountId);
+  const { salesLineId } = writeOpts;
+  const existing = await fetchOperationalLineAccount({
+    retailerId: input.accountId,
+    salesLineId,
+  });
+  if (existing.error) {
+    return { ok: false, error: existing.error };
+  }
 
-  if (updateError) {
-    return { ok: false, error: updateError.message };
+  const line = await fetchLineWriteMeta(salesLineId);
+  if (line.error || !line.data) {
+    return { ok: false, error: line.error ?? 'Sales line not found' };
+  }
+  const isOgr = line.data.code === 'ogr';
+
+  if (!existing.data || existing.data.relationshipStatus === 'prospect') {
+    if (!isOgr) return { ok: true, alreadyProspect: true };
+    if (input.currentStatus !== 'active_account') {
+      return { ok: true, alreadyProspect: true };
+    }
+  }
+
+  if (existing.data && existing.data.relationshipStatus !== 'prospect') {
+    const rlaUpdate = await updateRetailerLineAccountStatus({
+      lineAccountId: existing.data.id,
+      relationshipStatus: 'prospect',
+      convertedAt: null,
+    });
+    if (rlaUpdate.error) {
+      return { ok: false, error: rlaUpdate.error };
+    }
+  }
+
+  if (isOgr) {
+    const { error: updateError } = await supabase
+      .from('prospects')
+      .update({
+        account_status: 'prospect',
+        converted_at: null,
+      })
+      .eq('id', input.accountId);
+
+    if (updateError) {
+      return { ok: false, error: updateError.message };
+    }
   }
 
   return { ok: true, alreadyProspect: false };

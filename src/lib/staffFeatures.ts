@@ -6,6 +6,8 @@
 export type StaffFeatureFlags = {
   /** Enables represented-line picker, /app/lines/* routes, and line-scoped reads. Default off. */
   FEATURE_MULTI_LINE_UI: boolean;
+  /** Enables writes on line accounts as source of truth. Default off. Not PUBLIC_. */
+  FEATURE_MULTI_LINE_WRITES: boolean;
 };
 
 const TRUTHY = new Set(['1', 'true', 'yes', 'on']);
@@ -35,9 +37,15 @@ export function isMultiLineUiEnabled(): boolean {
   return parseFeatureFlag(readEnv('FEATURE_MULTI_LINE_UI'));
 }
 
+/** Read FEATURE_MULTI_LINE_WRITES from server env (default off). */
+export function isMultiLineWritesEnabled(): boolean {
+  return parseFeatureFlag(readEnv('FEATURE_MULTI_LINE_WRITES'));
+}
+
 /** Snapshot of staff feature flags for approved-staff API responses. */
 export function getStaffFeatureFlags(): StaffFeatureFlags {
   return {
     FEATURE_MULTI_LINE_UI: isMultiLineUiEnabled(),
+    FEATURE_MULTI_LINE_WRITES: isMultiLineWritesEnabled(),
   };
 }

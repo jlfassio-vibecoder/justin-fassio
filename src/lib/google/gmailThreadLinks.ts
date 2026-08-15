@@ -96,6 +96,7 @@ export async function upsertConfirmedGmailThreadLink(params: {
   gmailThreadId: string;
   prospectId: number;
   accountContactId?: string | null;
+  salesLineId?: string | null;
   cache?: GmailThreadLinkCache;
 }): Promise<GmailThreadLinkRow> {
   const accountContactId = params.accountContactId?.trim() || null;
@@ -109,6 +110,19 @@ export async function upsertConfirmedGmailThreadLink(params: {
     if (!contact || contact.account_id !== params.prospectId) {
       throw new GmailThreadLinkError('accountContactId does not belong to prospectId');
     }
+  }
+
+  let retailerLineAccountId: string | undefined;
+  if (params.salesLineId) {
+    const { data: rla, error: rlaError } = await params.client
+      .from('retailer_line_accounts')
+      .select('id')
+      .eq('retailer_id', params.prospectId)
+      .eq('sales_line_id', params.salesLineId)
+      .neq('relationship_status', 'terminated')
+      .maybeSingle();
+    if (rlaError) throw new GmailThreadLinkError(rlaError.message);
+    retailerLineAccountId = rla?.id;
   }
 
   const { data, error } = await params.client
@@ -125,6 +139,7 @@ export async function upsertConfirmedGmailThreadLink(params: {
         participants: params.cache?.participants ?? [],
         unread: params.cache?.unread ?? false,
         last_message_at: params.cache?.lastMessageAt ?? null,
+        ...(retailerLineAccountId ? { retailer_line_account_id: retailerLineAccountId } : {}),
       },
       { onConflict: 'google_connection_id,gmail_thread_id' },
     )
