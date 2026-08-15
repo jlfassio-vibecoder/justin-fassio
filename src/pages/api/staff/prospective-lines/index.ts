@@ -42,7 +42,7 @@ export const POST: APIRoute = async ({ request }) => {
     body.acquisitionStage === undefined ? undefined : parseAcquisitionStage(body.acquisitionStage);
 
   if (body.acquisitionStage !== undefined && acquisitionStage == null) {
-    return jsonProspective({ ok: false, error: 'acquisition_stage is required' }, 400);
+    return jsonProspective({ ok: false, error: 'Invalid acquisition_stage' }, 400);
   }
 
   const result = await createProspectiveLine(gate.supabase, {

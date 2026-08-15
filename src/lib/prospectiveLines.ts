@@ -352,6 +352,7 @@ export async function createProspectiveLine(
     .single();
 
   if (lineError || !line) {
+    await client.from('principals').delete().eq('id', principal.id);
     return {
       data: null,
       error: lineError?.message ?? 'Could not create line',
