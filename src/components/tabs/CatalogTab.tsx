@@ -170,9 +170,11 @@ export function CatalogTab({
   }, [lineCode]);
 
   const cardLine =
-    activeLine && (!lineCode || activeLine.code === lineCode)
+    lineCode && activeLine && activeLine.code === lineCode
       ? activeLine
-      : (line.representedLines.find((row) => row.code === lineCode) ?? null);
+      : lineCode
+        ? (line.representedLines.find((row) => row.code === lineCode) ?? null)
+        : null;
 
   useEffect(() => {
     let active = true;

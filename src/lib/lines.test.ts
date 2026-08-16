@@ -108,9 +108,11 @@ describe('public line cards', () => {
     const types = readFileSync(resolve(process.cwd(), 'src/types/database.ts'), 'utf8');
     const lines = readFileSync(resolve(process.cwd(), 'src/lib/lines.ts'), 'utf8');
 
-    expect(schema).toMatch(/get_public_active_lines[\s\S]*where l\.active = true/i);
     expect(schema).toMatch(
-      /get_public_line_cards[\s\S]*code in \('ogr', 'eagle-peak', 'big-fish'\)/i,
+      /create or replace function public\.get_public_active_lines\(\)[\s\S]*?where l\.active = true[\s\S]*?\$\$;/i,
+    );
+    expect(schema).toMatch(
+      /create or replace function public\.get_public_line_cards\(\)[\s\S]*?code in \('ogr', 'eagle-peak', 'big-fish'\)[\s\S]*?\$\$;/i,
     );
     expect(schema).not.toMatch(/get_public_eagle_peak/);
     expect(schema).not.toMatch(/get_public_big_fish/);
