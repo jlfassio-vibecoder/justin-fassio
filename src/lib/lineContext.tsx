@@ -30,9 +30,14 @@ export type LineContextValue = {
   eaglePeakSelling: boolean;
   /** Staff snapshot of FEATURE_EAGLE_PEAK_OUTREACH (outreach && UI). */
   eaglePeakOutreach: boolean;
+  /** Staff snapshot of FEATURE_BIG_FISH_SELLING (selling && UI && writes). */
+  bigFishSelling: boolean;
+  /** Staff snapshot of FEATURE_BIG_FISH_OUTREACH (outreach && UI). */
+  bigFishOutreach: boolean;
   salesLineId: string | null;
   lineSlug: LineKey | null;
   status: LineStatus | null;
+  defaultCurrency: string | null;
   name: string | null;
   loading: boolean;
   error: string | null;
@@ -57,6 +62,8 @@ type LineProviderProps = {
   multiLineTerritoryAdmin?: boolean;
   eaglePeakSelling?: boolean;
   eaglePeakOutreach?: boolean;
+  bigFishSelling?: boolean;
+  bigFishOutreach?: boolean;
   /** URL slug when on /app/lines/:lineSlug; null on /app (resolved to last or ogr). */
   urlLineSlug?: string | null;
   children: ReactNode;
@@ -69,6 +76,8 @@ export function LineProvider({
   multiLineTerritoryAdmin = false,
   eaglePeakSelling = false,
   eaglePeakOutreach = false,
+  bigFishSelling = false,
+  bigFishOutreach = false,
   urlLineSlug = null,
   children,
 }: LineProviderProps) {
@@ -135,9 +144,12 @@ export function LineProvider({
       multiLineTerritoryAdmin,
       eaglePeakSelling,
       eaglePeakOutreach,
+      bigFishSelling,
+      bigFishOutreach,
       salesLineId: current?.id ?? null,
       lineSlug: unknownLine ? null : selectedSlug,
       status: current?.status ?? null,
+      defaultCurrency: current?.defaultCurrency ?? null,
       name: current?.name ?? null,
       loading,
       error,
@@ -152,6 +164,8 @@ export function LineProvider({
       multiLineTerritoryAdmin,
       eaglePeakSelling,
       eaglePeakOutreach,
+      bigFishSelling,
+      bigFishOutreach,
       current,
       selectedSlug,
       loading,
@@ -184,9 +198,12 @@ export function useOptionalLineContext(): LineContextValue {
       multiLineTerritoryAdmin: false,
       eaglePeakSelling: false,
       eaglePeakOutreach: false,
+      bigFishSelling: false,
+      bigFishOutreach: false,
       salesLineId: null,
       lineSlug: null,
       status: null,
+      defaultCurrency: null,
       name: null,
       loading: false,
       error: null,

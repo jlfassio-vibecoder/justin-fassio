@@ -33,9 +33,15 @@ const emptyForm = {
 export function AccountContactsSection({ accountId }: AccountContactsSectionProps) {
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
-    line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
+    line.lineSlug && line.status
+      ? { code: line.lineSlug, status: line.status, defaultCurrency: line.defaultCurrency }
+      : null,
     line.multiLineWrites,
-    line.eaglePeakSelling,
+    {
+      eaglePeakSellingEnabled: line.eaglePeakSelling,
+      bigFishSellingEnabled: line.bigFishSelling,
+      defaultCurrency: line.defaultCurrency,
+    },
   );
   const [contacts, setContacts] = useState<AccountContact[]>([]);
   const [loading, setLoading] = useState(true);

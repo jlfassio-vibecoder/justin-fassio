@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { assertProspectiveOperationalWriteForbidden } from '@/lib/prospectiveLines';
 import type { ApparelSeason, Order, OrderInsert, OrderStatus, OrderType } from '@/types/database';
 
 export const ORDER_SELECT =
@@ -65,8 +66,10 @@ export async function fetchOrdersForAccounts(
 export type InsertOrderOptions = {
   writesEnabled?: boolean;
   lineCode?: string | null;
+  lineStatus?: string | null;
   lineDefaultCurrency?: string | null;
   eaglePeakSellingEnabled?: boolean;
+  bigFishSellingEnabled?: boolean;
 };
 
 /** Staff-confirmed USD→CAD booking stamp. Never copy CAD into original_amount. */
@@ -152,6 +155,10 @@ export async function insertOrder(
   input: OrderInsert,
   options: InsertOrderOptions = {},
 ): Promise<{ data: OrderRow | null; error: string | null }> {
+  const prospectiveError = assertProspectiveOperationalWriteForbidden(options.lineStatus);
+  if (prospectiveError) {
+    return { data: null, error: prospectiveError };
+  }
   const payload: OrderInsert = { ...input };
   if (options.writesEnabled) {
     if (!payload.line_id || !payload.retailer_line_account_id) {
@@ -165,6 +172,14 @@ export async function insertOrder(
     }
     if (options.lineCode === 'eagle-peak' && !options.eaglePeakSellingEnabled) {
       return { data: null, error: 'Eagle Peak selling is not enabled' };
+    }
+    if (options.lineCode === 'big-fish' && !options.bigFishSellingEnabled) {
+      return { data: null, error: 'Big Fish selling is not enabled' };
+    }
+    const lineDefaultCurrency =
+      typeof options.lineDefaultCurrency === 'string' ? options.lineDefaultCurrency.trim() : '';
+    if (options.lineCode === 'big-fish' && !lineDefaultCurrency) {
+      return { data: null, error: 'Big Fish orders require default_currency to be configured' };
     }
     if (options.lineCode === 'eagle-peak') {
       const providedCurrency =
@@ -188,6 +203,40 @@ export async function insertOrder(
       payload.conversion_source = built.stamp.conversion_source;
       payload.converted_amount = built.stamp.converted_amount;
       payload.converted_currency = built.stamp.converted_currency;
+    }
+    if (options.lineCode === 'big-fish' && lineDefaultCurrency === 'USD') {
+      const providedCurrency =
+        typeof payload.original_currency === 'string' ? payload.original_currency.trim() : '';
+      if (providedCurrency && providedCurrency !== 'USD') {
+        return { data: null, error: 'Big Fish USD orders require original_currency = USD' };
+      }
+      const built = buildEaglePeakOrderConversion({
+        originalAmountUsd: payload.original_amount,
+        exchangeRate: payload.exchange_rate,
+        exchangeRateDate: payload.exchange_rate_date ?? payload.order_date,
+      });
+      if (!built.ok) {
+        return { data: null, error: built.error };
+      }
+      payload.original_amount = built.stamp.original_amount;
+      payload.original_currency = built.stamp.original_currency;
+      payload.total_amount_cad = built.stamp.total_amount_cad;
+      payload.exchange_rate = built.stamp.exchange_rate;
+      payload.exchange_rate_date = built.stamp.exchange_rate_date;
+      payload.conversion_source = built.stamp.conversion_source;
+      payload.converted_amount = built.stamp.converted_amount;
+      payload.converted_currency = built.stamp.converted_currency;
+    }
+    if (
+      options.lineCode === 'big-fish' &&
+      lineDefaultCurrency &&
+      lineDefaultCurrency !== 'USD' &&
+      lineDefaultCurrency !== 'CAD'
+    ) {
+      return {
+        data: null,
+        error: 'Big Fish orders require default_currency of USD or CAD',
+      };
     }
     if (!payload.original_currency) {
       const originalCurrency =

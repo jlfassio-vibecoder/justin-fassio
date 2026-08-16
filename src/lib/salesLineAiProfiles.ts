@@ -12,6 +12,8 @@ export type SalesLineAiProfile = {
   currency: string | null;
   icp: string;
   rubric: string;
+  researchNotes: string;
+  geoInterest: string;
 };
 
 function asString(value: unknown): string {
@@ -37,6 +39,8 @@ export function mapSalesLineAiProfile(raw: unknown): SalesLineAiProfile {
     currency: asCurrency(obj.currency),
     icp: asString(obj.icp),
     rubric: asString(obj.rubric),
+    researchNotes: asString(obj.researchNotes),
+    geoInterest: asString(obj.geoInterest),
   };
 }
 

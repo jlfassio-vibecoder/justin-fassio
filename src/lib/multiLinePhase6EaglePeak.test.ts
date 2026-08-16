@@ -129,9 +129,11 @@ describe('Phase 6 selling gate', () => {
     expect(assertLineAllowsOperationalWrite({ code: 'big-fish', status: 'confirmed' })).toBe(
       'ui_blocked',
     );
-    expect(isStaffSellingUiBlocked({ code: 'eagle-peak', status: 'onboarding' }, true, false)).toBe(
-      true,
-    );
+    expect(
+      isStaffSellingUiBlocked({ code: 'eagle-peak', status: 'onboarding' }, true, {
+        eaglePeakSellingEnabled: false,
+      }),
+    ).toBe(true);
   });
 
   it('selling on + onboarding/active: EP allow; Big Fish still ui_blocked', () => {
@@ -160,9 +162,11 @@ describe('Phase 6 selling gate', () => {
         { eaglePeakSellingEnabled: true },
       ),
     ).toBe('reject');
-    expect(isStaffSellingUiBlocked({ code: 'eagle-peak', status: 'onboarding' }, true, true)).toBe(
-      false,
-    );
+    expect(
+      isStaffSellingUiBlocked({ code: 'eagle-peak', status: 'onboarding' }, true, {
+        eaglePeakSellingEnabled: true,
+      }),
+    ).toBe(false);
   });
 
   it('EP convert updates RLA only and never flips prospects.account_status', () => {

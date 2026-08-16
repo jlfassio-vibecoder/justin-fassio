@@ -70,6 +70,7 @@ export function RepCommandCenter({
   const lineReady = !multiLineUi || (!lineCtx.loading && Boolean(salesLineId));
   const splitByRla = usesLineRelationshipDirectorySplit({
     eaglePeakSelling: lineCtx.eaglePeakSelling,
+    bigFishSelling: lineCtx.bigFishSelling,
     lineCode: lineSlug,
   });
 

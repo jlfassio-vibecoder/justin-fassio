@@ -260,9 +260,15 @@ export function AccountDetailDrawer({
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
-    line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
+    line.lineSlug && line.status
+      ? { code: line.lineSlug, status: line.status, defaultCurrency: line.defaultCurrency }
+      : null,
     line.multiLineWrites,
-    line.eaglePeakSelling,
+    {
+      eaglePeakSellingEnabled: line.eaglePeakSelling,
+      bigFishSellingEnabled: line.bigFishSelling,
+      defaultCurrency: line.defaultCurrency,
+    },
   );
 
   if (!account) return null;

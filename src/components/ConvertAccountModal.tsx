@@ -64,9 +64,15 @@ function ConvertAccountForm({
   const [candidatesLoading, setCandidatesLoading] = useState(true);
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
-    line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
+    line.lineSlug && line.status
+      ? { code: line.lineSlug, status: line.status, defaultCurrency: line.defaultCurrency }
+      : null,
     line.multiLineWrites,
-    line.eaglePeakSelling,
+    {
+      eaglePeakSellingEnabled: line.eaglePeakSelling,
+      bigFishSellingEnabled: line.bigFishSelling,
+      defaultCurrency: line.defaultCurrency,
+    },
   );
   const isEpOrder = line.lineSlug === 'eagle-peak' && line.eaglePeakSelling;
   const [amountUsd, setAmountUsd] = useState(() => {
@@ -165,6 +171,7 @@ function ConvertAccountForm({
       writesEnabled: line.multiLineWrites,
       salesLineId: line.multiLineWrites ? line.salesLineId : null,
       eaglePeakSellingEnabled: line.eaglePeakSelling,
+      bigFishSellingEnabled: line.bigFishSelling,
       initialOrder: withOrder
         ? {
             season,

@@ -31,6 +31,7 @@ export type LinePortfolio = {
   heroImageUrl: string | null;
   sortOrder: number;
   publicShowroomPath: string | null;
+  defaultCurrency: string | null;
 };
 
 export type LinePortfolioPatch = {
@@ -68,6 +69,7 @@ export function mapLineRow(row: Line): LinePortfolio {
     heroImageUrl: row.hero_image_url,
     sortOrder: row.sort_order,
     publicShowroomPath: row.public_showroom_path,
+    defaultCurrency: row.default_currency,
   };
 }
 

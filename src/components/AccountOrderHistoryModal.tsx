@@ -78,9 +78,15 @@ function OrderHistoryForm({
   const [error, setError] = useState<string | null>(null);
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
-    line.lineSlug && line.status ? { code: line.lineSlug, status: line.status } : null,
+    line.lineSlug && line.status
+      ? { code: line.lineSlug, status: line.status, defaultCurrency: line.defaultCurrency }
+      : null,
     line.multiLineWrites,
-    line.eaglePeakSelling,
+    {
+      eaglePeakSellingEnabled: line.eaglePeakSelling,
+      bigFishSellingEnabled: line.bigFishSelling,
+      defaultCurrency: line.defaultCurrency,
+    },
   );
   const isEpOrder = line.lineSlug === 'eagle-peak' && line.eaglePeakSelling;
   const [amountUsd, setAmountUsd] = useState('');
@@ -130,6 +136,7 @@ function OrderHistoryForm({
         retailerId: account.id,
         salesLineId: line.salesLineId,
         eaglePeakSellingEnabled: line.eaglePeakSelling,
+        bigFishSellingEnabled: line.bigFishSelling,
       });
       if (ensured.gate === 'reject' || ensured.error || !ensured.data) {
         setBusy(false);
@@ -159,8 +166,10 @@ function OrderHistoryForm({
         {
           writesEnabled: true,
           lineCode: meta.data?.code ?? line.lineSlug,
+          lineStatus: meta.data?.status ?? line.status,
           lineDefaultCurrency: meta.data?.defaultCurrency ?? null,
           eaglePeakSellingEnabled: line.eaglePeakSelling,
+          bigFishSellingEnabled: line.bigFishSelling,
         },
       );
       if (orderResult.error) {

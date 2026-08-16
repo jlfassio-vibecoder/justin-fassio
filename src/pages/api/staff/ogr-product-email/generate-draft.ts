@@ -21,6 +21,7 @@ import { getStaffFeatureFlags } from '@/lib/staffFeatures';
 export const prerender = false;
 
 export const EAGLE_PEAK_OUTREACH_DISABLED = 'Eagle Peak outreach is not enabled';
+export const BIG_FISH_OUTREACH_DISABLED = 'Big Fish outreach is not enabled';
 export const EAGLE_PEAK_CATALOG_EMPTY = 'Catalog is empty for this sales line';
 
 export function assertEaglePeakGenerateDraftAllowed(input: {
@@ -29,6 +30,16 @@ export function assertEaglePeakGenerateDraftAllowed(input: {
 }): { ok: true } | { ok: false; status: 403; error: string } {
   if (input.lineCode === 'eagle-peak' && !input.outreachEnabled) {
     return { ok: false, status: 403, error: EAGLE_PEAK_OUTREACH_DISABLED };
+  }
+  return { ok: true };
+}
+
+export function assertBigFishGenerateDraftAllowed(input: {
+  lineCode: string | null | undefined;
+  outreachEnabled: boolean;
+}): { ok: true } | { ok: false; status: 403; error: string } {
+  if (input.lineCode === 'big-fish' && !input.outreachEnabled) {
+    return { ok: false, status: 403, error: BIG_FISH_OUTREACH_DISABLED };
   }
   return { ok: true };
 }
@@ -174,7 +185,7 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonError(gated.error, gated.status);
   }
   if (gated.ctx?.mode === 'research_only') {
-    return jsonError('Outreach generate is not available for this sales line', 400);
+    return jsonError('Outreach generate is not available for this sales line', 403);
   }
 
   const outreachGate = assertEaglePeakGenerateDraftAllowed({
@@ -184,8 +195,15 @@ export const POST: APIRoute = async ({ request }) => {
   if (!outreachGate.ok) {
     return jsonError(outreachGate.error, outreachGate.status);
   }
+  const bigFishOutreachGate = assertBigFishGenerateDraftAllowed({
+    lineCode: gated.ctx?.code,
+    outreachEnabled: getStaffFeatureFlags().FEATURE_BIG_FISH_OUTREACH,
+  });
+  if (!bigFishOutreachGate.ok) {
+    return jsonError(bigFishOutreachGate.error, bigFishOutreachGate.status);
+  }
 
-  if (gated.ctx?.code === 'eagle-peak') {
+  if (gated.ctx?.code === 'eagle-peak' || gated.ctx?.code === 'big-fish') {
     const { count, error: catalogError } = await gate.supabase
       .from('catalog_items')
       .select('id', { count: 'exact', head: true })

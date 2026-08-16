@@ -334,6 +334,8 @@ function ProductDetailDrawerInner({
 }) {
   const line = useOptionalLineContext();
   const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
+  const bigFishOutreachBlocked = line.lineSlug === 'big-fish' && !line.bigFishOutreach;
+  const outreachBlocked = eaglePeakOutreachBlocked || bigFishOutreachBlocked;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => itemToDraft(item));
   const [busy, setBusy] = useState(false);
@@ -1826,18 +1828,18 @@ function ProductDetailDrawerInner({
                     type="button"
                     variant="secondary"
                     disabled={
-                      eaglePeakOutreachBlocked ||
-                      !draft.publicSlug.trim() ||
-                      !draft.isPubliclyPublished
+                      outreachBlocked || !draft.publicSlug.trim() || !draft.isPubliclyPublished
                     }
                     title={
                       eaglePeakOutreachBlocked
                         ? 'Eagle Peak outreach is not enabled'
-                        : !draft.publicSlug.trim()
-                          ? 'Public slug is required'
-                          : !draft.isPubliclyPublished
-                            ? 'Publish to send product email'
-                            : undefined
+                        : bigFishOutreachBlocked
+                          ? 'Big Fish outreach is not enabled'
+                          : !draft.publicSlug.trim()
+                            ? 'Public slug is required'
+                            : !draft.isPubliclyPublished
+                              ? 'Publish to send product email'
+                              : undefined
                     }
                     onClick={() => {
                       setEmailReviewDraft(null);

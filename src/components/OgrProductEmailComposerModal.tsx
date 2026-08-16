@@ -77,6 +77,7 @@ function OgrProductEmailComposerForm({
 }: Omit<OgrProductEmailComposerModalProps, 'open'>) {
   const line = useOptionalLineContext();
   const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
+  const bigFishOutreachBlocked = line.lineSlug === 'big-fish' && !line.bigFishOutreach;
   const isDraftReview = draft != null;
   const [to, setTo] = useState(draft?.to ?? '');
   const [recipientName, setRecipientName] = useState(draft?.toName ?? '');
@@ -102,6 +103,10 @@ function OgrProductEmailComposerForm({
     if (!draft || busy) return;
     if (eaglePeakOutreachBlocked) {
       setError('Eagle Peak outreach is not enabled');
+      return;
+    }
+    if (bigFishOutreachBlocked) {
+      setError('Big Fish outreach is not enabled');
       return;
     }
     if (draft.prospectId == null || !draft.accountContactId || !draft.catalogItemId) {

@@ -40,6 +40,7 @@ describe('mapLineRow', () => {
       heroImageUrl: 'https://example.com/hero.jpg',
       sortOrder: 10,
       publicShowroomPath: '/old-guys-rule-wholesale',
+      defaultCurrency: 'CAD',
     });
   });
 });

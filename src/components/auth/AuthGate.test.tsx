@@ -19,6 +19,10 @@ vi.mock('@/components/RepCommandCenter', () => ({
   RepCommandCenter: () => <div>Rep Command Center</div>,
 }));
 
+vi.mock('@/components/ProspectiveLinesWorkspace', () => ({
+  ProspectiveLinesWorkspace: () => <div>Prospective Lines Workspace</div>,
+}));
+
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: {
@@ -90,6 +94,9 @@ describe('AuthGate', () => {
             FEATURE_LINE_TERRITORY_ADMIN: false,
             FEATURE_EAGLE_PEAK_SELLING: false,
             FEATURE_EAGLE_PEAK_OUTREACH: false,
+            FEATURE_BIG_FISH_SELLING: false,
+            FEATURE_BIG_FISH_OUTREACH: false,
+            FEATURE_PROSPECTIVE_LINES: false,
           },
         }),
       }),
@@ -228,5 +235,85 @@ describe('AuthGate', () => {
       expect(signOutMock).toHaveBeenCalled();
       expect(window.location.href).toBe('/');
     });
+  });
+
+  it('redirects prospective URLs to /app when the snapshot is off', async () => {
+    stubAuth({
+      session: { access_token: 'tok' } as AuthState['session'],
+      user: { email: 'office@example.com' } as AuthState['user'],
+      profile: baseProfile({ role: 'owner', status: 'approved' }),
+    });
+    render(<AuthGate page="prospective" />);
+    await waitFor(() => {
+      expect(replaceMock).toHaveBeenCalledWith('/app');
+    });
+    expect(screen.queryByText('Prospective Lines Workspace')).not.toBeInTheDocument();
+  });
+
+  it('forbids non-owners on prospective URLs when the snapshot is on', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          features: {
+            FEATURE_MULTI_LINE_UI: true,
+            FEATURE_MULTI_LINE_WRITES: false,
+            FEATURE_MULTI_LINE_AI: false,
+            FEATURE_LINE_TERRITORY_ADMIN: false,
+            FEATURE_EAGLE_PEAK_SELLING: false,
+            FEATURE_EAGLE_PEAK_OUTREACH: false,
+            FEATURE_BIG_FISH_SELLING: false,
+            FEATURE_BIG_FISH_OUTREACH: false,
+            FEATURE_PROSPECTIVE_LINES: true,
+          },
+        }),
+      }),
+    );
+    stubAuth({
+      session: { access_token: 'tok' } as AuthState['session'],
+      user: { email: 'rep@example.com' } as AuthState['user'],
+      profile: baseProfile({ role: 'rep', status: 'approved' }),
+    });
+    render(<AuthGate page="prospective" />);
+    expect(await screen.findByText('Forbidden')).toBeInTheDocument();
+    expect(screen.queryByText('Prospective Lines Workspace')).not.toBeInTheDocument();
+    expect(screen.queryByText('Rep Command Center')).not.toBeInTheDocument();
+  });
+
+  it('renders the prospective workspace for an owner when the snapshot is on', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          features: {
+            FEATURE_MULTI_LINE_UI: true,
+            FEATURE_MULTI_LINE_WRITES: false,
+            FEATURE_MULTI_LINE_AI: false,
+            FEATURE_LINE_TERRITORY_ADMIN: false,
+            FEATURE_EAGLE_PEAK_SELLING: false,
+            FEATURE_EAGLE_PEAK_OUTREACH: false,
+            FEATURE_BIG_FISH_SELLING: false,
+            FEATURE_BIG_FISH_OUTREACH: false,
+            FEATURE_PROSPECTIVE_LINES: true,
+          },
+        }),
+      }),
+    );
+    stubAuth({
+      session: { access_token: 'tok' } as AuthState['session'],
+      user: { email: 'office@example.com' } as AuthState['user'],
+      profile: baseProfile({ role: 'owner', status: 'approved' }),
+    });
+    render(<AuthGate page="prospective" />);
+    expect(await screen.findByText('Prospective Lines Workspace')).toBeInTheDocument();
+    expect(screen.queryByText('Rep Command Center')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Prospective Lines' })).toHaveAttribute(
+      'href',
+      '/app/prospective-lines',
+    );
   });
 });

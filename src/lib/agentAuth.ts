@@ -54,3 +54,24 @@ export async function requireApprovedStaffClient(
 
   return { ok: true, supabase, userId: user.id };
 }
+
+/**
+ * Same JWT + is_approved_staff gate, then is_approved_owner().
+ * Prospective Lines APIs use this — reps receive 403.
+ */
+export async function requireApprovedOwnerClient(
+  request: Request,
+): Promise<ApprovedStaffClientResult> {
+  const staff = await requireApprovedStaffClient(request);
+  if (!staff.ok) return staff;
+
+  const { data: owner, error: rpcError } = await staff.supabase.rpc('is_approved_owner');
+  if (rpcError) {
+    return { ok: false, response: jsonError(rpcError.message, 500) };
+  }
+  if (!owner) {
+    return { ok: false, response: jsonError('Forbidden', 403) };
+  }
+
+  return staff;
+}

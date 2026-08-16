@@ -1,4 +1,5 @@
 import { insertOrder } from '@/lib/orders';
+import { assertProspectiveOperationalWriteForbidden } from '@/lib/prospectiveLines';
 import { upsertAccountReorderSettings } from '@/lib/accountReorderSettings';
 import { recordConversionAttribution } from '@/lib/outreachAttribution';
 import { formatLocalIsoDate } from '@/lib/reorderCadence';
@@ -49,6 +50,7 @@ export interface ConvertToActiveAccountInput {
   writesEnabled?: boolean;
   salesLineId?: string | null;
   eaglePeakSellingEnabled?: boolean;
+  bigFishSellingEnabled?: boolean;
 }
 
 export type ConvertToActiveAccountResult =
@@ -151,6 +153,7 @@ export async function convertToActiveAccount(
     retailerId: input.accountId,
     salesLineId,
     eaglePeakSellingEnabled: input.eaglePeakSellingEnabled,
+    bigFishSellingEnabled: input.bigFishSellingEnabled,
   });
   if (ensured.gate === 'reject' || ensured.error || !ensured.data) {
     return {
@@ -166,9 +169,23 @@ export async function convertToActiveAccount(
   if (line.error || !line.data) {
     return { ok: false, error: line.error ?? 'Sales line not found' };
   }
+  const prospectiveRefuse = assertProspectiveOperationalWriteForbidden(line.data.status);
+  if (prospectiveRefuse) {
+    return { ok: false, error: prospectiveRefuse };
+  }
   const isOgr = line.data.code === 'ogr';
   if (line.data.code === 'eagle-peak' && !input.eaglePeakSellingEnabled) {
     return { ok: false, error: 'Eagle Peak selling is not enabled' };
+  }
+  if (line.data.code === 'big-fish' && !input.bigFishSellingEnabled) {
+    return { ok: false, error: 'Big Fish selling is not enabled' };
+  }
+  if (line.data.code === 'big-fish') {
+    const currency =
+      typeof line.data.defaultCurrency === 'string' ? line.data.defaultCurrency.trim() : '';
+    if (!currency) {
+      return { ok: false, error: 'Big Fish selling is not configured' };
+    }
   }
   const nowIso = new Date().toISOString();
   const orderDate = input.initialOrder?.orderDate ?? todayIsoDate();
@@ -221,8 +238,10 @@ export async function convertToActiveAccount(
       {
         writesEnabled: true,
         lineCode: line.data.code,
+        lineStatus: line.data.status,
         lineDefaultCurrency: line.data.defaultCurrency,
         eaglePeakSellingEnabled: input.eaglePeakSellingEnabled,
+        bigFishSellingEnabled: input.bigFishSellingEnabled,
       },
     );
 
