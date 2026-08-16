@@ -1,3 +1,8 @@
+import {
+  BIG_FISH_WHOLESALE_PATH,
+  EAGLE_PEAK_WHOLESALE_PATH,
+  OGR_WHOLESALE_PATH,
+} from '@/data/landing';
 import { supabase } from '@/lib/supabase';
 import type { Line, LineStatus } from '@/types/database';
 import type { LineKey } from '@/types';
@@ -52,6 +57,79 @@ export type PublicActiveLine = {
   sortOrder: number;
   publicShowroomPath: string | null;
 };
+
+type PublicLineCardRow = {
+  id: string;
+  code: string;
+  name: string;
+  tagline: string | null;
+  description: string | null;
+  hero_image_url: string | null;
+  sort_order: number;
+  public_showroom_path: string | null;
+};
+
+export const PUBLIC_LINE_CARD_FALLBACKS: PublicActiveLine[] = [
+  {
+    id: 'fallback-ogr',
+    code: 'ogr',
+    name: 'Old Guys Rule',
+    tagline: 'Now Repping',
+    description: 'Apparel & lifestyle goods for the surf and skate crowd.',
+    heroImageUrl: null,
+    sortOrder: 10,
+    publicShowroomPath: OGR_WHOLESALE_PATH,
+  },
+  {
+    id: 'fallback-eagle-peak',
+    code: 'eagle-peak',
+    name: 'Eagle Peak',
+    tagline: 'Now Repping',
+    description: 'Canopy / shade products (onboarding).',
+    heroImageUrl: null,
+    sortOrder: 30,
+    publicShowroomPath: EAGLE_PEAK_WHOLESALE_PATH,
+  },
+  {
+    id: 'fallback-big-fish',
+    code: 'big-fish',
+    name: 'Big Fish',
+    tagline: 'Coming soon',
+    description: 'Confirmed represented line; commercial terms not yet configured.',
+    heroImageUrl: null,
+    sortOrder: 40,
+    publicShowroomPath: BIG_FISH_WHOLESALE_PATH,
+  },
+];
+
+export function mapPublicActiveLineRow(row: PublicLineCardRow): PublicActiveLine {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    tagline: row.tagline,
+    description: row.description,
+    heroImageUrl: row.hero_image_url,
+    sortOrder: row.sort_order,
+    publicShowroomPath: row.public_showroom_path,
+  };
+}
+
+/** Prefer live RPC rows; fill missing represented codes from fallbacks. */
+export function mergePublicLineCards(rpcRows: PublicActiveLine[]): PublicActiveLine[] {
+  const byCode = new Map(rpcRows.map((row) => [row.code, row]));
+  return PUBLIC_LINE_CARD_FALLBACKS.map((fallback) => {
+    const live = byCode.get(fallback.code);
+    if (!live) return fallback;
+    return {
+      ...fallback,
+      ...live,
+      publicShowroomPath: live.publicShowroomPath ?? fallback.publicShowroomPath,
+      tagline: live.tagline ?? fallback.tagline,
+      description: live.description ?? fallback.description,
+    };
+  }).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+}
 
 export const LINE_SELECT =
   'id, code, name, active, status, tagline, description, hero_image_path, hero_image_url, sort_order, public_showroom_path, principal_id, default_currency, created_at, updated_at' as const;
@@ -154,16 +232,23 @@ export async function fetchPublicActiveLines(): Promise<{
   }
 
   return {
-    data: (data ?? []).map((row) => ({
-      id: row.id,
-      code: row.code,
-      name: row.name,
-      tagline: row.tagline,
-      description: row.description,
-      heroImageUrl: row.hero_image_url,
-      sortOrder: row.sort_order,
-      publicShowroomPath: row.public_showroom_path,
-    })),
+    data: (data ?? []).map((row) => mapPublicActiveLineRow(row)),
+    error: null,
+  };
+}
+
+export async function fetchPublicLineCards(): Promise<{
+  data: PublicActiveLine[];
+  error: string | null;
+}> {
+  const { data, error } = await supabase.rpc('get_public_line_cards');
+
+  if (error) {
+    return { data: [], error: error.message };
+  }
+
+  return {
+    data: (data ?? []).map((row) => mapPublicActiveLineRow(row)),
     error: null,
   };
 }
