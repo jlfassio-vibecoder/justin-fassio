@@ -1,0 +1,20 @@
+---
+export const prerender = false;
+
+import Layout from '@/layouts/Layout.astro';
+import PublicLineEmptyShowroom from '@/components/wholesale/PublicLineEmptyShowroom.astro';
+import { fetchPublicLineCards, mergePublicLineCards } from '@/lib/lines';
+
+const { data: cards } = await fetchPublicLineCards();
+const line = mergePublicLineCards(cards).find((row) => row.code === 'eagle-peak');
+const lineName = line?.name ?? 'Eagle Peak';
+const description = line?.description ?? 'Canopy / shade products (onboarding).';
+---
+
+<Layout title={`${lineName} Wholesale | Justin Fassio`} description={description}>
+  <PublicLineEmptyShowroom
+    lineName={lineName}
+    tagline={line?.tagline ?? 'Now Repping'}
+    description={description}
+  />
+</Layout>

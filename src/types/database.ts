@@ -2444,6 +2444,19 @@ export interface Database {
           public_showroom_path: string | null;
         }[];
       };
+      get_public_line_cards: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          code: string;
+          name: string;
+          tagline: string | null;
+          description: string | null;
+          hero_image_url: string | null;
+          sort_order: number;
+          public_showroom_path: string | null;
+        }[];
+      };
       apply_resend_system_message_event: {
         Args: {
           p_resend_email_id: string;

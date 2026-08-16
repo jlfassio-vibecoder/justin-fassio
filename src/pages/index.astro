@@ -2,33 +2,14 @@
 export const prerender = false;
 
 import Layout from '@/layouts/Layout.astro';
-import {
-  CONTACT_EMAIL,
-  OGR_WHOLESALE_PATH,
-  SOCIAL_INSTAGRAM_URL,
-  SOCIAL_LINKEDIN_URL,
-} from '@/data/landing';
-import { fetchPublicActiveLines } from '@/lib/lines';
+import { CONTACT_EMAIL, SOCIAL_INSTAGRAM_URL, SOCIAL_LINKEDIN_URL } from '@/data/landing';
+import { fetchPublicLineCards, mergePublicLineCards } from '@/lib/lines';
 
 const instagramLive = SOCIAL_INSTAGRAM_URL !== '#';
 const linkedInLive = SOCIAL_LINKEDIN_URL !== '#';
 
-const { data: brandLines } = await fetchPublicActiveLines();
-const brands =
-  brandLines.length > 0
-    ? brandLines
-    : [
-        {
-          id: 'fallback-ogr',
-          code: 'ogr',
-          name: 'Old Guys Rule',
-          tagline: 'Now Repping',
-          description: 'Apparel & lifestyle goods for the surf and skate crowd.',
-          heroImageUrl: null,
-          sortOrder: 10,
-          publicShowroomPath: OGR_WHOLESALE_PATH,
-        },
-      ];
+const { data: brandLines } = await fetchPublicLineCards();
+const brands = mergePublicLineCards(brandLines);
 ---
 
 <Layout title="Justin Fassio — Outdoor Lifestyle Rep">
@@ -156,7 +137,7 @@ const brands =
           The lines I carry into shops today, with more joining the roster soon.
         </p>
         <div
-          class={`brand-grid gap-6.1 grid ${brands.length > 1 ? 'md:grid-cols-2' : 'grid-cols-1 md:max-w-[420px]'}`}
+          class={`brand-grid gap-6.1 grid ${brands.length >= 3 ? 'md:grid-cols-2 lg:grid-cols-3' : brands.length > 1 ? 'md:grid-cols-2' : 'grid-cols-1 md:max-w-[420px]'}`}
         >
           {
             brands.map((brand) => (
@@ -165,11 +146,11 @@ const brands =
                   <img
                     src={brand.heroImageUrl}
                     alt=""
-                    class="h-40 w-full rounded-md object-cover"
+                    class="h-auto w-full rounded-md object-contain"
                   />
                 ) : (
                   <div
-                    class="bg-surface text-ink/45 flex h-40 w-full items-center justify-center rounded-md text-center text-xs"
+                    class="bg-surface text-ink/45 flex min-h-40 w-full items-center justify-center rounded-md text-center text-xs"
                     role="img"
                     aria-label={`${brand.name} image placeholder`}
                   >

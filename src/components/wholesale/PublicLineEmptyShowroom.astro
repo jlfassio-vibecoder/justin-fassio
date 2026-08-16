@@ -1,0 +1,61 @@
+---
+import { CONTACT_EMAIL } from '@/data/landing';
+
+interface Props {
+  lineName: string;
+  tagline?: string | null;
+  description?: string | null;
+  comingSoon?: boolean;
+}
+
+const { lineName, tagline, description, comingSoon = false } = Astro.props;
+const emptyCopy = comingSoon
+  ? 'This line is coming soon. Check back for the wholesale collection.'
+  : 'No products published yet.';
+---
+
+<div class="bg-bg text-ink font-body">
+  <header class="px-8.1 mx-auto flex max-w-[1240px] items-center justify-between py-4">
+    <a href="/" class="font-heading text-accent-2-900 text-lg no-underline">Justin Fassio</a>
+  </header>
+
+  <section class="px-8.1 mx-auto max-w-[1240px] pt-4 pb-10">
+    {
+      tagline ? (
+        <span class="bg-accent-100 text-accent-800 inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] tracking-wide">
+          {tagline}
+        </span>
+      ) : (
+        <span class="bg-accent-100 text-accent-800 inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] tracking-wide">
+          Wholesale
+        </span>
+      )
+    }
+    <h1 class="font-heading mt-3.1 m-0 max-w-[18ch] text-4xl leading-[1.08] md:text-5xl">
+      {lineName} Wholesale
+    </h1>
+    {
+      description ? (
+        <p class="text-ink/70 mt-3.1 m-0 max-w-[540px] text-base">{description}</p>
+      ) : null
+    }
+    <div class="mt-6.1 gap-3.1 flex flex-wrap">
+      <a
+        href={`mailto:${CONTACT_EMAIL}`}
+        class="bg-accent-700 px-6.1 py-2.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm no-underline"
+      >
+        Get in touch
+      </a>
+      <a
+        href="/#brands"
+        class="border-accent-2-900 px-6.1 py-2.1 font-heading text-accent-2-900 hover:bg-ink/[0.07] inline-flex items-center justify-center rounded-full border text-sm no-underline"
+      >
+        All brands
+      </a>
+    </div>
+  </section>
+
+  <section id="collection" class="px-8.1 mx-auto max-w-[1240px] pb-16">
+    <p class="text-ink/55 m-0 text-sm">{emptyCopy}</p>
+  </section>
+</div>

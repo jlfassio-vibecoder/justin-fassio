@@ -1790,6 +1790,40 @@ $$;
 revoke all on function public.get_public_active_lines() from public;
 grant execute on function public.get_public_active_lines() to anon, authenticated;
 
+create or replace function public.get_public_line_cards()
+returns table (
+  id uuid,
+  code text,
+  name text,
+  tagline text,
+  description text,
+  hero_image_url text,
+  sort_order integer,
+  public_showroom_path text
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    l.id,
+    l.code,
+    l.name,
+    l.tagline,
+    l.description,
+    l.hero_image_url,
+    l.sort_order,
+    l.public_showroom_path
+  from lines l
+  where l.code in ('ogr', 'eagle-peak', 'big-fish')
+    and l.status in ('active', 'onboarding', 'confirmed')
+  order by l.sort_order asc, l.name asc;
+$$;
+
+revoke all on function public.get_public_line_cards() from public;
+grant execute on function public.get_public_line_cards() to anon, authenticated;
+
 alter table lines enable row level security;
 alter table territories enable row level security;
 alter table principals enable row level security;
