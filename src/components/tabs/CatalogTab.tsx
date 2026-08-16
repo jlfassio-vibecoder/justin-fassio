@@ -151,9 +151,12 @@ export function CatalogTab({
   >({});
   const [draftCounts, setDraftCounts] = useState<Record<string, number>>({});
 
+  const lineCode = line.multiLineUi ? line.lineSlug : 'ogr';
+
   useEffect(() => {
+    if (!lineCode) return;
     let active = true;
-    void fetchLineByCode('ogr').then((result) => {
+    void fetchLineByCode(lineCode).then((result) => {
       if (!active) return;
       if (result.error) {
         setLineLoadError(result.error);
@@ -164,7 +167,12 @@ export function CatalogTab({
     return () => {
       active = false;
     };
-  }, []);
+  }, [lineCode]);
+
+  const cardLine =
+    activeLine && (!lineCode || activeLine.code === lineCode)
+      ? activeLine
+      : (line.representedLines.find((row) => row.code === lineCode) ?? null);
 
   useEffect(() => {
     let active = true;
@@ -332,29 +340,29 @@ export function CatalogTab({
         </p>
       ) : null}
 
-      {activeLine ? (
+      {cardLine ? (
         <Card className="overflow-hidden p-0">
-          <div className="grid gap-0 md:grid-cols-[minmax(0,280px)_1fr]">
-            <div className="bg-surface border-ink/10 min-h-[160px] border-b md:border-r md:border-b-0">
-              {activeLine.heroImageUrl ? (
+          <div className="grid items-stretch gap-0 md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+            <div className="bg-surface border-ink/10 border-b md:border-r md:border-b-0">
+              {cardLine.heroImageUrl ? (
                 <img
-                  src={activeLine.heroImageUrl}
+                  src={cardLine.heroImageUrl}
                   alt=""
-                  className="h-full max-h-56 w-full object-cover md:max-h-none md:min-h-[180px]"
+                  className="block h-auto w-full object-contain"
                 />
               ) : (
-                <div className="text-ink/45 flex h-40 items-center justify-center px-4 text-center text-xs md:h-full md:min-h-[180px]">
-                  Drop {activeLine.name} logo/lookbook image
+                <div className="text-ink/45 flex min-h-40 items-center justify-center px-4 text-center text-xs md:min-h-[220px]">
+                  Drop {cardLine.name} logo/lookbook image
                 </div>
               )}
             </div>
-            <div className="flex flex-col gap-3 p-5">
+            <div className="flex flex-col justify-center gap-3 p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="font-heading m-0 text-2xl leading-tight">{activeLine.name}</h2>
-                  {activeLine.tagline ? (
+                  <h2 className="font-heading m-0 text-2xl leading-tight">{cardLine.name}</h2>
+                  {cardLine.tagline ? (
                     <p className="text-accent-700 m-0 mt-1 text-sm font-semibold">
-                      {activeLine.tagline}
+                      {cardLine.tagline}
                     </p>
                   ) : null}
                 </div>
@@ -367,8 +375,8 @@ export function CatalogTab({
                   Edit line
                 </Button>
               </div>
-              {activeLine.description ? (
-                <p className="text-ink/75 m-0 text-sm leading-relaxed">{activeLine.description}</p>
+              {cardLine.description ? (
+                <p className="text-ink/75 m-0 text-sm leading-relaxed">{cardLine.description}</p>
               ) : (
                 <p className="text-ink/45 m-0 text-sm">
                   Add a portfolio description for this line.
@@ -854,10 +862,10 @@ export function CatalogTab({
         }}
       />
 
-      {lineEditOpen && activeLine ? (
+      {lineEditOpen && cardLine ? (
         <LineEditDrawer
-          key={activeLine.id}
-          line={activeLine}
+          key={cardLine.id}
+          line={cardLine}
           onClose={() => setLineEditOpen(false)}
           onSaved={(updated) => setActiveLine(updated)}
         />
