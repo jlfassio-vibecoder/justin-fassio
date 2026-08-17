@@ -165,13 +165,16 @@ export async function insertOrder(
     const ogrId = await resolveOgrLineId();
     if (ogrId) {
       payload.line_id = ogrId;
-      const { data: rla } = await supabase
+      const { data: rla, error: rlaError } = await supabase
         .from('retailer_line_accounts')
         .select('id')
         .eq('retailer_id', payload.account_id)
         .eq('sales_line_id', ogrId)
         .neq('relationship_status', 'terminated')
         .maybeSingle();
+      if (rlaError) {
+        return { data: null, error: rlaError.message };
+      }
       if (rla) payload.retailer_line_account_id = rla.id;
     }
   }

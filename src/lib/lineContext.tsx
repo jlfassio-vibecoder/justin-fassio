@@ -92,7 +92,7 @@ export function LineProvider({
   // Copilot suggestion ignored: syncing via useEffect trips react-hooks/set-state-in-effect; render-time prop sync matches RepCommandCenter deep-link pattern.
   const urlNormalized = urlLineSlug?.trim().toLowerCase() ?? null;
   if (multiLineUi && urlNormalized && selectedSlug !== urlNormalized) {
-    const known = linesLoading || representedLines.some((line) => line.code === urlNormalized);
+    const known = representedLines.some((line) => line.code === urlNormalized);
     if (known) {
       setSelectedSlug(urlNormalized);
       persistLastLineSlug(urlNormalized);

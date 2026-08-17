@@ -167,9 +167,20 @@ export async function fetchNeedsMappingCount(
     salesLineId?: string | null;
   } = {},
 ): Promise<{ count: number; error: string | null }> {
+  const salesLineId = options.salesLineId?.trim() || null;
+  if (!salesLineId) {
+    const { count, error } = await supabase
+      .from('message_threads')
+      .select('id', { count: 'exact', head: true })
+      .neq('mapping_status', 'confirmed');
+
+    if (error) return { count: 0, error: error.message };
+    return { count: count ?? 0, error: null };
+  }
+
   const listed = await fetchMessageThreads({
     filter: 'needs_mapping',
-    salesLineId: options.salesLineId,
+    salesLineId,
     limit: 500,
   });
   if (listed.error) return { count: 0, error: listed.error };
