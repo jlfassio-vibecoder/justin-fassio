@@ -3,9 +3,16 @@
  */
 
 import type { AgentSupabase } from '@/lib/agentAuth';
-import type { RetailerFieldChangeSource } from '@/types/database';
+import type { RetailerFieldChangeSource, RetailerFieldChangeStatus } from '@/types/database';
 
-export const VERIFIED_IDENTITY_FIELDS = ['name', 'address', 'phone', 'website'] as const;
+export const VERIFIED_IDENTITY_FIELDS = [
+  'name',
+  'address',
+  'phone',
+  'website',
+  'city',
+  'postal_code',
+] as const;
 export type VerifiedIdentityField = (typeof VERIFIED_IDENTITY_FIELDS)[number];
 
 const VERIFIED_STATUS_RE = /^verified$/i;
@@ -13,14 +20,17 @@ const VERIFIED_STATUS_RE = /^verified$/i;
 export function isVerifiedIdentityStatus(input: {
   buyerVerified?: boolean | null;
   verificationStatus?: string | null;
+  importProtected?: boolean | null;
 }): boolean {
+  if (input.importProtected === true) return true;
   if (input.buyerVerified === true) return true;
   const status = input.verificationStatus?.trim() ?? '';
   return VERIFIED_STATUS_RE.test(status);
 }
 
-export function isVerifiedIdentityField(field: string): field is VerifiedIdentityField {
-  return (VERIFIED_IDENTITY_FIELDS as readonly string[]).includes(field);
+export function isVerifiedIdentityField(field: string): boolean {
+  if ((VERIFIED_IDENTITY_FIELDS as readonly string[]).includes(field)) return true;
+  return field === 'postalCode';
 }
 
 export type RetailerFieldChangeInsert = {
@@ -32,6 +42,11 @@ export type RetailerFieldChangeInsert = {
   actorId?: string | null;
   salesLineId?: string | null;
   retailerLineAccountId?: string | null;
+  status?: RetailerFieldChangeStatus;
+  confidence?: string | null;
+  provider?: string | null;
+  sourceUrls?: unknown;
+  enrichmentJobId?: string | null;
 };
 
 function toInsertRow(input: RetailerFieldChangeInsert) {
@@ -44,6 +59,11 @@ function toInsertRow(input: RetailerFieldChangeInsert) {
     actor_id: input.actorId ?? null,
     sales_line_id: input.salesLineId ?? null,
     retailer_line_account_id: input.retailerLineAccountId ?? null,
+    ...(input.status ? { status: input.status } : {}),
+    ...(input.confidence !== undefined ? { confidence: input.confidence } : {}),
+    ...(input.provider !== undefined ? { provider: input.provider } : {}),
+    ...(input.sourceUrls !== undefined ? { source_urls: input.sourceUrls as never } : {}),
+    ...(input.enrichmentJobId !== undefined ? { enrichment_job_id: input.enrichmentJobId } : {}),
   };
 }
 

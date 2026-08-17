@@ -53,6 +53,7 @@ function shouldSkipVerifiedIdentity(
   return isVerifiedIdentityStatus({
     buyerVerified: current.buyerVerified,
     verificationStatus: current.verificationStatus,
+    importProtected: current.importProtected,
   });
 }
 
@@ -212,7 +213,10 @@ export async function applyProspectResearchUpdate(
           key === 'name' ||
           key === 'address' ||
           key === 'phone' ||
-          key === 'website'
+          key === 'website' ||
+          key === 'city' ||
+          key === 'postal_code' ||
+          key === 'postalCode'
         ) {
           delete dbPatch[key];
         }
@@ -276,6 +280,8 @@ export async function applyProspectResearchUpdate(
       delete patch.name;
       delete patch.address;
       delete patch.phone;
+      delete patch.city;
+      delete patch.postal_code;
     }
   }
 

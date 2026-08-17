@@ -36,11 +36,13 @@ export type ProspectPlanningFields = {
   provisionalGrade: string | null;
   verificationStatus: string | null;
   buyerVerified: boolean;
+  importProtected: boolean;
   apparelCapability: string | null;
   existingOgr: string | null;
   qualificationStatus: string | null;
   nextAction: string | null;
   sourceNote: string | null;
+  postalCode: string | null;
 };
 
 export type ProspectTaxonomyFields = {
@@ -63,11 +65,13 @@ export const EMPTY_PROSPECT_PLANNING: ProspectPlanningFields = {
   provisionalGrade: null,
   verificationStatus: null,
   buyerVerified: false,
+  importProtected: false,
   apparelCapability: null,
   existingOgr: null,
   qualificationStatus: null,
   nextAction: null,
   sourceNote: null,
+  postalCode: null,
 };
 
 export const EMPTY_PROSPECT_TAXONOMY: ProspectTaxonomyFields = {
@@ -121,7 +125,7 @@ function asStringArray(raw: unknown): string[] {
 }
 
 export const PROSPECT_SELECT =
-  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, territory_id, territories(code, name), external_id, subterritory, primary_district, retail_category, website, fit_score, ideal_opening_units, priority, provisional_grade, verification_status, buyer_verified, apparel_capability, existing_ogr, qualification_status, next_action, source_note, secondary_channels, retail_subchannels, venue_contexts, lifestyle_themes, retail_capabilities, created_at, updated_at' as const;
+  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, territory_id, territories(code, name), external_id, subterritory, primary_district, retail_category, website, fit_score, ideal_opening_units, priority, provisional_grade, verification_status, buyer_verified, import_protected, apparel_capability, existing_ogr, qualification_status, next_action, source_note, postal_code, secondary_channels, retail_subchannels, venue_contexts, lifestyle_themes, retail_capabilities, created_at, updated_at' as const;
 
 export type ProspectListRow = ProspectRow & {
   territories?: { code: string; name: string } | null;
@@ -140,11 +144,13 @@ function mapPlanningFields(row: ProspectRow): ProspectPlanningFields {
     provisionalGrade: row.provisional_grade,
     verificationStatus: row.verification_status,
     buyerVerified: row.buyer_verified,
+    importProtected: row.import_protected,
     apparelCapability: row.apparel_capability,
     existingOgr: row.existing_ogr,
     qualificationStatus: row.qualification_status,
     nextAction: row.next_action,
     sourceNote: row.source_note,
+    postalCode: row.postal_code,
   };
 }
 
