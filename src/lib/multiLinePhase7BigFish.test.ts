@@ -205,7 +205,7 @@ describe('Phase 7 selling gate', () => {
     );
     expect(convert).toMatch(/Big Fish selling is not configured/);
     expect(convert).toMatch(/const isOgr = line\.data\.code === 'ogr'/);
-    expect(convert).toMatch(
+    expect(convert).not.toMatch(
       /if \(isOgr\) \{[\s\S]*account_status: 'active_account'[\s\S]*\.eq\('id', input\.accountId\)/,
     );
     expect(convert).toMatch(/if \(!isOgr\) \{[\s\S]*return \{ ok: true, alreadyActive: false/);

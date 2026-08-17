@@ -167,6 +167,18 @@ describe('listOutreachLeads integration (mocked client)', () => {
           error: null,
         });
       }
+      if (table === 'lines') {
+        return chain({ data: { id: 'line-ogr' }, error: null });
+      }
+      if (table === 'retailer_line_accounts') {
+        return chain({
+          data: [
+            { retailer_id: 42, relationship_status: 'prospect' },
+            { retailer_id: 99, relationship_status: 'prospect' },
+          ],
+          error: null,
+        });
+      }
       if (table === 'gmail_thread_links') {
         return chain({ data: [], error: null });
       }

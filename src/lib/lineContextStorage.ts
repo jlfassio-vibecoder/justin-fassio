@@ -1,6 +1,5 @@
 import type { LineKey } from '@/types';
 import type { LineStatus } from '@/types/database';
-import { isRepresentedLineCode } from '@/lib/lines';
 
 export const LAST_LINE_SLUG_KEY = 'rcc.lastLineSlug';
 
@@ -8,7 +7,8 @@ export function readLastLineSlug(): LineKey | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = window.sessionStorage.getItem(LAST_LINE_SLUG_KEY)?.trim().toLowerCase() ?? '';
-    return isRepresentedLineCode(raw) ? raw : null;
+    if (!raw || raw === 'bkg') return null;
+    return raw;
   } catch {
     return null;
   }

@@ -4,7 +4,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
-import { isRepresentedLineCode } from '@/lib/lines';
+import { isRepresentedLineStatus } from '@/lib/lines';
 
 type Client = SupabaseClient<Database>;
 
@@ -41,28 +41,25 @@ export async function resolveSalesLineQuery(
   if (UUID_RE.test(value)) {
     const { data, error } = await client
       .from('lines')
-      .select('id, code, name')
+      .select('id, code, name, status')
       .eq('id', value)
       .maybeSingle();
     if (error) return { ok: false, status: 400, error: error.message };
-    if (!data) return { ok: false, status: 404, error: 'Unknown sales line' };
-    if (!isRepresentedLineCode(data.code)) {
+    if (!data || !isRepresentedLineStatus(data.status, data.code)) {
       return { ok: false, status: 404, error: 'Unknown sales line' };
     }
     return { ok: true, line: { id: data.id, code: data.code, name: data.name } };
   }
 
   const code = value.toLowerCase();
-  if (!isRepresentedLineCode(code)) {
-    return { ok: false, status: 404, error: 'Unknown sales line' };
-  }
-
   const { data, error } = await client
     .from('lines')
-    .select('id, code, name')
+    .select('id, code, name, status')
     .eq('code', code)
     .maybeSingle();
   if (error) return { ok: false, status: 400, error: error.message };
-  if (!data) return { ok: false, status: 404, error: 'Unknown sales line' };
+  if (!data || !isRepresentedLineStatus(data.status, data.code)) {
+    return { ok: false, status: 404, error: 'Unknown sales line' };
+  }
   return { ok: true, line: { id: data.id, code: data.code, name: data.name } };
 }

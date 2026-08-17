@@ -88,18 +88,19 @@ describe('Phase 3 convert dual-write + isolation (source)', () => {
     'utf8',
   );
 
-  it('flag off still uses convertLegacy which updates prospects.account_status', () => {
-    expect(convert).toMatch(/function convertLegacy/);
-    expect(convert).toMatch(/if \(!isLineAccountWritePath\(writeOpts\)\)/);
-    expect(convert).toMatch(/return convertLegacy\(input\)/);
-    expect(convert).toMatch(/account_status: 'active_account'/);
+  it('convert uses OGR fallback and never writes prospects commercial columns', () => {
+    expect(convert).toMatch(/resolveWriteSalesLineId/);
+    expect(convert).not.toMatch(/function convertLegacy/);
+    expect(convert).not.toMatch(/account_status: 'active_account'/);
+    expect(convert).not.toMatch(/account_status: 'prospect'/);
+    expect(convert).toMatch(/Does not write prospects.account_status/);
     expect(dualWrite).toMatch(/assert_line_id_is_ogr_or_null/);
   });
 
-  it('flag on + ogr dual-writes RLA opened and prospects.account_status', () => {
+  it('OGR convert updates RLA opened without dual-writing prospects', () => {
     expect(convert).toMatch(/relationshipStatus: 'opened'/);
     expect(convert).toMatch(/const isOgr = line\.data\.code === 'ogr'/);
-    expect(convert).toMatch(
+    expect(convert).not.toMatch(
       /if \(isOgr\) \{[\s\S]*account_status: 'active_account'[\s\S]*\.eq\('id', input\.accountId\)/,
     );
   });
@@ -203,15 +204,15 @@ describe('Phase 3 badge payload + unscoped lists', () => {
     expect(isCrossLineBadgePayload({ ...ok, orders: 1 })).toBe(false);
   });
 
-  it('Gmail / Calendar / message list helpers stay prospect-global', () => {
+  it('Gmail / Calendar / message list helpers are line-scoped', () => {
     const gmail = readFileSync(resolve(root, 'src/lib/google/gmailThreadLinks.ts'), 'utf8');
     const gmailList = gmail.slice(
       gmail.indexOf('export async function listConfirmedLinksForProspect'),
       gmail.indexOf('export async function upsertConfirmedGmailThreadLink'),
     );
     expect(gmailList).toMatch(/eq\('prospect_id'/);
-    expect(gmailList).not.toMatch(/sales_line_id/);
-    expect(gmailList).not.toMatch(/salesLineId/);
+    expect(gmailList).toMatch(/salesLineId/);
+    expect(gmailList).toMatch(/partitionCrmRowsForSalesLine/);
 
     const calendar = readFileSync(resolve(root, 'src/lib/google/calendarEventLinks.ts'), 'utf8');
     const calList = calendar.slice(
@@ -219,16 +220,16 @@ describe('Phase 3 badge payload + unscoped lists', () => {
       calendar.indexOf('export async function upsertConfirmedCalendarEventLink'),
     );
     expect(calList).toMatch(/eq\('prospect_id'/);
-    expect(calList).not.toMatch(/sales_line_id/);
-    expect(calList).not.toMatch(/salesLineId/);
+    expect(calList).toMatch(/salesLineId/);
+    expect(calList).toMatch(/partitionCrmRowsForSalesLine/);
 
     const messages = readFileSync(resolve(root, 'src/lib/messages.ts'), 'utf8');
     const threadList = messages.slice(
       messages.indexOf('export async function fetchMessageThreads'),
       messages.indexOf('export async function fetchMessagesForThread'),
     );
-    expect(threadList).not.toMatch(/salesLineId/);
-    expect(threadList).not.toMatch(/sales_line_id/);
+    expect(threadList).toMatch(/salesLineId/);
+    expect(threadList).toMatch(/partitionCrmRowsForSalesLine/);
   });
 
   it('prep / send / nightly prep signatures stay unchanged', () => {

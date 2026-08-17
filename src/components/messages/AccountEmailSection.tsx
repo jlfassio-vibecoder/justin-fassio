@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { GmailThreadLinkPublic } from '@/lib/google/gmailThreadLinks';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import { listGmailLinksForProspectClient } from '@/lib/gmailClientBrowser';
 
 function formatWhen(iso: string | null): string {
@@ -21,6 +22,8 @@ export type AccountEmailSectionProps = {
 
 /** Confirmed Gmail thread links for a prospect/account drawer (cache metadata only). */
 export function AccountEmailSection({ prospectId }: AccountEmailSectionProps) {
+  const line = useOptionalLineContext();
+  const salesLineId = line.multiLineUi ? line.salesLineId : null;
   const [links, setLinks] = useState<GmailThreadLinkPublic[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +32,7 @@ export function AccountEmailSection({ prospectId }: AccountEmailSectionProps) {
     let active = true;
     void (async () => {
       setLoading(true);
-      const result = await listGmailLinksForProspectClient(prospectId);
+      const result = await listGmailLinksForProspectClient(prospectId, salesLineId);
       if (!active) return;
       if (!result.ok) {
         setLinks([]);
@@ -44,7 +47,7 @@ export function AccountEmailSection({ prospectId }: AccountEmailSectionProps) {
     return () => {
       active = false;
     };
-  }, [prospectId]);
+  }, [prospectId, salesLineId]);
 
   return (
     <section className="flex flex-col gap-2.5">

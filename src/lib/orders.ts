@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { resolveOgrLineId } from '@/lib/lines';
 import { assertProspectiveOperationalWriteForbidden } from '@/lib/prospectiveLines';
 import type { ApparelSeason, Order, OrderInsert, OrderStatus, OrderType } from '@/types/database';
 
@@ -160,6 +161,20 @@ export async function insertOrder(
     return { data: null, error: prospectiveError };
   }
   const payload: OrderInsert = { ...input };
+  if (!options.writesEnabled && !payload.line_id && !payload.retailer_line_account_id) {
+    const ogrId = await resolveOgrLineId();
+    if (ogrId) {
+      payload.line_id = ogrId;
+      const { data: rla } = await supabase
+        .from('retailer_line_accounts')
+        .select('id')
+        .eq('retailer_id', payload.account_id)
+        .eq('sales_line_id', ogrId)
+        .neq('relationship_status', 'terminated')
+        .maybeSingle();
+      if (rla) payload.retailer_line_account_id = rla.id;
+    }
+  }
   if (options.writesEnabled) {
     if (!payload.line_id || !payload.retailer_line_account_id) {
       return {

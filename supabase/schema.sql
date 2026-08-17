@@ -517,7 +517,7 @@ create trigger prospects_set_updated_at
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- prospect_updates — notes / status changes against prospect directory rows.
--- prospect_id is a plain integer matching prospects.id (no FK in this phase).
+-- prospect_id matches prospects.id. Phase 9B adds NOT VALID FKs (VALIDATE in 9C).
 -- ─────────────────────────────────────────────────────────────────────────
 create table if not exists prospect_updates (
   id uuid primary key default gen_random_uuid(),
@@ -530,9 +530,17 @@ create table if not exists prospect_updates (
 
 create index if not exists prospect_updates_prospect_id_idx on prospect_updates (prospect_id);
 
+alter table public.prospect_updates
+  drop constraint if exists prospect_updates_prospect_id_fkey;
+alter table public.prospect_updates
+  add constraint prospect_updates_prospect_id_fkey
+  foreign key (prospect_id) references public.prospects (id)
+  on delete restrict
+  not valid;
+
 -- ─────────────────────────────────────────────────────────────────────────
 -- calls — logged prospect calls from the Log Call modal, with PMF scoring.
--- prospect_id matches prospects.id (plain integer, not a DB foreign key).
+-- prospect_id matches prospects.id. Phase 9B adds NOT VALID FKs (VALIDATE in 9C).
 -- ─────────────────────────────────────────────────────────────────────────
 create table if not exists calls (
   id uuid primary key default gen_random_uuid(),
@@ -561,6 +569,14 @@ create table if not exists calls (
 create index if not exists calls_prospect_id_idx on calls (prospect_id);
 create index if not exists calls_line_id_idx on calls (line_id);
 create index if not exists calls_call_date_idx on calls (call_date);
+
+alter table public.calls
+  drop constraint if exists calls_prospect_id_fkey;
+alter table public.calls
+  add constraint calls_prospect_id_fkey
+  foreign key (prospect_id) references public.prospects (id)
+  on delete restrict
+  not valid;
 
 drop trigger if exists calls_set_updated_at on calls;
 create trigger calls_set_updated_at

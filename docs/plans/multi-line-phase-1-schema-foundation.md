@@ -1746,3 +1746,88 @@ Promoted lines are represented in DB (`confirmed` / `onboarding`) but stay out o
 - No commit/push unless separately requested
 
 **Phase 8 Prospective Lines acquisition pipeline is complete locally.** Do not begin Phase 9 until separately approved. Do not commit/push/deploy unless separately requested.
+
+## Implementation results — Phase 9A
+
+**Date:** 2026-08-17  
+**Branch:** `feature/multi-line-multi-territory-implementation`  
+**Scope:** Line-scoped Messages/Calendar CRM lists (RLA-first lineage) and represented workspace from `lines.status`. No schema trigger drops. No commercial-column write changes. No commit/push/hosted apply.
+
+### Lineage
+
+- Shared helper in `src/lib/crmLineage.ts`: RLA `sales_line_id` wins even when the row’s own `sales_line_id` is null; both-null is legacy OGR-only; non-null mismatch is omitted from every list.
+- `fetchMessageThreads`, Gmail, and Calendar list helpers take `salesLineId` and use that helper. Flag-off `/app` omits `salesLineId` (unscoped).
+- Hosted mismatch scan was **not** run in this session (no production query). Local tests cover mismatch omission. Report hosted mismatch ids/counts before treating 9A as production-complete.
+
+### Represented workspace
+
+- `fetchRepresentedLines` queries `status in ('active','onboarding','confirmed')` and excludes `bkg`. It does **not** `.in('code', three codes)`.
+- Picker `LineKey` is `string`. `isRepresentedLineStatus` is membership. `REPRESENTED_LINE_CODES` remains a seed helper for public/EP/BF special-cases.
+- Promoted represented slugs can enter the picker. `assertLineAllowsOperationalWrite` still `reject`s unknown codes. Outreach generate-draft stays seed-code blocked for non-ogr/ep/bf.
+- Public homepage still `get_public_line_cards()` for the three marketing brands.
+
+### Tests
+
+- `src/lib/multiLinePhase9aIsolation.test.ts`. Phase 2/3/8 tests updated for status-based membership and retired “lists stay prospect-global”.
+
+## Implementation results — Phase 9B
+
+**Date:** 2026-08-17  
+**Branch:** `feature/multi-line-multi-territory-implementation`  
+**Scope:** Stop writing `prospects.account_status` / `converted_at` / `initial_order_date`. Overlay OGR RLA onto directory/account reads (flag on and off). Explicit OGR fallback on legacy write paths. Additive `NOT VALID` FKs. **Keep 1C sync triggers.** No commit/push/hosted apply.
+
+### Pre-deploy gates (operator — not taken in this session)
+
+| Gate                                  | Result                                                                                                                                                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hosted snapshot immediately before 9B | **Not taken in this session.** Operator must snapshot the live database and record id/time here before any 9B deploy.                                                                                               |
+| Production OGR RLA parity             | **Not run on hosted.** Queries live in `plan/multi-line-phase9b-parity.sql` and `OGR_RLA_PARITY_SQL`. Fail closed via `ogrRlaParityFails`. Historical local 607/607 (or later hosted 612/612) is **not** this gate. |
+
+Do not deploy 9B until both complete. Recovery after 9B app writes is roll-forward or restore the pre-9B snapshot — not ordinary app rollback and not reverse-sync RLA onto `prospects`.
+
+### Application cutover
+
+- Convert/demote update RLA only (`resolveWriteSalesLineId` → OGR when caller omits a line id). `convertLegacy` / `demoteLegacy` removed.
+- `fetchProspects` overlays RLA commercial fields for scoped lines and for flag-off OGR. Account-status filters run in memory on the overlay.
+- Contacts directory / name search overlay OGR (or scoped) RLA `relationship_status`.
+- Junction + new-retailer RLA persist without `FEATURE_MULTI_LINE_WRITES`. Create-via-AI, attach-contact, wholesale inbound, notes, orders, calls, reorder, attribution stamp or overlay OGR RLA.
+- OGR outreach eligibility (`outreachSelectTargets`, briefing conversions, attribution replay/MTD) resolves OGR internally and reads RLA. Prep/send/cron HTTP contracts still have no `salesLineId`.
+- Selling flags still `reject` / `ui_blocked` for EP/BF chrome. Persistence is not behind the writes flag.
+
+### Integrity FKs
+
+- `supabase/migrations/20260817120000_multi_line_phase9b_integrity_fks.sql` (mirrored in `supabase/schema.sql`): queue orphans with `reason` `orphan_call_fk` / `orphan_prospect_update_fk` (inspected: `migration_review_queue.reason` is unconstrained text; no `issue_type`). Add `calls_prospect_id_fkey` / `prospect_updates_prospect_id_fkey` `NOT VALID` `ON DELETE RESTRICT`. No `DROP COLUMN`. No `VALIDATE CONSTRAINT` here.
+- Rollback SQL: `plan/multi-line-phase9b-rollback.sql`.
+
+### Tests
+
+- `src/lib/multiLinePhase9bCleanup.test.ts`. Convert unit tests rewritten for RLA mocks. Phase 3/6/7 dual-write `prospects.account_status` assertions retired.
+
+## Implementation results — Phase 9C
+
+**Date:** 2026-08-17  
+**Branch:** `feature/multi-line-multi-territory-implementation`  
+**Scope:** Gated sync-trigger removal SQL only. **Not applied. Not in `supabase/migrations/`.** Live `schema.sql` still has 1C sync functions so a 9B `db push` cannot drop them.
+
+### Pre-9C gates (operator — not taken in this session)
+
+| Gate                                            | Result                                                       |
+| ----------------------------------------------- | ------------------------------------------------------------ |
+| 9A merged and deployed                          | Local only this session                                      |
+| Pre-9B hosted snapshot                          | Not taken                                                    |
+| Production OGR RLA parity                       | Not run on hosted                                            |
+| 9B merged, deployed, and validated without sync | Local app paths stamp/overlay RLA; hosted validation not run |
+| Second hosted snapshot (pre-9C)                 | **Not taken in this session.**                               |
+
+### Artifact
+
+- `plan/multi-line-phase9c-drop-sync-triggers.sql` drops `sync_ogr_retailer_line_account_from_prospect`, `sync_ogr_retailer_line_contact_from_account_contact`, and their three triggers. Retains `fill_ogr_retailer_line_account_on_*` fillers and `ensure_ogr_*` helpers. `VALIDATE CONSTRAINT` runs only when orphan count is 0.
+- Copy into a **new** migration in a **separate PR** after the gates above. 9C rollback is restore-from-snapshot (epic §9.2), not a recreate-1C-sync migration.
+- `src/lib/multiLinePhase9cCleanup.test.ts` locks that contract.
+- `npm run check` passed (148 files / 931 tests).
+
+### Explicit exclusions honored (Phase 9)
+
+- No `prospects` → `retailers` rename; no commercial-column drops; no PostGIS; no `staff_line_memberships`; no invented Big Fish terms; no `lines.active` flips; flags still gate UI not RLA persistence; no `salesLineId` on prep/send/cron HTTP contracts; no reverse-sync RLA → prospects; no combining 9C into the 9B migration folder.
+
+**Phase 9 local implementation is complete.** Do not commit/push/deploy unless separately requested. Do not apply 9B or 9C on hosted until the operator snapshot and parity gates are recorded.

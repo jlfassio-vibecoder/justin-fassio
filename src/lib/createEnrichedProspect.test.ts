@@ -25,6 +25,34 @@ function mockSupabaseInsert(row: unknown) {
         }),
       };
     }
+    if (table === 'lines') {
+      return {
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({ data: { id: 'line-ogr' }, error: null }),
+          }),
+        }),
+      };
+    }
+    if (table === 'retailer_line_accounts') {
+      return {
+        insert: async () => ({ error: null }),
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              neq: () => ({
+                maybeSingle: async () => ({ data: { id: 'rla-ogr' }, error: null }),
+              }),
+            }),
+          }),
+        }),
+      };
+    }
+    if (table === 'retailer_line_contacts') {
+      return {
+        upsert: async () => ({ error: null }),
+      };
+    }
     return {
       select: () => ({
         order: () => ({
@@ -330,6 +358,40 @@ describe('createEnrichedProspect buyer contact', () => {
               maybeSingle: async () => ({ data: { id: 'terr-bc' }, error: null }),
             }),
           }),
+        };
+      }
+      if (table === 'lines') {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: { id: 'line-ogr' }, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === 'retailer_line_accounts') {
+        return {
+          insert: (payload: unknown) => {
+            inserts.push({ table, payload });
+            return Promise.resolve({ error: null });
+          },
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                neq: () => ({
+                  maybeSingle: async () => ({ data: { id: 'rla-ogr' }, error: null }),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === 'retailer_line_contacts') {
+        return {
+          upsert: async (payload: unknown) => {
+            inserts.push({ table, payload });
+            return { error: null };
+          },
         };
       }
       return {

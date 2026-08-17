@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { extractEmailAddress, parseAddressList } from '@/lib/google/gmailMime';
 import type { GmailMessageView, GmailThreadDetail } from '@/lib/google/gmailTypes';
+import { accountStatusFromRelationship } from '@/lib/ogrCommercial';
 import type { Database } from '@/types/database';
 
 export type GmailParticipantRole = 'from' | 'to' | 'cc';
@@ -95,6 +96,19 @@ export async function matchParticipantsToCrm(
   if (prospectError) return [];
   const prospectById = new Map((prospects ?? []).map((p) => [p.id, p]));
 
+  const { data: ogr } = await client.from('lines').select('id').eq('code', 'ogr').maybeSingle();
+  const rlaStatus = new Map<number, string>();
+  if (ogr) {
+    const { data: rlas } = await client
+      .from('retailer_line_accounts')
+      .select('retailer_id, relationship_status')
+      .eq('sales_line_id', ogr.id)
+      .in('retailer_id', prospectIds);
+    for (const row of rlas ?? []) {
+      rlaStatus.set(row.retailer_id, accountStatusFromRelationship(row.relationship_status));
+    }
+  }
+
   const roleByEmail = new Map(participants.map((p) => [p.email, p.role]));
   const matches: CrmEmailMatch[] = [];
 
@@ -113,7 +127,7 @@ export async function matchParticipantsToCrm(
       contactName: row.full_name,
       prospectId: prospect.id,
       prospectName: prospect.name,
-      accountStatus: prospect.account_status,
+      accountStatus: rlaStatus.get(prospect.id) ?? prospect.account_status,
       confidence: role === 'from' || role === 'to' ? 'high' : 'medium',
     });
   }

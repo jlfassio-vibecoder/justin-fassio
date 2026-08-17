@@ -6,6 +6,7 @@ import { MessageThreadPanel } from '@/components/messages/MessageThreadPanel';
 import { MessagesThreadList } from '@/components/messages/MessagesThreadList';
 import { ProspectDetailDrawer } from '@/components/ProspectDetailDrawer';
 import { cn } from '@/lib/cn';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import {
   fetchMessageThreads,
   fetchNeedsMappingCount,
@@ -50,6 +51,8 @@ export function MessagesTab({
   onOpenLiveChat,
   onSurfaceLiveChatPill,
 }: MessagesTabProps) {
+  const line = useOptionalLineContext();
+  const salesLineId = line.multiLineUi ? line.salesLineId : null;
   const [filter, setFilter] = useState<MessageThreadFilter>('all');
   const [channel, setChannel] = useState<MessagesUiChannel>('all');
   const [threads, setThreads] = useState<MessageThread[]>([]);
@@ -87,14 +90,18 @@ export function MessagesTab({
         setError(null);
         setLoading(false);
         if (onNeedsMappingCountChange) {
-          const badge = await fetchNeedsMappingCount();
+          const badge = await fetchNeedsMappingCount(salesLineId ? { salesLineId } : {});
           if (!active) return;
           onNeedsMappingCountChange(badge.count);
         }
         return;
       }
 
-      const result = await fetchMessageThreads({ filter, channel });
+      const result = await fetchMessageThreads({
+        filter,
+        channel,
+        salesLineId: salesLineId ?? undefined,
+      });
       if (!active) return;
       if (result.error) {
         setThreads([]);
@@ -111,7 +118,7 @@ export function MessagesTab({
       });
 
       if (onNeedsMappingCountChange) {
-        const badge = await fetchNeedsMappingCount();
+        const badge = await fetchNeedsMappingCount(salesLineId ? { salesLineId } : {});
         if (!active) return;
         onNeedsMappingCountChange(badge.count);
       }
@@ -120,7 +127,7 @@ export function MessagesTab({
     return () => {
       active = false;
     };
-  }, [filter, channel, reloadToken, listReloadToken, onNeedsMappingCountChange]);
+  }, [filter, channel, reloadToken, listReloadToken, onNeedsMappingCountChange, salesLineId]);
 
   useEffect(() => {
     if (!historyAccount) return;

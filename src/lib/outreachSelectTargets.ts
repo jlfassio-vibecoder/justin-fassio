@@ -94,10 +94,31 @@ export function formatOutreachPreparationDate(
 async function loadProspectAccounts(
   client: DbClient,
 ): Promise<{ ok: true; prospects: Prospect[] } | { ok: false; error: string }> {
+  const { data: ogr, error: ogrError } = await client
+    .from('lines')
+    .select('id')
+    .eq('code', 'ogr')
+    .maybeSingle();
+  if (ogrError) return { ok: false, error: ogrError.message };
+  if (!ogr) return { ok: false, error: 'OGR sales line not found' };
+
+  const { data: rlas, error: rlaError } = await client
+    .from('retailer_line_accounts')
+    .select('retailer_id')
+    .eq('sales_line_id', ogr.id)
+    .eq('relationship_status', 'prospect');
+  if (rlaError) return { ok: false, error: rlaError.message };
+  const ids = [
+    ...new Set((rlas ?? []).map((row) => row.retailer_id).filter((id) => Number.isFinite(id))),
+  ];
+  if (ids.length === 0) {
+    return { ok: true, prospects: [] };
+  }
+
   const { data, error } = await client
     .from('prospects')
     .select(PROSPECT_SELECT)
-    .eq('account_status', 'prospect')
+    .in('id', ids)
     .order('id', { ascending: true });
 
   if (error) {
@@ -106,7 +127,7 @@ async function loadProspectAccounts(
 
   return {
     ok: true,
-    prospects: (data ?? []).map(mapProspectRow),
+    prospects: (data ?? []).map((row) => mapProspectRow(row)),
   };
 }
 

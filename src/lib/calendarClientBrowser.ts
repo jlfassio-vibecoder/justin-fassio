@@ -308,6 +308,7 @@ export async function unlinkCalendarEventClient(
 
 export async function listCalendarLinksForProspectClient(
   prospectId: number,
+  salesLineId?: string | null,
 ): Promise<
   { ok: true; links: CalendarEventLinkPublic[] } | ({ ok: false; error: string } & GateFlags)
 > {
@@ -316,6 +317,7 @@ export async function listCalendarLinksForProspectClient(
 
   const url = new URL('/api/staff/calendar/links', window.location.origin);
   url.searchParams.set('prospectId', String(prospectId));
+  if (salesLineId) url.searchParams.set('salesLineId', salesLineId);
   const res = await fetch(url.pathname + url.search, {
     headers: { Authorization: `Bearer ${token}` },
   });

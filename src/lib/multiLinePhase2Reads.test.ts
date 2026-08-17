@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { getStaffFeatureFlags, isMultiLineUiEnabled, parseFeatureFlag } from '@/lib/staffFeatures';
 import {
   isRepresentedLineCode,
-  REPRESENTED_LINE_CODES,
+  isRepresentedLineStatus,
   REPRESENTED_LINE_STATUSES,
 } from '@/lib/lines';
 import { isCrossLineBadgePayload, type CrossLineBadge } from '@/lib/retailerLineAccounts';
@@ -46,24 +46,26 @@ describe('Phase 2 FEATURE_MULTI_LINE_UI flag', () => {
 });
 
 describe('Phase 2 represented picker membership', () => {
-  it('includes ogr / eagle-peak / big-fish only', () => {
-    expect([...REPRESENTED_LINE_CODES].sort()).toEqual(['big-fish', 'eagle-peak', 'ogr']);
-    expect(isRepresentedLineCode('ogr')).toBe(true);
-    expect(isRepresentedLineCode('eagle-peak')).toBe(true);
-    expect(isRepresentedLineCode('big-fish')).toBe(true);
+  it('membership is status-based; seed codes are not the picker union', () => {
+    expect(isRepresentedLineStatus('active', 'ogr')).toBe(true);
+    expect(isRepresentedLineStatus('onboarding', 'eagle-peak')).toBe(true);
+    expect(isRepresentedLineStatus('confirmed', 'north-cedar')).toBe(true);
+    expect(isRepresentedLineStatus('confirmed', 'bkg')).toBe(false);
+    expect(isRepresentedLineStatus('prospective', 'north-cedar')).toBe(false);
     expect(isRepresentedLineCode('bkg')).toBe(false);
-    expect(isRepresentedLineCode('prospective')).toBe(false);
     expect(isRepresentedLineCode('typo-line')).toBe(false);
   });
 
-  it('fetchRepresentedLines filters status + codes (source)', () => {
+  it('fetchRepresentedLines filters status and excludes bkg (source)', () => {
     const src = readFileSync(resolve(root, 'src/lib/lines.ts'), 'utf8');
     expect(src).toMatch(/fetchRepresentedLines/);
-    expect(src).toMatch(/REPRESENTED_LINE_CODES/);
     expect(src).toMatch(/REPRESENTED_LINE_STATUSES/);
-    expect(src).toMatch(/\.in\('code'/);
+    expect(src).toMatch(/\.neq\('code', 'bkg'\)/);
     expect(src).toMatch(/\.in\('status'/);
-    expect(src).toMatch(/LINE_SELECT[\s\S]*status/);
+    const fetchFn = src.slice(src.indexOf('export async function fetchRepresentedLines'));
+    const nextExport = fetchFn.indexOf('export async function fetchLineByCode');
+    const body = nextExport === -1 ? fetchFn : fetchFn.slice(0, nextExport);
+    expect(body).not.toMatch(/\.in\('code'/);
     expect([...REPRESENTED_LINE_STATUSES].sort()).toEqual(['active', 'confirmed', 'onboarding']);
   });
 });
@@ -141,8 +143,8 @@ describe('Phase 2 cross-line badges + wrong-line account', () => {
     expect(src).toMatch(/wrong_line/);
   });
 
-  it('invalid slug treated as unknown (AuthGate / isRepresentedLineCode)', () => {
-    expect(isRepresentedLineCode('bkg')).toBe(false);
+  it('invalid slug treated as unknown (AuthGate / isRepresentedLineStatus)', () => {
+    expect(isRepresentedLineStatus('confirmed', 'bkg')).toBe(false);
     expect(isRepresentedLineCode('not-a-line')).toBe(false);
     const gate = readFileSync(resolve(root, 'src/components/auth/AuthGate.tsx'), 'utf8');
     expect(gate).toMatch(/Unknown line/);

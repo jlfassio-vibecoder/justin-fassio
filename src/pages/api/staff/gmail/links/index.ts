@@ -31,6 +31,7 @@ export const GET: APIRoute = async ({ request }) => {
     const rows = await listConfirmedLinksForProspect({
       client: gate.supabase,
       prospectId,
+      salesLineId: url.searchParams.get('salesLineId'),
     });
     return json({
       ok: true,

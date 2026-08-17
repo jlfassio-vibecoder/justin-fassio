@@ -49,6 +49,20 @@ vi.mock('@/lib/outreachAttribution', () => ({
   recordConversionAttribution: vi.fn(async () => ({ ok: true, id: 'attr-1' })),
 }));
 
+vi.mock('@/lib/retailerLineAccounts', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/retailerLineAccounts')>(
+    '@/lib/retailerLineAccounts',
+  );
+  return {
+    ...actual,
+    ensureRetailerLineAccount: vi.fn(async () => ({
+      gate: 'allow',
+      data: { id: 'rla-ogr', relationshipStatus: 'prospect' },
+      error: null,
+    })),
+  };
+});
+
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: {

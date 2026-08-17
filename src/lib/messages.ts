@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase';
+import { partitionCrmRowsForSalesLine } from '@/lib/crmLineage';
+import { resolveOgrLineId, resolveWriteSalesLineId } from '@/lib/lines';
 import { identityFingerprint, type MappingStatus } from '@/lib/messageFingerprint';
 import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
 import type { ProspectRow } from '@/types/database';
@@ -11,7 +13,7 @@ export {
 } from '@/lib/messageFingerprint';
 
 export const MESSAGE_THREAD_SELECT =
-  'id, prospect_id, mapping_status, identity_fingerprint, confirmed_fingerprint, source, subject, channel, chat_state, visitor_user_id, visitor_name, visitor_email, awaiting_reply_since, last_message_at, created_at, updated_at' as const;
+  'id, prospect_id, retailer_line_account_id, mapping_status, identity_fingerprint, confirmed_fingerprint, source, subject, channel, chat_state, visitor_user_id, visitor_name, visitor_email, awaiting_reply_since, last_message_at, created_at, updated_at' as const;
 
 export const MESSAGE_SELECT =
   'id, thread_id, kind, wholesale_order_request_id, body, payload, created_at' as const;
@@ -104,6 +106,7 @@ function asChatState(value: string | null | undefined): ChatState | null {
 function mapThreadRow(row: {
   id: string;
   prospect_id: number | null;
+  retailer_line_account_id?: string | null;
   mapping_status: string;
   identity_fingerprint: string;
   confirmed_fingerprint: string | null;
@@ -159,14 +162,18 @@ function mapMessageRow(row: {
   };
 }
 
-export async function fetchNeedsMappingCount(): Promise<{ count: number; error: string | null }> {
-  const { count, error } = await supabase
-    .from('message_threads')
-    .select('id', { count: 'exact', head: true })
-    .neq('mapping_status', 'confirmed');
-
-  if (error) return { count: 0, error: error.message };
-  return { count: count ?? 0, error: null };
+export async function fetchNeedsMappingCount(
+  options: {
+    salesLineId?: string | null;
+  } = {},
+): Promise<{ count: number; error: string | null }> {
+  const listed = await fetchMessageThreads({
+    filter: 'needs_mapping',
+    salesLineId: options.salesLineId,
+    limit: 500,
+  });
+  if (listed.error) return { count: 0, error: listed.error };
+  return { count: listed.data.length, error: null };
 }
 
 export async function fetchMessageThreads(
@@ -175,6 +182,7 @@ export async function fetchMessageThreads(
     channel?: MessageChannelFilter;
     prospectId?: number;
     limit?: number;
+    salesLineId?: string | null;
   } = {},
 ): Promise<{ data: MessageThread[]; error: string | null }> {
   const limit = options.limit ?? 200;
@@ -203,7 +211,44 @@ export async function fetchMessageThreads(
   const { data, error } = await query;
   if (error) return { data: [], error: error.message };
 
-  const threads = (data ?? []).map(mapThreadRow);
+  const rawRows = data ?? [];
+  const salesLineId = options.salesLineId?.trim() || null;
+  let scopedRows = rawRows;
+  if (salesLineId) {
+    const rlaIds = [
+      ...new Set(
+        rawRows
+          .map((row) => row.retailer_line_account_id)
+          .filter((id): id is string => typeof id === 'string' && Boolean(id)),
+      ),
+    ];
+    const rlaSalesLineById = new Map<string, string>();
+    if (rlaIds.length > 0) {
+      const { data: rlas, error: rlaError } = await supabase
+        .from('retailer_line_accounts')
+        .select('id, sales_line_id')
+        .in('id', rlaIds);
+      if (rlaError) return { data: [], error: rlaError.message };
+      for (const rla of rlas ?? []) {
+        rlaSalesLineById.set(rla.id, rla.sales_line_id);
+      }
+    }
+    const ogrLineId = await resolveOgrLineId();
+    const partitioned = partitionCrmRowsForSalesLine(
+      rawRows.map((row) => ({
+        id: row.id,
+        salesLineId: null,
+        retailerLineAccountId: row.retailer_line_account_id,
+      })),
+      rlaSalesLineById,
+      salesLineId,
+      ogrLineId,
+    );
+    const visibleIds = new Set(partitioned.visible.map((item) => item.id));
+    scopedRows = rawRows.filter((row) => visibleIds.has(row.id));
+  }
+
+  const threads = scopedRows.map(mapThreadRow);
   if (threads.length === 0) return { data: [], error: null };
 
   const threadIds = threads.map((t) => t.id);
@@ -305,12 +350,13 @@ export async function confirmThreadMapping(args: {
   salesLineId?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   let retailerLineAccountId: string | undefined;
-  if (args.writesEnabled && args.salesLineId) {
+  const salesLineId = await resolveWriteSalesLineId(args.salesLineId);
+  if (salesLineId) {
     const { data: rla, error: rlaError } = await supabase
       .from('retailer_line_accounts')
       .select('id')
       .eq('retailer_id', args.prospectId)
-      .eq('sales_line_id', args.salesLineId)
+      .eq('sales_line_id', salesLineId)
       .neq('relationship_status', 'terminated')
       .maybeSingle();
     if (rlaError) return { ok: false, error: rlaError.message };

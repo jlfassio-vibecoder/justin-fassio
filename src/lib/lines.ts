@@ -5,14 +5,9 @@ import {
 } from '@/data/landing';
 import { supabase } from '@/lib/supabase';
 import type { Line, LineStatus } from '@/types/database';
-import type { LineKey } from '@/types';
 
-/** v1 represented picker codes (exclude bkg + prospective / declined / terminated). */
-export const REPRESENTED_LINE_CODES = [
-  'ogr',
-  'eagle-peak',
-  'big-fish',
-] as const satisfies readonly LineKey[];
+/** Seed marketing / special-case codes — not picker membership. */
+export const REPRESENTED_LINE_CODES = ['ogr', 'eagle-peak', 'big-fish'] as const;
 
 export const REPRESENTED_LINE_STATUSES = [
   'active',
@@ -20,8 +15,15 @@ export const REPRESENTED_LINE_STATUSES = [
   'confirmed',
 ] as const satisfies readonly LineStatus[];
 
-export function isRepresentedLineCode(code: string): code is LineKey {
+/** Seed-code helper for public paths, EP geo, and BF currency — not workspace membership. */
+export function isRepresentedLineCode(code: string): boolean {
   return (REPRESENTED_LINE_CODES as readonly string[]).includes(code);
+}
+
+/** Picker / route membership after a `lines` row is loaded. */
+export function isRepresentedLineStatus(status: string, code: string): boolean {
+  if (code === 'bkg') return false;
+  return (REPRESENTED_LINE_STATUSES as readonly string[]).includes(status);
 }
 
 export type LinePortfolio = {
@@ -158,6 +160,13 @@ export async function resolveOgrLineId(): Promise<string | null> {
   return data.id;
 }
 
+/** Explicit line id, else OGR — for confirmed legacy /app write paths only. */
+export async function resolveWriteSalesLineId(explicit?: string | null): Promise<string | null> {
+  const trimmed = explicit?.trim() || '';
+  if (trimmed) return trimmed;
+  return resolveOgrLineId();
+}
+
 export async function fetchActiveLines(): Promise<{
   data: LinePortfolio[];
   error: string | null;
@@ -176,8 +185,8 @@ export async function fetchActiveLines(): Promise<{
 }
 
 /**
- * Represented portfolio for the Phase 2 staff picker.
- * status in (active, onboarding, confirmed) and code in (ogr, eagle-peak, big-fish).
+ * Represented portfolio for the staff picker.
+ * status in (active, onboarding, confirmed); never `bkg`.
  */
 export async function fetchRepresentedLines(): Promise<{
   data: LinePortfolio[];
@@ -186,7 +195,7 @@ export async function fetchRepresentedLines(): Promise<{
   const { data, error } = await supabase
     .from('lines')
     .select(LINE_SELECT)
-    .in('code', [...REPRESENTED_LINE_CODES])
+    .neq('code', 'bkg')
     .in('status', [...REPRESENTED_LINE_STATUSES])
     .order('sort_order', { ascending: true });
 

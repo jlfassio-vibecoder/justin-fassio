@@ -11,8 +11,8 @@ export type TabKey =
   | 'calendar'
   | 'territories';
 
-/** Represented sales lines in the Phase 2 picker (excludes bkg / prospective). */
-export type LineKey = 'ogr' | 'eagle-peak' | 'big-fish';
+/** Represented sales-line slug (picker membership is DB status, not this union). */
+export type LineKey = string;
 
 export interface ModalPrefill {
   storeId: number | null;

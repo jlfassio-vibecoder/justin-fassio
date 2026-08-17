@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AuthProvider } from '@/components/auth/AuthProvider';
 import { OwnerPendingPanel } from '@/components/auth/OwnerPendingPanel';
 import { OwnerWholesaleBuyersPanel } from '@/components/auth/OwnerWholesaleBuyersPanel';
@@ -13,9 +13,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { AiAssistProvider } from '@/lib/AiAssistProvider';
 import { supabase } from '@/lib/supabase';
 import { isApprovedOwner, isApprovedStaff } from '@/lib/auth';
-import { LineProvider } from '@/lib/lineContext';
+import { LineProvider, useLineContext } from '@/lib/lineContext';
 import { persistLastLineSlug, readLastLineSlug } from '@/lib/lineContextStorage';
-import { isRepresentedLineCode } from '@/lib/lines';
 import { pingAuthorizedServer } from '@/lib/serverPing';
 import { createStaffAvatarSignedUrl, staffAccountInitials } from '@/lib/staffAccount';
 import type { StaffIslandFeatureFlags } from '@/lib/staffFeatures';
@@ -112,6 +111,37 @@ async function fetchStaffFeatures(): Promise<StaffIslandFeatureFlags> {
   }
 }
 
+function LineUnknownGate({
+  requestedSlug,
+  children,
+}: {
+  requestedSlug: string | null;
+  children: ReactNode;
+}) {
+  const line = useLineContext();
+  if (line.multiLineUi && line.loading) {
+    return (
+      <div className="text-ink/60 flex min-h-dvh items-center justify-center px-6 text-sm">
+        Checking session…
+      </div>
+    );
+  }
+  if (line.unknownLine) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-3 px-6">
+        <h1 className="m-0 text-2xl">Unknown line</h1>
+        <p className="text-ink/70 m-0 text-sm">
+          <code className="text-ink">{requestedSlug}</code> is not a represented sales line.
+        </p>
+        <a href="/app/lines" className="font-heading text-accent-700 no-underline">
+          Back to lines
+        </a>
+      </div>
+    );
+  }
+  return children;
+}
+
 function AuthGateInner({
   page,
   lineSlug: lineSlugProp,
@@ -166,7 +196,6 @@ function AuthGateInner({
   const bigFishSelling = Boolean(features?.FEATURE_BIG_FISH_SELLING);
   const bigFishOutreach = Boolean(features?.FEATURE_BIG_FISH_OUTREACH);
   const urlLineSlug = lineSlugProp?.trim().toLowerCase() || null;
-  const unknownLine = Boolean(urlLineSlug && !isRepresentedLineCode(urlLineSlug));
 
   const prospectiveLines = Boolean(features?.FEATURE_PROSPECTIVE_LINES);
   const staffAppOrAccount =
@@ -284,20 +313,6 @@ function AuthGateInner({
     }
   }
 
-  if (page === 'app' && effectiveMultiLineUi && unknownLine) {
-    return (
-      <div className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-3 px-6">
-        <h1 className="m-0 text-2xl">Unknown line</h1>
-        <p className="text-ink/70 m-0 text-sm">
-          <code className="text-ink">{urlLineSlug}</code> is not a represented sales line.
-        </p>
-        <a href="/app/lines" className="font-heading text-accent-700 no-underline">
-          Back to lines
-        </a>
-      </div>
-    );
-  }
-
   async function handlePingServer() {
     setPingBusy(true);
     setPingStatus(null);
@@ -328,15 +343,17 @@ function AuthGateInner({
         bigFishOutreach={effectiveBigFishOutreach}
         urlLineSlug={urlLineSlug}
       >
-        {page === 'account' ? (
-          <StaffAccountPage />
-        ) : (
-          <RepCommandCenter
-            defaultTab={defaultTab}
-            multiLineUi={effectiveMultiLineUi}
-            lineAccountId={lineAccountId}
-          />
-        )}
+        <LineUnknownGate requestedSlug={urlLineSlug}>
+          {page === 'account' ? (
+            <StaffAccountPage />
+          ) : (
+            <RepCommandCenter
+              defaultTab={defaultTab}
+              multiLineUi={effectiveMultiLineUi}
+              lineAccountId={lineAccountId}
+            />
+          )}
+        </LineUnknownGate>
       </LineProvider>
     );
 

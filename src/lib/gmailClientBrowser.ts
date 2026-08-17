@@ -497,6 +497,7 @@ export async function unlinkGmailThreadClient(
 
 export async function listGmailLinksForProspectClient(
   prospectId: number,
+  salesLineId?: string | null,
 ): Promise<
   { ok: true; links: GmailThreadLinkPublic[] } | ({ ok: false; error: string } & GateFlags)
 > {
@@ -505,6 +506,7 @@ export async function listGmailLinksForProspectClient(
 
   const url = new URL('/api/staff/gmail/links', window.location.origin);
   url.searchParams.set('prospectId', String(prospectId));
+  if (salesLineId) url.searchParams.set('salesLineId', salesLineId);
   const res = await fetch(url.pathname + url.search, {
     headers: { Authorization: `Bearer ${token}` },
   });

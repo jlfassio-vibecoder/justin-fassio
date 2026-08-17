@@ -1,7 +1,6 @@
 import { Tag } from '@/components/ui/Tag';
 import type { CrossLineBadge } from '@/lib/retailerLineAccounts';
 import { persistLastLineSlug } from '@/lib/lineContextStorage';
-import { isRepresentedLineCode } from '@/lib/lines';
 import type { LineKey } from '@/types';
 
 type CrossLineBadgeChipsProps = {
@@ -21,9 +20,9 @@ export function CrossLineBadgeChips({ badges }: CrossLineBadgeChipsProps) {
           className="border-0 bg-transparent p-0"
           title={`${badge.lineName} · ${badge.relationshipStatus}`}
           onClick={() => {
-            if (!isRepresentedLineCode(badge.lineCode)) return;
-            const slug = badge.lineCode as LineKey;
-            persistLastLineSlug(slug);
+            const slug = badge.lineCode.trim().toLowerCase();
+            if (!slug || slug === 'bkg') return;
+            persistLastLineSlug(slug as LineKey);
             window.location.assign(`/app/lines/${slug}`);
           }}
         >

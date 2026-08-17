@@ -14,6 +14,8 @@ const insertOrderMock = vi.fn();
 const fetchSettingsMock = vi.fn();
 const upsertSettingsMock = vi.fn();
 const resolveOgrMock = vi.fn();
+const ensureRlaMock = vi.fn();
+const fetchLineMetaMock = vi.fn();
 
 vi.mock('@/lib/orders', async () => {
   const actual = await vi.importActual<typeof import('@/lib/orders')>('@/lib/orders');
@@ -31,6 +33,17 @@ vi.mock('@/lib/accountReorderSettings', () => ({
 vi.mock('@/lib/lines', () => ({
   resolveOgrLineId: (...args: unknown[]) => resolveOgrMock(...args),
 }));
+
+vi.mock('@/lib/retailerLineAccounts', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/retailerLineAccounts')>(
+    '@/lib/retailerLineAccounts',
+  );
+  return {
+    ...actual,
+    ensureRetailerLineAccount: (...args: unknown[]) => ensureRlaMock(...args),
+    fetchLineWriteMeta: (...args: unknown[]) => fetchLineMetaMock(...args),
+  };
+});
 
 const ACCOUNT: Prospect = {
   id: 42,
@@ -102,6 +115,15 @@ describe('AccountOrderHistoryModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resolveOgrMock.mockResolvedValue('line-ogr');
+    ensureRlaMock.mockResolvedValue({
+      gate: 'allow',
+      data: { id: 'rla-ogr', relationshipStatus: 'opened' },
+      error: null,
+    });
+    fetchLineMetaMock.mockResolvedValue({
+      data: { code: 'ogr', status: 'active', defaultCurrency: 'CAD' },
+      error: null,
+    });
     insertOrderMock.mockResolvedValue({ data: { id: 'ord-new' }, error: null });
     fetchSettingsMock.mockResolvedValue({
       data: {
@@ -162,10 +184,12 @@ describe('AccountOrderHistoryModal', () => {
         expect.objectContaining({
           account_id: 42,
           line_id: 'line-ogr',
+          retailer_line_account_id: 'rla-ogr',
           order_type: 'reorder',
           status: 'submitted',
           total_amount_cad: 500,
         }),
+        expect.objectContaining({ writesEnabled: true, lineCode: 'ogr' }),
       );
     });
 
@@ -175,6 +199,7 @@ describe('AccountOrderHistoryModal', () => {
       next_suggested_contact_date: '2026-09-01',
       seasonal_cadence_tags: ['fathers_day'],
       ai_reorder_notes: 'keep me',
+      retailer_line_account_id: 'rla-ogr',
     });
     expect(onOrderSaved).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();

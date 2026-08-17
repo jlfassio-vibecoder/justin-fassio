@@ -1,4 +1,7 @@
 import { supabase } from '@/lib/supabase';
+import { resolveOgrLineId, resolveWriteSalesLineId } from '@/lib/lines';
+import { accountStatusFromRelationship } from '@/lib/ogrCommercial';
+import { ensureRetailerLineAccount } from '@/lib/retailerLineAccounts';
 import type {
   AccountContact as AccountContactRow,
   AccountContactInsert,
@@ -140,10 +143,12 @@ export async function fetchAllContacts(options: FetchAllContactsOptions = {}): P
   let allowedContactIds: Set<string> | null = null;
   let allowedAccountIds: Set<number> | null = null;
 
+  let statusByRetailer = new Map<number, AccountStatus>();
+
   if (options.salesLineId) {
     const { data: rlaRows, error: rlaError } = await supabase
       .from('retailer_line_accounts')
-      .select('id, retailer_id')
+      .select('id, retailer_id, relationship_status')
       .eq('sales_line_id', options.salesLineId)
       .neq('relationship_status', 'terminated');
 
@@ -153,6 +158,9 @@ export async function fetchAllContacts(options: FetchAllContactsOptions = {}): P
 
     const lineAccountIds = (rlaRows ?? []).map((r) => r.id);
     allowedAccountIds = new Set((rlaRows ?? []).map((r) => r.retailer_id));
+    for (const row of rlaRows ?? []) {
+      statusByRetailer.set(row.retailer_id, accountStatusFromRelationship(row.relationship_status));
+    }
 
     if (lineAccountIds.length === 0) {
       return { data: [], error: null };
@@ -202,8 +210,22 @@ export async function fetchAllContacts(options: FetchAllContactsOptions = {}): P
     return { data: [], error: prospectError.message };
   }
 
+  if (!options.salesLineId) {
+    const overlay = await fetchRelationshipStatusByRetailer(
+      (await resolveOgrLineId()) ?? '',
+      accountIds,
+    );
+    if (overlay.error) {
+      return { data: [], error: overlay.error };
+    }
+    statusByRetailer = overlay.data;
+  }
+
   return {
-    data: enrichContactsForDirectory(contacts, (prospects ?? []) as ProspectContactJoin[]),
+    data: overlayContactAccountStatus(
+      enrichContactsForDirectory(contacts, (prospects ?? []) as ProspectContactJoin[]),
+      statusByRetailer,
+    ),
     error: null,
   };
 }
@@ -264,28 +286,65 @@ export async function searchContactsByName(
     };
   });
 
-  return { data: hits, error: null };
+  const overlay = await fetchRelationshipStatusByRetailer(
+    (await resolveOgrLineId()) ?? '',
+    accountIds,
+  );
+  if (overlay.error) {
+    return { data: [], error: overlay.error };
+  }
+
+  return { data: overlayContactAccountStatus(hits, overlay.data), error: null };
+}
+
+function overlayContactAccountStatus<T extends { accountId: number; accountStatus: AccountStatus }>(
+  rows: T[],
+  statusByRetailer: Map<number, AccountStatus>,
+): T[] {
+  if (statusByRetailer.size === 0) return rows;
+  return rows.map((row) => {
+    const overlaid = statusByRetailer.get(row.accountId);
+    return overlaid ? { ...row, accountStatus: overlaid } : row;
+  });
+}
+
+async function fetchRelationshipStatusByRetailer(
+  salesLineId: string,
+  retailerIds: number[],
+): Promise<{ data: Map<number, AccountStatus>; error: string | null }> {
+  const map = new Map<number, AccountStatus>();
+  if (!salesLineId || retailerIds.length === 0) return { data: map, error: null };
+  const { data, error } = await supabase
+    .from('retailer_line_accounts')
+    .select('retailer_id, relationship_status')
+    .eq('sales_line_id', salesLineId)
+    .in('retailer_id', retailerIds)
+    .neq('relationship_status', 'terminated');
+  if (error) return { data: map, error: error.message };
+  for (const row of data ?? []) {
+    map.set(row.retailer_id, accountStatusFromRelationship(row.relationship_status));
+  }
+  return { data: map, error: null };
 }
 
 async function maybeUpsertLineContactJunction(
   contact: AccountContact,
   options?: { writesEnabled?: boolean; salesLineId?: string | null },
 ): Promise<string | null> {
-  if (!options?.writesEnabled || !options.salesLineId) return null;
+  const salesLineId = await resolveWriteSalesLineId(options?.salesLineId);
+  if (!salesLineId) return 'OGR sales line not found';
 
-  const { data: rla, error: rlaError } = await supabase
-    .from('retailer_line_accounts')
-    .select('id')
-    .eq('retailer_id', contact.accountId)
-    .eq('sales_line_id', options.salesLineId)
-    .neq('relationship_status', 'terminated')
-    .maybeSingle();
-  if (rlaError) return rlaError.message;
-  if (!rla) return 'Line account not found';
+  const ensured = await ensureRetailerLineAccount({
+    retailerId: contact.accountId,
+    salesLineId,
+  });
+  if (ensured.gate === 'reject' || ensured.error || !ensured.data) {
+    return ensured.error ?? 'Line account not found';
+  }
 
   const { error } = await supabase.from('retailer_line_contacts').upsert(
     {
-      retailer_line_account_id: rla.id,
+      retailer_line_account_id: ensured.data.id,
       account_contact_id: contact.id,
       role: contact.role,
       is_primary: contact.isPrimary,

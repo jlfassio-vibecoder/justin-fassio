@@ -5,26 +5,14 @@ import {
   isConversionOutcome,
 } from '@/lib/convertToActiveAccount';
 
-const updateMock = vi.fn();
-const eqMock = vi.fn();
 const insertOrderMock = vi.fn();
 const upsertSettingsMock = vi.fn();
-
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    from: (table: string) => {
-      if (table !== 'prospects') {
-        throw new Error(`Unexpected table: ${table}`);
-      }
-      return {
-        update: (row: unknown) => {
-          updateMock(row);
-          return { eq: eqMock };
-        },
-      };
-    },
-  },
-}));
+const resolveWriteMock = vi.fn();
+const ensureMock = vi.fn();
+const fetchMetaMock = vi.fn();
+const fetchOperationalMock = vi.fn();
+const updateStatusMock = vi.fn();
+const recordAttributionMock = vi.fn();
 
 vi.mock('@/lib/orders', () => ({
   insertOrder: (...args: unknown[]) => insertOrderMock(...args),
@@ -35,7 +23,18 @@ vi.mock('@/lib/accountReorderSettings', () => ({
 }));
 
 vi.mock('@/lib/outreachAttribution', () => ({
-  recordConversionAttribution: vi.fn(async () => ({ ok: true, id: 'attr-1' })),
+  recordConversionAttribution: (...args: unknown[]) => recordAttributionMock(...args),
+}));
+
+vi.mock('@/lib/lines', () => ({
+  resolveWriteSalesLineId: (...args: unknown[]) => resolveWriteMock(...args),
+}));
+
+vi.mock('@/lib/retailerLineAccounts', () => ({
+  ensureRetailerLineAccount: (...args: unknown[]) => ensureMock(...args),
+  fetchLineWriteMeta: (...args: unknown[]) => fetchMetaMock(...args),
+  fetchOperationalLineAccount: (...args: unknown[]) => fetchOperationalMock(...args),
+  updateRetailerLineAccountStatus: (...args: unknown[]) => updateStatusMock(...args),
 }));
 
 describe('isConversionOutcome', () => {
@@ -49,23 +48,39 @@ describe('isConversionOutcome', () => {
 describe('convertToActiveAccount', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    eqMock.mockResolvedValue({ error: null });
+    resolveWriteMock.mockResolvedValue('line-ogr');
+    ensureMock.mockResolvedValue({
+      gate: 'allow',
+      data: { id: 'rla-1', relationshipStatus: 'prospect' },
+      error: null,
+    });
+    fetchMetaMock.mockResolvedValue({
+      data: { code: 'ogr', status: 'active', defaultCurrency: 'CAD' },
+      error: null,
+    });
+    updateStatusMock.mockResolvedValue({ error: null });
     insertOrderMock.mockResolvedValue({ data: { id: 'ord-1' }, error: null });
     upsertSettingsMock.mockResolvedValue({ data: { account_id: 1 }, error: null });
+    recordAttributionMock.mockResolvedValue({ ok: true, id: 'attr-1' });
   });
 
-  it('short-circuits when already an active account', async () => {
+  it('short-circuits when already an opened line account', async () => {
+    ensureMock.mockResolvedValue({
+      gate: 'allow',
+      data: { id: 'rla-1', relationshipStatus: 'opened' },
+      error: null,
+    });
     const result = await convertToActiveAccount({
       accountId: 1,
       currentStatus: 'active_account',
     });
 
     expect(result).toEqual({ ok: true, alreadyActive: true });
-    expect(updateMock).not.toHaveBeenCalled();
+    expect(updateStatusMock).not.toHaveBeenCalled();
     expect(insertOrderMock).not.toHaveBeenCalled();
   });
 
-  it('updates prospect, inserts initial order, and upserts reorder settings', async () => {
+  it('updates RLA, inserts initial order, and upserts reorder settings', async () => {
     const result = await convertToActiveAccount({
       accountId: 42,
       currentStatus: 'prospect',
@@ -79,26 +94,30 @@ describe('convertToActiveAccount', () => {
     });
 
     expect(result).toEqual(expect.objectContaining({ ok: true, alreadyActive: false }));
-    expect(updateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        account_status: 'active_account',
-        initial_order_date: '2026-08-02T12:00:00.000Z',
-      }),
-    );
-    expect(eqMock).toHaveBeenCalledWith('id', 42);
-    expect(insertOrderMock).toHaveBeenCalledWith({
-      account_id: 42,
-      line_id: 'line-ogr',
-      order_type: 'initial',
-      season: 'fathers_day',
-      order_date: '2026-08-02',
-      total_amount_cad: 1500,
-      status: 'submitted',
-      notes: 'Opening write',
+    expect(updateStatusMock).toHaveBeenCalledWith({
+      lineAccountId: 'rla-1',
+      relationshipStatus: 'opened',
+      convertedAt: expect.any(String),
+      initialOrderDate: '2026-08-02T12:00:00.000Z',
     });
+    expect(insertOrderMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        account_id: 42,
+        line_id: 'line-ogr',
+        retailer_line_account_id: 'rla-1',
+        order_type: 'initial',
+        season: 'fathers_day',
+        order_date: '2026-08-02',
+        total_amount_cad: 1500,
+        status: 'submitted',
+        notes: 'Opening write',
+      }),
+      expect.objectContaining({ writesEnabled: true, lineCode: 'ogr' }),
+    );
     expect(upsertSettingsMock).toHaveBeenCalledWith({
       account_id: 42,
       last_order_date: '2026-08-02',
+      retailer_line_account_id: 'rla-1',
     });
   });
 
@@ -109,21 +128,22 @@ describe('convertToActiveAccount', () => {
     });
 
     expect(result).toEqual(expect.objectContaining({ ok: true, alreadyActive: false }));
-    expect(updateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        account_status: 'active_account',
-        initial_order_date: null,
-      }),
-    );
+    expect(updateStatusMock).toHaveBeenCalledWith({
+      lineAccountId: 'rla-1',
+      relationshipStatus: 'opened',
+      convertedAt: expect.any(String),
+      initialOrderDate: null,
+    });
     expect(insertOrderMock).not.toHaveBeenCalled();
     expect(upsertSettingsMock).toHaveBeenCalledWith({
       account_id: 7,
       last_order_date: null,
+      retailer_line_account_id: 'rla-1',
     });
   });
 
-  it('returns an error when the prospect update fails', async () => {
-    eqMock.mockResolvedValue({ error: { message: 'rls blocked' } });
+  it('returns an error when the RLA update fails', async () => {
+    updateStatusMock.mockResolvedValue({ error: 'rls blocked' });
 
     const result = await convertToActiveAccount({
       accountId: 1,
@@ -154,35 +174,48 @@ describe('convertToActiveAccount', () => {
 describe('demoteToProspect', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    eqMock.mockResolvedValue({ error: null });
+    resolveWriteMock.mockResolvedValue('line-ogr');
+    fetchMetaMock.mockResolvedValue({
+      data: { code: 'ogr', status: 'active', defaultCurrency: 'CAD' },
+      error: null,
+    });
+    fetchOperationalMock.mockResolvedValue({
+      data: { id: 'rla-1', relationshipStatus: 'opened' },
+      error: null,
+    });
+    updateStatusMock.mockResolvedValue({ error: null });
   });
 
-  it('short-circuits when not an active account', async () => {
+  it('short-circuits when not an opened line account', async () => {
+    fetchOperationalMock.mockResolvedValue({
+      data: { id: 'rla-1', relationshipStatus: 'prospect' },
+      error: null,
+    });
     const result = await demoteToProspect({
       accountId: 1,
       currentStatus: 'prospect',
     });
 
     expect(result).toEqual({ ok: true, alreadyProspect: true });
-    expect(updateMock).not.toHaveBeenCalled();
+    expect(updateStatusMock).not.toHaveBeenCalled();
   });
 
-  it('sets status to prospect and clears converted_at', async () => {
+  it('sets RLA status to prospect and clears converted_at', async () => {
     const result = await demoteToProspect({
       accountId: 42,
       currentStatus: 'active_account',
     });
 
     expect(result).toEqual({ ok: true, alreadyProspect: false });
-    expect(updateMock).toHaveBeenCalledWith({
-      account_status: 'prospect',
-      converted_at: null,
+    expect(updateStatusMock).toHaveBeenCalledWith({
+      lineAccountId: 'rla-1',
+      relationshipStatus: 'prospect',
+      convertedAt: null,
     });
-    expect(eqMock).toHaveBeenCalledWith('id', 42);
   });
 
   it('returns an error when the update fails', async () => {
-    eqMock.mockResolvedValue({ error: { message: 'rls blocked' } });
+    updateStatusMock.mockResolvedValue({ error: 'rls blocked' });
 
     const result = await demoteToProspect({
       accountId: 1,

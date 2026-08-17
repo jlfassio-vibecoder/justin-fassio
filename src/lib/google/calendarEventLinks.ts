@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
+import { partitionCrmRowsForSalesLine } from '@/lib/crmLineage';
 import { isUuid } from '@/lib/resolveSalesLineQuery';
 
 type Client = SupabaseClient<Database>;
@@ -85,8 +86,8 @@ export async function listConfirmedCalendarLinksForProspect(params: {
   client: Client;
   prospectId: number;
   limit?: number;
+  salesLineId?: string | null;
 }): Promise<CalendarEventLinkRow[]> {
-  // Copilot suggestion ignored: keep prospect-scoped listing like Gmail Phase D (drawer shows all confirmed CRM links).
   const limit = Math.min(Math.max(params.limit ?? 25, 1), 50);
   const { data, error } = await params.client
     .from('calendar_event_links')
@@ -96,7 +97,43 @@ export async function listConfirmedCalendarLinksForProspect(params: {
     .order('start_at', { ascending: false, nullsFirst: false })
     .limit(limit);
   if (error) throw new CalendarEventLinkError(error.message);
-  return data ?? [];
+  const rows = data ?? [];
+  const salesLineId = params.salesLineId?.trim() || null;
+  if (!salesLineId) return rows;
+
+  const rlaIds = [
+    ...new Set(
+      rows.map((row) => row.retailer_line_account_id).filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const rlaSalesLineById = new Map<string, string>();
+  if (rlaIds.length > 0) {
+    const { data: rlas, error: rlaError } = await params.client
+      .from('retailer_line_accounts')
+      .select('id, sales_line_id')
+      .in('id', rlaIds);
+    if (rlaError) throw new CalendarEventLinkError(rlaError.message);
+    for (const rla of rlas ?? []) {
+      rlaSalesLineById.set(rla.id, rla.sales_line_id);
+    }
+  }
+  const { data: ogr } = await params.client
+    .from('lines')
+    .select('id')
+    .eq('code', 'ogr')
+    .maybeSingle();
+  const partitioned = partitionCrmRowsForSalesLine(
+    rows.map((row) => ({
+      id: row.id,
+      salesLineId: null,
+      retailerLineAccountId: row.retailer_line_account_id,
+    })),
+    rlaSalesLineById,
+    salesLineId,
+    ogr?.id ?? null,
+  );
+  const visibleIds = new Set(partitioned.visible.map((item) => item.id));
+  return rows.filter((row) => visibleIds.has(row.id));
 }
 
 export async function upsertConfirmedCalendarEventLink(params: {
