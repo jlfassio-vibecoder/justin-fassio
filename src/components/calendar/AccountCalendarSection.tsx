@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { useOptionalLineContext } from '@/lib/lineContext';
 import {
   listCalendarLinksForProspectClient,
   unlinkCalendarEventClient,
@@ -33,6 +34,8 @@ export function AccountCalendarSection({
   onScheduleMeeting,
   refreshKey = 0,
 }: AccountCalendarSectionProps) {
+  const line = useOptionalLineContext();
+  const salesLineId = line.multiLineUi ? line.salesLineId : null;
   const [links, setLinks] = useState<CalendarEventLinkPublic[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +45,7 @@ export function AccountCalendarSection({
     let active = true;
     void (async () => {
       setLoading(true);
-      const result = await listCalendarLinksForProspectClient(prospectId);
+      const result = await listCalendarLinksForProspectClient(prospectId, salesLineId);
       if (!active) return;
       if (!result.ok) {
         setLinks([]);
@@ -57,7 +60,7 @@ export function AccountCalendarSection({
     return () => {
       active = false;
     };
-  }, [prospectId, refreshKey]);
+  }, [prospectId, refreshKey, salesLineId]);
 
   async function handleUnlink(link: CalendarEventLinkPublic) {
     setBusyId(link.id);

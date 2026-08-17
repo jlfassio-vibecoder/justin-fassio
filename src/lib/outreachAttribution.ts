@@ -337,10 +337,19 @@ export async function backfillRecentConversionAttribution(params: {
   const startDate = addCalendarDaysIso(today, -lookbackDays);
   const startIso = `${startDate}T00:00:00.000Z`;
 
+  const { data: ogr, error: ogrErr } = await client
+    .from('lines')
+    .select('id')
+    .eq('code', 'ogr')
+    .maybeSingle();
+  if (ogrErr) return { ok: false, error: ogrErr.message };
+  if (!ogr) return { ok: false, error: 'OGR sales line not found' };
+
   const { data: converts, error: convErr } = await client
-    .from('prospects')
-    .select('id, converted_at, account_status')
-    .eq('account_status', 'active_account')
+    .from('retailer_line_accounts')
+    .select('retailer_id, converted_at')
+    .eq('sales_line_id', ogr.id)
+    .eq('relationship_status', 'opened')
     .not('converted_at', 'is', null)
     .gte('converted_at', startIso);
   if (convErr) return { ok: false, error: convErr.message };
@@ -357,14 +366,14 @@ export async function backfillRecentConversionAttribution(params: {
   let skipped = 0;
   for (const row of converts ?? []) {
     if (!row.converted_at) continue;
-    const key = `${row.id}|${row.converted_at}`;
+    const key = `${row.retailer_id}|${row.converted_at}`;
     if (existingKeys.has(key)) {
       skipped += 1;
       continue;
     }
     const result = await recordConversionAttribution({
       client,
-      prospectId: row.id,
+      prospectId: row.retailer_id,
       convertedAt: row.converted_at,
       conversionSource: 'manual',
       staffSelectedMessageId: null,
@@ -388,10 +397,18 @@ export async function countMtdActiveAccountConversions(params: {
   monthEndExclusiveIso: string;
 }): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
   const client = params.client ?? supabase;
-  const { data, error } = await client
-    .from('prospects')
+  const { data: ogr, error: ogrErr } = await client
+    .from('lines')
     .select('id')
-    .eq('account_status', 'active_account')
+    .eq('code', 'ogr')
+    .maybeSingle();
+  if (ogrErr) return { ok: false, error: ogrErr.message };
+  if (!ogr) return { ok: false, error: 'OGR sales line not found' };
+  const { data, error } = await client
+    .from('retailer_line_accounts')
+    .select('retailer_id')
+    .eq('sales_line_id', ogr.id)
+    .eq('relationship_status', 'opened')
     .gte('converted_at', params.monthStartIso)
     .lt('converted_at', params.monthEndExclusiveIso);
   if (error) return { ok: false, error: error.message };

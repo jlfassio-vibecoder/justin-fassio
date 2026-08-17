@@ -222,21 +222,27 @@ async function loadRecentConversions(
   client: Client,
   sinceIso: string,
 ): Promise<OutreachBriefingDto['recentConversions']> {
+  const { data: ogr } = await client.from('lines').select('id').eq('code', 'ogr').maybeSingle();
+  if (!ogr) return [];
   const { data, error } = await client
-    .from('prospects')
-    .select('id, name, converted_at')
-    .eq('account_status', 'active_account')
+    .from('retailer_line_accounts')
+    .select('retailer_id, converted_at')
+    .eq('sales_line_id', ogr.id)
+    .eq('relationship_status', 'opened')
     .not('converted_at', 'is', null)
     .gte('converted_at', sinceIso)
     .order('converted_at', { ascending: false })
     .limit(25);
 
   if (error || !data) return [];
+  const ids = data.map((r) => r.retailer_id);
+  const { data: names } = await client.from('prospects').select('id, name').in('id', ids);
+  const nameById = new Map((names ?? []).map((p) => [p.id, p.name]));
   return data
     .filter((r) => r.converted_at)
     .map((r) => ({
-      prospectId: r.id,
-      prospectName: (r.name ?? '').trim() || `Account #${r.id}`,
+      prospectId: r.retailer_id,
+      prospectName: (nameById.get(r.retailer_id) ?? '').trim() || `Account #${r.retailer_id}`,
       convertedAt: r.converted_at as string,
     }));
 }

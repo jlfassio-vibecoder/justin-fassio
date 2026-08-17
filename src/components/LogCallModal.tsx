@@ -14,6 +14,7 @@ import { isConversionOutcome } from '@/lib/convertToActiveAccount';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { OBJECTION_TAGS } from '@/lib/objectionCatalog';
 import type { Prospect } from '@/lib/prospects';
+import { resolveOgrLineId } from '@/lib/lines';
 import { ensureRetailerLineAccount, isStaffSellingUiBlocked } from '@/lib/retailerLineAccounts';
 import { supabase } from '@/lib/supabase';
 import type { CallInsert } from '@/types/database';
@@ -141,10 +142,11 @@ export function LogCallModal({
       notes: notes.trim() || null,
     };
 
-    if (line.multiLineWrites && line.salesLineId) {
+    const salesLineId = line.salesLineId || (await resolveOgrLineId());
+    if (salesLineId) {
       const ensured = await ensureRetailerLineAccount({
         retailerId: storeId,
-        salesLineId: line.salesLineId,
+        salesLineId,
         eaglePeakSellingEnabled: line.eaglePeakSelling,
         bigFishSellingEnabled: line.bigFishSelling,
       });
@@ -152,7 +154,7 @@ export function LogCallModal({
         setError(ensured.error ?? 'Operational writes are not allowed for this line');
         return;
       }
-      row.line_id = line.salesLineId;
+      row.line_id = salesLineId;
       row.retailer_line_account_id = ensured.data.id;
     }
 

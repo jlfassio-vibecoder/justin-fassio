@@ -108,6 +108,83 @@ async function insertContactForAccount(
   return { data: mapAccountContactRow(data as AccountContactRow), error: null };
 }
 
+async function stampLineContactIfNeeded(
+  supabase: AgentSupabase,
+  contact: AccountContact,
+  input: { salesLineId?: string; lineCode?: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (input.lineCode === 'bkg') return { ok: true };
+  let salesLineId = input.salesLineId?.trim() || '';
+  if (!salesLineId) {
+    const { data: ogr, error } = await supabase
+      .from('lines')
+      .select('id')
+      .eq('code', 'ogr')
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    if (!ogr) return { ok: false, error: 'OGR sales line not found' };
+    salesLineId = ogr.id;
+  }
+
+  let lineAccountId: string | null;
+  const { data: existing, error: rlaError } = await supabase
+    .from('retailer_line_accounts')
+    .select('id')
+    .eq('retailer_id', contact.accountId)
+    .eq('sales_line_id', salesLineId)
+    .neq('relationship_status', 'terminated')
+    .maybeSingle();
+  if (rlaError) return { ok: false, error: rlaError.message };
+  if (existing) {
+    lineAccountId = existing.id;
+  } else {
+    const { data: created, error: insertError } = await supabase
+      .from('retailer_line_accounts')
+      .insert({
+        retailer_id: contact.accountId,
+        sales_line_id: salesLineId,
+        relationship_status: 'prospect',
+      })
+      .select('id')
+      .single();
+    if (insertError) {
+      const message = insertError.message.toLowerCase();
+      if (
+        !message.includes('duplicate') &&
+        !message.includes('unique') &&
+        !message.includes('23505')
+      ) {
+        return { ok: false, error: insertError.message };
+      }
+      const { data: retried, error: retryError } = await supabase
+        .from('retailer_line_accounts')
+        .select('id')
+        .eq('retailer_id', contact.accountId)
+        .eq('sales_line_id', salesLineId)
+        .neq('relationship_status', 'terminated')
+        .maybeSingle();
+      if (retryError) return { ok: false, error: retryError.message };
+      lineAccountId = retried?.id ?? null;
+    } else {
+      lineAccountId = created?.id ?? null;
+    }
+  }
+  if (!lineAccountId) return { ok: true };
+
+  const { error: junctionError } = await supabase.from('retailer_line_contacts').upsert(
+    {
+      retailer_line_account_id: lineAccountId,
+      account_contact_id: contact.id,
+      role: contact.role,
+      is_primary: contact.isPrimary,
+      notes: contact.notes,
+    },
+    { onConflict: 'retailer_line_account_id,account_contact_id' },
+  );
+  if (junctionError) return { ok: false, error: junctionError.message };
+  return { ok: true };
+}
+
 /** Fill blank contact fields from a research brief; form values always win. */
 export async function fillContactGapsFromBrief(input: {
   contactName: string;
@@ -216,6 +293,8 @@ export async function createEnrichedContact(
     if (contactResult.error || !contactResult.data) {
       return { ok: false, error: contactResult.error ?? 'Failed to create contact' };
     }
+    const stamped = await stampLineContactIfNeeded(supabase, contactResult.data, input);
+    if (!stamped.ok) return stamped;
 
     return { ok: true, prospect, contact: contactResult.data };
   }
@@ -246,6 +325,8 @@ export async function createEnrichedContact(
   if (contactResult.error || !contactResult.data) {
     return { ok: false, error: contactResult.error ?? 'Failed to create contact' };
   }
+  const stamped = await stampLineContactIfNeeded(supabase, contactResult.data, input);
+  if (!stamped.ok) return stamped;
 
   return { ok: true, prospect, contact: contactResult.data };
 }

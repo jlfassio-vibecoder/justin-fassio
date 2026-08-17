@@ -25,8 +25,10 @@ function query(result: { data: unknown; error: unknown | null }) {
   const self = () => api;
   api.select = vi.fn(self);
   api.insert = vi.fn(self);
+  api.upsert = vi.fn(self);
   api.ilike = vi.fn(self);
   api.eq = vi.fn(self);
+  api.neq = vi.fn(self);
   api.order = vi.fn(self);
   api.limit = vi.fn(self);
   api.maybeSingle = vi.fn(async () => result);
@@ -124,6 +126,15 @@ describe('matchOrCreateWholesaleProspect', () => {
         q.insert = prospectInsert;
         return q;
       }
+      if (table === 'lines') {
+        return query({ data: { id: 'line-ogr' }, error: null });
+      }
+      if (table === 'retailer_line_accounts') {
+        return query({ data: { id: 'rla-ogr' }, error: null });
+      }
+      if (table === 'retailer_line_contacts') {
+        return query({ data: null, error: null });
+      }
       throw new Error(`unexpected table ${table}`);
     });
 
@@ -167,6 +178,15 @@ describe('matchOrCreateWholesaleProspect', () => {
           }),
         }));
         return q;
+      }
+      if (table === 'lines') {
+        return query({ data: { id: 'line-ogr' }, error: null });
+      }
+      if (table === 'retailer_line_accounts') {
+        return query({ data: { id: 'rla-ogr' }, error: null });
+      }
+      if (table === 'retailer_line_contacts') {
+        return query({ data: null, error: null });
       }
       throw new Error(`unexpected table ${table}`);
     });

@@ -5,9 +5,33 @@ const eqMock = vi.fn();
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
-    from: vi.fn(() => ({
-      update: updateMock,
-    })),
+    from: vi.fn((table: string) => {
+      if (table === 'lines') {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: { id: 'line-ogr' }, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === 'retailer_line_accounts') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                neq: () => ({
+                  maybeSingle: async () => ({ data: { id: 'rla-1' }, error: null }),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      return {
+        update: updateMock,
+      };
+    }),
   },
 }));
 
@@ -31,6 +55,7 @@ describe('confirmThreadMapping', () => {
       prospect_id: 42,
       mapping_status: 'confirmed',
       confirmed_fingerprint: 'sam@example.com|store|buyer',
+      retailer_line_account_id: 'rla-1',
     });
     expect(eqMock).toHaveBeenCalledWith('id', 'thread-1');
   });

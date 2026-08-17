@@ -23,6 +23,21 @@ export const prerender = false;
 export const EAGLE_PEAK_OUTREACH_DISABLED = 'Eagle Peak outreach is not enabled';
 export const BIG_FISH_OUTREACH_DISABLED = 'Big Fish outreach is not enabled';
 export const EAGLE_PEAK_CATALOG_EMPTY = 'Catalog is empty for this sales line';
+export const SEED_OUTREACH_LINE_CODES = ['ogr', 'eagle-peak', 'big-fish'] as const;
+
+export function assertRepresentedLineOutreachAllowed(input: {
+  lineCode: string | null | undefined;
+}): { ok: true } | { ok: false; status: 403; error: string } {
+  if (!input.lineCode) return { ok: true };
+  if ((SEED_OUTREACH_LINE_CODES as readonly string[]).includes(input.lineCode)) {
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    status: 403,
+    error: 'Outreach generate is not available for this sales line',
+  };
+}
 
 export function assertEaglePeakGenerateDraftAllowed(input: {
   lineCode: string | null | undefined;
@@ -186,6 +201,13 @@ export const POST: APIRoute = async ({ request }) => {
   }
   if (gated.ctx?.mode === 'research_only') {
     return jsonError('Outreach generate is not available for this sales line', 403);
+  }
+
+  const representedOutreachGate = assertRepresentedLineOutreachAllowed({
+    lineCode: gated.ctx?.code,
+  });
+  if (!representedOutreachGate.ok) {
+    return jsonError(representedOutreachGate.error, representedOutreachGate.status);
   }
 
   const outreachGate = assertEaglePeakGenerateDraftAllowed({

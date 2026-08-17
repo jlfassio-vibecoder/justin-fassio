@@ -23,7 +23,7 @@ import {
   RESERVED_LINE_CODES,
   warnedAtSoftCap,
 } from '@/lib/prospectiveLines';
-import { isRepresentedLineCode, REPRESENTED_LINE_CODES } from '@/lib/lines';
+import { isRepresentedLineCode, isRepresentedLineStatus } from '@/lib/lines';
 import {
   getStaffFeatureFlags,
   isProspectiveLinesEnabled,
@@ -462,12 +462,12 @@ describe('Phase 8 targets, promote, and selling refuse', () => {
 });
 
 describe('Phase 8 picker, prep, and public surfaces stay unchanged', () => {
-  it('fetchRepresentedLines / REPRESENTED_LINE_CODES still three codes', () => {
-    expect([...REPRESENTED_LINE_CODES].sort()).toEqual(['big-fish', 'eagle-peak', 'ogr']);
+  it('fetchRepresentedLines is status-based and excludes bkg / prospective codes', () => {
+    expect(isRepresentedLineStatus('confirmed', 'north-cedar')).toBe(true);
     expect(isRepresentedLineCode('north-cedar')).toBe(false);
     expect(isRepresentedLineCode('bkg')).toBe(false);
     const lines = readFileSync(resolve(root, 'src/lib/lines.ts'), 'utf8');
-    expect(lines).toMatch(/REPRESENTED_LINE_CODES/);
+    expect(lines).toMatch(/isRepresentedLineStatus/);
     expect(lines).not.toMatch(/FEATURE_PROSPECTIVE_LINES/);
   });
 

@@ -55,6 +55,38 @@ function mockSupabase(handlers: {
         }),
       };
     }
+    if (table === 'lines') {
+      return {
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({ data: { id: 'line-ogr' }, error: null }),
+          }),
+        }),
+      };
+    }
+    if (table === 'retailer_line_accounts') {
+      return {
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              neq: () => ({
+                maybeSingle: async () => ({ data: { id: 'rla-1' }, error: null }),
+              }),
+            }),
+          }),
+        }),
+        insert: () => ({
+          select: () => ({
+            single: async () => ({ data: { id: 'rla-1' }, error: null }),
+          }),
+        }),
+      };
+    }
+    if (table === 'retailer_line_contacts') {
+      return {
+        upsert: async () => ({ error: null }),
+      };
+    }
     return {};
   });
 

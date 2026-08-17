@@ -89,6 +89,12 @@ function mockSelectClient(opts: {
     if (table === 'lines') {
       return chain({ data: { id: lineId }, error: null });
     }
+    if (table === 'retailer_line_accounts') {
+      return chain({
+        data: (opts.prospects ?? []).map((p) => ({ retailer_id: (p as { id: number }).id })),
+        error: null,
+      });
+    }
     if (table === 'catalog_items') {
       return chain({ data: opts.catalogItems ?? [], error: null });
     }

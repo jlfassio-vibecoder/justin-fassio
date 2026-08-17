@@ -90,6 +90,29 @@ describe('accountContacts', () => {
       if (table === 'prospects') {
         return { select: prospectSelect } as never;
       }
+      if (table === 'lines') {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: { id: 'line-ogr' }, error: null }),
+            }),
+          }),
+        } as never;
+      }
+      if (table === 'retailer_line_accounts') {
+        return {
+          select: () => ({
+            eq: () => ({
+              in: () => ({
+                neq: async () => ({
+                  data: [{ retailer_id: 12, relationship_status: 'opened' }],
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        } as never;
+      }
       throw new Error(`unexpected table ${table}`);
     });
 

@@ -4,6 +4,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { accountStatusFromRelationship } from '@/lib/ogrCommercial';
 import type { AccountStatus, Database } from '@/types/database';
 import {
   aggregateProspectOutreachEngagement,
@@ -143,10 +144,25 @@ async function loadProspectMeta(
     .select('id, name, account_status')
     .in('id', prospectIds);
   if (error) throw new Error(error.message);
+
+  const { data: ogr } = await client.from('lines').select('id').eq('code', 'ogr').maybeSingle();
+  const rlaStatus = new Map<number, AccountStatus>();
+  if (ogr) {
+    const { data: rlas, error: rlaError } = await client
+      .from('retailer_line_accounts')
+      .select('retailer_id, relationship_status')
+      .eq('sales_line_id', ogr.id)
+      .in('retailer_id', prospectIds);
+    if (rlaError) throw new Error(rlaError.message);
+    for (const row of rlas ?? []) {
+      rlaStatus.set(row.retailer_id, accountStatusFromRelationship(row.relationship_status));
+    }
+  }
+
   for (const row of data ?? []) {
     out.set(row.id, {
       name: row.name,
-      accountStatus: row.account_status as AccountStatus,
+      accountStatus: rlaStatus.get(row.id) ?? (row.account_status as AccountStatus),
     });
   }
   return out;
@@ -220,9 +236,15 @@ export async function getOutreachLeadForProspect(params: {
     };
   }
 
+  const { data: ogrLine } = await params.client
+    .from('lines')
+    .select('id')
+    .eq('code', 'ogr')
+    .maybeSingle();
   const confirmedLinks = await listConfirmedLinksForProspect({
     client: params.client,
     prospectId: params.prospectId,
+    salesLineId: ogrLine?.id ?? null,
   });
   const reply = attributeConfirmedReply({
     messages,

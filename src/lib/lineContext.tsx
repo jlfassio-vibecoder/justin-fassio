@@ -13,7 +13,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { fetchRepresentedLines, isRepresentedLineCode, type LinePortfolio } from '@/lib/lines';
+import { fetchRepresentedLines, type LinePortfolio } from '@/lib/lines';
 import { persistLastLineSlug, readLastLineSlug } from '@/lib/lineContextStorage';
 import type { LineKey } from '@/types';
 import type { LineStatus } from '@/types/database';
@@ -51,7 +51,7 @@ const LineContext = createContext<LineContextValue | null>(null);
 
 function initialSlug(multiLineUi: boolean, urlLineSlug: string | null): LineKey | null {
   if (!multiLineUi) return null;
-  if (urlLineSlug && isRepresentedLineCode(urlLineSlug)) return urlLineSlug;
+  if (urlLineSlug?.trim()) return urlLineSlug.trim().toLowerCase();
   return readLastLineSlug() ?? 'ogr';
 }
 
@@ -91,14 +91,12 @@ export function LineProvider({
   // URL slug is source of truth.
   // Copilot suggestion ignored: syncing via useEffect trips react-hooks/set-state-in-effect; render-time prop sync matches RepCommandCenter deep-link pattern.
   const urlNormalized = urlLineSlug?.trim().toLowerCase() ?? null;
-  if (
-    multiLineUi &&
-    urlNormalized &&
-    isRepresentedLineCode(urlNormalized) &&
-    selectedSlug !== urlNormalized
-  ) {
-    setSelectedSlug(urlNormalized);
-    persistLastLineSlug(urlNormalized);
+  if (multiLineUi && urlNormalized && selectedSlug !== urlNormalized) {
+    const known = representedLines.some((line) => line.code === urlNormalized);
+    if (known) {
+      setSelectedSlug(urlNormalized);
+      persistLastLineSlug(urlNormalized);
+    }
   }
 
   useEffect(() => {
@@ -121,7 +119,10 @@ export function LineProvider({
   }, [multiLineUi]);
 
   const unknownLine = Boolean(
-    multiLineUi && urlNormalized && !isRepresentedLineCode(urlNormalized),
+    multiLineUi &&
+    urlNormalized &&
+    !linesLoading &&
+    !representedLines.some((line) => line.code === urlNormalized),
   );
 
   const current = useMemo(() => {

@@ -123,12 +123,23 @@ async function stampLineAccountIfNeeded(
   input: CreateEnrichedProspectInput,
   prospectId: number,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!input.salesLineId || input.lineCode === 'bkg') {
+  if (input.lineCode === 'bkg') {
     return { ok: true };
+  }
+  let salesLineId = input.salesLineId?.trim() || '';
+  if (!salesLineId) {
+    const { data: ogr, error } = await supabase
+      .from('lines')
+      .select('id')
+      .eq('code', 'ogr')
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    if (!ogr) return { ok: false, error: 'OGR sales line not found' };
+    salesLineId = ogr.id;
   }
   const { error } = await supabase.from('retailer_line_accounts').insert({
     retailer_id: prospectId,
-    sales_line_id: input.salesLineId,
+    sales_line_id: salesLineId,
     relationship_status: 'prospect',
   });
   if (error && !isUniqueViolation(error.message)) {
@@ -215,17 +226,55 @@ async function insertBuyerContact(
   const fullName = input.contactName?.trim();
   if (!fullName) return { ok: true };
 
-  const { error } = await supabase.from('account_contacts').insert({
-    account_id: prospectId,
-    role: 'buyer',
-    full_name: fullName,
-    phone: input.phone?.trim() || null,
-    email: input.email?.trim().toLowerCase() || null,
-    is_primary: true,
-    notes: 'Inbound / Add via AI',
-  });
+  const { data: contact, error } = await supabase
+    .from('account_contacts')
+    .insert({
+      account_id: prospectId,
+      role: 'buyer',
+      full_name: fullName,
+      phone: input.phone?.trim() || null,
+      email: input.email?.trim().toLowerCase() || null,
+      is_primary: true,
+      notes: 'Inbound / Add via AI',
+    })
+    .select('id')
+    .single();
 
-  if (error) return { ok: false, error: error.message };
+  if (error || !contact) return { ok: false, error: error?.message ?? 'Failed to create contact' };
+
+  let salesLineId = input.salesLineId?.trim() || '';
+  if (!salesLineId && input.lineCode !== 'bkg') {
+    const { data: ogr, error: ogrError } = await supabase
+      .from('lines')
+      .select('id')
+      .eq('code', 'ogr')
+      .maybeSingle();
+    if (ogrError) return { ok: false, error: ogrError.message };
+    salesLineId = ogr?.id ?? '';
+  }
+  if (!salesLineId) return { ok: true };
+
+  const { data: rla, error: rlaError } = await supabase
+    .from('retailer_line_accounts')
+    .select('id')
+    .eq('retailer_id', prospectId)
+    .eq('sales_line_id', salesLineId)
+    .neq('relationship_status', 'terminated')
+    .maybeSingle();
+  if (rlaError) return { ok: false, error: rlaError.message };
+  if (!rla) return { ok: true };
+
+  const { error: junctionError } = await supabase.from('retailer_line_contacts').upsert(
+    {
+      retailer_line_account_id: rla.id,
+      account_contact_id: contact.id,
+      role: 'buyer',
+      is_primary: true,
+      notes: 'Inbound / Add via AI',
+    },
+    { onConflict: 'retailer_line_account_id,account_contact_id' },
+  );
+  if (junctionError) return { ok: false, error: junctionError.message };
   return { ok: true };
 }
 

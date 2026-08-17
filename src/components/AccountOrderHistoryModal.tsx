@@ -131,10 +131,11 @@ function OrderHistoryForm({
     setBusy(true);
 
     let orderResult;
-    if (line.multiLineWrites && line.salesLineId) {
+    const salesLineId = line.salesLineId || (await resolveOgrLineId());
+    if (salesLineId) {
       const ensured = await ensureRetailerLineAccount({
         retailerId: account.id,
-        salesLineId: line.salesLineId,
+        salesLineId,
         eaglePeakSellingEnabled: line.eaglePeakSelling,
         bigFishSellingEnabled: line.bigFishSelling,
       });
@@ -143,11 +144,11 @@ function OrderHistoryForm({
         setError(ensured.error ?? 'Operational writes are not allowed for this line');
         return;
       }
-      const meta = await fetchLineWriteMeta(line.salesLineId);
+      const meta = await fetchLineWriteMeta(salesLineId);
       orderResult = await insertOrder(
         {
           account_id: account.id,
-          line_id: line.salesLineId,
+          line_id: salesLineId,
           retailer_line_account_id: ensured.data.id,
           order_type: orderType,
           season,

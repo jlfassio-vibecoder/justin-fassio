@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase';
+import { resolveOgrLineId, resolveWriteSalesLineId } from '@/lib/lines';
+import { accountStatusFromRelationship } from '@/lib/ogrCommercial';
 import type { AccountStatus, ProspectRow, RelationshipStatus } from '@/types/database';
 import {
   clampSecondaryChannels,
@@ -175,68 +177,107 @@ export function mapProspectRow(row: ProspectListRow): Prospect {
   };
 }
 
+type RlaCommercial = {
+  relationshipStatus: RelationshipStatus;
+  convertedAt: string | null;
+  initialOrderDate: string | null;
+};
+
+function overlayProspectCommercial(prospect: Prospect, rla: RlaCommercial | undefined): Prospect {
+  if (!rla) return prospect;
+  return {
+    ...prospect,
+    accountStatus: accountStatusFromRelationship(rla.relationshipStatus),
+    convertedAt: rla.convertedAt,
+    initialOrderDate: rla.initialOrderDate,
+    lineRelationshipStatus: rla.relationshipStatus,
+  };
+}
+
+async function fetchRlaCommercialByRetailer(
+  salesLineId: string,
+): Promise<{ data: Map<number, RlaCommercial>; error: string | null }> {
+  const { data, error } = await supabase
+    .from('retailer_line_accounts')
+    .select('retailer_id, relationship_status, converted_at, initial_order_date')
+    .eq('sales_line_id', salesLineId)
+    .neq('relationship_status', 'terminated');
+
+  if (error) {
+    return { data: new Map(), error: error.message };
+  }
+
+  const map = new Map<number, RlaCommercial>();
+  for (const row of data ?? []) {
+    if (!Number.isFinite(row.retailer_id)) continue;
+    map.set(row.retailer_id, {
+      relationshipStatus: row.relationship_status as RelationshipStatus,
+      convertedAt: row.converted_at,
+      initialOrderDate: row.initial_order_date,
+    });
+  }
+  return { data: map, error: null };
+}
+
 export async function fetchProspects(options: FetchProspectsOptions = {}): Promise<{
   data: Prospect[];
   error: string | null;
 }> {
-  if (options.salesLineId) {
-    const { data: rlaRows, error: rlaError } = await supabase
-      .from('retailer_line_accounts')
-      .select('retailer_id, relationship_status')
-      .eq('sales_line_id', options.salesLineId)
-      .neq('relationship_status', 'terminated');
-
-    if (rlaError) {
-      return { data: [], error: rlaError.message };
+  const requestedLineId = options.salesLineId?.trim() || null;
+  const overlayLineId = requestedLineId ?? (await resolveOgrLineId());
+  if (requestedLineId) {
+    const commercial = await fetchRlaCommercialByRetailer(requestedLineId);
+    if (commercial.error) {
+      return { data: [], error: commercial.error };
     }
-
-    const statusByRetailer = new Map<number, RelationshipStatus>();
-    for (const row of rlaRows ?? []) {
-      if (Number.isFinite(row.retailer_id)) {
-        statusByRetailer.set(row.retailer_id, row.relationship_status as RelationshipStatus);
-      }
-    }
-    const retailerIds = [...statusByRetailer.keys()];
+    const retailerIds = [...commercial.data.keys()];
     if (retailerIds.length === 0) {
       return { data: [], error: null };
     }
 
-    let scoped = supabase
+    const { data, error } = await supabase
       .from('prospects')
       .select(PROSPECT_SELECT)
       .in('id', retailerIds)
       .order('id', { ascending: true });
 
-    if (options.accountStatus) {
-      scoped = scoped.eq('account_status', options.accountStatus);
-    }
-
-    const { data, error } = await scoped;
     if (error) {
       return { data: [], error: error.message };
     }
-    return {
-      data: (data ?? []).map((row) => ({
-        ...mapProspectRow(row),
-        lineRelationshipStatus: statusByRetailer.get(row.id) ?? null,
-      })),
-      error: null,
-    };
+    let rows = (data ?? []).map((row) =>
+      overlayProspectCommercial(mapProspectRow(row), commercial.data.get(row.id)),
+    );
+    if (options.accountStatus) {
+      rows = rows.filter((row) => row.accountStatus === options.accountStatus);
+    }
+    return { data: rows, error: null };
   }
 
-  let query = supabase.from('prospects').select(PROSPECT_SELECT).order('id', { ascending: true });
-
-  if (options.accountStatus) {
-    query = query.eq('account_status', options.accountStatus);
-  }
-
-  const { data, error } = await query;
+  const { data, error } = await supabase
+    .from('prospects')
+    .select(PROSPECT_SELECT)
+    .order('id', { ascending: true });
 
   if (error) {
     return { data: [], error: error.message };
   }
 
-  return { data: (data ?? []).map(mapProspectRow), error: null };
+  let commercial = new Map<number, RlaCommercial>();
+  if (overlayLineId) {
+    const overlay = await fetchRlaCommercialByRetailer(overlayLineId);
+    if (overlay.error) {
+      return { data: [], error: overlay.error };
+    }
+    commercial = overlay.data;
+  }
+
+  let rows = (data ?? []).map((row) =>
+    overlayProspectCommercial(mapProspectRow(row), commercial.get(row.id)),
+  );
+  if (options.accountStatus) {
+    rows = rows.filter((row) => row.accountStatus === options.accountStatus);
+  }
+  return { data: rows, error: null };
 }
 
 export async function updateProspectNotes(
@@ -244,9 +285,8 @@ export async function updateProspectNotes(
   notes: string | null,
   options?: { writesEnabled?: boolean; salesLineId?: string | null },
 ): Promise<{ data: Prospect | null; error: string | null }> {
-  const writesOn = Boolean(options?.writesEnabled && options.salesLineId);
-  if (writesOn && options?.salesLineId) {
-    const salesLineId = options.salesLineId;
+  const salesLineId = await resolveWriteSalesLineId(options?.salesLineId);
+  if (salesLineId) {
     const { data: line, error: lineError } = await supabase
       .from('lines')
       .select('code')

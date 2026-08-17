@@ -175,7 +175,7 @@ describe('Phase 6 selling gate', () => {
       /if \(line\.data\.code === 'eagle-peak' && !input\.eaglePeakSellingEnabled\)/,
     );
     expect(convert).toMatch(/const isOgr = line\.data\.code === 'ogr'/);
-    expect(convert).toMatch(
+    expect(convert).not.toMatch(
       /if \(isOgr\) \{[\s\S]*account_status: 'active_account'[\s\S]*\.eq\('id', input\.accountId\)/,
     );
     expect(convert).toMatch(/if \(!isOgr\) \{[\s\S]*return \{ ok: true, alreadyActive: false/);

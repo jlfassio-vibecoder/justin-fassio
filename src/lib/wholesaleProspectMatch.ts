@@ -166,6 +166,54 @@ async function createInboundProspect(
     return { ok: false, error: contactError.message };
   }
 
+  const { data: ogr, error: ogrError } = await admin
+    .from('lines')
+    .select('id')
+    .eq('code', 'ogr')
+    .maybeSingle();
+  if (ogrError || !ogr) {
+    return { ok: false, error: ogrError?.message ?? 'OGR sales line not found' };
+  }
+
+  const { data: rla, error: rlaError } = await admin
+    .from('retailer_line_accounts')
+    .insert({
+      retailer_id: prospect.id,
+      sales_line_id: ogr.id,
+      relationship_status: 'prospect',
+    })
+    .select('id')
+    .single();
+  if (
+    rlaError &&
+    !rlaError.message.toLowerCase().includes('duplicate') &&
+    !rlaError.message.includes('23505')
+  ) {
+    return { ok: false, error: rlaError.message };
+  }
+
+  const lineAccountId = rla?.id;
+  if (lineAccountId) {
+    const { data: insertedContact } = await admin
+      .from('account_contacts')
+      .select('id')
+      .eq('account_id', prospect.id)
+      .eq('is_primary', true)
+      .maybeSingle();
+    if (insertedContact) {
+      await admin.from('retailer_line_contacts').upsert(
+        {
+          retailer_line_account_id: lineAccountId,
+          account_contact_id: insertedContact.id,
+          role: 'buyer',
+          is_primary: true,
+          notes: SOURCE_NOTE,
+        },
+        { onConflict: 'retailer_line_account_id,account_contact_id' },
+      );
+    }
+  }
+
   return { ok: true, prospectId: prospect.id, matched: 'created' };
 }
 
