@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
@@ -14,6 +14,7 @@ import {
 } from '@/lib/accountImport/client';
 import { collapseInFileDuplicates } from '@/lib/accountImport/collapseDuplicates';
 import { isBusinessNameMapped, proposeColumnMap } from '@/lib/accountImport/columnMap';
+import { shouldAcceptImportCommit } from '@/lib/accountImport/confirmGuard';
 import { assertImportLineAllowed } from '@/lib/accountImport/lineGate';
 import { applyNormalizedEdits, normalizeWorkbookRows } from '@/lib/accountImport/normalize';
 import type { CommitReport, CommittedImportRow } from '@/lib/accountImport/commit';
@@ -94,6 +95,7 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
   const [committedRows, setCommittedRows] = useState<CommittedImportRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const commitInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -138,6 +140,7 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
     setReport(null);
     setCommittedRows([]);
     setBusy(false);
+    commitInFlightRef.current = false;
     setError(null);
   }
 
@@ -198,6 +201,8 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
   }
 
   async function handleCommit() {
+    if (!shouldAcceptImportCommit({ inFlight: commitInFlightRef.current, step })) return;
+    commitInFlightRef.current = true;
     setBusy(true);
     setError(null);
     setStep('importing');
@@ -212,6 +217,7 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
     });
     setBusy(false);
     if (!result.ok) {
+      commitInFlightRef.current = false;
       setError(result.error);
       setStep('confirm');
       return;
@@ -562,7 +568,12 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
               <Button type="button" onClick={() => setStep('preview')}>
                 Back
               </Button>
-              <Button type="button" variant="primary" onClick={() => void handleCommit()}>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={busy}
+                onClick={() => void handleCommit()}
+              >
                 Import
               </Button>
             </div>

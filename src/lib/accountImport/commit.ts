@@ -47,6 +47,11 @@ export const FINISHED_BATCH_STATUSES: readonly AccountImportBatchStatus[] = [
   'completed',
 ];
 
+export const ACTIVE_SHA_BATCH_STATUSES: readonly AccountImportBatchStatus[] = [
+  'previewed',
+  ...FINISHED_BATCH_STATUSES,
+];
+
 export const RETRYABLE_IMPORT_ROW_STATUSES: readonly AccountImportRowStatus[] = [
   'previewed',
   'queued',
@@ -147,6 +152,27 @@ export function isEligibleImportDecision(
 
 export function isFinishedBatchStatus(status: string): boolean {
   return (FINISHED_BATCH_STATUSES as readonly string[]).includes(status);
+}
+
+export function isActiveShaBatchStatus(status: string): boolean {
+  return (ACTIVE_SHA_BATCH_STATUSES as readonly string[]).includes(status);
+}
+
+export function isUniqueConstraintError(
+  error: { code?: string; message?: string } | null | undefined,
+): boolean {
+  if (!error) return false;
+  return error.code === '23505' || /duplicate key|unique constraint/i.test(error.message ?? '');
+}
+
+export function existingBatchAfterShaConflict<T extends { id: string; status: string }>(
+  batches: T[],
+): { kind: 'finished' | 'previewed'; batch: T } | null {
+  const finished = batches.find((batch) => isFinishedBatchStatus(batch.status));
+  if (finished) return { kind: 'finished', batch: finished };
+  const previewed = batches.find((batch) => batch.status === 'previewed');
+  if (previewed) return { kind: 'previewed', batch: previewed };
+  return null;
 }
 
 export function isRetryableImportRowStatus(status: AccountImportRowStatus): boolean {
@@ -507,6 +533,101 @@ function tallyCommitReport(
   };
 }
 
+type PersistedImportRow = {
+  id: string;
+  row_number: number;
+  status: AccountImportRowStatus;
+  match_decision: AccountImportMatchDecision;
+  retailer_id: number | null;
+  error: string | null;
+  account_contact_id: string | null;
+};
+
+const PERSISTED_IMPORT_ROW_SELECT =
+  'id, row_number, status, match_decision, retailer_id, error, account_contact_id';
+
+async function loadFinishedCommitResult(
+  supabase: AgentSupabase,
+  batch: { id: string; report: unknown },
+  uploadedRows: number,
+): Promise<Extract<CommitResult, { ok: true }>> {
+  const { data: existingRows } = await supabase
+    .from('account_import_rows')
+    .select('row_number, match_decision, status, retailer_id, error, normalized_payload')
+    .eq('batch_id', batch.id)
+    .order('row_number', { ascending: true });
+  const mapped: CommittedImportRow[] = (existingRows ?? []).map((row) => ({
+    rowNumber: row.row_number,
+    matchDecision: row.match_decision,
+    status: row.status,
+    retailerId: row.retailer_id,
+    name: nameFromNormalizedPayload(row.normalized_payload),
+    error: row.error,
+  }));
+  return {
+    ok: true,
+    resumed: true,
+    batchId: batch.id,
+    report:
+      batch.report && typeof batch.report === 'object'
+        ? (batch.report as CommitReport)
+        : tallyCommitReport(mapped, uploadedRows),
+    rows: mapped,
+  };
+}
+
+async function loadPersistedImportRows(
+  supabase: AgentSupabase,
+  batchId: string,
+): Promise<{ ok: true; rows: PersistedImportRow[] } | { ok: false; error: string }> {
+  const { data, error } = await supabase
+    .from('account_import_rows')
+    .select(PERSISTED_IMPORT_ROW_SELECT)
+    .eq('batch_id', batchId)
+    .order('row_number', { ascending: true });
+  if (error || !data) {
+    return { ok: false, error: error?.message ?? 'Could not load import rows' };
+  }
+  return { ok: true, rows: data };
+}
+
+async function insertOrLoadImportRows(
+  supabase: AgentSupabase,
+  input: {
+    batchId: string;
+    salesLineId: string;
+    rows: PreviewImportRow[];
+  },
+): Promise<{ ok: true; rows: PersistedImportRow[] } | { ok: false; error: string }> {
+  const insertRows = input.rows.map((row) => ({
+    batch_id: input.batchId,
+    sales_line_id: input.salesLineId,
+    row_number: row.rowNumber,
+    raw_payload: row.raw,
+    normalized_payload: {
+      name: row.name,
+      city: row.city,
+      stateCode: row.stateCode,
+      postalCode: row.postalCode,
+      fingerprint: row.fingerprint,
+    },
+    fingerprint: row.fingerprint,
+    match_decision: row.matchDecision,
+    status: 'previewed' as const,
+    former_rep_code: row.formerRepCode,
+    raw_address_text: row.rawAddressText || null,
+  }));
+  const { data, error } = await supabase
+    .from('account_import_rows')
+    .insert(insertRows)
+    .select(PERSISTED_IMPORT_ROW_SELECT);
+  if (!error && data) return { ok: true, rows: data };
+  if (isUniqueConstraintError(error)) {
+    return loadPersistedImportRows(supabase, input.batchId);
+  }
+  return { ok: false, error: error?.message ?? 'Could not create import rows' };
+}
+
 export async function commitAccountImport(
   supabase: AgentSupabase,
   userId: string,
@@ -550,29 +671,7 @@ export async function commitAccountImport(
 
   const existingBatch = (shaBatches ?? []).find((batch) => isFinishedBatchStatus(batch.status));
   if (existingBatch) {
-    const { data: existingRows } = await supabase
-      .from('account_import_rows')
-      .select('row_number, match_decision, status, retailer_id, error, normalized_payload')
-      .eq('batch_id', existingBatch.id)
-      .order('row_number', { ascending: true });
-    const mapped: CommittedImportRow[] = (existingRows ?? []).map((row) => ({
-      rowNumber: row.row_number,
-      matchDecision: row.match_decision,
-      status: row.status,
-      retailerId: row.retailer_id,
-      name: nameFromNormalizedPayload(row.normalized_payload),
-      error: row.error,
-    }));
-    return {
-      ok: true,
-      resumed: true,
-      batchId: existingBatch.id,
-      report:
-        existingBatch.report && typeof existingBatch.report === 'object'
-          ? (existingBatch.report as CommitReport)
-          : tallyCommitReport(mapped, input.uploadedRows),
-      rows: mapped,
-    };
+    return loadFinishedCommitResult(supabase, existingBatch, input.uploadedRows);
   }
 
   const snapshot = await loadCrmMatchSnapshot(supabase, lineId.salesLineId, input.sourceType);
@@ -590,32 +689,23 @@ export async function commitAccountImport(
   const inProgress = (shaBatches ?? []).find((batch) => batch.status === 'previewed');
   let batchId: string;
   let resumed = false;
-  let persistedRows: Array<{
-    id: string;
-    row_number: number;
-    status: AccountImportRowStatus;
-    match_decision: AccountImportMatchDecision;
-    retailer_id: number | null;
-    error: string | null;
-    account_contact_id: string | null;
-  }>;
+  let persistedRows: PersistedImportRow[];
 
   if (inProgress) {
     resumed = true;
     batchId = inProgress.id;
-    const { data: existingRows, error: existingRowsError } = await supabase
-      .from('account_import_rows')
-      .select('id, row_number, status, match_decision, retailer_id, error, account_contact_id')
-      .eq('batch_id', batchId)
-      .order('row_number', { ascending: true });
-    if (existingRowsError || !existingRows) {
-      return {
-        ok: false,
-        error: existingRowsError?.message ?? 'Could not load import rows',
-        status: 500,
-      };
+    const existing = await loadPersistedImportRows(supabase, batchId);
+    if (!existing.ok) return { ok: false, error: existing.error, status: 500 };
+    persistedRows = existing.rows;
+    if (persistedRows.length === 0) {
+      const inserted = await insertOrLoadImportRows(supabase, {
+        batchId,
+        salesLineId: lineId.salesLineId,
+        rows: matched,
+      });
+      if (!inserted.ok) return { ok: false, error: inserted.error, status: 500 };
+      persistedRows = inserted.rows;
     }
-    persistedRows = existingRows;
   } else {
     const { data: batch, error: batchError } = await supabase
       .from('account_import_batches')
@@ -631,46 +721,58 @@ export async function commitAccountImport(
       .select('id')
       .single();
     if (batchError || !batch) {
-      return {
-        ok: false,
-        error: batchError?.message ?? 'Could not create import batch',
-        status: 500,
-      };
+      if (!isUniqueConstraintError(batchError)) {
+        return {
+          ok: false,
+          error: batchError?.message ?? 'Could not create import batch',
+          status: 500,
+        };
+      }
+      const { data: conflictBatches, error: conflictError } = await supabase
+        .from('account_import_batches')
+        .select('id, status, report')
+        .eq('sales_line_id', lineId.salesLineId)
+        .eq('content_sha256', input.contentSha256)
+        .order('created_at', { ascending: false });
+      if (conflictError) return { ok: false, error: conflictError.message, status: 500 };
+      const resolved = existingBatchAfterShaConflict(conflictBatches ?? []);
+      if (!resolved) {
+        return {
+          ok: false,
+          error: batchError?.message ?? 'Could not create import batch',
+          status: 500,
+        };
+      }
+      if (resolved.kind === 'finished') {
+        return loadFinishedCommitResult(supabase, resolved.batch, input.uploadedRows);
+      }
+      resumed = true;
+      batchId = resolved.batch.id;
+      const existing = await loadPersistedImportRows(supabase, batchId);
+      if (!existing.ok) return { ok: false, error: existing.error, status: 500 };
+      persistedRows = existing.rows;
+      if (persistedRows.length === 0) {
+        const inserted = await insertOrLoadImportRows(supabase, {
+          batchId,
+          salesLineId: lineId.salesLineId,
+          rows: matched,
+        });
+        if (!inserted.ok) return { ok: false, error: inserted.error, status: 500 };
+        persistedRows = inserted.rows;
+      }
+    } else {
+      batchId = batch.id;
+      const inserted = await insertOrLoadImportRows(supabase, {
+        batchId,
+        salesLineId: lineId.salesLineId,
+        rows: matched,
+      });
+      if (!inserted.ok) {
+        await supabase.from('account_import_batches').delete().eq('id', batchId);
+        return { ok: false, error: inserted.error, status: 500 };
+      }
+      persistedRows = inserted.rows;
     }
-    batchId = batch.id;
-
-    const insertRows = matched.map((row) => ({
-      batch_id: batchId,
-      sales_line_id: lineId.salesLineId,
-      row_number: row.rowNumber,
-      raw_payload: row.raw,
-      normalized_payload: {
-        name: row.name,
-        city: row.city,
-        stateCode: row.stateCode,
-        postalCode: row.postalCode,
-        fingerprint: row.fingerprint,
-      },
-      fingerprint: row.fingerprint,
-      match_decision: row.matchDecision,
-      status: 'previewed' as const,
-      former_rep_code: row.formerRepCode,
-      raw_address_text: row.rawAddressText || null,
-    }));
-
-    const { data: insertedRows, error: rowsError } = await supabase
-      .from('account_import_rows')
-      .insert(insertRows)
-      .select('id, row_number, status, match_decision, retailer_id, error, account_contact_id');
-    if (rowsError || !insertedRows) {
-      await supabase.from('account_import_batches').delete().eq('id', batchId);
-      return {
-        ok: false,
-        error: rowsError?.message ?? 'Could not create import rows',
-        status: 500,
-      };
-    }
-    persistedRows = insertedRows;
   }
 
   const persistedByNumber = new Map(persistedRows.map((row) => [row.row_number, row]));

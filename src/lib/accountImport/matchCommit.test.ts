@@ -5,11 +5,14 @@ import { HISTORICAL_OGR_IMPORT_DEFAULTS } from '@/lib/accountImport/classificati
 import {
   batchIsFullyTerminal,
   buildCommitRowPayload,
+  existingBatchAfterShaConflict,
   failedImportRowStamp,
   identityRowForMatch,
+  isActiveShaBatchStatus,
   isEligibleImportDecision,
   isFinishedBatchStatus,
   isRetryableImportRowStatus,
+  isUniqueConstraintError,
   revalidateCommitRows,
   shouldInsertImportContact,
   shouldPreserveExistingRlaNotes,
@@ -485,6 +488,26 @@ describe('account import commit rematch and resume', () => {
     });
     expect(isRetryableImportRowStatus(failedImportRowStamp('duplicate key').status)).toBe(true);
   });
+
+  it('treats a SHA unique conflict as resume of the existing previewed or finished batch', () => {
+    expect(isActiveShaBatchStatus('previewed')).toBe(true);
+    expect(isActiveShaBatchStatus('completed')).toBe(true);
+    expect(isActiveShaBatchStatus('cancelled')).toBe(false);
+    expect(isUniqueConstraintError({ code: '23505', message: 'duplicate key' })).toBe(true);
+    expect(isUniqueConstraintError({ message: 'unique constraint' })).toBe(true);
+    expect(isUniqueConstraintError({ code: '42501', message: 'Forbidden' })).toBe(false);
+    expect(
+      existingBatchAfterShaConflict([
+        { id: 'preview', status: 'previewed' },
+        { id: 'done', status: 'completed' },
+      ]),
+    ).toEqual({ kind: 'finished', batch: { id: 'done', status: 'completed' } });
+    expect(existingBatchAfterShaConflict([{ id: 'preview', status: 'previewed' }])).toEqual({
+      kind: 'previewed',
+      batch: { id: 'preview', status: 'previewed' },
+    });
+    expect(existingBatchAfterShaConflict([{ id: 'old', status: 'cancelled' }])).toBeNull();
+  });
 });
 
 describe('account import phase 2 files', () => {
@@ -557,6 +580,28 @@ describe('account import phase 2 files', () => {
     expect(commit).toMatch(/shouldPreserveExistingRlaNotes/);
     expect(commit).not.toMatch(/update\(\{ status: 'committed' \}\)/);
     expect(commit).toMatch(/if \(!result\?\.ok\) \{[\s\S]*failedImportRowStamp/);
+    expect(commit).toMatch(/isUniqueConstraintError/);
+    expect(commit).toMatch(/existingBatchAfterShaConflict/);
+    expect(commit).toMatch(/insertOrLoadImportRows/);
+
+    const shaLock = readFileSync(
+      resolve(root, 'supabase/migrations/20260817220000_bulk_import_phase2_active_sha_uidx.sql'),
+      'utf8',
+    );
+    expect(shaLock).toMatch(/account_import_batches_line_sha_active_uidx/);
+    expect(shaLock).toMatch(
+      /'previewed', 'committed', 'enriching', 'enrichment_partial', 'completed'/,
+    );
+    expect(schema).toMatch(/account_import_batches_line_sha_active_uidx/);
+    expect(schema).toMatch(
+      /'previewed', 'committed', 'enriching', 'enrichment_partial', 'completed'/,
+    );
+    expect(schema).not.toMatch(/account_import_batches_line_sha_committed_uidx/);
+    expect(modal).toMatch(/shouldAcceptImportCommit/);
+    expect(modal).toMatch(/commitInFlightRef/);
+    expect(readFileSync(resolve(root, 'src/lib/accountImport/confirmGuard.ts'), 'utf8')).toMatch(
+      /inFlight/,
+    );
     expect(readFileSync(resolve(root, 'src/components/RepCommandCenter.tsx'), 'utf8')).toMatch(
       /get\('import'\) === '1'/,
     );

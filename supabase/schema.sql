@@ -901,10 +901,10 @@ create table if not exists account_import_batches (
   constraint account_import_batches_id_sales_line_uidx unique (id, sales_line_id)
 );
 
-create unique index if not exists account_import_batches_line_sha_committed_uidx
+create unique index if not exists account_import_batches_line_sha_active_uidx
   on account_import_batches (sales_line_id, content_sha256)
   where content_sha256 is not null
-    and status in ('committed', 'enriching', 'enrichment_partial', 'completed');
+    and status in ('previewed', 'committed', 'enriching', 'enrichment_partial', 'completed');
 
 create index if not exists account_import_batches_sales_line_id_idx
   on account_import_batches (sales_line_id);
