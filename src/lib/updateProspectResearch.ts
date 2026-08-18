@@ -53,6 +53,7 @@ function shouldSkipVerifiedIdentity(
   return isVerifiedIdentityStatus({
     buyerVerified: current.buyerVerified,
     verificationStatus: current.verificationStatus,
+    importProtected: current.importProtected,
   });
 }
 
@@ -207,13 +208,7 @@ export async function applyProspectResearchUpdate(
     const dbPatch = { ...merged.dbPatch } as Record<string, unknown>;
     if (input.aiAudit && shouldSkipVerifiedIdentity(existing.data, input.aiAudit)) {
       for (const key of Object.keys(dbPatch)) {
-        if (
-          isVerifiedIdentityField(key) ||
-          key === 'name' ||
-          key === 'address' ||
-          key === 'phone' ||
-          key === 'website'
-        ) {
+        if (isVerifiedIdentityField(key)) {
           delete dbPatch[key];
         }
       }
@@ -276,6 +271,8 @@ export async function applyProspectResearchUpdate(
       delete patch.name;
       delete patch.address;
       delete patch.phone;
+      delete patch.city;
+      delete patch.postal_code;
     }
   }
 

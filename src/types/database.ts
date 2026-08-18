@@ -38,8 +38,28 @@ export type SalesLineTerritoryStatus = 'proposed' | 'active' | 'expired' | 'disp
 export type RelationshipStatus = 'prospect' | 'qualified' | 'opened' | 'inactive' | 'terminated';
 export type RetailerLineTargetStatus = 'watching' | 'shortlist' | 'dropped';
 export type RetailerFieldChangeSource = 'user' | 'ai' | 'import' | 'calculated' | 'unknown';
+export type RetailerFieldChangeStatus = 'pending' | 'applied' | 'rejected' | 'superseded';
 export type ActivityStatus = 'never_ordered' | 'active' | 'dormant';
 export type ProductivityClass = 'productive' | 'developing' | 'low_value' | 'unclassified';
+export type LineAccountMarker =
+  'historical_purchaser' | 'reactivation_candidate' | 'reactivation_unresponsive';
+export type AccountImportSourceType =
+  'historical_customer' | 'faire_customer' | 'zoominfo_lead' | 'research_prospect' | 'other';
+export type AccountImportBatchStatus =
+  'previewed' | 'committed' | 'enriching' | 'enrichment_partial' | 'completed' | 'cancelled';
+export type AccountImportMatchDecision =
+  | 'create_retailer'
+  | 'link_existing'
+  | 'update_rla'
+  | 'in_file_duplicate'
+  | 'prior_import_skip'
+  | 'needs_review'
+  | 'blocked';
+export type AccountImportRowStatus =
+  'previewed' | 'queued' | 'imported' | 'linked' | 'updated' | 'skipped' | 'failed' | 'cancelled';
+export type AccountEnrichmentMode = 'fill-blanks' | 'update';
+export type AccountEnrichmentJobStatus =
+  'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface Database {
   public: {
@@ -280,6 +300,7 @@ export interface Database {
           lifestyle_themes: unknown;
           retail_capabilities: unknown;
           backfill_review_reason: string | null;
+          line_account_markers: LineAccountMarker[];
           created_at: string;
           updated_at: string;
         };
@@ -313,6 +334,7 @@ export interface Database {
           lifestyle_themes?: unknown;
           retail_capabilities?: unknown;
           backfill_review_reason?: string | null;
+          line_account_markers?: LineAccountMarker[];
           created_at?: string;
           updated_at?: string;
         };
@@ -346,6 +368,7 @@ export interface Database {
           lifestyle_themes?: unknown;
           retail_capabilities?: unknown;
           backfill_review_reason?: string | null;
+          line_account_markers?: LineAccountMarker[];
           created_at?: string;
           updated_at?: string;
         };
@@ -395,6 +418,11 @@ export interface Database {
           actor_id: string | null;
           sales_line_id: string | null;
           retailer_line_account_id: string | null;
+          status: RetailerFieldChangeStatus;
+          confidence: string | null;
+          provider: string | null;
+          source_urls: unknown;
+          enrichment_job_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -407,6 +435,11 @@ export interface Database {
           actor_id?: string | null;
           sales_line_id?: string | null;
           retailer_line_account_id?: string | null;
+          status?: RetailerFieldChangeStatus;
+          confidence?: string | null;
+          provider?: string | null;
+          source_urls?: unknown;
+          enrichment_job_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -419,7 +452,159 @@ export interface Database {
           actor_id?: string | null;
           sales_line_id?: string | null;
           retailer_line_account_id?: string | null;
+          status?: RetailerFieldChangeStatus;
+          confidence?: string | null;
+          provider?: string | null;
+          source_urls?: unknown;
+          enrichment_job_id?: string | null;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      account_import_batches: {
+        Row: {
+          id: string;
+          sales_line_id: string;
+          source_type: AccountImportSourceType;
+          source_filename: string;
+          content_sha256: string | null;
+          status: AccountImportBatchStatus;
+          classification_snapshot: unknown;
+          report: unknown;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          sales_line_id: string;
+          source_type: AccountImportSourceType;
+          source_filename: string;
+          content_sha256?: string | null;
+          status?: AccountImportBatchStatus;
+          classification_snapshot?: unknown;
+          report?: unknown;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          sales_line_id?: string;
+          source_type?: AccountImportSourceType;
+          source_filename?: string;
+          content_sha256?: string | null;
+          status?: AccountImportBatchStatus;
+          classification_snapshot?: unknown;
+          report?: unknown;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      account_import_rows: {
+        Row: {
+          id: string;
+          batch_id: string;
+          sales_line_id: string;
+          row_number: number;
+          raw_payload: unknown;
+          normalized_payload: unknown;
+          fingerprint: string | null;
+          match_decision: AccountImportMatchDecision;
+          status: AccountImportRowStatus;
+          retailer_id: number | null;
+          retailer_line_account_id: string | null;
+          account_contact_id: string | null;
+          error: string | null;
+          former_rep_code: string | null;
+          raw_address_text: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          batch_id: string;
+          sales_line_id: string;
+          row_number: number;
+          raw_payload: unknown;
+          normalized_payload?: unknown;
+          fingerprint?: string | null;
+          match_decision?: AccountImportMatchDecision;
+          status?: AccountImportRowStatus;
+          retailer_id?: number | null;
+          retailer_line_account_id?: string | null;
+          account_contact_id?: string | null;
+          error?: string | null;
+          former_rep_code?: string | null;
+          raw_address_text?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          batch_id?: string;
+          sales_line_id?: string;
+          row_number?: number;
+          raw_payload?: unknown;
+          normalized_payload?: unknown;
+          fingerprint?: string | null;
+          match_decision?: AccountImportMatchDecision;
+          status?: AccountImportRowStatus;
+          retailer_id?: number | null;
+          retailer_line_account_id?: string | null;
+          account_contact_id?: string | null;
+          error?: string | null;
+          former_rep_code?: string | null;
+          raw_address_text?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      account_enrichment_jobs: {
+        Row: {
+          id: string;
+          batch_id: string;
+          retailer_id: number;
+          retailer_line_account_id: string | null;
+          mode: AccountEnrichmentMode;
+          status: AccountEnrichmentJobStatus;
+          research_brief: string | null;
+          evidence: unknown;
+          provider: string | null;
+          error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          batch_id: string;
+          retailer_id: number;
+          retailer_line_account_id?: string | null;
+          mode: AccountEnrichmentMode;
+          status?: AccountEnrichmentJobStatus;
+          research_brief?: string | null;
+          evidence?: unknown;
+          provider?: string | null;
+          error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          batch_id?: string;
+          retailer_id?: number;
+          retailer_line_account_id?: string | null;
+          mode?: AccountEnrichmentMode;
+          status?: AccountEnrichmentJobStatus;
+          research_brief?: string | null;
+          evidence?: unknown;
+          provider?: string | null;
+          error?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -1040,11 +1225,13 @@ export interface Database {
           provisional_grade: string | null;
           verification_status: string | null;
           buyer_verified: boolean;
+          import_protected: boolean;
           apparel_capability: string | null;
           existing_ogr: string | null;
           qualification_status: string | null;
           next_action: string | null;
           source_note: string | null;
+          postal_code: string | null;
           secondary_channels: unknown;
           retail_subchannels: unknown;
           venue_contexts: unknown;
@@ -1078,11 +1265,13 @@ export interface Database {
           provisional_grade?: string | null;
           verification_status?: string | null;
           buyer_verified?: boolean;
+          import_protected?: boolean;
           apparel_capability?: string | null;
           existing_ogr?: string | null;
           qualification_status?: string | null;
           next_action?: string | null;
           source_note?: string | null;
+          postal_code?: string | null;
           secondary_channels?: unknown;
           retail_subchannels?: unknown;
           venue_contexts?: unknown;
@@ -1116,11 +1305,13 @@ export interface Database {
           provisional_grade?: string | null;
           verification_status?: string | null;
           buyer_verified?: boolean;
+          import_protected?: boolean;
           apparel_capability?: string | null;
           existing_ogr?: string | null;
           qualification_status?: string | null;
           next_action?: string | null;
           source_note?: string | null;
+          postal_code?: string | null;
           secondary_channels?: unknown;
           retail_subchannels?: unknown;
           venue_contexts?: unknown;
@@ -2518,4 +2709,7 @@ export type RetailerLineAccount = Database['public']['Tables']['retailer_line_ac
 export type RetailerLineContact = Database['public']['Tables']['retailer_line_contacts']['Row'];
 export type RetailerLineTarget = Database['public']['Tables']['retailer_line_targets']['Row'];
 export type RetailerFieldChange = Database['public']['Tables']['retailer_field_changes']['Row'];
+export type AccountImportBatch = Database['public']['Tables']['account_import_batches']['Row'];
+export type AccountImportRow = Database['public']['Tables']['account_import_rows']['Row'];
+export type AccountEnrichmentJob = Database['public']['Tables']['account_enrichment_jobs']['Row'];
 export type MigrationReviewQueueRow = Database['public']['Tables']['migration_review_queue']['Row'];
