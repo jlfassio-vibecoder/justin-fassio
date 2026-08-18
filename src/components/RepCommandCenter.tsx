@@ -46,9 +46,10 @@ function parseAppDeepLinks(): {
   sku: string | null;
   draftId: string | null;
   prospectId: number | null;
+  importAccounts: boolean;
 } {
   if (typeof window === 'undefined') {
-    return { sku: null, draftId: null, prospectId: null };
+    return { sku: null, draftId: null, prospectId: null, importAccounts: false };
   }
   const params = new URLSearchParams(window.location.search);
   const sku = params.get('sku')?.trim() || null;
@@ -56,7 +57,8 @@ function parseAppDeepLinks(): {
   const prospectRaw = params.get('prospectId')?.trim();
   const prospectId =
     prospectRaw && Number.isFinite(Number(prospectRaw)) ? Number(prospectRaw) : null;
-  return { sku, draftId, prospectId };
+  const importAccounts = params.get('import') === '1';
+  return { sku, draftId, prospectId, importAccounts };
 }
 
 export function RepCommandCenter({
@@ -75,7 +77,11 @@ export function RepCommandCenter({
   });
 
   const initialLinks = parseAppDeepLinks();
-  const [activeTab, setActiveTab] = useState<TabKey>(defaultTab);
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    initialLinks.importAccounts && defaultTab !== 'accounts' && defaultTab !== 'prospects'
+      ? 'prospects'
+      : defaultTab,
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const [modalStoreId, setModalStoreId] = useState<number | null>(null);
   const [callsReloadToken, setCallsReloadToken] = useState(0);
@@ -97,6 +103,7 @@ export function RepCommandCenter({
     initialLinks.prospectId,
   );
   const [deepLinkAccountId, setDeepLinkAccountId] = useState<number | null>(null);
+  const [deepLinkImport, setDeepLinkImport] = useState(initialLinks.importAccounts);
   const [lineAccountError, setLineAccountError] = useState<string | null>(null);
 
   // URL prospectId may belong to an active account — remap once directory is loaded.
@@ -124,6 +131,10 @@ export function RepCommandCenter({
 
   const clearAccountDeepLink = useCallback(() => {
     setDeepLinkAccountId(null);
+  }, []);
+
+  const clearImportDeepLink = useCallback(() => {
+    setDeepLinkImport(false);
   }, []);
 
   const openDraftDeepLink = useCallback((args: { sku: string; draftId: string }) => {
@@ -462,6 +473,9 @@ export function RepCommandCenter({
                   }}
                   deepLinkProspectId={deepLinkProspectId}
                   onDeepLinkConsumed={clearProspectDeepLink}
+                  deepLinkImport={deepLinkImport && activeTab === 'prospects'}
+                  onImportDeepLinkConsumed={clearImportDeepLink}
+                  onImported={reloadDirectory}
                 />
               )}
               {activeTab === 'accounts' && (
@@ -477,6 +491,9 @@ export function RepCommandCenter({
                   }}
                   deepLinkAccountId={deepLinkAccountId}
                   onDeepLinkConsumed={clearAccountDeepLink}
+                  deepLinkImport={deepLinkImport && activeTab === 'accounts'}
+                  onImportDeepLinkConsumed={clearImportDeepLink}
+                  onImported={reloadDirectory}
                 />
               )}
               {activeTab === 'contacts' && (

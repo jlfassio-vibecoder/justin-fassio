@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AddProspectAiModal } from '@/components/AddProspectAiModal';
 import { AiUpdateResearchModal } from '@/components/AiUpdateResearchModal';
+import { ImportAccountsModal } from '@/components/accountImport/ImportAccountsModal';
 import { ProspectDetailDrawer } from '@/components/ProspectDetailDrawer';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
 import { RowActionsMenu, type RowActionSection } from '@/components/ui/RowActionsMenu';
 import { useAiAssist } from '@/hooks/useAiAssist';
+import { useAuth } from '@/hooks/useAuth';
 import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssistPrefill';
 import type { ProspectResearchMode } from '@/lib/fillBlankProspectFields';
 import type { Prospect } from '@/lib/prospects';
 import { useOptionalLineContext } from '@/lib/lineContext';
+import { isApprovedOwner } from '@/lib/auth';
 import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
 
 const PLANNING_COLUMN_HEADERS = [
@@ -56,8 +59,11 @@ interface ProspectsTabProps {
   onProspectCreated?: (prospect: Prospect) => void;
   onProspectUpdated?: (prospect: Prospect) => void;
   onNotesSaved?: (id: number, notes: string | null) => void;
+  onImported?: () => void;
   deepLinkProspectId?: number | null;
   onDeepLinkConsumed?: () => void;
+  deepLinkImport?: boolean;
+  onImportDeepLinkConsumed?: () => void;
 }
 
 export function ProspectsTab({
@@ -68,14 +74,19 @@ export function ProspectsTab({
   onProspectCreated,
   onProspectUpdated,
   onNotesSaved,
+  onImported,
   deepLinkProspectId = null,
   onDeepLinkConsumed,
+  deepLinkImport = false,
+  onImportDeepLinkConsumed,
 }: ProspectsTabProps) {
   const { openAssist } = useAiAssist();
+  const { profile } = useAuth();
   const lineCtx = useOptionalLineContext();
   const prefillLine = { multiLineAi: lineCtx.multiLineAi, lineName: lineCtx.name };
   const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [territoryCode, setTerritoryCode] = useState(BC_TERRITORY_CODE);
   const [highlightedProspectId, setHighlightedProspectId] = useState<number | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
@@ -95,6 +106,11 @@ export function ProspectsTab({
       setHighlightedProspectId(match.id);
     }
     queueMicrotask(() => onDeepLinkConsumed?.());
+  }
+
+  if (deepLinkImport && !importOpen) {
+    setImportOpen(true);
+    queueMicrotask(() => onImportDeepLinkConsumed?.());
   }
 
   const pipelineProspects = useMemo(
@@ -168,13 +184,24 @@ export function ProspectsTab({
           ) : null
         }
         toolbarExtra={
-          <Button
-            variant="secondary"
-            className="text-xs whitespace-nowrap"
-            onClick={() => setAddOpen(true)}
-          >
-            + Add via AI
-          </Button>
+          <div className="flex items-center gap-2">
+            {isApprovedOwner(profile) ? (
+              <Button
+                variant="secondary"
+                className="text-xs whitespace-nowrap"
+                onClick={() => setImportOpen(true)}
+              >
+                Import accounts
+              </Button>
+            ) : null}
+            <Button
+              variant="secondary"
+              className="text-xs whitespace-nowrap"
+              onClick={() => setAddOpen(true)}
+            >
+              + Add via AI
+            </Button>
+          </div>
         }
         onRowActivate={(p) => setDetailProspect(p)}
         renderActions={(p) => {
@@ -255,6 +282,12 @@ export function ProspectsTab({
         onClose={() => setAddOpen(false)}
         onCreated={handleCreated}
         enrichSeeds={{ territoryCode }}
+      />
+
+      <ImportAccountsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={onImported}
       />
 
       <AiUpdateResearchModal
