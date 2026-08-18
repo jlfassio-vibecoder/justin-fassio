@@ -3,16 +3,30 @@ import {
   ACCOUNT_IMPORT_SOURCE_TYPES,
   HISTORICAL_OGR_IMPORT_DEFAULTS,
 } from '@/lib/accountImport/classification';
+import { importFingerprint } from '@/lib/accountImport/fingerprint';
 import { assertImportLineAllowed, parseRequiredSalesLineId } from '@/lib/accountImport/lineGate';
+import {
+  matchCollapsedRows,
+  type PriorImportHit,
+  type ThinContact,
+  type ThinRetailer,
+  type ThinRla,
+} from '@/lib/accountImport/matchRetailers';
 import { historicalImportSeedNote, importSourceNote } from '@/lib/accountImport/notes';
-import { markersFromUnknown } from '@/lib/accountImport/preview';
-import type { ConfirmClassification, PreviewImportRow } from '@/lib/accountImport/types';
+import { loadCrmMatchSnapshot, markersFromUnknown } from '@/lib/accountImport/preview';
+import type {
+  CollapsedImportRow,
+  ConfirmClassification,
+  PreviewImportRow,
+} from '@/lib/accountImport/types';
+import { normalizeProspectName } from '@/lib/prospectListImport';
 import { isVerifiedIdentityField, isVerifiedIdentityStatus } from '@/lib/retailerFieldChanges';
 import {
   fetchSalesLineTerritories,
   suggestedAssignmentForLocation,
 } from '@/lib/salesLineTerritories';
 import type {
+  AccountImportBatchStatus,
   AccountImportMatchDecision,
   AccountImportRowStatus,
   AccountImportSourceType,
@@ -25,6 +39,33 @@ export const ELIGIBLE_IMPORT_DECISIONS: readonly AccountImportMatchDecision[] = 
   'link_existing',
   'update_rla',
 ];
+
+export const FINISHED_BATCH_STATUSES: readonly AccountImportBatchStatus[] = [
+  'committed',
+  'enriching',
+  'enrichment_partial',
+  'completed',
+];
+
+export const RETRYABLE_IMPORT_ROW_STATUSES: readonly AccountImportRowStatus[] = [
+  'previewed',
+  'queued',
+  'failed',
+];
+
+export type ExistingRetailerForCommit = {
+  name: string;
+  address: string;
+  city: string;
+  phone: string;
+  website: string | null;
+  postalCode: string | null;
+  importProtected: boolean;
+  buyerVerified: boolean;
+  verificationStatus: string | null;
+  hasPrimaryContact: boolean;
+  notes: string | null;
+};
 
 export type CommitRowRpcPayload = {
   action: 'create_retailer' | 'link_existing' | 'update_rla';
@@ -104,6 +145,89 @@ export function isEligibleImportDecision(
   return ELIGIBLE_IMPORT_DECISIONS.includes(decision);
 }
 
+export function isFinishedBatchStatus(status: string): boolean {
+  return (FINISHED_BATCH_STATUSES as readonly string[]).includes(status);
+}
+
+export function isRetryableImportRowStatus(status: AccountImportRowStatus): boolean {
+  return RETRYABLE_IMPORT_ROW_STATUSES.includes(status);
+}
+
+export function batchIsFullyTerminal(rows: Array<{ status: AccountImportRowStatus }>): boolean {
+  return rows.length > 0 && rows.every((row) => !isRetryableImportRowStatus(row.status));
+}
+
+export function shouldPreserveExistingRlaNotes(
+  decision: AccountImportMatchDecision,
+  existingNotes: string | null | undefined,
+): boolean {
+  if (decision === 'create_retailer') return false;
+  return Boolean(existingNotes?.trim());
+}
+
+export function shouldInsertImportContact(input: {
+  skipIfPrimaryExists: boolean;
+  hasPrimary: boolean;
+}): boolean {
+  return !(input.skipIfPrimaryExists && input.hasPrimary);
+}
+
+export function failedImportRowStamp(error: string): { status: 'failed'; error: string } {
+  return { status: 'failed', error };
+}
+
+export function identityRowForMatch(row: PreviewImportRow): CollapsedImportRow {
+  return {
+    rowNumber: row.rowNumber,
+    raw: row.raw,
+    name: row.name,
+    nameNormalized: normalizeProspectName(row.name),
+    street: row.street,
+    city: row.city,
+    stateCode: row.stateCode,
+    region: row.region,
+    postalCode: row.postalCode,
+    postal5: row.postal5,
+    formerRepCode: row.formerRepCode,
+    storeTypeRaw: row.storeTypeRaw,
+    category: row.category,
+    contactName: row.contactName,
+    email: row.email,
+    emailImportable: row.emailImportable,
+    phone: row.phone,
+    website: row.website,
+    externalId: row.externalId,
+    rawAddressText: row.rawAddressText,
+    addressUncertain: row.addressUncertain,
+    fingerprint: importFingerprint({
+      name: row.name,
+      stateCode: row.stateCode,
+      postal5: row.postal5,
+    }),
+    warnings: row.warnings,
+    inFileDuplicateOf: row.inFileDuplicateOf,
+    collapsedFromRowNumbers: row.collapsedFromRowNumbers,
+  };
+}
+
+export function revalidateCommitRows(
+  clientRows: PreviewImportRow[],
+  snapshot: {
+    retailers: ThinRetailer[];
+    rlas: ThinRla[];
+    contacts: ThinContact[];
+    priorFingerprints: PriorImportHit[];
+  },
+): PreviewImportRow[] {
+  return matchCollapsedRows({
+    rows: clientRows.map(identityRowForMatch),
+    retailers: snapshot.retailers,
+    rlas: snapshot.rlas,
+    contacts: snapshot.contacts,
+    priorFingerprints: snapshot.priorFingerprints,
+  });
+}
+
 export function parseConfirmClassification(raw: unknown): ConfirmClassification {
   const obj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const relationship =
@@ -147,18 +271,7 @@ export function buildCommitRowPayload(input: {
   sourceType: AccountImportSourceType;
   territoryId: string;
   salesLineTerritoryId: string | null;
-  existingRetailer?: {
-    name: string;
-    address: string;
-    city: string;
-    phone: string;
-    website: string | null;
-    postalCode: string | null;
-    importProtected: boolean;
-    buyerVerified: boolean;
-    verificationStatus: string | null;
-    hasPrimaryContact: boolean;
-  } | null;
+  existingRetailer?: ExistingRetailerForCommit | null;
 }): CommitRowRpcPayload | null {
   if (!isEligibleImportDecision(input.row.matchDecision)) return null;
 
@@ -179,13 +292,15 @@ export function buildCommitRowPayload(input: {
     existing_ogr: input.classification.existingOgr,
     qualification_status: HISTORICAL_OGR_IMPORT_DEFAULTS.qualificationStatus,
     next_action: input.classification.nextAction,
-    notes: seed,
     source_note: sourceNote,
     sales_line_territory_id: input.salesLineTerritoryId,
     backfill_review_reason: input.salesLineTerritoryId ? null : 'territory_assignment_missing',
     converted_at: null,
     initial_order_date: null,
   };
+  if (!shouldPreserveExistingRlaNotes(input.row.matchDecision, input.existingRetailer?.notes)) {
+    rlaPatch.notes = seed;
+  }
 
   const contact =
     input.row.contactName || input.row.email
@@ -300,7 +415,21 @@ export function buildCommitRowPayload(input: {
 async function loadExistingRetailer(
   supabase: AgentSupabase,
   retailerId: number,
-): Promise<NonNullable<Parameters<typeof buildCommitRowPayload>[0]['existingRetailer']>> {
+  salesLineId: string,
+): Promise<ExistingRetailerForCommit> {
+  const empty: ExistingRetailerForCommit = {
+    name: '',
+    address: '',
+    city: '',
+    phone: '',
+    website: null,
+    postalCode: null,
+    importProtected: false,
+    buyerVerified: false,
+    verificationStatus: null,
+    hasPrimaryContact: false,
+    notes: null,
+  };
   const { data: prospect, error } = await supabase
     .from('prospects')
     .select(
@@ -308,25 +437,19 @@ async function loadExistingRetailer(
     )
     .eq('id', retailerId)
     .maybeSingle();
-  if (error || !prospect) {
-    return {
-      name: '',
-      address: '',
-      city: '',
-      phone: '',
-      website: null,
-      postalCode: null,
-      importProtected: false,
-      buyerVerified: false,
-      verificationStatus: null,
-      hasPrimaryContact: false,
-    };
-  }
+  if (error || !prospect) return empty;
   const { data: primary } = await supabase
     .from('account_contacts')
     .select('id')
     .eq('account_id', retailerId)
     .eq('is_primary', true)
+    .maybeSingle();
+  const { data: rla } = await supabase
+    .from('retailer_line_accounts')
+    .select('notes')
+    .eq('retailer_id', retailerId)
+    .eq('sales_line_id', salesLineId)
+    .neq('relationship_status', 'terminated')
     .maybeSingle();
   return {
     name: prospect.name,
@@ -339,7 +462,20 @@ async function loadExistingRetailer(
     buyerVerified: prospect.buyer_verified,
     verificationStatus: prospect.verification_status,
     hasPrimaryContact: Boolean(primary),
+    notes: rla?.notes ?? null,
   };
+}
+
+function nameFromNormalizedPayload(payload: unknown): string {
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'name' in payload &&
+    typeof payload.name === 'string'
+  ) {
+    return payload.name;
+  }
+  return '';
 }
 
 function tallyCommitReport(
@@ -404,13 +540,15 @@ export async function commitAccountImport(
   const allowed = assertImportLineAllowed(line);
   if (!allowed.ok) return allowed;
 
-  const { data: existingBatch } = await supabase
+  const { data: shaBatches, error: shaError } = await supabase
     .from('account_import_batches')
-    .select('id, report')
+    .select('id, status, report')
     .eq('sales_line_id', lineId.salesLineId)
     .eq('content_sha256', input.contentSha256)
-    .in('status', ['committed', 'enriching', 'enrichment_partial', 'completed'])
-    .maybeSingle();
+    .order('created_at', { ascending: false });
+  if (shaError) return { ok: false, error: shaError.message, status: 500 };
+
+  const existingBatch = (shaBatches ?? []).find((batch) => isFinishedBatchStatus(batch.status));
   if (existingBatch) {
     const { data: existingRows } = await supabase
       .from('account_import_rows')
@@ -422,13 +560,7 @@ export async function commitAccountImport(
       matchDecision: row.match_decision,
       status: row.status,
       retailerId: row.retailer_id,
-      name:
-        row.normalized_payload &&
-        typeof row.normalized_payload === 'object' &&
-        'name' in row.normalized_payload &&
-        typeof row.normalized_payload.name === 'string'
-          ? row.normalized_payload.name
-          : '',
+      name: nameFromNormalizedPayload(row.normalized_payload),
       error: row.error,
     }));
     return {
@@ -443,6 +575,10 @@ export async function commitAccountImport(
     };
   }
 
+  const snapshot = await loadCrmMatchSnapshot(supabase, lineId.salesLineId, input.sourceType);
+  if (!snapshot.ok) return { ok: false, error: snapshot.error, status: 500 };
+  const matched = revalidateCommitRows(input.rows, snapshot);
+
   const classification = parseConfirmClassification(input.classification);
   const territories = await supabase.from('territories').select('id, code');
   if (territories.error) return { ok: false, error: territories.error.message, status: 500 };
@@ -451,65 +587,123 @@ export async function commitAccountImport(
   const assignments = await fetchSalesLineTerritories(supabase, lineId.salesLineId);
   if (assignments.error) return { ok: false, error: assignments.error, status: 500 };
 
-  const { data: batch, error: batchError } = await supabase
-    .from('account_import_batches')
-    .insert({
+  const inProgress = (shaBatches ?? []).find((batch) => batch.status === 'previewed');
+  let batchId: string;
+  let resumed = false;
+  let persistedRows: Array<{
+    id: string;
+    row_number: number;
+    status: AccountImportRowStatus;
+    match_decision: AccountImportMatchDecision;
+    retailer_id: number | null;
+    error: string | null;
+    account_contact_id: string | null;
+  }>;
+
+  if (inProgress) {
+    resumed = true;
+    batchId = inProgress.id;
+    const { data: existingRows, error: existingRowsError } = await supabase
+      .from('account_import_rows')
+      .select('id, row_number, status, match_decision, retailer_id, error, account_contact_id')
+      .eq('batch_id', batchId)
+      .order('row_number', { ascending: true });
+    if (existingRowsError || !existingRows) {
+      return {
+        ok: false,
+        error: existingRowsError?.message ?? 'Could not load import rows',
+        status: 500,
+      };
+    }
+    persistedRows = existingRows;
+  } else {
+    const { data: batch, error: batchError } = await supabase
+      .from('account_import_batches')
+      .insert({
+        sales_line_id: lineId.salesLineId,
+        source_type: input.sourceType,
+        source_filename: input.filename.trim(),
+        content_sha256: input.contentSha256,
+        status: 'previewed',
+        classification_snapshot: classification,
+        created_by: userId,
+      })
+      .select('id')
+      .single();
+    if (batchError || !batch) {
+      return {
+        ok: false,
+        error: batchError?.message ?? 'Could not create import batch',
+        status: 500,
+      };
+    }
+    batchId = batch.id;
+
+    const insertRows = matched.map((row) => ({
+      batch_id: batchId,
       sales_line_id: lineId.salesLineId,
-      source_type: input.sourceType,
-      source_filename: input.filename.trim(),
-      content_sha256: input.contentSha256,
-      status: 'previewed',
-      classification_snapshot: classification,
-      created_by: userId,
-    })
-    .select('id')
-    .single();
-  if (batchError || !batch) {
-    return {
-      ok: false,
-      error: batchError?.message ?? 'Could not create import batch',
-      status: 500,
-    };
-  }
-
-  const insertRows = input.rows.map((row) => ({
-    batch_id: batch.id,
-    sales_line_id: lineId.salesLineId,
-    row_number: row.rowNumber,
-    raw_payload: row.raw,
-    normalized_payload: {
-      name: row.name,
-      city: row.city,
-      stateCode: row.stateCode,
-      postalCode: row.postalCode,
+      row_number: row.rowNumber,
+      raw_payload: row.raw,
+      normalized_payload: {
+        name: row.name,
+        city: row.city,
+        stateCode: row.stateCode,
+        postalCode: row.postalCode,
+        fingerprint: row.fingerprint,
+      },
       fingerprint: row.fingerprint,
-    },
-    fingerprint: row.fingerprint,
-    match_decision: row.matchDecision,
-    status: 'previewed' as const,
-    former_rep_code: row.formerRepCode,
-    raw_address_text: row.rawAddressText || null,
-  }));
+      match_decision: row.matchDecision,
+      status: 'previewed' as const,
+      former_rep_code: row.formerRepCode,
+      raw_address_text: row.rawAddressText || null,
+    }));
 
-  const { data: persistedRows, error: rowsError } = await supabase
-    .from('account_import_rows')
-    .insert(insertRows)
-    .select('id, row_number');
-  if (rowsError || !persistedRows) {
-    await supabase.from('account_import_batches').delete().eq('id', batch.id);
-    return { ok: false, error: rowsError?.message ?? 'Could not create import rows', status: 500 };
+    const { data: insertedRows, error: rowsError } = await supabase
+      .from('account_import_rows')
+      .insert(insertRows)
+      .select('id, row_number, status, match_decision, retailer_id, error, account_contact_id');
+    if (rowsError || !insertedRows) {
+      await supabase.from('account_import_batches').delete().eq('id', batchId);
+      return {
+        ok: false,
+        error: rowsError?.message ?? 'Could not create import rows',
+        status: 500,
+      };
+    }
+    persistedRows = insertedRows;
   }
 
-  await supabase.from('account_import_batches').update({ status: 'committed' }).eq('id', batch.id);
-
-  const idByRowNumber = new Map(persistedRows.map((r) => [r.row_number, r.id]));
+  const persistedByNumber = new Map(persistedRows.map((row) => [row.row_number, row]));
   const committed: CommittedImportRow[] = [];
   let contactsCreated = 0;
   const cancelRest = Boolean(input.cancelRequested);
 
-  for (const row of input.rows) {
-    const importRowId = idByRowNumber.get(row.rowNumber);
-    if (!importRowId) continue;
+  for (const row of matched) {
+    const persisted = persistedByNumber.get(row.rowNumber);
+    if (!persisted) continue;
+    const importRowId = persisted.id;
+
+    if (!isRetryableImportRowStatus(persisted.status)) {
+      if (persisted.account_contact_id) contactsCreated += 1;
+      committed.push({
+        rowNumber: row.rowNumber,
+        matchDecision: persisted.match_decision,
+        status: persisted.status,
+        retailerId: persisted.retailer_id,
+        name: row.name,
+        error: persisted.error,
+      });
+      continue;
+    }
+
+    await supabase
+      .from('account_import_rows')
+      .update({
+        match_decision: row.matchDecision,
+        fingerprint: row.fingerprint,
+        retailer_id: row.match?.retailerId ?? null,
+      })
+      .eq('id', importRowId);
 
     if (cancelRest && isEligibleImportDecision(row.matchDecision)) {
       await supabase
@@ -548,30 +742,28 @@ export async function commitAccountImport(
 
     const territoryId = row.stateCode ? territoryIdByCode.get(row.stateCode) : null;
     if (!territoryId) {
-      await supabase
-        .from('account_import_rows')
-        .update({ status: 'failed', error: 'Oregon or Washington territory is missing' })
-        .eq('id', importRowId);
+      const stamp = failedImportRowStamp('Oregon or Washington territory is missing');
+      await supabase.from('account_import_rows').update(stamp).eq('id', importRowId);
       committed.push({
         rowNumber: row.rowNumber,
         matchDecision: row.matchDecision,
-        status: 'failed',
+        status: stamp.status,
         retailerId: null,
         name: row.name,
-        error: 'Oregon or Washington territory is missing',
+        error: stamp.error,
       });
       continue;
     }
 
     const slt = suggestedAssignmentForLocation(assignments.data, row.stateCode);
     const existingRetailer = row.match?.retailerId
-      ? await loadExistingRetailer(supabase, row.match.retailerId)
+      ? await loadExistingRetailer(supabase, row.match.retailerId, lineId.salesLineId)
       : null;
     const payload = buildCommitRowPayload({
       row,
       classification,
       filename: input.filename.trim(),
-      batchId: batch.id,
+      batchId,
       sourceType: input.sourceType,
       territoryId,
       salesLineTerritoryId: slt?.id ?? null,
@@ -584,17 +776,15 @@ export async function commitAccountImport(
       p_payload: payload as never,
     });
     if (rpc.error) {
-      await supabase
-        .from('account_import_rows')
-        .update({ status: 'failed', error: rpc.error.message })
-        .eq('id', importRowId);
+      const stamp = failedImportRowStamp(rpc.error.message);
+      await supabase.from('account_import_rows').update(stamp).eq('id', importRowId);
       committed.push({
         rowNumber: row.rowNumber,
         matchDecision: row.matchDecision,
-        status: 'failed',
+        status: stamp.status,
         retailerId: null,
         name: row.name,
-        error: rpc.error.message,
+        error: stamp.error,
       });
       continue;
     }
@@ -607,13 +797,15 @@ export async function commitAccountImport(
       error?: string | null;
     };
     if (!result?.ok) {
+      const stamp = failedImportRowStamp(result?.error ?? 'Commit RPC failed');
+      await supabase.from('account_import_rows').update(stamp).eq('id', importRowId);
       committed.push({
         rowNumber: row.rowNumber,
         matchDecision: row.matchDecision,
-        status: 'failed',
+        status: stamp.status,
         retailerId: null,
         name: row.name,
-        error: result?.error ?? 'Commit RPC failed',
+        error: stamp.error,
       });
       continue;
     }
@@ -632,15 +824,15 @@ export async function commitAccountImport(
     ...tallyCommitReport(committed, input.uploadedRows),
     contactsCreated,
   };
-  await supabase
-    .from('account_import_batches')
-    .update({ status: 'completed', report })
-    .eq('id', batch.id);
+  const batchUpdate = batchIsFullyTerminal(committed)
+    ? { status: 'completed' as const, report }
+    : { report };
+  await supabase.from('account_import_batches').update(batchUpdate).eq('id', batchId);
 
   return {
     ok: true,
-    resumed: false,
-    batchId: batch.id,
+    resumed,
+    batchId,
     report,
     rows: committed,
   };

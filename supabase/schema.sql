@@ -3831,7 +3831,7 @@ create trigger calls_line_matches_rla
   for each row execute function public.enforce_order_call_line_matches_rla();
 
 -- Phase 2 bulk account import commit RPC. Keep in sync with
--- migrations/20260817200000_bulk_import_phase2_commit_rpc.sql.
+-- migrations/20260817210000_bulk_import_phase2_commit_rpc_contact_skip.sql.
 create or replace function public.commit_account_import_row(
   p_import_row_id uuid,
   p_payload jsonb
@@ -4012,25 +4012,30 @@ begin
       where account_id = v_retailer_id and is_primary = true
     ) into v_has_primary;
 
-    insert into account_contacts (
-      account_id,
-      role,
-      full_name,
-      email,
-      phone,
-      is_primary,
-      notes
-    )
-    values (
-      v_retailer_id,
-      'buyer',
-      coalesce(nullif(v_contact->>'full_name', ''), 'Buyer'),
-      nullif(v_contact->>'email', ''),
-      nullif(v_contact->>'phone', ''),
-      not coalesce(v_has_primary, false),
-      'Import'
-    )
-    returning id into v_contact_id;
+    if not (
+      coalesce(v_has_primary, false)
+      and coalesce((v_contact->>'skip_if_primary_exists')::boolean, false)
+    ) then
+      insert into account_contacts (
+        account_id,
+        role,
+        full_name,
+        email,
+        phone,
+        is_primary,
+        notes
+      )
+      values (
+        v_retailer_id,
+        'buyer',
+        coalesce(nullif(v_contact->>'full_name', ''), 'Buyer'),
+        nullif(v_contact->>'email', ''),
+        nullif(v_contact->>'phone', ''),
+        not coalesce(v_has_primary, false),
+        'Import'
+      )
+      returning id into v_contact_id;
+    end if;
   end if;
 
   if jsonb_typeof(p_payload->'field_changes') = 'array' then
