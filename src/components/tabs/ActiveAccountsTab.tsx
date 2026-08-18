@@ -96,6 +96,7 @@ export function ActiveAccountsTab({
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersEvidenceKey, setOrdersEvidenceKey] = useState('');
   const [aiResearch, setAiResearch] = useState<{
     account: Prospect;
     mode: ProspectResearchMode;
@@ -136,19 +137,6 @@ export function ActiveAccountsTab({
   }
 
   const todayIso = formatLocalIsoDate(new Date());
-
-  const visibleAccounts = useMemo(() => {
-    if (!reactivation) return accounts;
-    return accounts.filter((account) =>
-      isReactivationCandidate(account, {
-        hasQualifyingOrderLast365Days: hasQualifyingOrderLast365Days(
-          ordersByAccount.get(account.id) ?? [],
-          todayIso,
-        ),
-      }),
-    );
-  }, [accounts, reactivation, ordersByAccount, todayIso]);
-
   const accountIdsKey = useMemo(
     () =>
       accounts
@@ -157,6 +145,20 @@ export function ActiveAccountsTab({
         .join(','),
     [accounts],
   );
+  const ordersEvidenceReady = accountIdsKey === '' || ordersEvidenceKey === accountIdsKey;
+
+  const visibleAccounts = useMemo(() => {
+    if (!reactivation) return accounts;
+    if (!ordersEvidenceReady || ordersError) return [];
+    return accounts.filter((account) =>
+      isReactivationCandidate(account, {
+        hasQualifyingOrderLast365Days: hasQualifyingOrderLast365Days(
+          ordersByAccount.get(account.id) ?? [],
+          todayIso,
+        ),
+      }),
+    );
+  }, [accounts, reactivation, ordersByAccount, todayIso, ordersEvidenceReady, ordersError]);
 
   const reloadOrders = useCallback(() => {
     setOrdersReloadToken((n) => n + 1);
@@ -175,6 +177,7 @@ export function ActiveAccountsTab({
         setOrdersByAccount(new Map());
         setOrdersError(null);
         setOrdersLoading(false);
+        setOrdersEvidenceKey('');
         return;
       }
 
@@ -186,9 +189,11 @@ export function ActiveAccountsTab({
       if (result.error) {
         setOrdersByAccount(new Map());
         setOrdersError(result.error);
+        setOrdersEvidenceKey('');
         return;
       }
       setOrdersByAccount(groupOrdersByAccountId(result.data));
+      setOrdersEvidenceKey(accountIdsKey);
     }
 
     void load();

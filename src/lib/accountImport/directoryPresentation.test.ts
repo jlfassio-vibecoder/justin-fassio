@@ -150,6 +150,7 @@ describe('directory presentation', () => {
     expect(prospectsTab).toMatch(/Import history/);
     expect(accountsTab).toMatch(/isReactivationCandidate/);
     expect(accountsTab).toMatch(/hasQualifyingOrderLast365Days/);
+    expect(accountsTab).toMatch(/ordersEvidenceReady/);
     expect(accountsTab).toMatch(/Reactivation/);
     expect(accountsTab).toMatch(/Import history/);
     expect(directory).toMatch(/All territories/);
