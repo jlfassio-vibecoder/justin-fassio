@@ -1,7 +1,7 @@
 # Bulk account upload and AI enrichment
 
-Status: final product / design document  
-Scope: documentation only. This document does not authorize implementation, data import, schema apply, outreach, or hosted writes.  
+Status: approved design; Phase A (data foundation) is in this branch  
+Scope: this document is the product spec. Phase A schema, types, and classification helpers ship with this PR. It does not authorize hosted migration apply, workbook import, outreach, or later-phase UI/APIs.  
 First implementation target: verified Old Guys Rule (OGR) historical customers in Washington and Oregon.  
 Later reuse: Faire customer files, ZoomInfo leads, research prospects, Eagle Peak books.
 

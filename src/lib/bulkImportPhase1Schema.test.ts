@@ -46,6 +46,12 @@ describe('Phase 1 bulk-import data foundation schema', () => {
         /account_import_rows_line_fingerprint_committed_uidx[\s\S]*status in \('imported', 'linked', 'updated'\)/i,
       );
       expect(source).toMatch(/account_import_rows_batch_row_uidx unique \(batch_id, row_number\)/i);
+      expect(source).toMatch(
+        /account_import_batches_id_sales_line_uidx unique \(id, sales_line_id\)/i,
+      );
+      expect(source).toMatch(
+        /account_import_rows_batch_line_fkey[\s\S]*foreign key \(batch_id, sales_line_id\)[\s\S]*references account_import_batches \(id, sales_line_id\)/i,
+      );
     }
   });
 

@@ -92,7 +92,8 @@ create table if not exists account_import_batches (
   report jsonb not null default '{}'::jsonb,
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint account_import_batches_id_sales_line_uidx unique (id, sales_line_id)
 );
 
 create unique index if not exists account_import_batches_line_sha_committed_uidx
@@ -149,7 +150,11 @@ create table if not exists account_import_rows (
   raw_address_text text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint account_import_rows_batch_row_uidx unique (batch_id, row_number)
+  constraint account_import_rows_batch_row_uidx unique (batch_id, row_number),
+  constraint account_import_rows_batch_line_fkey
+    foreign key (batch_id, sales_line_id)
+    references account_import_batches (id, sales_line_id)
+    on delete cascade
 );
 
 create unique index if not exists account_import_rows_line_fingerprint_committed_uidx

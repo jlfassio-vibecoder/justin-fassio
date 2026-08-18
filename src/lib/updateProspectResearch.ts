@@ -208,16 +208,7 @@ export async function applyProspectResearchUpdate(
     const dbPatch = { ...merged.dbPatch } as Record<string, unknown>;
     if (input.aiAudit && shouldSkipVerifiedIdentity(existing.data, input.aiAudit)) {
       for (const key of Object.keys(dbPatch)) {
-        if (
-          isVerifiedIdentityField(key) ||
-          key === 'name' ||
-          key === 'address' ||
-          key === 'phone' ||
-          key === 'website' ||
-          key === 'city' ||
-          key === 'postal_code' ||
-          key === 'postalCode'
-        ) {
+        if (isVerifiedIdentityField(key)) {
           delete dbPatch[key];
         }
       }
