@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AddProspectAiModal } from '@/components/AddProspectAiModal';
 import { AiUpdateResearchModal } from '@/components/AiUpdateResearchModal';
 import { ImportAccountsModal } from '@/components/accountImport/ImportAccountsModal';
+import { ImportHistoryModal } from '@/components/accountImport/ImportHistoryModal';
 import { ProspectDetailDrawer } from '@/components/ProspectDetailDrawer';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
@@ -12,6 +13,7 @@ import { buildApfDraft, buildAssistDraft, buildSuggestDraft } from '@/lib/aiAssi
 import type { ProspectResearchMode } from '@/lib/fillBlankProspectFields';
 import type { Prospect } from '@/lib/prospects';
 import { useOptionalLineContext } from '@/lib/lineContext';
+import { isProspectsPipelineRow } from '@/lib/accountImport/directoryPresentation';
 import { isApprovedOwner } from '@/lib/auth';
 import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
 
@@ -87,6 +89,7 @@ export function ProspectsTab({
   const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [territoryCode, setTerritoryCode] = useState(BC_TERRITORY_CODE);
   const [highlightedProspectId, setHighlightedProspectId] = useState<number | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
@@ -113,10 +116,7 @@ export function ProspectsTab({
     queueMicrotask(() => onImportDeepLinkConsumed?.());
   }
 
-  const pipelineProspects = useMemo(
-    () => prospects.filter((p) => p.accountStatus !== 'active_account'),
-    [prospects],
-  );
+  const pipelineProspects = useMemo(() => prospects.filter(isProspectsPipelineRow), [prospects]);
 
   useEffect(() => {
     if (highlightedProspectId == null) return;
@@ -186,13 +186,22 @@ export function ProspectsTab({
         toolbarExtra={
           <div className="flex items-center gap-2">
             {isApprovedOwner(profile) ? (
-              <Button
-                variant="secondary"
-                className="text-xs whitespace-nowrap"
-                onClick={() => setImportOpen(true)}
-              >
-                Import accounts
-              </Button>
+              <>
+                <Button
+                  variant="secondary"
+                  className="text-xs whitespace-nowrap"
+                  onClick={() => setImportOpen(true)}
+                >
+                  Import accounts
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="text-xs whitespace-nowrap"
+                  onClick={() => setHistoryOpen(true)}
+                >
+                  Import history
+                </Button>
+              </>
             ) : null}
             <Button
               variant="secondary"
@@ -289,6 +298,8 @@ export function ProspectsTab({
         onClose={() => setImportOpen(false)}
         onImported={onImported}
       />
+
+      <ImportHistoryModal open={historyOpen} onClose={() => setHistoryOpen(false)} />
 
       <AiUpdateResearchModal
         open={aiResearch != null}

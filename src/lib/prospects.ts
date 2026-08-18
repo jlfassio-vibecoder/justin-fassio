@@ -1,7 +1,13 @@
 import { supabase } from '@/lib/supabase';
 import { resolveOgrLineId, resolveWriteSalesLineId } from '@/lib/lines';
+import { isLineAccountMarker } from '@/lib/accountImport/classification';
 import { accountStatusFromRelationship } from '@/lib/ogrCommercial';
-import type { AccountStatus, ProspectRow, RelationshipStatus } from '@/types/database';
+import type {
+  AccountStatus,
+  LineAccountMarker,
+  ProspectRow,
+  RelationshipStatus,
+} from '@/types/database';
 import {
   clampSecondaryChannels,
   coercePrimaryRetailChannel,
@@ -108,6 +114,7 @@ export interface Prospect extends ProspectPlanningFields, ProspectTaxonomyFields
   territoryName: string | null;
   /** Present when fetchProspects is scoped to a sales line (Phase 6 EP directory). */
   lineRelationshipStatus?: RelationshipStatus | null;
+  lineAccountMarkers?: LineAccountMarker[];
 }
 
 export interface FetchProspectsOptions {
@@ -188,6 +195,7 @@ type RlaCommercial = {
   relationshipStatus: RelationshipStatus;
   convertedAt: string | null;
   initialOrderDate: string | null;
+  lineAccountMarkers: LineAccountMarker[];
 };
 
 function overlayProspectCommercial(prospect: Prospect, rla: RlaCommercial | undefined): Prospect {
@@ -198,6 +206,7 @@ function overlayProspectCommercial(prospect: Prospect, rla: RlaCommercial | unde
     convertedAt: rla.convertedAt,
     initialOrderDate: rla.initialOrderDate,
     lineRelationshipStatus: rla.relationshipStatus,
+    lineAccountMarkers: rla.lineAccountMarkers,
   };
 }
 
@@ -206,7 +215,9 @@ async function fetchRlaCommercialByRetailer(
 ): Promise<{ data: Map<number, RlaCommercial>; error: string | null }> {
   const { data, error } = await supabase
     .from('retailer_line_accounts')
-    .select('retailer_id, relationship_status, converted_at, initial_order_date')
+    .select(
+      'retailer_id, relationship_status, converted_at, initial_order_date, line_account_markers',
+    )
     .eq('sales_line_id', salesLineId)
     .neq('relationship_status', 'terminated');
 
@@ -221,6 +232,7 @@ async function fetchRlaCommercialByRetailer(
       relationshipStatus: row.relationship_status as RelationshipStatus,
       convertedAt: row.converted_at,
       initialOrderDate: row.initial_order_date,
+      lineAccountMarkers: (row.line_account_markers ?? []).filter(isLineAccountMarker),
     });
   }
   return { data: map, error: null };

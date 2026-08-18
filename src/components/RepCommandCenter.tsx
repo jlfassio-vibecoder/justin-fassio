@@ -22,6 +22,10 @@ import { fetchCatalogSettings, type CatalogSupplierTerms } from '@/lib/catalogSe
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { persistLastLineSlug } from '@/lib/lineContextStorage';
 import { fetchNeedsMappingCount, type MessageThread } from '@/lib/messages';
+import {
+  isProspectsPipelineRow,
+  parseDirectoryTerritoryParam,
+} from '@/lib/accountImport/directoryPresentation';
 import { fetchProspects, type Prospect } from '@/lib/prospects';
 import {
   resolveLineAccountForSlug,
@@ -47,9 +51,18 @@ function parseAppDeepLinks(): {
   draftId: string | null;
   prospectId: number | null;
   importAccounts: boolean;
+  reactivation: boolean;
+  territory: string | null;
 } {
   if (typeof window === 'undefined') {
-    return { sku: null, draftId: null, prospectId: null, importAccounts: false };
+    return {
+      sku: null,
+      draftId: null,
+      prospectId: null,
+      importAccounts: false,
+      reactivation: false,
+      territory: null,
+    };
   }
   const params = new URLSearchParams(window.location.search);
   const sku = params.get('sku')?.trim() || null;
@@ -58,7 +71,9 @@ function parseAppDeepLinks(): {
   const prospectId =
     prospectRaw && Number.isFinite(Number(prospectRaw)) ? Number(prospectRaw) : null;
   const importAccounts = params.get('import') === '1';
-  return { sku, draftId, prospectId, importAccounts };
+  const reactivation = params.get('reactivation') === '1';
+  const territory = parseDirectoryTerritoryParam(params.get('territory'));
+  return { sku, draftId, prospectId, importAccounts, reactivation, territory };
 }
 
 export function RepCommandCenter({
@@ -78,9 +93,11 @@ export function RepCommandCenter({
 
   const initialLinks = parseAppDeepLinks();
   const [activeTab, setActiveTab] = useState<TabKey>(
-    initialLinks.importAccounts && defaultTab !== 'accounts' && defaultTab !== 'prospects'
-      ? 'prospects'
-      : defaultTab,
+    initialLinks.reactivation
+      ? 'accounts'
+      : initialLinks.importAccounts && defaultTab !== 'accounts' && defaultTab !== 'prospects'
+        ? 'prospects'
+        : defaultTab,
   );
   const [modalOpen, setModalOpen] = useState(false);
   const [modalStoreId, setModalStoreId] = useState<number | null>(null);
@@ -104,6 +121,8 @@ export function RepCommandCenter({
   );
   const [deepLinkAccountId, setDeepLinkAccountId] = useState<number | null>(null);
   const [deepLinkImport, setDeepLinkImport] = useState(initialLinks.importAccounts);
+  const [deepLinkReactivation, setDeepLinkReactivation] = useState(initialLinks.reactivation);
+  const [deepLinkTerritory, setDeepLinkTerritory] = useState<string | null>(initialLinks.territory);
   const [lineAccountError, setLineAccountError] = useState<string | null>(null);
 
   // URL prospectId may belong to an active account — remap once directory is loaded.
@@ -135,6 +154,11 @@ export function RepCommandCenter({
 
   const clearImportDeepLink = useCallback(() => {
     setDeepLinkImport(false);
+  }, []);
+
+  const clearDirectoryDeepLink = useCallback(() => {
+    setDeepLinkReactivation(false);
+    setDeepLinkTerritory(null);
   }, []);
 
   const openDraftDeepLink = useCallback((args: { sku: string; draftId: string }) => {
@@ -192,10 +216,13 @@ export function RepCommandCenter({
     marginRangeDisplay,
   } = useLandedCostCalculator(catalog);
 
-  const { pipeline: pipelineProspects, active: activeAccounts } = useMemo(
-    () => splitDirectoryByAccountOrLineRelationship(prospects, splitByRla),
-    [prospects, splitByRla],
-  );
+  const { pipeline: pipelineProspects, active: activeAccounts } = useMemo(() => {
+    const split = splitDirectoryByAccountOrLineRelationship(prospects, splitByRla);
+    return {
+      pipeline: split.pipeline.filter(isProspectsPipelineRow),
+      active: split.active,
+    };
+  }, [prospects, splitByRla]);
 
   const reloadDirectory = useCallback(() => {
     setDirectoryReloadToken((n) => n + 1);
@@ -493,6 +520,9 @@ export function RepCommandCenter({
                   onDeepLinkConsumed={clearAccountDeepLink}
                   deepLinkImport={deepLinkImport && activeTab === 'accounts'}
                   onImportDeepLinkConsumed={clearImportDeepLink}
+                  deepLinkReactivation={deepLinkReactivation}
+                  deepLinkTerritory={deepLinkTerritory}
+                  onDirectoryDeepLinkConsumed={clearDirectoryDeepLink}
                   onImported={reloadDirectory}
                 />
               )}

@@ -135,4 +135,40 @@ describe('filterProspects', () => {
       }).map((p) => p.id),
     ).toEqual([2]);
   });
+
+  it('includes Oregon/Washington regions and territory ALL', () => {
+    const portland: Prospect = {
+      ...SAMPLE[0],
+      id: 10,
+      name: 'Portland Outfitters',
+      region: 'Oregon',
+      city: 'Portland',
+      territoryCode: 'or',
+      territoryName: 'Oregon',
+    };
+    const seattle: Prospect = {
+      ...SAMPLE[0],
+      id: 11,
+      name: 'Seattle Marine',
+      region: 'Washington',
+      city: 'Seattle',
+      territoryCode: 'wa',
+      territoryName: 'Washington',
+    };
+    const mixed = [...SAMPLE, portland, seattle];
+    expect(
+      filterProspects(mixed, { search: '', region: 'Oregon', channel: 'ALL' }).map((p) => p.id),
+    ).toEqual([10]);
+    expect(
+      filterProspects(mixed, { search: '', region: 'Washington', channel: 'ALL' }).map((p) => p.id),
+    ).toEqual([11]);
+    expect(
+      filterProspects(mixed, {
+        search: '',
+        region: 'ALL',
+        channel: 'ALL',
+        territoryCode: 'ALL',
+      }).map((p) => p.id),
+    ).toEqual([1, 2, 3, 10, 11]);
+  });
 });

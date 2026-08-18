@@ -5,6 +5,10 @@ import type {
   PreviewImportRow,
 } from '@/lib/accountImport/types';
 import type { CommitReport, CommittedImportRow } from '@/lib/accountImport/commit';
+import type {
+  ImportHistoryBatchDetail,
+  ImportHistoryBatchListItem,
+} from '@/lib/accountImport/history';
 import type { AccountImportSourceType } from '@/types/database';
 
 async function bearerHeaders(
@@ -160,4 +164,46 @@ export async function commitAccountImportClient(input: {
     report: payload.report,
     rows: payload.rows,
   };
+}
+
+export async function listAccountImportBatchesClient(input: {
+  salesLineId: string;
+}): Promise<{ ok: true; batches: ImportHistoryBatchListItem[] } | { ok: false; error: string }> {
+  const auth = await bearerHeaders();
+  if (!auth.ok) return auth;
+  const params = new URLSearchParams({ sales_line_id: input.salesLineId });
+  const res = await fetch(`/api/staff/account-import/batches?${params.toString()}`, {
+    headers: auth.headers,
+  });
+  const payload = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    error?: string;
+    batches?: ImportHistoryBatchListItem[];
+  };
+  if (!res.ok || !payload.ok || !payload.batches) {
+    return { ok: false, error: payload.error || `History list failed (${res.status})` };
+  }
+  return { ok: true, batches: payload.batches };
+}
+
+export async function getAccountImportBatchClient(input: {
+  salesLineId: string;
+  batchId: string;
+}): Promise<{ ok: true; batch: ImportHistoryBatchDetail } | { ok: false; error: string }> {
+  const auth = await bearerHeaders();
+  if (!auth.ok) return auth;
+  const params = new URLSearchParams({ sales_line_id: input.salesLineId });
+  const res = await fetch(
+    `/api/staff/account-import/batches/${encodeURIComponent(input.batchId)}?${params.toString()}`,
+    { headers: auth.headers },
+  );
+  const payload = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    error?: string;
+    batch?: ImportHistoryBatchDetail;
+  };
+  if (!res.ok || !payload.ok || !payload.batch) {
+    return { ok: false, error: payload.error || `History detail failed (${res.status})` };
+  }
+  return { ok: true, batch: payload.batch };
 }

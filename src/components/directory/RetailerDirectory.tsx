@@ -3,6 +3,7 @@ import { CrossLineBadgeChips } from '@/components/CrossLineBadgeChips';
 import { Card } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
+import { territoryDisplayLabel } from '@/lib/accountImport/directoryPresentation';
 import { CHANNEL_OPTIONS, REGION_OPTIONS } from '@/lib/directoryOptions';
 import { filterProspects } from '@/lib/prospectFilters';
 import { primaryRetailChannelLabel } from '@/lib/crmRetailTaxonomy';
@@ -161,6 +162,7 @@ export function RetailerDirectory({
             onChange={(e) => setTerritoryCode(e.target.value)}
             aria-label="Territory"
           >
+            <option value="ALL">All territories</option>
             {territories.map((t) => (
               <option key={t.code} value={t.code}>
                 {t.name}
@@ -216,58 +218,66 @@ export function RetailerDirectory({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p, index) => (
-                  <tr
-                    key={p.id}
-                    data-prospect-id={p.id}
-                    className={
-                      highlightedId === p.id
-                        ? 'bg-ink/[0.08] ring-accent-800/40 ring-2 ring-inset'
-                        : onRowActivate
-                          ? 'hover:bg-ink/[0.04] cursor-pointer'
-                          : 'hover:bg-ink/[0.04]'
-                    }
-                    onClick={
-                      onRowActivate
-                        ? (event) => {
-                            if (isInteractiveTarget(event.target)) return;
-                            onRowActivate(p);
-                          }
-                        : undefined
-                    }
-                  >
-                    <td className="border-ink/[0.08] border-b p-2" title={`ID ${p.id}`}>
-                      {index + 1}
-                    </td>
-                    <td className="border-ink/[0.08] min-w-[160px] border-b p-2 font-semibold">
-                      <span className="inline-flex flex-col gap-1">
-                        <span>{p.name}</span>
-                        <CrossLineBadgeChips
-                          badges={currentSalesLineId ? (badgesByRetailer.get(p.id) ?? []) : []}
-                        />
-                      </span>
-                    </td>
-                    <td className="border-ink/[0.08] border-b p-2">
-                      <Tag variant={tagVariantForChannel(p.category)}>
-                        {primaryRetailChannelLabel(p.category)}
-                      </Tag>
-                    </td>
-                    <td className="border-ink/[0.08] border-b p-2">
-                      {p.city} ({p.region})
-                    </td>
-                    <td className="border-ink/[0.08] border-b p-2 opacity-75">{p.address}</td>
-                    <td className="border-ink/[0.08] border-b p-2">{p.phone}</td>
-                    <td className="border-ink/[0.08] min-w-[240px] border-b p-2 opacity-75">
-                      {p.fit}
-                    </td>
-                    {renderExtraCells ? renderExtraCells(p) : null}
-                    <td
-                      className={`${ACTION_CELL_CLASS} border-ink/[0.08] border-b p-2 text-right`}
+                {filtered.map((p, index) => {
+                  const territoryLabel = territoryDisplayLabel(p);
+                  return (
+                    <tr
+                      key={p.id}
+                      data-prospect-id={p.id}
+                      className={
+                        highlightedId === p.id
+                          ? 'bg-ink/[0.08] ring-accent-800/40 ring-2 ring-inset'
+                          : onRowActivate
+                            ? 'hover:bg-ink/[0.04] cursor-pointer'
+                            : 'hover:bg-ink/[0.04]'
+                      }
+                      onClick={
+                        onRowActivate
+                          ? (event) => {
+                              if (isInteractiveTarget(event.target)) return;
+                              onRowActivate(p);
+                            }
+                          : undefined
+                      }
                     >
-                      <div className="flex flex-col items-end gap-1.5">{renderActions(p)}</div>
-                    </td>
-                  </tr>
-                ))}
+                      <td className="border-ink/[0.08] border-b p-2" title={`ID ${p.id}`}>
+                        {index + 1}
+                      </td>
+                      <td className="border-ink/[0.08] min-w-[160px] border-b p-2 font-semibold">
+                        <span className="inline-flex flex-col gap-1">
+                          <span>{p.name}</span>
+                          <CrossLineBadgeChips
+                            badges={currentSalesLineId ? (badgesByRetailer.get(p.id) ?? []) : []}
+                          />
+                        </span>
+                      </td>
+                      <td className="border-ink/[0.08] border-b p-2">
+                        <Tag variant={tagVariantForChannel(p.category)}>
+                          {primaryRetailChannelLabel(p.category)}
+                        </Tag>
+                      </td>
+                      <td className="border-ink/[0.08] border-b p-2">
+                        <span className="inline-flex flex-wrap items-center gap-1.5">
+                          <span>
+                            {p.city} ({p.region})
+                          </span>
+                          {territoryLabel ? <Tag variant="outline">{territoryLabel}</Tag> : null}
+                        </span>
+                      </td>
+                      <td className="border-ink/[0.08] border-b p-2 opacity-75">{p.address}</td>
+                      <td className="border-ink/[0.08] border-b p-2">{p.phone}</td>
+                      <td className="border-ink/[0.08] min-w-[240px] border-b p-2 opacity-75">
+                        {p.fit}
+                      </td>
+                      {renderExtraCells ? renderExtraCells(p) : null}
+                      <td
+                        className={`${ACTION_CELL_CLASS} border-ink/[0.08] border-b p-2 text-right`}
+                      >
+                        <div className="flex flex-col items-end gap-1.5">{renderActions(p)}</div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
