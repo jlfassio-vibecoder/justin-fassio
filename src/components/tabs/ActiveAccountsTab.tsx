@@ -3,6 +3,7 @@ import { AccountDetailDrawer } from '@/components/AccountDetailDrawer';
 import { AccountOrderHistoryModal } from '@/components/AccountOrderHistoryModal';
 import { AiUpdateResearchModal } from '@/components/AiUpdateResearchModal';
 import { ImportAccountsModal } from '@/components/accountImport/ImportAccountsModal';
+import { ImportHistoryModal } from '@/components/accountImport/ImportHistoryModal';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
 import { RowActionsMenu, type RowActionSection } from '@/components/ui/RowActionsMenu';
@@ -10,6 +11,10 @@ import { Tag } from '@/components/ui/Tag';
 import { useAiAssist } from '@/hooks/useAiAssist';
 import { useAuth } from '@/hooks/useAuth';
 import { isApprovedOwner } from '@/lib/auth';
+import {
+  hasQualifyingOrderLast365Days,
+  isReactivationCandidate,
+} from '@/lib/accountImport/directoryPresentation';
 import {
   fetchAccountReorderSettingsForAccounts,
   upsertAccountReorderSettings,
@@ -40,6 +45,9 @@ interface ActiveAccountsTabProps {
   onDeepLinkConsumed?: () => void;
   deepLinkImport?: boolean;
   onImportDeepLinkConsumed?: () => void;
+  deepLinkReactivation?: boolean;
+  deepLinkTerritory?: string | null;
+  onDirectoryDeepLinkConsumed?: () => void;
   onImported?: () => void;
 }
 
@@ -71,6 +79,9 @@ export function ActiveAccountsTab({
   onDeepLinkConsumed,
   deepLinkImport = false,
   onImportDeepLinkConsumed,
+  deepLinkReactivation = false,
+  deepLinkTerritory = null,
+  onDirectoryDeepLinkConsumed,
   onImported,
 }: ActiveAccountsTabProps) {
   const { openAssist } = useAiAssist();
@@ -78,7 +89,10 @@ export function ActiveAccountsTab({
   const lineCtx = useOptionalLineContext();
   const prefillLine = { multiLineAi: lineCtx.multiLineAi, lineName: lineCtx.name };
   const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
-  const [territoryCode, setTerritoryCode] = useState(BC_TERRITORY_CODE);
+  const [territoryCode, setTerritoryCode] = useState(
+    deepLinkTerritory ?? (deepLinkReactivation ? 'ALL' : BC_TERRITORY_CODE),
+  );
+  const [reactivation, setReactivation] = useState(deepLinkReactivation);
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -98,6 +112,8 @@ export function ActiveAccountsTab({
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [appliedDeepLinkAccountId, setAppliedDeepLinkAccountId] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [appliedDirectoryDeepLink, setAppliedDirectoryDeepLink] = useState(false);
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (deepLinkAccountId != null && deepLinkAccountId !== appliedDeepLinkAccountId) {
@@ -112,7 +128,26 @@ export function ActiveAccountsTab({
     queueMicrotask(() => onImportDeepLinkConsumed?.());
   }
 
+  if ((deepLinkReactivation || deepLinkTerritory) && !appliedDirectoryDeepLink) {
+    setAppliedDirectoryDeepLink(true);
+    if (deepLinkReactivation) setReactivation(true);
+    setTerritoryCode(deepLinkTerritory ?? 'ALL');
+    queueMicrotask(() => onDirectoryDeepLinkConsumed?.());
+  }
+
   const todayIso = formatLocalIsoDate(new Date());
+
+  const visibleAccounts = useMemo(() => {
+    if (!reactivation) return accounts;
+    return accounts.filter((account) =>
+      isReactivationCandidate(account, {
+        hasQualifyingOrderLast365Days: hasQualifyingOrderLast365Days(
+          ordersByAccount.get(account.id) ?? [],
+          todayIso,
+        ),
+      }),
+    );
+  }, [accounts, reactivation, ordersByAccount, todayIso]);
 
   const accountIdsKey = useMemo(
     () =>
@@ -257,25 +292,50 @@ export function ActiveAccountsTab({
     <>
       <RetailerDirectory
         data-screen-label="accounts"
-        retailers={accounts}
+        retailers={visibleAccounts}
         territories={territories}
         territoryCode={territoryCode}
         onTerritoryCodeChange={setTerritoryCode}
         currentSalesLineId={salesLineId}
         searchPlaceholder="Search active accounts by name, city, address, or fit…"
-        emptyMessage="No active accounts yet. Convert a prospect after a Closed PO or from Details."
+        emptyMessage={
+          reactivation
+            ? 'No reactivation candidates match these filters.'
+            : 'No active accounts yet. Convert a prospect after a Closed PO or from Details.'
+        }
         extraColumnHeaders={['TLV', 'Last order', 'Season']}
         toolbarExtra={
           <div className="flex items-center gap-2">
             {isApprovedOwner(profile) ? (
-              <Button
-                variant="secondary"
-                className="text-xs whitespace-nowrap"
-                onClick={() => setImportOpen(true)}
-              >
-                Import accounts
-              </Button>
+              <>
+                <Button
+                  variant="secondary"
+                  className="text-xs whitespace-nowrap"
+                  onClick={() => setImportOpen(true)}
+                >
+                  Import accounts
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="text-xs whitespace-nowrap"
+                  onClick={() => setHistoryOpen(true)}
+                >
+                  Import history
+                </Button>
+              </>
             ) : null}
+            <Button
+              variant={reactivation ? 'primary' : 'secondary'}
+              className="text-xs whitespace-nowrap"
+              aria-pressed={reactivation}
+              onClick={() => {
+                const next = !reactivation;
+                setReactivation(next);
+                if (next) setTerritoryCode('ALL');
+              }}
+            >
+              Reactivation
+            </Button>
             {accounts.length > 0 ? (
               <Button
                 variant="secondary"
@@ -415,6 +475,8 @@ export function ActiveAccountsTab({
         onClose={() => setImportOpen(false)}
         onImported={onImported}
       />
+
+      <ImportHistoryModal open={historyOpen} onClose={() => setHistoryOpen(false)} />
 
       <AiUpdateResearchModal
         open={aiResearch != null}

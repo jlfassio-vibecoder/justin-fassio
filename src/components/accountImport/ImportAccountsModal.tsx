@@ -4,6 +4,10 @@ import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import {
+  ImportCommitReport,
+  ImportCountChips,
+} from '@/components/accountImport/ImportCommitReport';
+import {
   ACCOUNT_IMPORT_SOURCE_OPTIONS,
   HISTORICAL_OGR_IMPORT_DEFAULTS,
 } from '@/lib/accountImport/classification';
@@ -14,10 +18,10 @@ import {
 } from '@/lib/accountImport/client';
 import { collapseInFileDuplicates } from '@/lib/accountImport/collapseDuplicates';
 import { isBusinessNameMapped, proposeColumnMap } from '@/lib/accountImport/columnMap';
+import type { CommitReport, CommittedImportRow } from '@/lib/accountImport/commit';
 import { shouldAcceptImportCommit } from '@/lib/accountImport/confirmGuard';
 import { assertImportLineAllowed } from '@/lib/accountImport/lineGate';
 import { applyNormalizedEdits, normalizeWorkbookRows } from '@/lib/accountImport/normalize';
-import type { CommitReport, CommittedImportRow } from '@/lib/accountImport/commit';
 import type {
   AccountImportColumnMap,
   AccountImportTargetField,
@@ -486,7 +490,7 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
                 again.
               </p>
             ) : null}
-            <CountChips counts={counts} />
+            <ImportCountChips counts={counts} />
             <div className="max-h-[40vh] overflow-auto">
               <table className="w-full text-left text-sm">
                 <thead>
@@ -522,7 +526,7 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
 
         {step === 'confirm' ? (
           <>
-            {counts ? <CountChips counts={counts} /> : null}
+            {counts ? <ImportCountChips counts={counts} /> : null}
             <Field>
               <FieldLabel>Relationship</FieldLabel>
               <Select
@@ -584,34 +588,7 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
 
         {step === 'imported' && report ? (
           <>
-            <CountChips
-              counts={{
-                uploadedRows: report.uploadedRows,
-                uniqueBusinesses: report.uniqueBusinesses,
-                duplicateSpreadsheetRows: report.duplicateSpreadsheetRows,
-                existingRecordsLinked: report.existingRecordsLinked,
-                newRetailersProposed: report.newRetailersCreated,
-                lineAccountsProposed: report.lineAccountsCreatedOrUpdated,
-                contactsProposed: report.contactsCreated,
-                rowsRequiringReview: report.rowsRequiringReview,
-                blockedRows: report.blockedRows,
-              }}
-            />
-            <ul className="m-0 max-h-[40vh] list-none overflow-auto p-0">
-              {committedRows
-                .filter((row) => row.retailerId)
-                .map((row) => (
-                  <li key={row.rowNumber} className="py-1 text-sm">
-                    <a
-                      className="text-accent"
-                      href={`/app?tab=accounts&prospectId=${row.retailerId}`}
-                    >
-                      {row.name} #{row.retailerId}
-                    </a>
-                    <span className="text-ink/60"> {row.status}</span>
-                  </li>
-                ))}
-            </ul>
+            <ImportCommitReport report={report} rows={committedRows} />
             <div className="flex justify-end">
               <Button type="button" variant="primary" onClick={handleClose}>
                 Done
@@ -621,28 +598,5 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
         ) : null}
       </div>
     </DialogBackdrop>
-  );
-}
-
-function CountChips({ counts }: { counts: PreviewCounts }) {
-  const chips = [
-    ['Uploaded', counts.uploadedRows],
-    ['Unique', counts.uniqueBusinesses],
-    ['Duplicates', counts.duplicateSpreadsheetRows],
-    ['Linked', counts.existingRecordsLinked],
-    ['New retailers', counts.newRetailersProposed],
-    ['Line accounts', counts.lineAccountsProposed],
-    ['Contacts', counts.contactsProposed],
-    ['Review', counts.rowsRequiringReview],
-    ['Blocked', counts.blockedRows],
-  ] as const;
-  return (
-    <div className="flex flex-wrap gap-2">
-      {chips.map(([label, value]) => (
-        <span key={label} className="bg-ink/[0.06] rounded-full px-2 py-1 text-xs">
-          {label}: {value}
-        </span>
-      ))}
-    </div>
   );
 }

@@ -546,7 +546,7 @@ type PersistedImportRow = {
 const PERSISTED_IMPORT_ROW_SELECT =
   'id, row_number, status, match_decision, retailer_id, error, account_contact_id';
 
-async function loadFinishedCommitResult(
+export async function loadFinishedCommitResult(
   supabase: AgentSupabase,
   batch: { id: string; report: unknown },
   uploadedRows: number,

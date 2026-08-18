@@ -595,7 +595,13 @@ describe('account import phase 2 files', () => {
     expect(commit).not.toMatch(/from\('orders'\)/);
     expect(commit).not.toMatch(/account_enrichment_jobs/);
 
-    for (const file of ['parse.ts', 'preview.ts', 'commit.ts']) {
+    for (const file of [
+      'parse.ts',
+      'preview.ts',
+      'commit.ts',
+      'batches/index.ts',
+      'batches/[id].ts',
+    ]) {
       const src = readFileSync(resolve(root, `src/pages/api/staff/account-import/${file}`), 'utf8');
       expect(src).toMatch(/export const prerender = false/);
       expect(src).toMatch(/requireAccountImportOwner|requireApprovedOwnerClient/);
@@ -619,7 +625,9 @@ describe('account import phase 2 files', () => {
     );
     expect(prospectsTab).toMatch(/isApprovedOwner/);
     expect(prospectsTab).toMatch(/Import accounts/);
+    expect(prospectsTab).toMatch(/Import history/);
     expect(accountsTab).toMatch(/Import accounts/);
+    expect(accountsTab).toMatch(/Import history/);
     expect(commit).toMatch(/existingBatch/);
     expect(commit).toMatch(/revalidateCommitRows/);
     expect(commit).toMatch(/isRetryableImportRowStatus/);
