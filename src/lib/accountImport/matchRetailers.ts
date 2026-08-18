@@ -203,6 +203,10 @@ export function decideCollapsedRow(input: {
     if (retailerIds.length === 1) {
       const retailer = input.retailers.find((r) => r.id === retailerIds[0]);
       if (retailer) {
+        if (!isOrWa(retailer.territoryCode)) {
+          blockingErrors.push('Email matched a BC or non-OR/WA retailer');
+          return review(input.row, toPreviewMatch(retailer, null), blockingErrors, classification);
+        }
         const contact = emailHits[0];
         if (
           input.row.contactName &&

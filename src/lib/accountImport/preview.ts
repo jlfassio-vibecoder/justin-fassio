@@ -51,6 +51,7 @@ export async function loadCrmMatchSnapshot(
   if (terrError) return { ok: false, error: terrError.message };
   const codeById = new Map((territories ?? []).map((t) => [t.id, t.code]));
 
+  // Copilot suggestion ignored: filtering to OR/WA would drop BC retailers needed for name-collision review.
   const { data: prospects, error: prospectError } = await supabase
     .from('prospects')
     .select(

@@ -138,6 +138,43 @@ describe('account import matching', () => {
     expect(review[0]?.matchDecision).toBe('needs_review');
   });
 
+  it('does not link an email match to a BC retailer', () => {
+    const rows = matchCollapsedRows({
+      rows: [
+        collapsed({
+          email: 'buyer@example.com',
+          emailImportable: true,
+          contactName: 'Pat Buyer',
+        }),
+      ],
+      retailers: [
+        {
+          id: 12,
+          name: 'Kelowna Outfitters',
+          city: 'Kelowna',
+          territoryCode: 'bc',
+          accountStatus: 'prospect',
+          externalId: null,
+          importProtected: false,
+          buyerVerified: false,
+          verificationStatus: null,
+        },
+      ],
+      rlas: [],
+      contacts: [
+        {
+          retailerId: 12,
+          email: 'buyer@example.com',
+          fullName: 'Pat Buyer',
+          isPrimary: true,
+        },
+      ],
+      priorFingerprints: [],
+    });
+    expect(rows[0]?.matchDecision).toBe('needs_review');
+    expect(rows[0]?.blockingErrors).toContain('Email matched a BC or non-OR/WA retailer');
+  });
+
   it('does not silently reopen terminated or inactive historical purchasers', () => {
     const terminated = matchCollapsedRows({
       rows: [collapsed()],
@@ -537,11 +574,22 @@ describe('account import phase 2 files', () => {
       'utf8',
     );
     expect(contactSkip).toMatch(/skip_if_primary_exists/);
+    expect(contactSkip).toMatch(/Copilot suggestion ignored/);
     expect(rpcSql).toMatch(/skip_if_primary_exists/);
+    expect(rpcSql).toMatch(/lock table prospects in share row exclusive mode/i);
     expect(migration).not.toMatch(/skip_if_primary_exists/);
+    expect(migration).not.toMatch(/lock table prospects/i);
+
+    const idLock = readFileSync(
+      resolve(root, 'supabase/migrations/20260817230000_bulk_import_phase2_commit_rpc_id_lock.sql'),
+      'utf8',
+    );
+    expect(idLock).toMatch(/lock table prospects in share row exclusive mode/i);
+    expect(idLock).toMatch(/skip_if_primary_exists/);
 
     const preview = readFileSync(resolve(root, 'src/lib/accountImport/preview.ts'), 'utf8');
     expect(preview).not.toMatch(/from\('prospects'\)[\s\S]*insert/);
+    expect(preview).toMatch(/Copilot suggestion ignored/);
 
     const commit = readFileSync(resolve(root, 'src/lib/accountImport/commit.ts'), 'utf8');
     expect(commit).not.toMatch(/from\('orders'\)/);
@@ -583,6 +631,7 @@ describe('account import phase 2 files', () => {
     expect(commit).toMatch(/isUniqueConstraintError/);
     expect(commit).toMatch(/existingBatchAfterShaConflict/);
     expect(commit).toMatch(/insertOrLoadImportRows/);
+    expect(commit).toMatch(/batchUpdateError/);
 
     const shaLock = readFileSync(
       resolve(root, 'supabase/migrations/20260817220000_bulk_import_phase2_active_sha_uidx.sql'),

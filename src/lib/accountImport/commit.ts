@@ -929,7 +929,13 @@ export async function commitAccountImport(
   const batchUpdate = batchIsFullyTerminal(committed)
     ? { status: 'completed' as const, report }
     : { report };
-  await supabase.from('account_import_batches').update(batchUpdate).eq('id', batchId);
+  const { error: batchUpdateError } = await supabase
+    .from('account_import_batches')
+    .update(batchUpdate)
+    .eq('id', batchId);
+  if (batchUpdateError) {
+    return { ok: false, error: batchUpdateError.message, status: 500 };
+  }
 
   return {
     ok: true,

@@ -3831,7 +3831,7 @@ create trigger calls_line_matches_rla
   for each row execute function public.enforce_order_call_line_matches_rla();
 
 -- Phase 2 bulk account import commit RPC. Keep in sync with
--- migrations/20260817210000_bulk_import_phase2_commit_rpc_contact_skip.sql.
+-- migrations/20260817230000_bulk_import_phase2_commit_rpc_id_lock.sql.
 create or replace function public.commit_account_import_row(
   p_import_row_id uuid,
   p_payload jsonb
@@ -3895,6 +3895,7 @@ begin
   v_contact := p_payload->'contact';
 
   if v_action = 'create_retailer' then
+    lock table prospects in share row exclusive mode;
     insert into prospects (
       id,
       name,

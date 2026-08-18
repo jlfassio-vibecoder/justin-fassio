@@ -1,5 +1,5 @@
--- Additive correction: honor skip_if_primary_exists on commit_account_import_row.
--- Does not rewrite 20260817200000 (already hosted). Function remains SECURITY INVOKER.
+-- Additive correction: serialize prospects.id allocation in commit_account_import_row.
+-- Does not rewrite 20260817200000 (hosted) or 20260817210000. Function remains SECURITY INVOKER.
 
 create or replace function public.commit_account_import_row(
   p_import_row_id uuid,
@@ -64,6 +64,7 @@ begin
   v_contact := p_payload->'contact';
 
   if v_action = 'create_retailer' then
+    lock table prospects in share row exclusive mode;
     insert into prospects (
       id,
       name,
@@ -91,7 +92,6 @@ begin
       external_id
     )
     values (
-      -- Copilot suggestion ignored: id lock is in 20260817230000; this historical migration is not rewritten.
       coalesce((select max(id) from prospects), 0) + 1,
       v_insert->>'name',
       v_insert->>'category',
