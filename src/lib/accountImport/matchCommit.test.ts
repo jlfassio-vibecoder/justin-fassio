@@ -594,6 +594,9 @@ describe('account import phase 2 files', () => {
     const commit = readFileSync(resolve(root, 'src/lib/accountImport/commit.ts'), 'utf8');
     expect(commit).not.toMatch(/from\('orders'\)/);
     expect(commit).not.toMatch(/account_enrichment_jobs/);
+    expect(commit).toMatch(
+      /tallyCommitReport\(mapped, uploadedRows > 0 \? uploadedRows : mapped\.length\)/,
+    );
 
     for (const file of [
       'parse.ts',

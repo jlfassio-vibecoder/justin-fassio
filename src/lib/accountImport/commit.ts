@@ -571,7 +571,7 @@ export async function loadFinishedCommitResult(
     report:
       batch.report && typeof batch.report === 'object'
         ? (batch.report as CommitReport)
-        : tallyCommitReport(mapped, uploadedRows),
+        : tallyCommitReport(mapped, uploadedRows > 0 ? uploadedRows : mapped.length),
     rows: mapped,
   };
 }
