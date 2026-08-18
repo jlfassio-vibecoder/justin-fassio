@@ -2,11 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AccountDetailDrawer } from '@/components/AccountDetailDrawer';
 import { AccountOrderHistoryModal } from '@/components/AccountOrderHistoryModal';
 import { AiUpdateResearchModal } from '@/components/AiUpdateResearchModal';
+import { ImportAccountsModal } from '@/components/accountImport/ImportAccountsModal';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
 import { RowActionsMenu, type RowActionSection } from '@/components/ui/RowActionsMenu';
 import { Tag } from '@/components/ui/Tag';
 import { useAiAssist } from '@/hooks/useAiAssist';
+import { useAuth } from '@/hooks/useAuth';
+import { isApprovedOwner } from '@/lib/auth';
 import {
   fetchAccountReorderSettingsForAccounts,
   upsertAccountReorderSettings,
@@ -35,6 +38,9 @@ interface ActiveAccountsTabProps {
   onProspectUpdated?: (prospect: Prospect) => void;
   deepLinkAccountId?: number | null;
   onDeepLinkConsumed?: () => void;
+  deepLinkImport?: boolean;
+  onImportDeepLinkConsumed?: () => void;
+  onImported?: () => void;
 }
 
 function formatCad(amount: number): string {
@@ -63,8 +69,12 @@ export function ActiveAccountsTab({
   onProspectUpdated,
   deepLinkAccountId = null,
   onDeepLinkConsumed,
+  deepLinkImport = false,
+  onImportDeepLinkConsumed,
+  onImported,
 }: ActiveAccountsTabProps) {
   const { openAssist } = useAiAssist();
+  const { profile } = useAuth();
   const lineCtx = useOptionalLineContext();
   const prefillLine = { multiLineAi: lineCtx.multiLineAi, lineName: lineCtx.name };
   const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
@@ -87,6 +97,7 @@ export function ActiveAccountsTab({
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [appliedDeepLinkAccountId, setAppliedDeepLinkAccountId] = useState<number | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (deepLinkAccountId != null && deepLinkAccountId !== appliedDeepLinkAccountId) {
@@ -94,6 +105,11 @@ export function ActiveAccountsTab({
     setAppliedDeepLinkAccountId(deepLinkAccountId);
     if (match) setDetailAccount(match);
     queueMicrotask(() => onDeepLinkConsumed?.());
+  }
+
+  if (deepLinkImport && !importOpen) {
+    setImportOpen(true);
+    queueMicrotask(() => onImportDeepLinkConsumed?.());
   }
 
   const todayIso = formatLocalIsoDate(new Date());
@@ -250,16 +266,27 @@ export function ActiveAccountsTab({
         emptyMessage="No active accounts yet. Convert a prospect after a Closed PO or from Details."
         extraColumnHeaders={['TLV', 'Last order', 'Season']}
         toolbarExtra={
-          accounts.length > 0 ? (
-            <Button
-              variant="secondary"
-              className="text-xs whitespace-nowrap"
-              disabled={refreshBusy}
-              onClick={() => void handleRefreshAiReminders()}
-            >
-              {refreshBusy ? 'Refreshing…' : 'Refresh AI reminders'}
-            </Button>
-          ) : null
+          <div className="flex items-center gap-2">
+            {isApprovedOwner(profile) ? (
+              <Button
+                variant="secondary"
+                className="text-xs whitespace-nowrap"
+                onClick={() => setImportOpen(true)}
+              >
+                Import accounts
+              </Button>
+            ) : null}
+            {accounts.length > 0 ? (
+              <Button
+                variant="secondary"
+                className="text-xs whitespace-nowrap"
+                disabled={refreshBusy}
+                onClick={() => void handleRefreshAiReminders()}
+              >
+                {refreshBusy ? 'Refreshing…' : 'Refresh AI reminders'}
+              </Button>
+            ) : null}
+          </div>
         }
         banner={
           <>
@@ -381,6 +408,12 @@ export function ActiveAccountsTab({
             </>
           );
         }}
+      />
+
+      <ImportAccountsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={onImported}
       />
 
       <AiUpdateResearchModal

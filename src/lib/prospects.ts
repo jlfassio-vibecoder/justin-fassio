@@ -20,8 +20,9 @@ import {
 
 /** Primary retail channel code (formerly Golf|Marina|Hardware|Resort Gift). */
 export type ProspectCategory = PrimaryRetailChannel;
-export type ProspectRegion =
+export type BcProspectRegion =
   'Okanagan' | 'Shuswap' | 'Vancouver Island' | 'Sea-to-Sky' | 'Kootenays' | 'Fraser Valley';
+export type ProspectRegion = BcProspectRegion | 'Oregon' | 'Washington';
 
 /** Nullable planning fields from the BC named prospect list sheet. */
 export type ProspectPlanningFields = {

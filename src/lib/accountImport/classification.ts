@@ -28,6 +28,14 @@ export const ACCOUNT_IMPORT_SOURCE_TYPES = [
   'other',
 ] as const satisfies readonly AccountImportSourceType[];
 
+export const ACCOUNT_IMPORT_SOURCE_OPTIONS = [
+  { value: 'historical_customer', label: 'Historical customer', enabled: true },
+  { value: 'faire_customer', label: 'Faire customer', enabled: true },
+  { value: 'zoominfo_lead', label: 'ZoomInfo', enabled: false },
+  { value: 'research_prospect', label: 'Research', enabled: false },
+  { value: 'other', label: 'Other', enabled: false },
+] as const;
+
 export function isLineAccountMarker(value: string): value is LineAccountMarker {
   return ALLOWED_MARKERS.has(value);
 }

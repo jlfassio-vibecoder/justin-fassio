@@ -1,4 +1,4 @@
-import type { ProspectRegion } from '@/lib/prospects';
+import type { BcProspectRegion } from '@/lib/prospects';
 
 export const PRIMARY_DISTRICTS = [
   'Okanagan',
@@ -210,7 +210,7 @@ export function isDenseSubterritory(subterritory: string | null | undefined): bo
 }
 
 /** Map territory onto existing CRM region filter enum. */
-export function crmRegionFromTerritory(map: BcTerritoryMap): ProspectRegion | null {
+export function crmRegionFromTerritory(map: BcTerritoryMap): BcProspectRegion | null {
   if (map.primaryDistrict === 'Needs mapping') return null;
   if (map.primaryDistrict === 'Okanagan') return 'Okanagan';
   if (map.primaryDistrict === 'Vancouver Island') return 'Vancouver Island';

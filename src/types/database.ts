@@ -2659,6 +2659,10 @@ export interface Database {
         };
         Returns: unknown;
       };
+      commit_account_import_row: {
+        Args: { p_import_row_id: string; p_payload: unknown };
+        Returns: unknown;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
