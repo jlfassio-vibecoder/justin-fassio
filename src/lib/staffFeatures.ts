@@ -66,8 +66,7 @@ export function parseFeatureFlag(raw: string | undefined | null): boolean {
 }
 
 function readEnv(name: string): string | undefined {
-  const fromProcess =
-    typeof process !== 'undefined' && process.env ? process.env[name] : undefined;
+  const fromProcess = typeof process !== 'undefined' && process.env ? process.env[name] : undefined;
   if (typeof fromProcess === 'string' && fromProcess.trim()) return fromProcess;
   const fromImportMeta =
     typeof import.meta !== 'undefined'

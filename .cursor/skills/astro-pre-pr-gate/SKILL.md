@@ -1,13 +1,15 @@
 ---
 name: astro-pre-pr-gate
-description: Enforces Rep Command Center (Astro 7 + React islands + Supabase) pre-PR quality/security rules and triages Copilot/Cursor Bot PR comments. Use when writing code, reviewing diffs, preparing a pull request, or when the user pastes a PR URL / asks to address bot review comments.
+description: Enforces Rep Command Center (Astro 7 + React islands + Supabase) quality and security before code is pushed or a pull request is created. Use when writing or editing code, reviewing git diffs, committing, pushing, creating a PR, preparing a pull request, or running npm run check. Do not use after GitHub review comments exist — that is the pr-triage rule.
 ---
 
-# Rep Command Center Pre-PR & Bot Review Gate
+# Rep Command Center Pre-PR Gate
 
 Project: **rep-command-center** (`justin-fassio`) — Astro 7 + React 19 islands + TypeScript 5.x + Tailwind 4 + Supabase RLS, deployed on Vercel.
 
-When writing code, editing files, reviewing git diffs, or addressing PR bot comments before shipping, strictly enforce the sections below.
+Run this skill **before** `git push` and **before** creating a pull request. Do not wait until Copilot or Cursor Bot have commented.
+
+When writing code, editing files, or reviewing git diffs before shipping, strictly enforce the sections below.
 
 ## Project map (use these paths)
 
@@ -42,58 +44,13 @@ Domain tables under RLS: `calls`, `catalog_items`, `prospects`, `contacts`, `ord
 
 ## 3. Pre-Push Verification Commands
 
-Before marking a task as complete, verify these pass with zero errors:
+Before marking a task as complete, and **before** `git push` or opening a PR, verify these pass with zero errors:
 
 - `npm run check` — ESLint, `astro check` (via `typecheck`), Prettier format check, and Vitest
 - If only Astro diagnostics are needed in isolation: `npx astro check`
 
 ---
 
-## 4. PR Bot Comment Triage & Response
+## Out of scope
 
-When the user provides a PR URL (or asks to address Copilot / Cursor Bot review comments), follow this workflow exactly.
-
-You are a Senior Lead Engineer performing a disciplined code review response.
-
-### STEP 1 — LOAD & TRIAGE
-
-Fetch the PR at the URL below. Extract every Copilot and Cursor Bot comment and produce a numbered triage list before touching any code:
-
-  #  | File | Line | Category | Action
-  ---|------|------|----------|-------
-
-Assign one of these categories:
-
-- CRITICAL — security vulnerability, race condition, or logic error → Fix immediately
-- PERFORMANCE — measurably improves Big O or reduces DB load without hurting readability → Apply
-- STYLE — purely cosmetic or naming-related → Apply only if it matches the dominant pattern in that file; otherwise SKIP
-- ARCHITECTURE — conflicts with existing patterns, references nonexistent symbols, or introduces unnecessary abstraction → SKIP
-- FALSE POSITIVE — hallucinated variable, wrong file context, or inapplicable suggestion → SKIP
-
-Do not begin Step 2 until the triage table is complete.
-
-### STEP 2 — IMPLEMENTATION RULES
-
-Apply fixes in triage order, one at a time. Follow these constraints:
-
-- Search the codebase for existing utilities or types before writing new ones (prefer `src/lib/*`, `src/types/database.ts`, `requireApprovedStaffClient`)
-- Make the smallest targeted change that resolves the comment — do not refactor surrounding code
-- Do not introduce new abstractions unless the comment explicitly requires it
-- After all changes, verify no TypeScript errors and no broken imports (`npm run check`)
-- Do not convert Astro React islands (`client:load` / `client:visible` / `client:idle`) to server-only components or vice-versa unless explicitly addressing an island/server boundary error
-- Still enforce sections 1–3 above while applying fixes
-
-### STEP 3 — DEVIATION LOG
-
-For every SKIP decision, add a single inline comment immediately above or at the relevant line:
-
-  // Copilot suggestion ignored: [one-sentence reason]
-
-Then produce a final summary in this format:
-
-  APPLIED (#1, #3, #5): [one-line description of each change]
-  SKIPPED (#2, #4): [one-line reason for each skip]
-  BUILD STATUS: [clean / issues found]
-
----
-PR URL:
+After a PR exists and GitHub review comments land, follow `.cursor/rules/pr-triage.mdc`. Do not run that bot-comment workflow before push or PR creation.
