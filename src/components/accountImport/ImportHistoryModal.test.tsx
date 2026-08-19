@@ -39,6 +39,9 @@ vi.mock('@/lib/accountImport/client', () => ({
   processAccountImportEnrichClient: () => Promise.resolve({ ok: false, error: 'unused' }),
   cancelAccountImportEnrichClient: () => Promise.resolve({ ok: false, error: 'unused' }),
   retryAccountImportEnrichClient: () => Promise.resolve({ ok: false, error: 'unused' }),
+  getAccountImportReviewClient: () => Promise.resolve({ ok: false, error: 'unused' }),
+  applyAccountImportReviewClient: () => Promise.resolve({ ok: false, error: 'unused' }),
+  rejectAccountImportReviewClient: () => Promise.resolve({ ok: false, error: 'unused' }),
 }));
 
 describe('ImportHistoryModal', () => {
@@ -58,6 +61,8 @@ describe('ImportHistoryModal', () => {
     expect(src).toMatch(/pumpEnrich/);
     expect(src).toMatch(/jobs\.running > 0/);
     expect(src).toMatch(/RUNNING_JOB_POLL_MS/);
+    expect(src).toMatch(/Review pending/);
     expect(src).not.toMatch(/from '@\/lib\/accountImport\/enrich'/);
+    expect(src).not.toMatch(/from '@\/lib\/accountImport\/review'/);
   });
 });

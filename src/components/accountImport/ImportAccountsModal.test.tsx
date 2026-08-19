@@ -62,6 +62,9 @@ describe('ImportAccountsModal', () => {
     expect(modal).toMatch(/if \(busy \|\| step === 'importing'\) return/);
     expect(modal).toMatch(/jobs\.running > 0/);
     expect(modal).toMatch(/RUNNING_JOB_POLL_MS/);
+    expect(modal).toMatch(/review.*complete/s);
+    expect(modal).toMatch(/Approve or reject uncertain/);
+    expect(modal).not.toMatch(/from '@\/lib\/accountImport\/review'/);
     expect(modal).not.toMatch(/AI enrichment is not part of this import/);
     const progress = readFileSync(
       resolve(process.cwd(), 'src/components/accountImport/EnrichmentProgress.tsx'),
@@ -69,5 +72,15 @@ describe('ImportAccountsModal', () => {
     );
     expect(progress).toMatch(/Retry failed/);
     expect(progress).toMatch(/Cancel remaining/);
+    expect(progress).toMatch(/Review pending/);
+    const reviewUi = readFileSync(
+      resolve(process.cwd(), 'src/components/accountImport/EnrichmentReview.tsx'),
+      'utf8',
+    );
+    expect(reviewUi).toMatch(/Apply remaining/);
+    expect(reviewUi).toMatch(/Reject remaining/);
+    expect(reviewUi).toMatch(/Skip remaining/);
+    expect(reviewUi).not.toMatch(/from '@\/lib\/accountImport\/review'/);
+    expect(reviewUi).not.toMatch(/from '@\/lib\/accountImport\/enrich'/);
   });
 });

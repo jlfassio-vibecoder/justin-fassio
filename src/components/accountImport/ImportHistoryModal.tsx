@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { EnrichmentProgress } from '@/components/accountImport/EnrichmentProgress';
+import { EnrichmentReview } from '@/components/accountImport/EnrichmentReview';
 import {
   ImportCommitReport,
   ImportCountChips,
@@ -18,14 +19,19 @@ import {
   processAccountImportEnrichClient,
   retryAccountImportEnrichClient,
   startAccountImportEnrichClient,
+  getAccountImportReviewClient,
+  applyAccountImportReviewClient,
+  rejectAccountImportReviewClient,
 } from '@/lib/accountImport/client';
 import { commitReportToPreviewCounts } from '@/lib/accountImport/commitReportView';
 import {
   canResumeEnrich,
   canRetryFailedEnrich,
+  canReviewPending,
   RUNNING_JOB_POLL_MS,
   type EnrichmentSnapshot,
 } from '@/lib/accountImport/enrichStatus';
+import type { ReviewSnapshot } from '@/lib/accountImport/reviewStatus';
 import type {
   ImportHistoryBatchDetail,
   ImportHistoryBatchListItem,
@@ -57,6 +63,8 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
   const [batches, setBatches] = useState<ImportHistoryBatchListItem[]>([]);
   const [detail, setDetail] = useState<ImportHistoryBatchDetail | null>(null);
   const [enrichSnapshot, setEnrichSnapshot] = useState<EnrichmentSnapshot | null>(null);
+  const [reviewSnapshot, setReviewSnapshot] = useState<ReviewSnapshot | null>(null);
+  const [reviewing, setReviewing] = useState(false);
   const [pumping, setPumping] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +82,8 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
       setBusy(true);
       setDetail(null);
       setEnrichSnapshot(null);
+      setReviewSnapshot(null);
+      setReviewing(false);
       setError(null);
       setSalesLineId((current ?? fallback)?.id ?? '');
     });
@@ -107,6 +117,8 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
     pumpAbortRef.current = true;
     setDetail(null);
     setEnrichSnapshot(null);
+    setReviewSnapshot(null);
+    setReviewing(false);
     setPumping(false);
     setError(null);
     setBusy(true);
@@ -136,6 +148,8 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
     setBusy(true);
     setError(null);
     setEnrichSnapshot(null);
+    setReviewSnapshot(null);
+    setReviewing(false);
     const result = await getAccountImportBatchClient({ salesLineId, batchId });
     if (!result.ok) {
       setBusy(false);
@@ -177,6 +191,7 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
       setError(started.error);
       return;
     }
+    setReviewing(false);
     setEnrichSnapshot(started.snapshot);
     await pumpEnrich(detail.id);
   }
@@ -193,7 +208,56 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
       return;
     }
     setEnrichSnapshot(retried.snapshot);
+    setReviewing(false);
     await pumpEnrich(detail.id);
+  }
+
+  async function openReview() {
+    if (!detail) return;
+    setError(null);
+    setBusy(true);
+    const result = await getAccountImportReviewClient({ salesLineId, batchId: detail.id });
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setReviewSnapshot(result.review);
+    setReviewing(true);
+  }
+
+  async function decideReview(kind: 'apply' | 'reject', changeIds: string[]) {
+    if (!detail || changeIds.length === 0) return;
+    setBusy(true);
+    setError(null);
+    const result =
+      kind === 'apply'
+        ? await applyAccountImportReviewClient({
+            salesLineId,
+            batchId: detail.id,
+            changeIds,
+          })
+        : await rejectAccountImportReviewClient({
+            salesLineId,
+            batchId: detail.id,
+            changeIds,
+          });
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setReviewSnapshot(result.review);
+    if (result.conflicts[0]) setError(result.conflicts[0].error);
+    if (enrichSnapshot) {
+      setEnrichSnapshot({
+        ...enrichSnapshot,
+        jobs: {
+          ...enrichSnapshot.jobs,
+          pendingFieldChanges: result.review.pendingCount,
+        },
+      });
+    }
   }
 
   return (
@@ -217,6 +281,8 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
                 setBusy(true);
                 setDetail(null);
                 setEnrichSnapshot(null);
+                setReviewSnapshot(null);
+                setReviewing(false);
                 setError(null);
               }}
             >
@@ -288,8 +354,23 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
                     Retry failed
                   </Button>
                 ) : null}
+                {enrichSnapshot && canReviewPending(enrichSnapshot) ? (
+                  <Button type="button" variant="primary" onClick={() => void openReview()}>
+                    Review pending
+                  </Button>
+                ) : null}
               </div>
             )}
+            {reviewing ? (
+              <EnrichmentReview
+                snapshot={reviewSnapshot}
+                busy={busy}
+                onApply={(changeIds) => void decideReview('apply', changeIds)}
+                onReject={(changeIds) => void decideReview('reject', changeIds)}
+                onSkipRemaining={() => setReviewing(false)}
+                onDone={() => setReviewing(false)}
+              />
+            ) : null}
             <p className="m-0 text-sm">
               <a className="text-accent" href="/app?tab=accounts&reactivation=1&territory=ALL">
                 View reactivation candidates
@@ -302,6 +383,8 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
                   pumpAbortRef.current = true;
                   setDetail(null);
                   setEnrichSnapshot(null);
+                  setReviewSnapshot(null);
+                  setReviewing(false);
                 }}
               >
                 Back

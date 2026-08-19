@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { EnrichmentProgress } from '@/components/accountImport/EnrichmentProgress';
+import { EnrichmentReview } from '@/components/accountImport/EnrichmentReview';
 import {
   ImportCommitReport,
   ImportCountChips,
@@ -20,6 +21,9 @@ import {
   startAccountImportEnrichClient,
   cancelAccountImportEnrichClient,
   retryAccountImportEnrichClient,
+  getAccountImportReviewClient,
+  applyAccountImportReviewClient,
+  rejectAccountImportReviewClient,
 } from '@/lib/accountImport/client';
 import { collapseInFileDuplicates } from '@/lib/accountImport/collapseDuplicates';
 import { isBusinessNameMapped, proposeColumnMap } from '@/lib/accountImport/columnMap';
@@ -35,6 +39,7 @@ import type {
   PreviewImportRow,
 } from '@/lib/accountImport/types';
 import { RUNNING_JOB_POLL_MS, type EnrichmentSnapshot } from '@/lib/accountImport/enrichStatus';
+import type { ReviewSnapshot } from '@/lib/accountImport/reviewStatus';
 import { ACCOUNT_IMPORT_TARGET_FIELDS } from '@/lib/accountImport/types';
 import { fetchRepresentedLines, type LinePortfolio } from '@/lib/lines';
 import { useOptionalLineContext } from '@/lib/lineContext';
@@ -42,7 +47,21 @@ import { STAFF_AI_ERRORS } from '@/lib/aiLineContext';
 import type { AccountImportSourceType } from '@/types/database';
 
 export type ImportWizardState =
-  'select' | 'map' | 'normalize' | 'preview' | 'confirm' | 'importing' | 'imported' | 'enriching';
+  | 'select'
+  | 'map'
+  | 'normalize'
+  | 'preview'
+  | 'confirm'
+  | 'importing'
+  | 'imported'
+  | 'enriching'
+  | 'review'
+  | 'complete';
+
+function stepAfterEnrich(snapshot: EnrichmentSnapshot): ImportWizardState {
+  if (snapshot.jobs.queued + snapshot.jobs.running > 0) return 'enriching';
+  return snapshot.jobs.pendingFieldChanges > 0 ? 'review' : 'complete';
+}
 
 const FIELD_LABELS: Record<AccountImportTargetField, string> = {
   businessName: 'Business name',
@@ -106,6 +125,7 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
   const [committedRows, setCommittedRows] = useState<CommittedImportRow[]>([]);
   const [importedBatchId, setImportedBatchId] = useState<string | null>(null);
   const [enrichSnapshot, setEnrichSnapshot] = useState<EnrichmentSnapshot | null>(null);
+  const [reviewSnapshot, setReviewSnapshot] = useState<ReviewSnapshot | null>(null);
   const [selectedRetailerIds, setSelectedRetailerIds] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,7 +175,10 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
         }
         setEnrichSnapshot(next.snapshot);
         if (next.snapshot.pauseReason === 'rate_limit') return;
-        if (next.snapshot.jobs.queued + next.snapshot.jobs.running === 0) return;
+        if (next.snapshot.jobs.queued + next.snapshot.jobs.running === 0) {
+          setStep(stepAfterEnrich(next.snapshot));
+          return;
+        }
         if (next.snapshot.jobs.running > 0) {
           await new Promise((resolve) => setTimeout(resolve, RUNNING_JOB_POLL_MS));
         }
@@ -167,6 +190,23 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
       pumpAbortRef.current = true;
     };
   }, [open, step, importedBatchId, salesLineId, pumpToken]);
+
+  useEffect(() => {
+    if (!open || step !== 'review' || !importedBatchId || !salesLineId) return;
+    let cancelled = false;
+    void getAccountImportReviewClient({ salesLineId, batchId: importedBatchId }).then((result) => {
+      if (cancelled) return;
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setReviewSnapshot(result.review);
+      if (result.review.pendingCount === 0) setStep('complete');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, step, importedBatchId, salesLineId]);
 
   if (!open) return null;
 
@@ -187,6 +227,7 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
     setCommittedRows([]);
     setImportedBatchId(null);
     setEnrichSnapshot(null);
+    setReviewSnapshot(null);
     setSelectedRetailerIds(new Set());
     setBusy(false);
     commitInFlightRef.current = false;
@@ -315,6 +356,32 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
     setStep('enriching');
   }
 
+  async function decideReview(kind: 'apply' | 'reject', changeIds: string[]) {
+    if (!importedBatchId || changeIds.length === 0) return;
+    setBusy(true);
+    setError(null);
+    const result =
+      kind === 'apply'
+        ? await applyAccountImportReviewClient({
+            salesLineId,
+            batchId: importedBatchId,
+            changeIds,
+          })
+        : await rejectAccountImportReviewClient({
+            salesLineId,
+            batchId: importedBatchId,
+            changeIds,
+          });
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setReviewSnapshot(result.review);
+    if (result.conflicts[0]) setError(result.conflicts[0].error);
+    if (result.review.pendingCount === 0) setStep('complete');
+  }
+
   return (
     <DialogBackdrop open={open} onClose={handleClose} panelClassName="max-w-[960px]">
       <div className="gap-3.1 bg-surface p-4.1 flex max-h-[90vh] flex-col overflow-auto rounded-xl shadow-lg">
@@ -342,6 +409,8 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
           {step === 'importing' && 'Importing accounts…'}
           {step === 'imported' && 'Import finished. Enrich now or done.'}
           {step === 'enriching' && 'Per-row AI fill-blanks. Retry failed or cancel remaining.'}
+          {step === 'review' && 'Approve or reject uncertain and protected AI field changes.'}
+          {step === 'complete' && 'Import complete. Open reactivation candidates or close.'}
         </p>
         {error ? (
           <p className="m-0 text-sm text-red-700" role="alert">
@@ -746,10 +815,53 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
                   return;
                 }
                 setEnrichSnapshot(result.snapshot);
+                setStep(stepAfterEnrich(result.snapshot));
               });
             }}
-            onDone={handleClose}
+            onDone={() => setStep('complete')}
+            onReviewPending={() => setStep('review')}
           />
+        ) : null}
+
+        {step === 'review' ? (
+          <EnrichmentReview
+            snapshot={reviewSnapshot}
+            busy={busy}
+            onApply={(changeIds) => void decideReview('apply', changeIds)}
+            onReject={(changeIds) => void decideReview('reject', changeIds)}
+            onSkipRemaining={() => setStep('complete')}
+            onDone={() => setStep('complete')}
+          />
+        ) : null}
+
+        {step === 'complete' ? (
+          <>
+            {report ? (
+              <ImportCommitReport
+                report={report}
+                rows={committedRows}
+                selectedRetailerIds={selectedRetailerIds}
+                onToggleRetailer={(retailerId) =>
+                  setSelectedRetailerIds((current) => {
+                    const next = new Set(current);
+                    if (next.has(retailerId)) next.delete(retailerId);
+                    else next.add(retailerId);
+                    return next;
+                  })
+                }
+              />
+            ) : null}
+            <p className="m-0 text-sm">
+              <a className="text-accent" href="/app?tab=accounts&reactivation=1&territory=ALL">
+                View reactivation candidates
+              </a>
+            </p>
+            <div className="flex justify-end">
+              <Button type="button" variant="primary" onClick={handleClose}>
+                Done
+              </Button>
+            </div>
+          </>
         ) : null}
       </div>
     </DialogBackdrop>

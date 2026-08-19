@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseRetailerIds } from '@/lib/accountImport/http';
+import { parseChangeIds, parseRetailerIds } from '@/lib/accountImport/http';
 
 describe('parseRetailerIds', () => {
   it('floors string and number ids the same way', () => {
@@ -8,5 +8,14 @@ describe('parseRetailerIds', () => {
 
   it('drops non-positive and non-numeric values', () => {
     expect(parseRetailerIds(['abc', 0, -2, null, '0'])).toBeUndefined();
+  });
+});
+
+describe('parseChangeIds', () => {
+  it('keeps uuid strings and drops junk', () => {
+    expect(parseChangeIds(['11111111-1111-4111-8111-111111111111', 'not-a-uuid', 12])).toEqual([
+      '11111111-1111-4111-8111-111111111111',
+    ]);
+    expect(parseChangeIds([])).toBeUndefined();
   });
 });

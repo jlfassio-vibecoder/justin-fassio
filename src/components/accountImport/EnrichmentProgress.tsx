@@ -8,12 +8,14 @@ export function EnrichmentProgress({
   onRetryFailed,
   onCancelRemaining,
   onDone,
+  onReviewPending,
 }: {
   snapshot: EnrichmentSnapshot | null;
   busy: boolean;
   onRetryFailed?: () => void;
   onCancelRemaining?: () => void;
   onDone?: () => void;
+  onReviewPending?: () => void;
 }) {
   if (!snapshot) return <p className="m-0 text-sm">Starting AI fill-blanks…</p>;
   const done = snapshot.jobs.completed + snapshot.jobs.failed + snapshot.jobs.cancelled;
@@ -50,9 +52,14 @@ export function EnrichmentProgress({
             Retry failed
           </Button>
         ) : null}
-        {onDone && remaining === 0 ? (
+        {onDone && remaining === 0 && (snapshot.jobs.pendingFieldChanges ?? 0) === 0 ? (
           <Button type="button" variant="primary" onClick={onDone}>
             Done
+          </Button>
+        ) : null}
+        {onReviewPending && remaining === 0 && snapshot.jobs.pendingFieldChanges > 0 ? (
+          <Button type="button" variant="primary" onClick={onReviewPending}>
+            Review pending
           </Button>
         ) : null}
       </div>
