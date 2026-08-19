@@ -114,6 +114,10 @@ export function canRetryFailedEnrich(snapshot: EnrichmentSnapshot): boolean {
   return snapshot.jobs.failed > 0;
 }
 
+export function canReviewPending(snapshot: EnrichmentSnapshot): boolean {
+  return snapshot.jobs.pendingFieldChanges > 0;
+}
+
 export function mergeProfileNotes(existing: string | null | undefined, addition: string): string {
   const current = existing?.trim() ?? '';
   if (!current) return addition;

@@ -10,6 +10,7 @@ import type {
   ImportHistoryBatchListItem,
 } from '@/lib/accountImport/history';
 import type { EnrichmentSnapshot } from '@/lib/accountImport/enrichStatus';
+import type { ReviewSnapshot } from '@/lib/accountImport/reviewStatus';
 import type { AccountImportSourceType } from '@/types/database';
 
 async function bearerHeaders(
@@ -278,4 +279,72 @@ export async function retryAccountImportEnrichClient(input: {
   batchId: string;
 }) {
   return enrichRequest('retry', input);
+}
+
+async function reviewMutate(
+  path: 'apply' | 'reject',
+  input: { salesLineId: string; batchId: string; changeIds: string[] },
+): Promise<
+  | { ok: true; review: ReviewSnapshot; conflicts: Array<{ changeId: string; error: string }> }
+  | { ok: false; error: string }
+> {
+  const auth = await bearerHeaders();
+  if (!auth.ok) return auth;
+  const batchPath = encodeURIComponent(input.batchId);
+  const res = await fetch(`/api/staff/account-import/batches/${batchPath}/review/${path}`, {
+    method: 'POST',
+    headers: auth.headers,
+    body: JSON.stringify({
+      sales_line_id: input.salesLineId,
+      change_ids: input.changeIds,
+    }),
+  });
+  const payload = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    error?: string;
+    review?: ReviewSnapshot;
+    conflicts?: Array<{ changeId: string; error: string }>;
+  };
+  if (!res.ok || !payload.ok || !payload.review) {
+    return { ok: false, error: payload.error || `Review ${path} failed (${res.status})` };
+  }
+  return { ok: true, review: payload.review, conflicts: payload.conflicts ?? [] };
+}
+
+export async function getAccountImportReviewClient(input: {
+  salesLineId: string;
+  batchId: string;
+}): Promise<{ ok: true; review: ReviewSnapshot } | { ok: false; error: string }> {
+  const auth = await bearerHeaders(false);
+  if (!auth.ok) return auth;
+  const batchPath = encodeURIComponent(input.batchId);
+  const statusQuery = new URLSearchParams({ sales_line_id: input.salesLineId }).toString();
+  const res = await fetch(`/api/staff/account-import/batches/${batchPath}/review?${statusQuery}`, {
+    headers: auth.headers,
+  });
+  const payload = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    error?: string;
+    review?: ReviewSnapshot;
+  };
+  if (!res.ok || !payload.ok || !payload.review) {
+    return { ok: false, error: payload.error || `Review failed (${res.status})` };
+  }
+  return { ok: true, review: payload.review };
+}
+
+export async function applyAccountImportReviewClient(input: {
+  salesLineId: string;
+  batchId: string;
+  changeIds: string[];
+}) {
+  return reviewMutate('apply', input);
+}
+
+export async function rejectAccountImportReviewClient(input: {
+  salesLineId: string;
+  batchId: string;
+  changeIds: string[];
+}) {
+  return reviewMutate('reject', input);
 }

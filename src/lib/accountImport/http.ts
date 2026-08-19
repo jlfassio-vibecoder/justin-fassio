@@ -88,6 +88,14 @@ export function parseRetailerIds(raw: unknown): number[] | undefined {
   return ids.length > 0 ? ids : undefined;
 }
 
+export function parseChangeIds(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const ids = raw
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter((id) => isUuid(id));
+  return ids.length > 0 ? ids : undefined;
+}
+
 export function parseSourceType(raw: unknown): AccountImportSourceType | null {
   if (typeof raw === 'string' && (ACCOUNT_IMPORT_SOURCE_TYPES as readonly string[]).includes(raw)) {
     return raw as AccountImportSourceType;

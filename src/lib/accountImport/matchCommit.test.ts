@@ -612,6 +612,9 @@ describe('account import phase 2 files', () => {
       'batches/[id]/enrich/status.ts',
       'batches/[id]/enrich/cancel.ts',
       'batches/[id]/enrich/retry.ts',
+      'batches/[id]/review/index.ts',
+      'batches/[id]/review/apply.ts',
+      'batches/[id]/review/reject.ts',
     ]) {
       const src = readFileSync(resolve(root, `src/pages/api/staff/account-import/${file}`), 'utf8');
       expect(src).toMatch(/export const prerender = false/);
@@ -633,11 +636,12 @@ describe('account import phase 2 files', () => {
       'utf8',
     );
     expect(modal).toMatch(
-      /select.*map.*normalize.*preview.*confirm.*importing.*imported.*enriching/s,
+      /select.*map.*normalize.*preview.*confirm.*importing.*imported.*enriching.*review.*complete/s,
     );
     expect(modal).toMatch(/Run AI fill-blanks after import/);
     expect(modal).toMatch(/Enrich all/);
     expect(modal).not.toMatch(/from '@\/lib\/accountImport\/enrich'/);
+    expect(modal).not.toMatch(/from '@\/lib\/accountImport\/review'/);
 
     const prospectsTab = readFileSync(
       resolve(root, 'src/components/tabs/ProspectsTab.tsx'),
