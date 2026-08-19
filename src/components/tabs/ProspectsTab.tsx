@@ -3,6 +3,7 @@ import { AddProspectAiModal } from '@/components/AddProspectAiModal';
 import { AiUpdateResearchModal } from '@/components/AiUpdateResearchModal';
 import { ImportAccountsModal } from '@/components/accountImport/ImportAccountsModal';
 import { ImportHistoryModal } from '@/components/accountImport/ImportHistoryModal';
+import { FindLookalikesModal } from '@/components/lookalike/FindLookalikesModal';
 import { ProspectDetailDrawer } from '@/components/ProspectDetailDrawer';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
@@ -90,6 +91,7 @@ export function ProspectsTab({
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [lookalikeOpen, setLookalikeOpen] = useState(false);
   const [territoryCode, setTerritoryCode] = useState(BC_TERRITORY_CODE);
   const [highlightedProspectId, setHighlightedProspectId] = useState<number | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
@@ -117,6 +119,7 @@ export function ProspectsTab({
   }
 
   const pipelineProspects = useMemo(() => prospects.filter(isProspectsPipelineRow), [prospects]);
+  const ogrSelected = !lineCtx.multiLineUi || lineCtx.lineSlug === 'ogr';
 
   useEffect(() => {
     if (highlightedProspectId == null) return;
@@ -187,6 +190,15 @@ export function ProspectsTab({
           <div className="flex items-center gap-2">
             {isApprovedOwner(profile) ? (
               <>
+                {ogrSelected ? (
+                  <Button
+                    variant="secondary"
+                    className="text-xs whitespace-nowrap"
+                    onClick={() => setLookalikeOpen(true)}
+                  >
+                    Find lookalikes
+                  </Button>
+                ) : null}
                 <Button
                   variant="secondary"
                   className="text-xs whitespace-nowrap"
@@ -291,6 +303,12 @@ export function ProspectsTab({
         onClose={() => setAddOpen(false)}
         onCreated={handleCreated}
         enrichSeeds={{ territoryCode }}
+      />
+
+      <FindLookalikesModal
+        open={lookalikeOpen}
+        onClose={() => setLookalikeOpen(false)}
+        onImported={onImported}
       />
 
       <ImportAccountsModal

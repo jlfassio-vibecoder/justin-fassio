@@ -3,6 +3,7 @@ import { CrossLineBadgeChips } from '@/components/CrossLineBadgeChips';
 import { Card } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
+import { hasMarker } from '@/lib/accountImport/classification';
 import { territoryDisplayLabel } from '@/lib/accountImport/directoryPresentation';
 import { CHANNEL_OPTIONS, REGION_OPTIONS } from '@/lib/directoryOptions';
 import { filterProspects } from '@/lib/prospectFilters';
@@ -245,7 +246,12 @@ export function RetailerDirectory({
                       </td>
                       <td className="border-ink/[0.08] min-w-[160px] border-b p-2 font-semibold">
                         <span className="inline-flex flex-col gap-1">
-                          <span>{p.name}</span>
+                          <span className="inline-flex flex-wrap items-center gap-1.5">
+                            <span>{p.name}</span>
+                            {hasMarker(p.lineAccountMarkers, 'lookalike_prospect') ? (
+                              <Tag variant="accent-2">Lookalike</Tag>
+                            ) : null}
+                          </span>
                           <CrossLineBadgeChips
                             badges={currentSalesLineId ? (badgesByRetailer.get(p.id) ?? []) : []}
                           />

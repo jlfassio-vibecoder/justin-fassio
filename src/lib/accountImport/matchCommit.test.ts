@@ -223,6 +223,98 @@ describe('account import matching', () => {
     expect(counts.duplicateSpreadsheetRows).toBe(1);
     expect(counts.newRetailersProposed).toBe(1);
   });
+
+  it('links ZoomInfo rows without an EP RLA and does not demote opened EP accounts', () => {
+    const linked = matchCollapsedRows({
+      rows: [collapsed()],
+      retailers: [
+        {
+          id: 4,
+          name: 'Coast Outfitters',
+          city: 'Portland',
+          territoryCode: 'or',
+          accountStatus: 'active_account',
+          externalId: null,
+          importProtected: true,
+          buyerVerified: false,
+          verificationStatus: null,
+        },
+      ],
+      rlas: [],
+      contacts: [],
+      priorFingerprints: [],
+      sourceType: 'zoominfo_lead',
+    });
+    expect(linked[0]?.matchDecision).toBe('link_existing');
+    expect(linked[0]?.proposedClassification).toEqual({
+      relationshipStatus: 'prospect',
+      markers: [],
+      existingOgr: 'Unknown',
+      importProtected: true,
+      qualificationStatus: null,
+    });
+
+    const opened = matchCollapsedRows({
+      rows: [collapsed()],
+      retailers: [
+        {
+          id: 4,
+          name: 'Coast Outfitters',
+          city: 'Portland',
+          territoryCode: 'or',
+          accountStatus: 'active_account',
+          externalId: null,
+          importProtected: true,
+          buyerVerified: false,
+          verificationStatus: null,
+        },
+      ],
+      rlas: [
+        {
+          id: 'rla-ep',
+          retailerId: 4,
+          relationshipStatus: 'opened',
+          markers: [],
+        },
+      ],
+      contacts: [],
+      priorFingerprints: [],
+      sourceType: 'zoominfo_lead',
+    });
+    expect(opened[0]?.matchDecision).toBe('needs_review');
+    expect(opened[0]?.blockingErrors).toContain(
+      'Existing line account is not a never-ordered prospect and will not be demoted',
+    );
+
+    const prospect = matchCollapsedRows({
+      rows: [collapsed()],
+      retailers: [
+        {
+          id: 4,
+          name: 'Coast Outfitters',
+          city: 'Portland',
+          territoryCode: 'or',
+          accountStatus: 'prospect',
+          externalId: null,
+          importProtected: true,
+          buyerVerified: false,
+          verificationStatus: null,
+        },
+      ],
+      rlas: [
+        {
+          id: 'rla-ep',
+          retailerId: 4,
+          relationshipStatus: 'prospect',
+          markers: [],
+        },
+      ],
+      contacts: [],
+      priorFingerprints: [],
+      sourceType: 'zoominfo_lead',
+    });
+    expect(prospect[0]?.matchDecision).toBe('update_rla');
+  });
 });
 
 describe('account import commit payload', () => {
@@ -315,6 +407,98 @@ describe('account import commit payload', () => {
       },
     });
     expect(payload?.prospect_patch).toBeNull();
+  });
+
+  it('uses ZoomInfo prospect defaults and does not stamp historical markers', () => {
+    const payload = buildCommitRowPayload({
+      row: {
+        ...collapsed(),
+        matchDecision: 'create_retailer',
+        match: null,
+        blockingErrors: [],
+        proposedClassification: {
+          relationshipStatus: 'prospect',
+          markers: [],
+          existingOgr: 'Unknown',
+          importProtected: true,
+          qualificationStatus: null,
+        },
+      },
+      classification: {
+        relationshipStatus: 'prospect',
+        markers: [],
+        existingOgr: 'Unknown',
+        nextAction: null,
+      },
+      filename: 'zoominfo.xlsx',
+      batchId: 'batch-zi',
+      sourceType: 'zoominfo_lead',
+      territoryId: 'terr-or',
+      salesLineTerritoryId: 'slt-or',
+    });
+    expect(payload?.action).toBe('create_retailer');
+    expect(payload?.prospect_insert?.account_status).toBe('prospect');
+    expect(payload?.prospect_insert?.existing_ogr).toBe('Unknown');
+    expect(payload?.prospect_insert?.qualification_status).toBeNull();
+    expect(payload?.rla_patch.relationship_status).toBe('prospect');
+    expect(payload?.rla_patch.line_account_markers).toEqual([]);
+    expect(payload?.rla_patch.existing_ogr).toBe('Unknown');
+    expect(payload?.rla_patch.qualification_status).toBeNull();
+    expect(String(payload?.rla_patch.notes)).toMatch(/ZoomInfo lead/);
+    expect(String(payload?.rla_patch.notes)).not.toMatch(/verified past OGR customer/);
+  });
+
+  it('does not patch shared retailer OGR fields when linking a ZoomInfo EP prospect', () => {
+    const payload = buildCommitRowPayload({
+      row: preview({
+        matchDecision: 'link_existing',
+        match: {
+          retailerId: 4,
+          name: 'Coast Outfitters',
+          city: 'Portland',
+          territoryCode: 'or',
+          accountStatus: 'active_account',
+          relationshipStatus: null,
+          markers: [],
+        },
+        proposedClassification: {
+          relationshipStatus: 'prospect',
+          markers: [],
+          existingOgr: 'Unknown',
+          importProtected: true,
+          qualificationStatus: null,
+        },
+      }),
+      classification: {
+        relationshipStatus: 'prospect',
+        markers: [],
+        existingOgr: 'Unknown',
+        nextAction: null,
+      },
+      filename: 'zoominfo.xlsx',
+      batchId: 'batch-zi',
+      sourceType: 'zoominfo_lead',
+      territoryId: 'terr-or',
+      salesLineTerritoryId: 'slt-or',
+      existingRetailer: {
+        name: 'Coast Outfitters',
+        address: '12 Oak St',
+        city: 'Portland',
+        phone: '555',
+        website: 'https://coast.example',
+        postalCode: '97201',
+        importProtected: true,
+        buyerVerified: false,
+        verificationStatus: null,
+        hasPrimaryContact: true,
+        notes: null,
+      },
+    });
+    expect(payload?.action).toBe('link_existing');
+    expect(payload?.prospect_insert).toBeNull();
+    expect(payload?.prospect_patch).toBeNull();
+    expect(payload?.rla_patch.relationship_status).toBe('prospect');
+    expect(payload?.rla_patch.line_account_markers).toEqual([]);
   });
 
   it('preserves existing RLA notes on link and update', () => {
@@ -515,6 +699,10 @@ describe('account import commit rematch and resume', () => {
         markers: ['historical_purchaser', 'reactivation_candidate', 'outreach_eligible'],
       }).markers,
     ).toEqual(['historical_purchaser', 'reactivation_candidate']);
+    expect(parseConfirmClassification({}, 'zoominfo_lead').markers).toEqual([]);
+    expect(parseConfirmClassification({}, 'zoominfo_lead').relationshipStatus).toBe('prospect');
+    expect(parseConfirmClassification({}, 'zoominfo_lead').existingOgr).toBe('Unknown');
+    expect(parseConfirmClassification({ markers: [] }, 'zoominfo_lead').markers).toEqual([]);
     expect(batchIsFullyTerminal([{ status: 'imported' }, { status: 'skipped' }])).toBe(true);
     expect(batchIsFullyTerminal([{ status: 'imported' }, { status: 'failed' }])).toBe(false);
     expect(batchIsFullyTerminal([])).toBe(false);

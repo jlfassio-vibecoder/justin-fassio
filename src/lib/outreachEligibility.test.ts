@@ -167,5 +167,17 @@ describe('outreach pool eligibility', () => {
         markers: ['historical_purchaser', 'reactivation_candidate', 'outreach_eligible'],
       }),
     ).toBe(false);
+    expect(
+      isRlaInOutreachPool({
+        relationshipStatus: 'prospect',
+        markers: ['lookalike_prospect'],
+      }),
+    ).toBe(false);
+    expect(
+      isRlaInOutreachPool({
+        relationshipStatus: 'prospect',
+        markers: ['lookalike_prospect', 'outreach_eligible'],
+      }),
+    ).toBe(true);
   });
 });

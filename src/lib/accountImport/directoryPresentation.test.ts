@@ -37,6 +37,18 @@ describe('directory presentation', () => {
     ).toBe(false);
   });
 
+  it('keeps lookalike prospects on Prospects and off Reactivation', () => {
+    const lookalike = {
+      accountStatus: 'prospect' as const,
+      lineRelationshipStatus: 'prospect' as const,
+      lineAccountMarkers: ['lookalike_prospect'],
+    };
+    expect(isProspectsPipelineRow(lookalike)).toBe(true);
+    expect(isReactivationFilterRow(lookalike)).toBe(false);
+    expect(isReactivationCandidate(lookalike)).toBe(false);
+    expect(isDefaultActiveAccountRow(lookalike)).toBe(false);
+  });
+
   it('excludes historical purchasers from Prospects', () => {
     expect(
       isProspectsPipelineRow({
@@ -173,6 +185,9 @@ describe('directory presentation', () => {
     expect(rcc).toMatch(/reactivation=1|reactivation/);
     expect(prospectsTab).toMatch(/isProspectsPipelineRow/);
     expect(prospectsTab).toMatch(/Import history/);
+    expect(prospectsTab).toMatch(/Find lookalikes/);
+    expect(accountsTab).toMatch(/Find lookalikes/);
+    expect(directory).toMatch(/Lookalike/);
     expect(accountsTab).toMatch(/isReactivationCandidate/);
     expect(accountsTab).toMatch(/isReactivationFilterRow/);
     expect(accountsTab).toMatch(/isDefaultActiveAccountRow/);

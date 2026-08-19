@@ -45,7 +45,10 @@ export type LineAccountMarker =
   | 'historical_purchaser'
   | 'reactivation_candidate'
   | 'reactivation_unresponsive'
-  | 'outreach_eligible';
+  | 'outreach_eligible'
+  | 'lookalike_prospect';
+export type LookalikeJobStatus = 'queued' | 'running' | 'proposed' | 'failed' | 'cancelled';
+export type LookalikeCandidateStatus = 'proposed' | 'already_in_crm' | 'approved' | 'rejected';
 export type AccountImportSourceType =
   'historical_customer' | 'faire_customer' | 'zoominfo_lead' | 'research_prospect' | 'other';
 export type AccountImportBatchStatus =
@@ -606,6 +609,87 @@ export interface Database {
           evidence?: unknown;
           provider?: string | null;
           error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      lookalike_jobs: {
+        Row: {
+          id: string;
+          sales_line_id: string;
+          created_by: string;
+          seed_retailer_ids: number[];
+          status: LookalikeJobStatus;
+          trait_brief: string | null;
+          error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          sales_line_id: string;
+          created_by: string;
+          seed_retailer_ids: number[];
+          status?: LookalikeJobStatus;
+          trait_brief?: string | null;
+          error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          sales_line_id?: string;
+          created_by?: string;
+          seed_retailer_ids?: number[];
+          status?: LookalikeJobStatus;
+          trait_brief?: string | null;
+          error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      lookalike_candidates: {
+        Row: {
+          id: string;
+          job_id: string;
+          name: string;
+          city: string | null;
+          state: string | null;
+          website: string | null;
+          evidence: string | null;
+          match_decision: AccountImportMatchDecision | null;
+          status: LookalikeCandidateStatus;
+          retailer_id: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          job_id: string;
+          name: string;
+          city?: string | null;
+          state?: string | null;
+          website?: string | null;
+          evidence?: string | null;
+          match_decision?: AccountImportMatchDecision | null;
+          status?: LookalikeCandidateStatus;
+          retailer_id?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          job_id?: string;
+          name?: string;
+          city?: string | null;
+          state?: string | null;
+          website?: string | null;
+          evidence?: string | null;
+          match_decision?: AccountImportMatchDecision | null;
+          status?: LookalikeCandidateStatus;
+          retailer_id?: number | null;
           created_at?: string;
           updated_at?: string;
         };
