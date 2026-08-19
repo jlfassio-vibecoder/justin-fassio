@@ -16,9 +16,18 @@ export const LINE_ACCOUNT_MARKERS = [
   'historical_purchaser',
   'reactivation_candidate',
   'reactivation_unresponsive',
+  'outreach_eligible',
+] as const satisfies readonly LineAccountMarker[];
+
+/** Markers import commit may stamp. outreach_eligible is owner opt-in only. */
+export const IMPORT_SETTABLE_MARKERS = [
+  'historical_purchaser',
+  'reactivation_candidate',
+  'reactivation_unresponsive',
 ] as const satisfies readonly LineAccountMarker[];
 
 const ALLOWED_MARKERS = new Set<string>(LINE_ACCOUNT_MARKERS);
+const IMPORT_SETTABLE_MARKER_SET = new Set<string>(IMPORT_SETTABLE_MARKERS);
 
 export const ACCOUNT_IMPORT_SOURCE_TYPES = [
   'historical_customer',
@@ -38,6 +47,10 @@ export const ACCOUNT_IMPORT_SOURCE_OPTIONS = [
 
 export function isLineAccountMarker(value: string): value is LineAccountMarker {
   return ALLOWED_MARKERS.has(value);
+}
+
+export function isImportSettableMarker(value: string): value is LineAccountMarker {
+  return IMPORT_SETTABLE_MARKER_SET.has(value);
 }
 
 export function hasMarker(
@@ -60,6 +73,50 @@ export function withMarkers(
     out.push(raw);
   }
   return out;
+}
+
+/** Drop a marker; keep remaining allowlisted values in first-seen order. */
+export function withoutMarker(
+  current: readonly string[] | null | undefined,
+  marker: LineAccountMarker,
+): LineAccountMarker[] {
+  const out: LineAccountMarker[] = [];
+  const seen = new Set<LineAccountMarker>();
+  for (const raw of current ?? []) {
+    if (!isLineAccountMarker(raw) || raw === marker || seen.has(raw)) continue;
+    seen.add(raw);
+    out.push(raw);
+  }
+  return out;
+}
+
+export function markersAfterOutreachOptIn(
+  current: readonly string[] | null | undefined,
+  eligible: boolean,
+): LineAccountMarker[] {
+  return eligible
+    ? withMarkers(current, ['outreach_eligible'])
+    : withoutMarker(current, 'outreach_eligible');
+}
+
+/** Park a historical reactivation account: keep purchaser, drop candidate and outreach opt-in. */
+export function markersAfterMarkUnresponsive(
+  current: readonly string[] | null | undefined,
+): LineAccountMarker[] {
+  return withMarkers(
+    withoutMarker(withoutMarker(current, 'reactivation_candidate'), 'outreach_eligible'),
+    ['historical_purchaser', 'reactivation_unresponsive'],
+  );
+}
+
+/** Reverse F2: restore candidate, clear unresponsive and outreach opt-in. */
+export function markersAfterReopenCandidate(
+  current: readonly string[] | null | undefined,
+): LineAccountMarker[] {
+  return withMarkers(
+    withoutMarker(withoutMarker(current, 'reactivation_unresponsive'), 'outreach_eligible'),
+    ['historical_purchaser', 'reactivation_candidate'],
+  );
 }
 
 export type HistoricalOgrImportDefaults = {

@@ -87,7 +87,8 @@ describe('Phase 9B directory overlay and OGR fallback writes', () => {
 
   it('OGR outreach eligibility reads RLA status internally', () => {
     const select = readFileSync(resolve(root, 'src/lib/outreachSelectTargets.ts'), 'utf8');
-    expect(select).toMatch(/relationship_status', 'prospect'/);
+    expect(select).toMatch(/relationship_status, line_account_markers/);
+    expect(select).toMatch(/isRlaInOutreachPool/);
     expect(select).not.toMatch(/\.eq\('account_status', 'prospect'\)/);
 
     const briefing = readFileSync(resolve(root, 'src/lib/outreachBriefing.ts'), 'utf8');

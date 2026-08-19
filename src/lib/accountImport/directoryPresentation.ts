@@ -31,8 +31,43 @@ export function isReactivationCandidate(
     row.lineRelationshipStatus === 'opened' ||
     (row.accountStatus === 'active_account' &&
       row.lineRelationshipStatus !== 'prospect' &&
-      row.lineRelationshipStatus !== 'qualified');
+      row.lineRelationshipStatus !== 'qualified' &&
+      row.lineRelationshipStatus !== 'inactive' &&
+      row.lineRelationshipStatus !== 'terminated');
   return opened && hasMarker(row.lineAccountMarkers, 'reactivation_candidate');
+}
+
+/** Historical purchaser parked or still a candidate — must stay findable on Active Accounts. */
+export function isReactivationDirectoryRow(row: DirectoryPresentationRow): boolean {
+  if (row.lineRelationshipStatus === 'terminated') return false;
+  if (!hasMarker(row.lineAccountMarkers, 'historical_purchaser')) return false;
+  return (
+    hasMarker(row.lineAccountMarkers, 'reactivation_candidate') ||
+    hasMarker(row.lineAccountMarkers, 'reactivation_unresponsive')
+  );
+}
+
+/** Reactivation filter: opened candidates plus inactive unresponsive historicals. */
+export function isReactivationFilterRow(
+  row: DirectoryPresentationRow,
+  evidence: { hasQualifyingOrderLast365Days?: boolean } = {},
+): boolean {
+  if (evidence.hasQualifyingOrderLast365Days) return false;
+  if (isReactivationCandidate(row, evidence)) return true;
+  if (row.lineRelationshipStatus === 'terminated') return false;
+  return (
+    hasMarker(row.lineAccountMarkers, 'historical_purchaser') &&
+    hasMarker(row.lineAccountMarkers, 'reactivation_unresponsive')
+  );
+}
+
+/** Default Active Accounts list: opened / active_account only (not parked unresponsive). */
+export function isDefaultActiveAccountRow(row: DirectoryPresentationRow): boolean {
+  if (row.lineRelationshipStatus === 'opened') return true;
+  if (row.lineRelationshipStatus === 'inactive' || row.lineRelationshipStatus === 'terminated') {
+    return false;
+  }
+  return row.accountStatus === 'active_account';
 }
 
 function isoDateMinusDays(asOfIso: string, days: number): string | null {

@@ -20,7 +20,7 @@ function thenable<T extends Record<string, unknown>>(
 function chain(result: { data: unknown; error: unknown }) {
   const api: Record<string, unknown> = {};
   const self = () => thenable(api, result);
-  for (const key of ['select', 'eq', 'in', 'not', 'or', 'order', 'limit']) {
+  for (const key of ['select', 'eq', 'in', 'not', 'neq', 'or', 'order', 'limit']) {
     api[key] = vi.fn(self);
   }
   api.maybeSingle = vi.fn(async () => result);
@@ -74,6 +74,7 @@ function prospectRow(id: number, name: string, extras: Record<string, unknown> =
 
 function mockSelectClient(opts: {
   prospects?: unknown[];
+  rlaRows?: unknown[];
   contacts?: unknown[];
   catalogItems?: unknown[];
   pendingProspectIds?: Array<{ prospect_id: number }>;
@@ -93,7 +94,16 @@ function mockSelectClient(opts: {
     }
     if (table === 'retailer_line_accounts') {
       return chain({
-        data: (opts.prospects ?? []).map((p) => ({ retailer_id: (p as { id: number }).id })),
+        data:
+          opts.rlaRows ??
+          (opts.prospects ?? []).map((p) => {
+            const row = p as { id: number; account_status?: string };
+            return {
+              retailer_id: row.id,
+              relationship_status: row.account_status === 'active_account' ? 'opened' : 'prospect',
+              line_account_markers: [],
+            };
+          }),
         error: null,
       });
     }
@@ -395,6 +405,111 @@ describe('selectOutreachTargets', () => {
     expect(result.targets).toHaveLength(0);
     expect(result.excluded).toEqual(
       expect.arrayContaining([{ prospectId: 20, reason: 'cooldown' }]),
+    );
+  });
+
+  it('includes opted-in reactivation candidates and keeps ordinary prospects', async () => {
+    const client = mockSelectClient({
+      prospects: [
+        prospectRow(10, 'Golf Shop'),
+        prospectRow(11, 'No Opt In', { account_status: 'active_account', fit_score: null }),
+        prospectRow(12, 'Opted In', { account_status: 'active_account', fit_score: null }),
+        prospectRow(13, 'Unresponsive', { account_status: 'active_account', fit_score: null }),
+        prospectRow(14, 'Parked', { account_status: 'inactive', fit_score: null }),
+      ],
+      rlaRows: [
+        { retailer_id: 10, relationship_status: 'prospect', line_account_markers: [] },
+        {
+          retailer_id: 11,
+          relationship_status: 'opened',
+          line_account_markers: ['historical_purchaser', 'reactivation_candidate'],
+        },
+        {
+          retailer_id: 12,
+          relationship_status: 'opened',
+          line_account_markers: [
+            'historical_purchaser',
+            'reactivation_candidate',
+            'outreach_eligible',
+          ],
+        },
+        {
+          retailer_id: 13,
+          relationship_status: 'opened',
+          line_account_markers: [
+            'historical_purchaser',
+            'reactivation_candidate',
+            'outreach_eligible',
+            'reactivation_unresponsive',
+          ],
+        },
+        {
+          retailer_id: 14,
+          relationship_status: 'inactive',
+          line_account_markers: ['historical_purchaser', 'reactivation_unresponsive'],
+        },
+      ],
+      contacts: [
+        {
+          id: 'c-10',
+          account_id: 10,
+          role: 'buyer',
+          full_name: 'Sam Buyer',
+          title: null,
+          phone: null,
+          email: 'sam@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+        {
+          id: 'c-12',
+          account_id: 12,
+          role: 'buyer',
+          full_name: 'Pat Buyer',
+          title: null,
+          phone: null,
+          email: 'pat@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+      pendingProspectIds: [],
+      suppressed: [],
+      sendsByProspect: [],
+      sendsByEmail: [],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 5,
+      preparationDate: '2026-08-12',
+      asOf: new Date('2026-08-12T18:00:00Z'),
+      weights: { golf_retail: 1 },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets.map((t) => t.prospectId).sort((a, b) => a - b)).toEqual([10, 12]);
+    expect(result.excluded.map((e) => e.prospectId)).not.toEqual(
+      expect.arrayContaining([11, 13, 14]),
     );
   });
 });

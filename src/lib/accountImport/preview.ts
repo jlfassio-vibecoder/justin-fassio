@@ -1,5 +1,8 @@
 import type { AgentSupabase } from '@/lib/agentAuth';
-import { ACCOUNT_IMPORT_SOURCE_TYPES } from '@/lib/accountImport/classification';
+import {
+  ACCOUNT_IMPORT_SOURCE_TYPES,
+  isImportSettableMarker,
+} from '@/lib/accountImport/classification';
 import { assertImportLineAllowed, parseRequiredSalesLineId } from '@/lib/accountImport/lineGate';
 import {
   matchCollapsedRows,
@@ -191,12 +194,7 @@ const HISTORICAL_MARKERS: LineAccountMarker[] = ['historical_purchaser', 'reacti
 
 export function markersFromUnknown(raw: unknown): LineAccountMarker[] {
   if (!Array.isArray(raw)) return [...HISTORICAL_MARKERS];
-  const allowed = new Set([
-    'historical_purchaser',
-    'reactivation_candidate',
-    'reactivation_unresponsive',
-  ]);
   return raw.filter(
-    (item): item is LineAccountMarker => typeof item === 'string' && allowed.has(item),
+    (item): item is LineAccountMarker => typeof item === 'string' && isImportSettableMarker(item),
   );
 }
