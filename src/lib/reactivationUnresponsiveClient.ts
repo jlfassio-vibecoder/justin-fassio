@@ -29,30 +29,37 @@ export async function setReactivationUnresponsiveClient(input: {
   const auth = await bearerHeaders();
   if (!auth.ok) return auth;
 
-  const res = await fetch('/api/staff/line-accounts/reactivation-unresponsive', {
-    method: 'POST',
-    headers: auth.headers,
-    body: JSON.stringify({
-      retailer_id: input.retailerId,
-      sales_line_id: input.salesLineId,
-      action: input.action,
-    }),
-  });
-  const payload = (await res.json().catch(() => ({}))) as {
-    ok?: boolean;
-    relationshipStatus?: RelationshipStatus;
-    markers?: LineAccountMarker[];
-    error?: string;
-  };
-  if (!res.ok || !payload.ok || !payload.markers || !payload.relationshipStatus) {
+  try {
+    const res = await fetch('/api/staff/line-accounts/reactivation-unresponsive', {
+      method: 'POST',
+      headers: auth.headers,
+      body: JSON.stringify({
+        retailer_id: input.retailerId,
+        sales_line_id: input.salesLineId,
+        action: input.action,
+      }),
+    });
+    const payload = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      relationshipStatus?: RelationshipStatus;
+      markers?: LineAccountMarker[];
+      error?: string;
+    };
+    if (!res.ok || !payload.ok || !payload.markers || !payload.relationshipStatus) {
+      return {
+        ok: false,
+        error: payload.error || `Reactivation update failed (${res.status})`,
+      };
+    }
+    return {
+      ok: true,
+      relationshipStatus: payload.relationshipStatus,
+      markers: payload.markers,
+    };
+  } catch (error) {
     return {
       ok: false,
-      error: payload.error || `Reactivation update failed (${res.status})`,
+      error: error instanceof Error ? error.message : 'Reactivation update failed',
     };
   }
-  return {
-    ok: true,
-    relationshipStatus: payload.relationshipStatus,
-    markers: payload.markers,
-  };
 }

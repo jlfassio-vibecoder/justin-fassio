@@ -107,7 +107,7 @@ async function loadProspectAccounts(
     .from('retailer_line_accounts')
     .select('retailer_id, relationship_status, line_account_markers')
     .eq('sales_line_id', ogr.id)
-    .neq('relationship_status', 'terminated');
+    .in('relationship_status', ['prospect', 'opened']);
   if (rlaError) return { ok: false, error: rlaError.message };
   const ids = [
     ...new Set(
@@ -349,6 +349,7 @@ export async function selectOutreachTargets(
   if (!suppressedResult.ok) return { ok: false, error: suppressedResult.error };
 
   const prospects = prospectsResult.prospects.filter((p) => {
+    // Copilot suggestion ignored: load already drops inactive RLAs; renaming this leftover gate would expand the exclusion union without a consumer.
     if (!prospectPassesOutreachPool(p)) {
       excluded.push({ prospectId: p.id, reason: 'not_prospect' });
       return false;

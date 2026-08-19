@@ -24,22 +24,29 @@ export async function setOutreachEligibleClient(input: {
   const auth = await bearerHeaders();
   if (!auth.ok) return auth;
 
-  const res = await fetch('/api/staff/line-accounts/outreach-opt-in', {
-    method: 'POST',
-    headers: auth.headers,
-    body: JSON.stringify({
-      retailer_id: input.retailerId,
-      sales_line_id: input.salesLineId,
-      eligible: input.eligible,
-    }),
-  });
-  const payload = (await res.json().catch(() => ({}))) as {
-    ok?: boolean;
-    markers?: LineAccountMarker[];
-    error?: string;
-  };
-  if (!res.ok || !payload.ok || !payload.markers) {
-    return { ok: false, error: payload.error || `Outreach opt-in failed (${res.status})` };
+  try {
+    const res = await fetch('/api/staff/line-accounts/outreach-opt-in', {
+      method: 'POST',
+      headers: auth.headers,
+      body: JSON.stringify({
+        retailer_id: input.retailerId,
+        sales_line_id: input.salesLineId,
+        eligible: input.eligible,
+      }),
+    });
+    const payload = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      markers?: LineAccountMarker[];
+      error?: string;
+    };
+    if (!res.ok || !payload.ok || !payload.markers) {
+      return { ok: false, error: payload.error || `Outreach opt-in failed (${res.status})` };
+    }
+    return { ok: true, markers: payload.markers };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Outreach opt-in failed',
+    };
   }
-  return { ok: true, markers: payload.markers };
 }
