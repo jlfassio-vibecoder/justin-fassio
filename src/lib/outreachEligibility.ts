@@ -194,7 +194,15 @@ export function isRlaInOutreachPool(row: {
   relationshipStatus: string;
   markers?: readonly string[] | null;
 }): boolean {
-  if (row.relationshipStatus === 'prospect') return true;
+  if (row.relationshipStatus === 'prospect') {
+    if (
+      hasMarker(row.markers, 'lookalike_prospect') &&
+      !hasMarker(row.markers, 'outreach_eligible')
+    ) {
+      return false;
+    }
+    return true;
+  }
   if (row.relationshipStatus !== 'opened') return false;
   if (hasMarker(row.markers, 'reactivation_unresponsive')) return false;
   return (

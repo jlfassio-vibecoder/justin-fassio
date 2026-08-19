@@ -4,6 +4,7 @@ import { AccountOrderHistoryModal } from '@/components/AccountOrderHistoryModal'
 import { AiUpdateResearchModal } from '@/components/AiUpdateResearchModal';
 import { ImportAccountsModal } from '@/components/accountImport/ImportAccountsModal';
 import { ImportHistoryModal } from '@/components/accountImport/ImportHistoryModal';
+import { FindLookalikesModal } from '@/components/lookalike/FindLookalikesModal';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
 import { Button } from '@/components/ui/Button';
 import { RowActionsMenu, type RowActionSection } from '@/components/ui/RowActionsMenu';
@@ -95,6 +96,7 @@ export function ActiveAccountsTab({
   const lineCtx = useOptionalLineContext();
   const prefillLine = { multiLineAi: lineCtx.multiLineAi, lineName: lineCtx.name };
   const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
+  const ogrSelected = !lineCtx.multiLineUi || lineCtx.lineSlug === 'ogr';
   const [territoryCode, setTerritoryCode] = useState(
     deepLinkTerritory ?? (deepLinkReactivation ? 'ALL' : BC_TERRITORY_CODE),
   );
@@ -120,6 +122,7 @@ export function ActiveAccountsTab({
   const [appliedDeepLinkAccountId, setAppliedDeepLinkAccountId] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [lookalikeOpen, setLookalikeOpen] = useState(false);
   const [appliedDirectoryDeepLink, setAppliedDirectoryDeepLink] = useState(false);
   const [outreachBusyId, setOutreachBusyId] = useState<number | null>(null);
   const [outreachError, setOutreachError] = useState<string | null>(null);
@@ -373,6 +376,15 @@ export function ActiveAccountsTab({
           <div className="flex items-center gap-2">
             {isApprovedOwner(profile) ? (
               <>
+                {ogrSelected ? (
+                  <Button
+                    variant="secondary"
+                    className="text-xs whitespace-nowrap"
+                    onClick={() => setLookalikeOpen(true)}
+                  >
+                    Find lookalikes
+                  </Button>
+                ) : null}
                 <Button
                   variant="secondary"
                   className="text-xs whitespace-nowrap"
@@ -578,6 +590,12 @@ export function ActiveAccountsTab({
             </>
           );
         }}
+      />
+
+      <FindLookalikesModal
+        open={lookalikeOpen}
+        onClose={() => setLookalikeOpen(false)}
+        onImported={onImported}
       />
 
       <ImportAccountsModal

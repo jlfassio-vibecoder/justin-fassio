@@ -102,6 +102,12 @@ describe('account import parser', () => {
     expect(map.formerRepCode).toBe('Rep code');
     expect(isBusinessNameMapped(map)).toBe(true);
     expect(isBusinessNameMapped({})).toBe(false);
+
+    const zoominfoMap = proposeColumnMap(['Company Name', 'HQ City', 'State', 'Postal Code']);
+    expect(zoominfoMap.businessName).toBe('Company Name');
+    expect(zoominfoMap.city).toBe('HQ City');
+    expect(zoominfoMap.state).toBe('State');
+    expect(zoominfoMap.postalCode).toBe('Postal Code');
   });
 });
 

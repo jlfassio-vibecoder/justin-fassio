@@ -1,6 +1,8 @@
 import {
-  HISTORICAL_OGR_IMPORT_DEFAULTS,
+  defaultsForImportSource,
+  hasMarker,
   isLineAccountMarker,
+  isZoominfoLeadSource,
 } from '@/lib/accountImport/classification';
 import { normalizeProspectName } from '@/lib/prospectListImport';
 import type {
@@ -9,7 +11,7 @@ import type {
   PreviewImportRow,
   PreviewMatch,
 } from '@/lib/accountImport/types';
-import type { AccountImportMatchDecision } from '@/types/database';
+import type { AccountImportMatchDecision, AccountImportSourceType } from '@/types/database';
 
 export type ThinRetailer = {
   id: number;
@@ -52,13 +54,16 @@ function isBc(code: string | null | undefined): boolean {
   return (code ?? '').toLowerCase() === 'bc';
 }
 
-function proposedClassification(): PreviewImportRow['proposedClassification'] {
+function proposedClassification(
+  sourceType: AccountImportSourceType,
+): PreviewImportRow['proposedClassification'] {
+  const defaults = defaultsForImportSource(sourceType);
   return {
-    relationshipStatus: HISTORICAL_OGR_IMPORT_DEFAULTS.relationshipStatus,
-    markers: [...HISTORICAL_OGR_IMPORT_DEFAULTS.markers],
-    existingOgr: HISTORICAL_OGR_IMPORT_DEFAULTS.existingOgr,
-    importProtected: HISTORICAL_OGR_IMPORT_DEFAULTS.importProtected,
-    qualificationStatus: HISTORICAL_OGR_IMPORT_DEFAULTS.qualificationStatus,
+    relationshipStatus: defaults.relationshipStatus,
+    markers: [...defaults.markers],
+    existingOgr: defaults.existingOgr,
+    importProtected: defaults.importProtected,
+    qualificationStatus: defaults.qualificationStatus,
   };
 }
 
@@ -74,13 +79,37 @@ function toPreviewMatch(retailer: ThinRetailer, rla: ThinRla | null): PreviewMat
   };
 }
 
-function rlaDecision(rla: ThinRla | null): {
+function hasHistoricalImportMarker(markers: readonly string[]): boolean {
+  return (
+    hasMarker(markers, 'historical_purchaser') ||
+    hasMarker(markers, 'reactivation_candidate') ||
+    hasMarker(markers, 'reactivation_unresponsive')
+  );
+}
+
+function isNeverOrderedProspectRla(rla: ThinRla): boolean {
+  return rla.relationshipStatus === 'prospect' && !hasHistoricalImportMarker(rla.markers);
+}
+
+function rlaDecision(
+  rla: ThinRla | null,
+  sourceType: AccountImportSourceType,
+): {
   decision: AccountImportMatchDecision;
   error?: string;
 } {
   if (!rla) return { decision: 'link_existing' };
   if (rla.relationshipStatus === 'terminated') {
     return { decision: 'needs_review', error: 'Existing line account is terminated' };
+  }
+  if (isZoominfoLeadSource(sourceType)) {
+    if (!isNeverOrderedProspectRla(rla)) {
+      return {
+        decision: 'needs_review',
+        error: 'Existing line account is not a never-ordered prospect and will not be demoted',
+      };
+    }
+    return { decision: 'update_rla' };
   }
   if (rla.relationshipStatus === 'inactive' && rla.markers.includes('historical_purchaser')) {
     return {
@@ -97,8 +126,10 @@ export function decideCollapsedRow(input: {
   rlas: ThinRla[];
   contacts: ThinContact[];
   priorFingerprints: PriorImportHit[];
+  sourceType?: AccountImportSourceType;
 }): PreviewImportRow {
-  const classification = proposedClassification();
+  const sourceType = input.sourceType ?? 'historical_customer';
+  const classification = proposedClassification(sourceType);
   const blockingErrors: string[] = [];
 
   if (input.row.inFileDuplicateOf != null) {
@@ -161,7 +192,14 @@ export function decideCollapsedRow(input: {
       (r) => r.externalId?.toLowerCase() === input.row.externalId?.toLowerCase(),
     );
     if (extHits.length === 1) {
-      return finishMatch(input.row, extHits[0], input.rlas, blockingErrors, classification);
+      return finishMatch(
+        input.row,
+        extHits[0],
+        input.rlas,
+        blockingErrors,
+        classification,
+        sourceType,
+      );
     }
     if (extHits.length > 1) {
       blockingErrors.push('external_id matched multiple retailers');
@@ -181,7 +219,14 @@ export function decideCollapsedRow(input: {
   });
 
   if (geoHits.length === 1) {
-    return finishMatch(input.row, geoHits[0], input.rlas, blockingErrors, classification);
+    return finishMatch(
+      input.row,
+      geoHits[0],
+      input.rlas,
+      blockingErrors,
+      classification,
+      sourceType,
+    );
   }
   if (geoHits.length > 1) {
     blockingErrors.push('Normalized name and geography matched multiple retailers');
@@ -195,7 +240,14 @@ export function decideCollapsedRow(input: {
     return review(input.row, null, blockingErrors, classification);
   }
   if (orWaNameHits.length === 1) {
-    return finishMatch(input.row, orWaNameHits[0], input.rlas, blockingErrors, classification);
+    return finishMatch(
+      input.row,
+      orWaNameHits[0],
+      input.rlas,
+      blockingErrors,
+      classification,
+      sourceType,
+    );
   }
 
   if (input.row.email) {
@@ -219,7 +271,14 @@ export function decideCollapsedRow(input: {
           blockingErrors.push('Email matched an account whose name disagrees');
           return review(input.row, toPreviewMatch(retailer, null), blockingErrors, classification);
         }
-        return finishMatch(input.row, retailer, input.rlas, blockingErrors, classification);
+        return finishMatch(
+          input.row,
+          retailer,
+          input.rlas,
+          blockingErrors,
+          classification,
+          sourceType,
+        );
       }
     }
     if (retailerIds.length > 1) {
@@ -262,9 +321,10 @@ function finishMatch(
   rlas: ThinRla[],
   blockingErrors: string[],
   classification: PreviewImportRow['proposedClassification'],
+  sourceType: AccountImportSourceType,
 ): PreviewImportRow {
   const rla = rlas.find((item) => item.retailerId === retailer.id) ?? null;
-  const decided = rlaDecision(rla);
+  const decided = rlaDecision(rla, sourceType);
   if (decided.error) blockingErrors.push(decided.error);
   if (blockingErrors.length > 0 || decided.decision === 'needs_review') {
     return review(row, toPreviewMatch(retailer, rla), blockingErrors, classification);
@@ -284,6 +344,7 @@ export function matchCollapsedRows(input: {
   rlas: ThinRla[];
   contacts: ThinContact[];
   priorFingerprints: PriorImportHit[];
+  sourceType?: AccountImportSourceType;
 }): PreviewImportRow[] {
   return input.rows.map((row) =>
     decideCollapsedRow({
@@ -292,6 +353,7 @@ export function matchCollapsedRows(input: {
       rlas: input.rlas,
       contacts: input.contacts,
       priorFingerprints: input.priorFingerprints,
+      sourceType: input.sourceType,
     }),
   );
 }

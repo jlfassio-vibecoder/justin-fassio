@@ -1,10 +1,16 @@
 import type { AgentSupabase } from '@/lib/agentAuth';
 import {
   ACCOUNT_IMPORT_SOURCE_TYPES,
-  HISTORICAL_OGR_IMPORT_DEFAULTS,
+  assertZoominfoImportClassification,
+  defaultsForImportSource,
+  isZoominfoLeadSource,
 } from '@/lib/accountImport/classification';
 import { importFingerprint } from '@/lib/accountImport/fingerprint';
-import { assertImportLineAllowed, parseRequiredSalesLineId } from '@/lib/accountImport/lineGate';
+import {
+  assertImportLineAllowed,
+  assertImportSourceLinePairing,
+  parseRequiredSalesLineId,
+} from '@/lib/accountImport/lineGate';
 import {
   matchCollapsedRows,
   type PriorImportHit,
@@ -12,7 +18,11 @@ import {
   type ThinRetailer,
   type ThinRla,
 } from '@/lib/accountImport/matchRetailers';
-import { historicalImportSeedNote, importSourceNote } from '@/lib/accountImport/notes';
+import {
+  historicalImportSeedNote,
+  importSourceNote,
+  zoominfoImportSeedNote,
+} from '@/lib/accountImport/notes';
 import { loadCrmMatchSnapshot, markersFromUnknown } from '@/lib/accountImport/preview';
 import type {
   CollapsedImportRow,
@@ -244,6 +254,7 @@ export function revalidateCommitRows(
     contacts: ThinContact[];
     priorFingerprints: PriorImportHit[];
   },
+  sourceType: AccountImportSourceType = 'historical_customer',
 ): PreviewImportRow[] {
   return matchCollapsedRows({
     rows: clientRows.map(identityRowForMatch),
@@ -251,10 +262,15 @@ export function revalidateCommitRows(
     rlas: snapshot.rlas,
     contacts: snapshot.contacts,
     priorFingerprints: snapshot.priorFingerprints,
+    sourceType,
   });
 }
 
-export function parseConfirmClassification(raw: unknown): ConfirmClassification {
+export function parseConfirmClassification(
+  raw: unknown,
+  sourceType: AccountImportSourceType = 'historical_customer',
+): ConfirmClassification {
+  const defaults = defaultsForImportSource(sourceType);
   const obj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const relationship =
     obj.relationshipStatus === 'opened' ||
@@ -263,16 +279,24 @@ export function parseConfirmClassification(raw: unknown): ConfirmClassification 
     obj.relationshipStatus === 'inactive' ||
     obj.relationshipStatus === 'terminated'
       ? (obj.relationshipStatus as RelationshipStatus)
-      : HISTORICAL_OGR_IMPORT_DEFAULTS.relationshipStatus;
+      : defaults.relationshipStatus;
   const existingOgr =
     typeof obj.existingOgr === 'string' && obj.existingOgr.trim()
       ? obj.existingOgr.trim()
-      : HISTORICAL_OGR_IMPORT_DEFAULTS.existingOgr;
+      : defaults.existingOgr;
   const nextAction = typeof obj.nextAction === 'string' ? obj.nextAction.trim() || null : null;
+  const markersProvided = Array.isArray(obj.markers);
   const markers: LineAccountMarker[] = markersFromUnknown(obj.markers);
+  const resolvedMarkers = isZoominfoLeadSource(sourceType)
+    ? markersProvided
+      ? markers
+      : [...defaults.markers]
+    : markers.length > 0
+      ? markers
+      : [...defaults.markers];
   return {
     relationshipStatus: relationship,
-    markers: markers.length > 0 ? markers : [...HISTORICAL_OGR_IMPORT_DEFAULTS.markers],
+    markers: resolvedMarkers,
     existingOgr,
     nextAction,
     runAiAfterImport: obj.runAiAfterImport !== false,
@@ -302,10 +326,13 @@ export function buildCommitRowPayload(input: {
 }): CommitRowRpcPayload | null {
   if (!isEligibleImportDecision(input.row.matchDecision)) return null;
 
-  const seed = historicalImportSeedNote({
-    filename: input.filename,
-    formerRepCode: input.row.formerRepCode,
-  });
+  const defaults = defaultsForImportSource(input.sourceType);
+  const seed = isZoominfoLeadSource(input.sourceType)
+    ? zoominfoImportSeedNote({ filename: input.filename })
+    : historicalImportSeedNote({
+        filename: input.filename,
+        formerRepCode: input.row.formerRepCode,
+      });
   const sourceNote = importSourceNote({
     sourceType: input.sourceType,
     batchId: input.batchId,
@@ -317,7 +344,7 @@ export function buildCommitRowPayload(input: {
     relationship_status: input.classification.relationshipStatus,
     line_account_markers: input.classification.markers,
     existing_ogr: input.classification.existingOgr,
-    qualification_status: HISTORICAL_OGR_IMPORT_DEFAULTS.qualificationStatus,
+    qualification_status: defaults.qualificationStatus,
     next_action: input.classification.nextAction,
     source_note: sourceNote,
     sales_line_territory_id: input.salesLineTerritoryId,
@@ -348,12 +375,12 @@ export function buildCommitRowPayload(input: {
       address: address ?? '',
       phone: input.row.phone ?? '',
       fit: '',
-      account_status: HISTORICAL_OGR_IMPORT_DEFAULTS.accountStatus,
+      account_status: defaults.accountStatus,
       converted_at: null,
       initial_order_date: null,
       import_protected: true,
       existing_ogr: input.classification.existingOgr,
-      qualification_status: HISTORICAL_OGR_IMPORT_DEFAULTS.qualificationStatus,
+      qualification_status: defaults.qualificationStatus,
       next_action: input.classification.nextAction,
       source_note: sourceNote,
       notes: seed,
@@ -661,6 +688,8 @@ export async function commitAccountImport(
   if (!line) return { ok: false, error: 'Unknown sales line', status: 400 };
   const allowed = assertImportLineAllowed(line);
   if (!allowed.ok) return allowed;
+  const paired = assertImportSourceLinePairing(input.sourceType, line);
+  if (!paired.ok) return paired;
 
   const { data: shaBatches, error: shaError } = await supabase
     .from('account_import_batches')
@@ -677,9 +706,13 @@ export async function commitAccountImport(
 
   const snapshot = await loadCrmMatchSnapshot(supabase, lineId.salesLineId, input.sourceType);
   if (!snapshot.ok) return { ok: false, error: snapshot.error, status: 500 };
-  const matched = revalidateCommitRows(input.rows, snapshot);
+  const matched = revalidateCommitRows(input.rows, snapshot, input.sourceType);
 
-  const classification = parseConfirmClassification(input.classification);
+  const classification = parseConfirmClassification(input.classification, input.sourceType);
+  if (isZoominfoLeadSource(input.sourceType)) {
+    const locked = assertZoominfoImportClassification(classification);
+    if (!locked.ok) return locked;
+  }
   const territories = await supabase.from('territories').select('id, code');
   if (territories.error) return { ok: false, error: territories.error.message, status: 500 };
   const territoryIdByCode = new Map((territories.data ?? []).map((t) => [t.code, t.id]));

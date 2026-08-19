@@ -11,7 +11,10 @@ import {
 } from '@/components/accountImport/ImportCommitReport';
 import {
   ACCOUNT_IMPORT_SOURCE_OPTIONS,
-  HISTORICAL_OGR_IMPORT_DEFAULTS,
+  defaultsForImportSource,
+  isAccountImportSourceEnabled,
+  isZoominfoLeadSource,
+  ZOOMINFO_IMPORT_LINE_CODE,
 } from '@/lib/accountImport/classification';
 import {
   commitAccountImportClient,
@@ -79,11 +82,12 @@ const FIELD_LABELS: Record<AccountImportTargetField, string> = {
   externalId: 'External ID',
 };
 
-function defaultClassification(): ConfirmClassification {
+function defaultClassification(sourceType: AccountImportSourceType): ConfirmClassification {
+  const defaults = defaultsForImportSource(sourceType);
   return {
-    relationshipStatus: HISTORICAL_OGR_IMPORT_DEFAULTS.relationshipStatus,
-    markers: [...HISTORICAL_OGR_IMPORT_DEFAULTS.markers],
-    existingOgr: HISTORICAL_OGR_IMPORT_DEFAULTS.existingOgr,
+    relationshipStatus: defaults.relationshipStatus,
+    markers: [...defaults.markers],
+    existingOgr: defaults.existingOgr,
     nextAction: null,
     runAiAfterImport: true,
   };
@@ -119,8 +123,9 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
   const [previewRows, setPreviewRows] = useState<PreviewImportRow[]>([]);
   const [counts, setCounts] = useState<PreviewCounts | null>(null);
   const [existingBatchId, setExistingBatchId] = useState<string | null>(null);
-  const [classification, setClassification] =
-    useState<ConfirmClassification>(defaultClassification);
+  const [classification, setClassification] = useState<ConfirmClassification>(() =>
+    defaultClassification('historical_customer'),
+  );
   const [report, setReport] = useState<CommitReport | null>(null);
   const [committedRows, setCommittedRows] = useState<CommittedImportRow[]>([]);
   const [importedBatchId, setImportedBatchId] = useState<string | null>(null);
@@ -151,7 +156,21 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
 
   const selectedLine = lines.find((line) => line.id === salesLineId) ?? null;
   const lineBlocked = selectedLine ? !assertImportLineAllowed(selectedLine).ok : !salesLineId;
-  const sourceEnabled = ACCOUNT_IMPORT_SOURCE_OPTIONS.find((s) => s.value === sourceType)?.enabled;
+  const sourceEnabled = isAccountImportSourceEnabled(sourceType, selectedLine?.code);
+  const zoominfoSource = isZoominfoLeadSource(sourceType);
+
+  function applySourceType(next: AccountImportSourceType) {
+    setSourceType(next);
+    setClassification(defaultClassification(next));
+  }
+
+  function applySalesLine(nextId: string) {
+    setSalesLineId(nextId);
+    const line = lines.find((item) => item.id === nextId);
+    if (sourceType === 'zoominfo_lead' && line && line.code !== ZOOMINFO_IMPORT_LINE_CODE) {
+      applySourceType('historical_customer');
+    }
+  }
 
   const uniqueNormalized = useMemo(
     () => collapseInFileDuplicates(normalized).filter((row) => row.inFileDuplicateOf == null),
@@ -222,7 +241,7 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
     setPreviewRows([]);
     setCounts(null);
     setExistingBatchId(null);
-    setClassification(defaultClassification());
+    setClassification(defaultClassification(sourceType));
     setReport(null);
     setCommittedRows([]);
     setImportedBatchId(null);
@@ -425,7 +444,7 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
           <>
             <Field>
               <FieldLabel>Sales line</FieldLabel>
-              <Select value={salesLineId} onChange={(e) => setSalesLineId(e.target.value)}>
+              <Select value={salesLineId} onChange={(e) => applySalesLine(e.target.value)}>
                 {lines.map((line) => (
                   <option key={line.id} value={line.id}>
                     {line.name}
@@ -437,14 +456,22 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
               <FieldLabel>Source type</FieldLabel>
               <Select
                 value={sourceType}
-                onChange={(e) => setSourceType(e.target.value as AccountImportSourceType)}
+                onChange={(e) => applySourceType(e.target.value as AccountImportSourceType)}
               >
-                {ACCOUNT_IMPORT_SOURCE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value} disabled={!opt.enabled}>
-                    {opt.label}
-                    {opt.enabled ? '' : ' (later)'}
-                  </option>
-                ))}
+                {ACCOUNT_IMPORT_SOURCE_OPTIONS.map((opt) => {
+                  const enabled = isAccountImportSourceEnabled(opt.value, selectedLine?.code);
+                  const suffix = enabled
+                    ? ''
+                    : opt.enabled && opt.value === 'zoominfo_lead'
+                      ? ' (Eagle Peak only)'
+                      : ' (later)';
+                  return (
+                    <option key={opt.value} value={opt.value} disabled={!enabled}>
+                      {opt.label}
+                      {suffix}
+                    </option>
+                  );
+                })}
               </Select>
             </Field>
             <Field>
@@ -680,32 +707,38 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
         {step === 'confirm' ? (
           <>
             {counts ? <ImportCountChips counts={counts} /> : null}
-            <Field>
-              <FieldLabel>Relationship</FieldLabel>
-              <Select
-                value={classification.relationshipStatus}
-                onChange={(e) =>
-                  setClassification((current) => ({
-                    ...current,
-                    relationshipStatus: e.target
-                      .value as ConfirmClassification['relationshipStatus'],
-                  }))
-                }
-              >
-                <option value="opened">Opened (dormant reactivation)</option>
-                <option value="prospect">Prospect</option>
-                <option value="qualified">Qualified</option>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Existing OGR</FieldLabel>
-              <Input
-                value={classification.existingOgr}
-                onChange={(e) =>
-                  setClassification((current) => ({ ...current, existingOgr: e.target.value }))
-                }
-              />
-            </Field>
+            {zoominfoSource ? (
+              <p className="text-ink/70 m-0 text-sm">Relationship: Prospect (locked).</p>
+            ) : (
+              <Field>
+                <FieldLabel>Relationship</FieldLabel>
+                <Select
+                  value={classification.relationshipStatus}
+                  onChange={(e) =>
+                    setClassification((current) => ({
+                      ...current,
+                      relationshipStatus: e.target
+                        .value as ConfirmClassification['relationshipStatus'],
+                    }))
+                  }
+                >
+                  <option value="opened">Opened (dormant reactivation)</option>
+                  <option value="prospect">Prospect</option>
+                  <option value="qualified">Qualified</option>
+                </Select>
+              </Field>
+            )}
+            {zoominfoSource ? null : (
+              <Field>
+                <FieldLabel>Existing OGR</FieldLabel>
+                <Input
+                  value={classification.existingOgr}
+                  onChange={(e) =>
+                    setClassification((current) => ({ ...current, existingOgr: e.target.value }))
+                  }
+                />
+              </Field>
+            )}
             <Field>
               <FieldLabel>Next action</FieldLabel>
               <Input
@@ -719,7 +752,9 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
               />
             </Field>
             <p className="text-ink/70 m-0 text-sm">
-              Markers: {classification.markers.join(', ')}. Import-protected identity. No orders.
+              {zoominfoSource
+                ? 'No historical markers. Never ordered. No outreach opt-in. Import-protected identity. No orders.'
+                : `Markers: ${classification.markers.join(', ')}. Import-protected identity. No orders.`}
             </p>
             <label className="flex items-center gap-2 text-sm">
               <input

@@ -9,6 +9,13 @@ export function historicalImportSeedNote(input: {
   ].join(' ');
 }
 
+export function zoominfoImportSeedNote(input: { filename: string }): string {
+  return [
+    `Sourced: Listed as a ZoomInfo lead in ${input.filename}. Shipping address from file when present.`,
+    'Inference: Treat as an Eagle Peak prospect that has never ordered. Do not assume historical purchase, current buyer, phone, or website.',
+  ].join(' ');
+}
+
 export function importSourceNote(input: {
   sourceType: string;
   batchId: string;

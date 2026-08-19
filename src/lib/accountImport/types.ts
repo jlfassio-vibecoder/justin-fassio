@@ -92,9 +92,9 @@ export type PreviewImportRow = CollapsedImportRow & {
   proposedClassification: {
     relationshipStatus: RelationshipStatus;
     markers: LineAccountMarker[];
-    existingOgr: 'yes';
+    existingOgr: string;
     importProtected: true;
-    qualificationStatus: 'reactivation';
+    qualificationStatus: string | null;
   };
 };
 

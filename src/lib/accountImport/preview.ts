@@ -3,7 +3,11 @@ import {
   ACCOUNT_IMPORT_SOURCE_TYPES,
   isImportSettableMarker,
 } from '@/lib/accountImport/classification';
-import { assertImportLineAllowed, parseRequiredSalesLineId } from '@/lib/accountImport/lineGate';
+import {
+  assertImportLineAllowed,
+  assertImportSourceLinePairing,
+  parseRequiredSalesLineId,
+} from '@/lib/accountImport/lineGate';
 import {
   matchCollapsedRows,
   summarizePreview,
@@ -157,6 +161,8 @@ export async function previewAccountImport(
   if (!line) return { ok: false, error: 'Unknown sales line', status: 400 };
   const allowed = assertImportLineAllowed(line);
   if (!allowed.ok) return allowed;
+  const paired = assertImportSourceLinePairing(input.sourceType, line);
+  if (!paired.ok) return paired;
 
   const snapshot = await loadCrmMatchSnapshot(supabase, lineId.salesLineId, input.sourceType);
   if (!snapshot.ok) return { ok: false, error: snapshot.error, status: 500 };
@@ -167,6 +173,7 @@ export async function previewAccountImport(
     rlas: snapshot.rlas,
     contacts: snapshot.contacts,
     priorFingerprints: snapshot.priorFingerprints,
+    sourceType: input.sourceType,
   });
 
   let existingCommittedBatchId: string | null = null;

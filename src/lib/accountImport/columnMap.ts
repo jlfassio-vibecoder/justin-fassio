@@ -30,7 +30,7 @@ const ALIASES: Record<AccountImportTargetField, string[]> = {
     'mailing address',
   ],
   street: ['street', 'street address', 'address 1', 'address1', 'addr1'],
-  city: ['city', 'town'],
+  city: ['city', 'town', 'hq city', 'headquarters city'],
   state: ['state', 'st', 'province', 'region'],
   postalCode: ['zip', 'zip code', 'zipcode', 'postal', 'postal code', 'postcode'],
   formerRepCode: ['former rep', 'rep', 'rep code', 'former rep code', 'sales rep', 'repcode'],

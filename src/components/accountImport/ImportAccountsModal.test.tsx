@@ -66,6 +66,9 @@ describe('ImportAccountsModal', () => {
     expect(modal).toMatch(/Approve or reject uncertain/);
     expect(modal).not.toMatch(/from '@\/lib\/accountImport\/review'/);
     expect(modal).not.toMatch(/AI enrichment is not part of this import/);
+    expect(modal).toMatch(/Eagle Peak only/);
+    expect(modal).toMatch(/Never ordered\. No outreach opt-in/);
+    expect(modal).toMatch(/Relationship: Prospect \(locked\)/);
     const progress = readFileSync(
       resolve(process.cwd(), 'src/components/accountImport/EnrichmentProgress.tsx'),
       'utf8',
