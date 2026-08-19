@@ -314,6 +314,7 @@ export function AccountDetailDrawer({
     rlaScope && retailerLineAccountRecord?.scope === rlaScope ? retailerLineAccountRecord.id : null;
 
   const emailSessionAccountId = account?.id ?? null;
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (emailSessionAccountId !== emailBoundAccountId) {
     setEmailBoundAccountId(emailSessionAccountId);
     setEmailFlow('closed');

@@ -196,6 +196,9 @@ export const POST: APIRoute = async ({ request }) => {
 
     let retailerLineAccountId: string | undefined;
     if (retailerLineAccountIdResult.value) {
+      if (!salesLineIdResult.value) {
+        return jsonError('salesLineId is required when retailerLineAccountId is provided', 400);
+      }
       if (crm.association.prospectId == null) {
         return jsonError('prospectId is required when retailerLineAccountId is provided', 400);
       }

@@ -543,6 +543,30 @@ describe('POST /api/staff/ogr-product-email', () => {
     );
   });
 
+  it('rejects retailerLineAccountId without salesLineId', async () => {
+    resolveProductOutreachCrmAssociationMock.mockResolvedValue({
+      ok: true,
+      association: { prospectId: 42, accountContactId: CONTACT_ID },
+    });
+    const res = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        prospectId: 42,
+        accountContactId: CONTACT_ID,
+        retailerLineAccountId: RLA_ID,
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: 'salesLineId is required when retailerLineAccountId is provided',
+    });
+    expect(validateProductOutreachRetailerLineAccountMock).not.toHaveBeenCalled();
+    expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
+    expect(insertProductOutreachSystemMessageMock).not.toHaveBeenCalled();
+  });
+
   it('rejects a mismatched retailer line account before send', async () => {
     resolveProductOutreachCrmAssociationMock.mockResolvedValue({
       ok: true,
@@ -558,6 +582,7 @@ describe('POST /api/staff/ogr-product-email', () => {
         to: 'buyer@example.com',
         prospectId: 42,
         accountContactId: CONTACT_ID,
+        salesLineId: LINE_ID,
         retailerLineAccountId: RLA_ID,
       }),
     );

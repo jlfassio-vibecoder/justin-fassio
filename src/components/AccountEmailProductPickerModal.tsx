@@ -71,6 +71,7 @@ export function AccountEmailProductPickerModal({
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [recipientHint, setRecipientHint] = useState<string | null>(null);
 
+  // Copilot suggestion ignored: the account drawer unmounts this picker when closed, so loading remounts at true.
   useEffect(() => {
     if (!open) return;
     let active = true;
