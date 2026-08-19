@@ -114,6 +114,7 @@ export function readAiGatewayApiKey(): string | null {
     typeof process !== 'undefined' ? process.env[GATEWAY_KEY] : undefined,
   );
   if (fromProcess) return fromProcess;
+  if (isVercelOidcRuntime()) return null;
   return readKeyFromDotenvFiles();
 }
 
@@ -126,10 +127,14 @@ export function ensureAiGatewayApiKey(): string | null {
   return key;
 }
 
-export function hasAiGatewayAuth(): boolean {
-  if (ensureAiGatewayApiKey()) return true;
+function isVercelOidcRuntime(): boolean {
   if (typeof process === 'undefined') return false;
   return Boolean(trimEnv(process.env.VERCEL_OIDC_TOKEN) || trimEnv(process.env.VERCEL));
+}
+
+export function hasAiGatewayAuth(): boolean {
+  if (ensureAiGatewayApiKey()) return true;
+  return isVercelOidcRuntime();
 }
 
 export function staffAiGateway() {

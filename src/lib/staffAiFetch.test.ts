@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { staffAiFetch } from '@/lib/staffAiFetch';
 
 describe('staffAiFetch', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('throws the JSON error field on non-OK JSON responses', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(

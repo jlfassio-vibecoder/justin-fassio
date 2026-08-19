@@ -5,6 +5,7 @@ import {
   hasAiGatewayAuth,
   inspectDotenvKey,
   LOCAL_AI_GATEWAY_REJECTED_HELP,
+  readAiGatewayApiKey,
 } from '@/lib/aiGatewayEnv';
 
 const ORIGINAL_KEY = process.env.AI_GATEWAY_API_KEY;
@@ -36,6 +37,12 @@ describe('aiGatewayEnv', () => {
     delete process.env.AI_GATEWAY_API_KEY;
     process.env.VERCEL = '1';
     expect(hasAiGatewayAuth()).toBe(true);
+  });
+
+  it('does not read dotenv files when Vercel OIDC is present', () => {
+    delete process.env.AI_GATEWAY_API_KEY;
+    process.env.VERCEL = '1';
+    expect(readAiGatewayApiKey()).toBeNull();
   });
 
   it('rewrites GatewayAuthenticationError copy for the UI', () => {

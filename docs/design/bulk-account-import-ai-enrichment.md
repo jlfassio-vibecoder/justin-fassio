@@ -10,6 +10,8 @@ Later reuse: Faire customer files, ZoomInfo leads, research prospects, Eagle Pea
 
 Hosted project `mqsyqxnzpncwdrnugytf`. Production app on main including PR [#94](https://github.com/jlfassio-vibecoder/justin-fassio/pull/94). Schema through `20260819140000` (F4 lookalike tables). No further feature work is required to close A–E.
 
+<!-- Copilot suggestion ignored: hosted workbook filename was misspelled acounts.xlsx on disk. -->
+
 | Result                | Hosted observation                                                                                                                            |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | OGR historical import | One owner batch, source type `historical_customer`, file `OGR Washington and Oregon acounts.xlsx`, committed 19 Aug 2026 18:30 UTC            |

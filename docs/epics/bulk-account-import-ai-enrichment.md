@@ -14,6 +14,8 @@ A–E shipped on main (PRs #88–#92). Later F1–F4 shipped on #93–#94 (outre
 
 Production validation on 19 Aug 2026 (hosted `mqsyqxnzpncwdrnugytf`):
 
+<!-- Copilot suggestion ignored: hosted workbook filename was misspelled acounts.xlsx on disk. -->
+
 - One OGR `historical_customer` batch from `OGR Washington and Oregon acounts.xlsx`
 - 18 uploaded rows → 17 unique businesses (1 in-file duplicate skipped)
 - 15 retailers/RLAs created as historical reactivation candidates; 2 rows held at `needs_review`
