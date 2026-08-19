@@ -1,5 +1,6 @@
 import type { AgentSupabase } from '@/lib/agentAuth';
 import { loadCrmMatchSnapshot } from '@/lib/accountImport/preview';
+import { isUniqueConstraintError } from '@/lib/accountImport/commit';
 import { territoryCodeFromImportState } from '@/lib/accountImport/territory';
 import { nextProspectId } from '@/lib/createEnrichedProspect';
 import {
@@ -54,6 +55,19 @@ function mapCandidate(row: {
     status: row.status,
     retailerId: row.retailer_id,
   };
+}
+
+async function allocateLookalikeProspectId(
+  supabase: AgentSupabase,
+): Promise<{ ok: true; id: number } | { ok: false; error: string; status: number }> {
+  const { data: maxRow, error: maxError } = await supabase
+    .from('prospects')
+    .select('id')
+    .order('id', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (maxError) return { ok: false, error: maxError.message, status: 500 };
+  return { ok: true, id: nextProspectId(maxRow?.id) };
 }
 
 async function loadSnapshot(supabase: AgentSupabase, jobId: string): Promise<JobResult> {
@@ -276,12 +290,15 @@ export async function processLookalikeJob(
   if (job.status === 'cancelled') return loadSnapshot(supabase, jobId);
   if (job.status === 'proposed' || job.status === 'failed') return loadSnapshot(supabase, jobId);
 
-  const { error: runningError } = await supabase
+  const { data: claimed, error: runningError } = await supabase
     .from('lookalike_jobs')
     .update({ status: 'running', error: null })
     .eq('id', jobId)
-    .in('status', ['queued', 'running']);
+    .eq('status', 'queued')
+    .select('id')
+    .maybeSingle();
   if (runningError) return { ok: false, error: runningError.message, status: 500 };
+  if (!claimed) return loadSnapshot(supabase, jobId);
 
   const { data: cancelled } = await supabase
     .from('lookalike_jobs')
@@ -346,6 +363,17 @@ export async function processLookalikeJob(
     };
   });
 
+  const { error: clearError } = await supabase
+    .from('lookalike_candidates')
+    .delete()
+    .eq('job_id', jobId);
+  if (clearError) {
+    await supabase
+      .from('lookalike_jobs')
+      .update({ status: 'failed', error: clearError.message, trait_brief: traitBrief })
+      .eq('id', jobId);
+    return { ok: false, error: clearError.message, status: 500 };
+  }
   if (rows.length > 0) {
     const { error: insertError } = await supabase.from('lookalike_candidates').insert(rows);
     if (insertError) {
@@ -441,14 +469,6 @@ export async function reviewLookalikeCandidate(
   if (assignments.error) return { ok: false, error: assignments.error, status: 500 };
   const slt = suggestedAssignmentForLocation(assignments.data, stateCode);
 
-  const { data: maxRow, error: maxError } = await supabase
-    .from('prospects')
-    .select('id')
-    .order('id', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (maxError) return { ok: false, error: maxError.message, status: 500 };
-  const id = nextProspectId(maxRow?.id);
   const fields = buildLookalikeInsertFields({
     jobId: input.jobId,
     name: candidate.name,
@@ -458,10 +478,24 @@ export async function reviewLookalikeCandidate(
     territoryId: territory.id,
     salesLineTerritoryId: slt?.id ?? null,
   });
-  const { error: prospectError } = await supabase.from('prospects').insert({
+  // Copilot suggestion ignored: prospect ids use the same nextProspectId allocation as Add via AI; a sequence/RPC rewrite is out of scope for this slice.
+  const allocated = await allocateLookalikeProspectId(supabase);
+  if (!allocated.ok) return allocated;
+  let id = allocated.id;
+  let { error: prospectError } = await supabase.from('prospects').insert({
     id,
     ...fields.prospect,
   });
+  if (prospectError && isUniqueConstraintError(prospectError)) {
+    const retried = await allocateLookalikeProspectId(supabase);
+    if (!retried.ok) return retried;
+    id = retried.id;
+    const retryInsert = await supabase.from('prospects').insert({
+      id,
+      ...fields.prospect,
+    });
+    prospectError = retryInsert.error;
+  }
   if (prospectError) return { ok: false, error: prospectError.message, status: 500 };
   const { error: rlaError } = await supabase.from('retailer_line_accounts').insert({
     retailer_id: id,

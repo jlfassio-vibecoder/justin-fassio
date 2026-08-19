@@ -51,6 +51,7 @@ describe('FindLookalikesModal', () => {
     );
     expect(src).not.toMatch(/from '@\/lib\/lookalike\/search'/);
     expect(src).not.toMatch(/from '@\/lib\/lookalike\/jobs'/);
+    expect(src).toMatch(/Copilot suggestion ignored/);
     expect(src).not.toMatch(/AI_GATEWAY_API_KEY/);
   });
 });

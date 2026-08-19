@@ -50,6 +50,7 @@ export function FindLookalikesModal({ open, onClose, onImported }: FindLookalike
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
 
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (open && !resetOpen) {
     setResetOpen(true);
     setError(null);

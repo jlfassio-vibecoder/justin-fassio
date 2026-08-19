@@ -96,6 +96,10 @@ describe('lookalike APIs', () => {
 
     const jobs = readFileSync(resolve(root, 'src/lib/lookalike/jobs.ts'), 'utf8');
     expect(jobs).toMatch(/nextProspectId/);
+    expect(jobs).toMatch(/\.eq\('status', 'queued'\)/);
+    expect(jobs).toMatch(/lookalike_candidates'\)\s*\.delete\(\)/);
+    expect(jobs).toMatch(/isUniqueConstraintError/);
+    expect(jobs).toMatch(/Copilot suggestion ignored/);
     expect(jobs).not.toMatch(/createEnrichedProspect\(/);
     expect(jobs).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY|getServiceRoleClient/);
 
