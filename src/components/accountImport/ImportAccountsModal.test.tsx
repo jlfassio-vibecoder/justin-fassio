@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ImportAccountsModal } from '@/components/accountImport/ImportAccountsModal';
@@ -31,11 +33,11 @@ vi.mock('@/lib/lines', async () => {
 });
 
 describe('ImportAccountsModal', () => {
-  it('starts on select and has no AI enrichment step', () => {
+  it('starts on select without showing the confirm AI checkbox yet', () => {
     render(<ImportAccountsModal open onClose={vi.fn()} />);
     expect(screen.getByText('Import accounts')).toBeInTheDocument();
     expect(screen.getByText(/Select a represented line/i)).toBeInTheDocument();
-    expect(screen.queryByText(/run AI after import/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/run AI fill-blanks after import/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/enriching/i)).not.toBeInTheDocument();
   });
 
@@ -46,5 +48,26 @@ describe('ImportAccountsModal', () => {
     expect(shouldAcceptImportCommit({ inFlight: true, step: 'importing' })).toBe(false);
     expect(shouldAcceptImportCommit({ inFlight: false, step: 'imported' })).toBe(false);
     expect(shouldAcceptImportCommit({ inFlight: false, step: 'preview' })).toBe(false);
+  });
+
+  it('ships confirm checkbox and enriching progress copy', () => {
+    const modal = readFileSync(
+      resolve(process.cwd(), 'src/components/accountImport/ImportAccountsModal.tsx'),
+      'utf8',
+    );
+    expect(modal).toMatch(/Run AI fill-blanks after import/);
+    expect(modal).toMatch(/Per-row AI fill-blanks/);
+    expect(modal).toMatch(/Enrich all/);
+    expect(modal).toMatch(/Enrich selected/);
+    expect(modal).toMatch(/if \(busy \|\| step === 'importing'\) return/);
+    expect(modal).toMatch(/jobs\.running > 0/);
+    expect(modal).toMatch(/RUNNING_JOB_POLL_MS/);
+    expect(modal).not.toMatch(/AI enrichment is not part of this import/);
+    const progress = readFileSync(
+      resolve(process.cwd(), 'src/components/accountImport/EnrichmentProgress.tsx'),
+      'utf8',
+    );
+    expect(progress).toMatch(/Retry failed/);
+    expect(progress).toMatch(/Cancel remaining/);
   });
 });

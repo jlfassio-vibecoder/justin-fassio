@@ -13,6 +13,7 @@ import {
   isFinishedBatchStatus,
   isRetryableImportRowStatus,
   isUniqueConstraintError,
+  parseConfirmClassification,
   revalidateCommitRows,
   shouldInsertImportContact,
   shouldPreserveExistingRlaNotes,
@@ -507,6 +508,8 @@ describe('account import commit rematch and resume', () => {
     expect(isFinishedBatchStatus('previewed')).toBe(false);
     expect(isFinishedBatchStatus('committed')).toBe(true);
     expect(isFinishedBatchStatus('completed')).toBe(true);
+    expect(parseConfirmClassification({}).runAiAfterImport).toBe(true);
+    expect(parseConfirmClassification({ runAiAfterImport: false }).runAiAfterImport).toBe(false);
     expect(batchIsFullyTerminal([{ status: 'imported' }, { status: 'skipped' }])).toBe(true);
     expect(batchIsFullyTerminal([{ status: 'imported' }, { status: 'failed' }])).toBe(false);
     expect(batchIsFullyTerminal([])).toBe(false);
@@ -603,20 +606,38 @@ describe('account import phase 2 files', () => {
       'preview.ts',
       'commit.ts',
       'batches/index.ts',
-      'batches/[id].ts',
+      'batches/[id]/index.ts',
+      'batches/[id]/enrich/start.ts',
+      'batches/[id]/enrich/process.ts',
+      'batches/[id]/enrich/status.ts',
+      'batches/[id]/enrich/cancel.ts',
+      'batches/[id]/enrich/retry.ts',
     ]) {
       const src = readFileSync(resolve(root, `src/pages/api/staff/account-import/${file}`), 'utf8');
       expect(src).toMatch(/export const prerender = false/);
-      expect(src).toMatch(/requireAccountImportOwner|requireApprovedOwnerClient/);
+      expect(src).toMatch(
+        /requireAccountImportOwner|requireApprovedOwnerClient|requireAccountImportBatch/,
+      );
+      expect(src).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY|getServiceRoleClient/);
+      expect(src).not.toMatch(/checkAgentRateLimit/);
     }
+    expect(
+      readFileSync(
+        resolve(root, 'src/pages/api/staff/account-import/batches/[id]/enrich/process.ts'),
+        'utf8',
+      ),
+    ).toMatch(/export const maxDuration = 60/);
 
     const modal = readFileSync(
       resolve(root, 'src/components/accountImport/ImportAccountsModal.tsx'),
       'utf8',
     );
-    expect(modal).toMatch(/select.*map.*normalize.*preview.*confirm.*importing.*imported/s);
-    expect(modal).not.toMatch(/enriching/);
-    expect(modal).not.toMatch(/run AI after import/i);
+    expect(modal).toMatch(
+      /select.*map.*normalize.*preview.*confirm.*importing.*imported.*enriching/s,
+    );
+    expect(modal).toMatch(/Run AI fill-blanks after import/);
+    expect(modal).toMatch(/Enrich all/);
+    expect(modal).not.toMatch(/from '@\/lib\/accountImport\/enrich'/);
 
     const prospectsTab = readFileSync(
       resolve(root, 'src/components/tabs/ProspectsTab.tsx'),
@@ -637,7 +658,8 @@ describe('account import phase 2 files', () => {
     expect(commit).toMatch(/batchIsFullyTerminal/);
     expect(commit).toMatch(/failedImportRowStamp/);
     expect(commit).toMatch(/shouldPreserveExistingRlaNotes/);
-    expect(commit).not.toMatch(/update\(\{ status: 'committed' \}\)/);
+    expect(commit).toMatch(/status: 'committed' as const/);
+    expect(commit).not.toMatch(/status: 'completed' as const/);
     expect(commit).toMatch(/if \(!result\?\.ok\) \{[\s\S]*failedImportRowStamp/);
     expect(commit).toMatch(/isUniqueConstraintError/);
     expect(commit).toMatch(/existingBatchAfterShaConflict/);

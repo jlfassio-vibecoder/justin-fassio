@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { EnrichmentProgress } from '@/components/accountImport/EnrichmentProgress';
 import {
   ImportCommitReport,
   ImportCountChips,
@@ -10,10 +11,21 @@ import { Field, FieldLabel, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { ACCOUNT_IMPORT_SOURCE_OPTIONS } from '@/lib/accountImport/classification';
 import {
+  cancelAccountImportEnrichClient,
   getAccountImportBatchClient,
+  getAccountImportEnrichStatusClient,
   listAccountImportBatchesClient,
+  processAccountImportEnrichClient,
+  retryAccountImportEnrichClient,
+  startAccountImportEnrichClient,
 } from '@/lib/accountImport/client';
 import { commitReportToPreviewCounts } from '@/lib/accountImport/commitReportView';
+import {
+  canResumeEnrich,
+  canRetryFailedEnrich,
+  RUNNING_JOB_POLL_MS,
+  type EnrichmentSnapshot,
+} from '@/lib/accountImport/enrichStatus';
 import type {
   ImportHistoryBatchDetail,
   ImportHistoryBatchListItem,
@@ -44,8 +56,11 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
   const [salesLineId, setSalesLineId] = useState('');
   const [batches, setBatches] = useState<ImportHistoryBatchListItem[]>([]);
   const [detail, setDetail] = useState<ImportHistoryBatchDetail | null>(null);
+  const [enrichSnapshot, setEnrichSnapshot] = useState<EnrichmentSnapshot | null>(null);
+  const [pumping, setPumping] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pumpAbortRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -58,6 +73,7 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
       const fallback = allowed.find((line) => line.code === 'ogr') ?? allowed[0];
       setBusy(true);
       setDetail(null);
+      setEnrichSnapshot(null);
       setError(null);
       setSalesLineId((current ?? fallback)?.id ?? '');
     });
@@ -88,22 +104,96 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
   if (!open) return null;
 
   function handleClose() {
+    pumpAbortRef.current = true;
     setDetail(null);
+    setEnrichSnapshot(null);
+    setPumping(false);
     setError(null);
     setBusy(true);
     onClose();
   }
 
+  async function pumpEnrich(batchId: string) {
+    pumpAbortRef.current = false;
+    setPumping(true);
+    while (!pumpAbortRef.current) {
+      const next = await processAccountImportEnrichClient({ salesLineId, batchId });
+      if (!next.ok) {
+        setError(next.error);
+        break;
+      }
+      setEnrichSnapshot(next.snapshot);
+      if (next.snapshot.pauseReason === 'rate_limit') break;
+      if (next.snapshot.jobs.queued + next.snapshot.jobs.running === 0) break;
+      if (next.snapshot.jobs.running > 0) {
+        await new Promise((resolve) => setTimeout(resolve, RUNNING_JOB_POLL_MS));
+      }
+    }
+    setPumping(false);
+  }
+
   async function openDetail(batchId: string) {
     setBusy(true);
     setError(null);
+    setEnrichSnapshot(null);
     const result = await getAccountImportBatchClient({ salesLineId, batchId });
-    setBusy(false);
     if (!result.ok) {
+      setBusy(false);
       setError(result.error);
       return;
     }
     setDetail(result.batch);
+    const enrich = await getAccountImportEnrichStatusClient({ salesLineId, batchId });
+    setBusy(false);
+    if (enrich.ok) {
+      setEnrichSnapshot(enrich.snapshot);
+      return;
+    }
+    setEnrichSnapshot({
+      batchId: result.batch.id,
+      batchStatus: result.batch.status,
+      jobs: {
+        queued: 0,
+        running: 0,
+        completed: 0,
+        failed: 0,
+        cancelled: 0,
+        pendingFieldChanges: 0,
+        total: 0,
+      },
+      rows: [],
+      pauseReason: null,
+    });
+  }
+
+  async function resumeEnrich() {
+    if (!detail) return;
+    setError(null);
+    const started = await startAccountImportEnrichClient({
+      salesLineId,
+      batchId: detail.id,
+    });
+    if (!started.ok) {
+      setError(started.error);
+      return;
+    }
+    setEnrichSnapshot(started.snapshot);
+    await pumpEnrich(detail.id);
+  }
+
+  async function retryFailed() {
+    if (!detail) return;
+    setError(null);
+    const retried = await retryAccountImportEnrichClient({
+      salesLineId,
+      batchId: detail.id,
+    });
+    if (!retried.ok) {
+      setError(retried.error);
+      return;
+    }
+    setEnrichSnapshot(retried.snapshot);
+    await pumpEnrich(detail.id);
   }
 
   return (
@@ -126,6 +216,7 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
                 setSalesLineId(e.target.value);
                 setBusy(true);
                 setDetail(null);
+                setEnrichSnapshot(null);
                 setError(null);
               }}
             >
@@ -159,13 +250,60 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
               </p>
             ) : null}
             <ImportCommitReport report={detail.report} rows={detail.rows} />
+            {enrichSnapshot ? (
+              <p className="text-ink/70 m-0 text-sm">
+                AI: {enrichSnapshot.jobs.completed} completed, {enrichSnapshot.jobs.failed} failed,{' '}
+                {enrichSnapshot.jobs.queued + enrichSnapshot.jobs.running} remaining
+              </p>
+            ) : null}
+            {pumping ||
+            (enrichSnapshot && enrichSnapshot.jobs.queued + enrichSnapshot.jobs.running > 0) ? (
+              <EnrichmentProgress
+                snapshot={enrichSnapshot}
+                busy={pumping}
+                onRetryFailed={() => void retryFailed()}
+                onCancelRemaining={() => {
+                  void cancelAccountImportEnrichClient({
+                    salesLineId,
+                    batchId: detail.id,
+                  }).then((result) => {
+                    if (!result.ok) {
+                      setError(result.error);
+                      return;
+                    }
+                    pumpAbortRef.current = true;
+                    setEnrichSnapshot(result.snapshot);
+                  });
+                }}
+              />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {enrichSnapshot && canResumeEnrich(enrichSnapshot) ? (
+                  <Button type="button" variant="primary" onClick={() => void resumeEnrich()}>
+                    Resume enrich
+                  </Button>
+                ) : null}
+                {enrichSnapshot && canRetryFailedEnrich(enrichSnapshot) ? (
+                  <Button type="button" onClick={() => void retryFailed()}>
+                    Retry failed
+                  </Button>
+                ) : null}
+              </div>
+            )}
             <p className="m-0 text-sm">
               <a className="text-accent" href="/app?tab=accounts&reactivation=1&territory=ALL">
                 View reactivation candidates
               </a>
             </p>
             <div className="flex justify-end">
-              <Button type="button" onClick={() => setDetail(null)}>
+              <Button
+                type="button"
+                onClick={() => {
+                  pumpAbortRef.current = true;
+                  setDetail(null);
+                  setEnrichSnapshot(null);
+                }}
+              >
                 Back
               </Button>
             </div>

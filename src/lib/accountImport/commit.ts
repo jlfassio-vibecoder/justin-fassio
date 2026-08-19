@@ -275,6 +275,7 @@ export function parseConfirmClassification(raw: unknown): ConfirmClassification 
     markers: markers.length > 0 ? markers : [...HISTORICAL_OGR_IMPORT_DEFAULTS.markers],
     existingOgr,
     nextAction,
+    runAiAfterImport: obj.runAiAfterImport !== false,
   };
 }
 
@@ -927,7 +928,7 @@ export async function commitAccountImport(
     contactsCreated,
   };
   const batchUpdate = batchIsFullyTerminal(committed)
-    ? { status: 'completed' as const, report }
+    ? { status: 'committed' as const, report }
     : { report };
   const { error: batchUpdateError } = await supabase
     .from('account_import_batches')

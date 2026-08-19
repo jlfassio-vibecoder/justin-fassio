@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
+import { EnrichmentProgress } from '@/components/accountImport/EnrichmentProgress';
 import {
   ImportCommitReport,
   ImportCountChips,
@@ -15,6 +16,10 @@ import {
   commitAccountImportClient,
   parseAccountImportFile,
   previewAccountImportClient,
+  processAccountImportEnrichClient,
+  startAccountImportEnrichClient,
+  cancelAccountImportEnrichClient,
+  retryAccountImportEnrichClient,
 } from '@/lib/accountImport/client';
 import { collapseInFileDuplicates } from '@/lib/accountImport/collapseDuplicates';
 import { isBusinessNameMapped, proposeColumnMap } from '@/lib/accountImport/columnMap';
@@ -29,6 +34,7 @@ import type {
   PreviewCounts,
   PreviewImportRow,
 } from '@/lib/accountImport/types';
+import { RUNNING_JOB_POLL_MS, type EnrichmentSnapshot } from '@/lib/accountImport/enrichStatus';
 import { ACCOUNT_IMPORT_TARGET_FIELDS } from '@/lib/accountImport/types';
 import { fetchRepresentedLines, type LinePortfolio } from '@/lib/lines';
 import { useOptionalLineContext } from '@/lib/lineContext';
@@ -36,7 +42,7 @@ import { STAFF_AI_ERRORS } from '@/lib/aiLineContext';
 import type { AccountImportSourceType } from '@/types/database';
 
 export type ImportWizardState =
-  'select' | 'map' | 'normalize' | 'preview' | 'confirm' | 'importing' | 'imported';
+  'select' | 'map' | 'normalize' | 'preview' | 'confirm' | 'importing' | 'imported' | 'enriching';
 
 const FIELD_LABELS: Record<AccountImportTargetField, string> = {
   businessName: 'Business name',
@@ -60,6 +66,7 @@ function defaultClassification(): ConfirmClassification {
     markers: [...HISTORICAL_OGR_IMPORT_DEFAULTS.markers],
     existingOgr: HISTORICAL_OGR_IMPORT_DEFAULTS.existingOgr,
     nextAction: null,
+    runAiAfterImport: true,
   };
 }
 
@@ -97,9 +104,14 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
     useState<ConfirmClassification>(defaultClassification);
   const [report, setReport] = useState<CommitReport | null>(null);
   const [committedRows, setCommittedRows] = useState<CommittedImportRow[]>([]);
+  const [importedBatchId, setImportedBatchId] = useState<string | null>(null);
+  const [enrichSnapshot, setEnrichSnapshot] = useState<EnrichmentSnapshot | null>(null);
+  const [selectedRetailerIds, setSelectedRetailerIds] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const commitInFlightRef = useRef(false);
+  const pumpAbortRef = useRef(false);
+  const [pumpToken, setPumpToken] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -126,6 +138,36 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
     [normalized],
   );
 
+  useEffect(() => {
+    if (!open || step !== 'enriching' || !importedBatchId || !salesLineId) return;
+    pumpAbortRef.current = false;
+    let cancelled = false;
+    async function pump() {
+      while (!cancelled && !pumpAbortRef.current && importedBatchId) {
+        const next = await processAccountImportEnrichClient({
+          salesLineId,
+          batchId: importedBatchId,
+        });
+        if (cancelled) return;
+        if (!next.ok) {
+          setError(next.error);
+          return;
+        }
+        setEnrichSnapshot(next.snapshot);
+        if (next.snapshot.pauseReason === 'rate_limit') return;
+        if (next.snapshot.jobs.queued + next.snapshot.jobs.running === 0) return;
+        if (next.snapshot.jobs.running > 0) {
+          await new Promise((resolve) => setTimeout(resolve, RUNNING_JOB_POLL_MS));
+        }
+      }
+    }
+    void pump();
+    return () => {
+      cancelled = true;
+      pumpAbortRef.current = true;
+    };
+  }, [open, step, importedBatchId, salesLineId, pumpToken]);
+
   if (!open) return null;
 
   function reset() {
@@ -143,13 +185,18 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
     setClassification(defaultClassification());
     setReport(null);
     setCommittedRows([]);
+    setImportedBatchId(null);
+    setEnrichSnapshot(null);
+    setSelectedRetailerIds(new Set());
     setBusy(false);
     commitInFlightRef.current = false;
+    pumpAbortRef.current = true;
     setError(null);
   }
 
   function handleClose() {
     if (busy || step === 'importing') return;
+    pumpAbortRef.current = true;
     reset();
     onClose();
   }
@@ -228,8 +275,44 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
     }
     setReport(result.report);
     setCommittedRows(result.rows);
-    setStep('imported');
+    setImportedBatchId(result.batchId);
+    setSelectedRetailerIds(
+      new Set(result.rows.flatMap((row) => (row.retailerId ? [row.retailerId] : []))),
+    );
     onImported?.();
+    if (classification.runAiAfterImport === false) {
+      setStep('imported');
+      return;
+    }
+    const started = await startAccountImportEnrichClient({
+      salesLineId,
+      batchId: result.batchId,
+    });
+    if (!started.ok) {
+      setError(started.error);
+      setStep('imported');
+      return;
+    }
+    setEnrichSnapshot(started.snapshot);
+    setPumpToken((token) => token + 1);
+    setStep('enriching');
+  }
+
+  async function startEnrich(retailerIds?: number[]) {
+    if (!importedBatchId) return;
+    setError(null);
+    const started = await startAccountImportEnrichClient({
+      salesLineId,
+      batchId: importedBatchId,
+      retailerIds,
+    });
+    if (!started.ok) {
+      setError(started.error);
+      return;
+    }
+    setEnrichSnapshot(started.snapshot);
+    setPumpToken((token) => token + 1);
+    setStep('enriching');
   }
 
   return (
@@ -242,7 +325,7 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
             className="text-ink/70 hover:text-ink"
             onClick={handleClose}
             aria-label="Close"
-            disabled={step === 'importing'}
+            disabled={busy || step === 'importing'}
           >
             <X strokeWidth={2.75} className="h-5 w-5" />
           </button>
@@ -255,9 +338,10 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
           {step === 'preview' &&
             'Matching is deterministic. No retailers are written until confirm.'}
           {step === 'confirm' &&
-            'Historical OGR defaults. AI enrichment is not part of this import.'}
+            'Historical OGR defaults. Optionally run AI fill-blanks after import.'}
           {step === 'importing' && 'Importing accounts…'}
-          {step === 'imported' && 'Import finished.'}
+          {step === 'imported' && 'Import finished. Enrich now or done.'}
+          {step === 'enriching' && 'Per-row AI fill-blanks. Retry failed or cancel remaining.'}
         </p>
         {error ? (
           <p className="m-0 text-sm text-red-700" role="alert">
@@ -568,6 +652,19 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
             <p className="text-ink/70 m-0 text-sm">
               Markers: {classification.markers.join(', ')}. Import-protected identity. No orders.
             </p>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={classification.runAiAfterImport !== false}
+                onChange={(e) =>
+                  setClassification((current) => ({
+                    ...current,
+                    runAiAfterImport: e.target.checked,
+                  }))
+                }
+              />
+              Run AI fill-blanks after import
+            </label>
             <div className="flex justify-between gap-2">
               <Button type="button" onClick={() => setStep('preview')}>
                 Back
@@ -588,13 +685,71 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
 
         {step === 'imported' && report ? (
           <>
-            <ImportCommitReport report={report} rows={committedRows} />
-            <div className="flex justify-end">
-              <Button type="button" variant="primary" onClick={handleClose}>
+            <ImportCommitReport
+              report={report}
+              rows={committedRows}
+              selectedRetailerIds={selectedRetailerIds}
+              onToggleRetailer={(retailerId) =>
+                setSelectedRetailerIds((current) => {
+                  const next = new Set(current);
+                  if (next.has(retailerId)) next.delete(retailerId);
+                  else next.add(retailerId);
+                  return next;
+                })
+              }
+            />
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" onClick={handleClose}>
                 Done
+              </Button>
+              <Button
+                type="button"
+                disabled={selectedRetailerIds.size === 0}
+                onClick={() => void startEnrich([...selectedRetailerIds])}
+              >
+                Enrich selected
+              </Button>
+              <Button type="button" variant="primary" onClick={() => void startEnrich()}>
+                Enrich all
               </Button>
             </div>
           </>
+        ) : null}
+
+        {step === 'enriching' ? (
+          <EnrichmentProgress
+            snapshot={enrichSnapshot}
+            busy={false}
+            onRetryFailed={() => {
+              if (!importedBatchId) return;
+              void retryAccountImportEnrichClient({
+                salesLineId,
+                batchId: importedBatchId,
+              }).then((result) => {
+                if (!result.ok) {
+                  setError(result.error);
+                  return;
+                }
+                setEnrichSnapshot(result.snapshot);
+                setPumpToken((token) => token + 1);
+                setStep('enriching');
+              });
+            }}
+            onCancelRemaining={() => {
+              if (!importedBatchId) return;
+              void cancelAccountImportEnrichClient({
+                salesLineId,
+                batchId: importedBatchId,
+              }).then((result) => {
+                if (!result.ok) {
+                  setError(result.error);
+                  return;
+                }
+                setEnrichSnapshot(result.snapshot);
+              });
+            }}
+            onDone={handleClose}
+          />
         ) : null}
       </div>
     </DialogBackdrop>

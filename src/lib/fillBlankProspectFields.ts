@@ -250,7 +250,7 @@ export function mergeFillBlankFields(
 export function buildFillBlankProposal(
   current: Prospect,
   evidence: FillBlankEvidence,
-  options?: { lineCode?: string },
+  options?: { lineCode?: string; skipFitScoring?: boolean },
 ): FillBlankProspectFields {
   const ogrStrategy = !options?.lineCode || options.lineCode === 'ogr';
   const retailCategory: RetailCategory =
@@ -274,21 +274,26 @@ export function buildFillBlankProposal(
       ? territoryFromCity.primaryDistrict
       : null;
 
-  const seed = calculateSeedFitScore({
-    retailCategory,
-    subterritory: subterritory ?? current.subterritory,
-    strategicReference: evidence.strategicReference === true,
-  });
+  const skipFitScoring = options?.skipFitScoring === true;
+  const seed = skipFitScoring
+    ? null
+    : calculateSeedFitScore({
+        retailCategory,
+        subterritory: subterritory ?? current.subterritory,
+        strategicReference: evidence.strategicReference === true,
+      });
 
-  const fitScore = seed.seedFitScore;
-  const priority = assignProspectPriority({
-    fitScore,
-    subterritory: subterritory ?? current.subterritory,
-    inOkanagan: isOkanaganSubterritory(subterritory ?? current.subterritory),
-    strategicReference: evidence.strategicReference === true,
-  });
-  const provisionalGrade = assignProvisionalGrade(priority);
-  const idealOpeningUnits = idealOpeningUnitsForCategory(retailCategory);
+  const fitScore = seed?.seedFitScore ?? null;
+  const priority = skipFitScoring
+    ? null
+    : assignProspectPriority({
+        fitScore: seed?.seedFitScore ?? 0,
+        subterritory: subterritory ?? current.subterritory,
+        inOkanagan: isOkanaganSubterritory(subterritory ?? current.subterritory),
+        strategicReference: evidence.strategicReference === true,
+      });
+  const provisionalGrade = skipFitScoring || !priority ? null : assignProvisionalGrade(priority);
+  const idealOpeningUnits = skipFitScoring ? null : idealOpeningUnitsForCategory(retailCategory);
 
   const website =
     nonBlankString(evidence.officialWebsite) ??
@@ -308,23 +313,28 @@ export function buildFillBlankProposal(
       ? verificationStatusFromEvidence({ hasOfficialWebsite: false, directoryOnly: true })
       : null;
 
-  const fitText = buildReasonForInclusion({
-    retailCategory,
-    customerAlignmentNotes: evidence.customerAlignmentNotes,
-  });
+  const fitText = skipFitScoring
+    ? null
+    : buildReasonForInclusion({
+        retailCategory,
+        customerAlignmentNotes: evidence.customerAlignmentNotes,
+      });
 
-  const nextAction = recommendNextAction({
-    priority,
-    hasWebsite: Boolean(website || current.website),
-    apparelCapability: apparel ?? current.apparelCapability,
-  });
+  const nextAction = skipFitScoring
+    ? null
+    : recommendNextAction({
+        priority: priority ?? 'Tier 3',
+        hasWebsite: Boolean(website || current.website),
+        apparelCapability: apparel ?? current.apparelCapability,
+      });
 
   const channel = crmChannelFromRetailCategory(retailCategory);
-  const region =
-    crmRegionFromTerritory({
-      primaryDistrict: (primaryDistrict as PrimaryDistrict | 'Needs mapping') ?? 'Needs mapping',
-      subterritory: (subterritory as Subterritory) ?? 'Needs mapping',
-    }) ?? null;
+  const region = skipFitScoring
+    ? null
+    : (crmRegionFromTerritory({
+        primaryDistrict: (primaryDistrict as PrimaryDistrict | 'Needs mapping') ?? 'Needs mapping',
+        subterritory: (subterritory as Subterritory) ?? 'Needs mapping',
+      }) ?? null);
 
   const proposeRetailCategory = !isBlankProspectValue('retailCategory', current.retailCategory)
     ? null
@@ -348,7 +358,8 @@ export function buildFillBlankProposal(
     apparelCapability: apparel,
     verificationStatus: verification,
     fitScore,
-    fit: formatProspectFit(fitScore, fitText),
+    fit:
+      skipFitScoring || fitScore == null || !fitText ? null : formatProspectFit(fitScore, fitText),
     idealOpeningUnits,
     priority,
     provisionalGrade,
@@ -373,6 +384,7 @@ export async function inferFillBlankProspectFields(input: {
   websiteUrl?: string;
   lineCode?: string;
   aiPersona?: string;
+  skipFitScoring?: boolean;
 }): Promise<InferFillBlankResult> {
   const current = input.current;
   const companyName = current.name.trim();
@@ -422,7 +434,10 @@ export async function inferFillBlankProspectFields(input: {
     return {
       ok: true,
       evidence: result.object,
-      fields: buildFillBlankProposal(current, result.object, { lineCode: input.lineCode }),
+      fields: buildFillBlankProposal(current, result.object, {
+        lineCode: input.lineCode,
+        skipFitScoring: input.skipFitScoring,
+      }),
       researchBrief,
     };
   } catch (err) {

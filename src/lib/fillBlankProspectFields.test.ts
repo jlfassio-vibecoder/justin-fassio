@@ -244,6 +244,40 @@ describe('buildFillBlankProposal', () => {
     expect(fields.primaryDistrict).toBeNull();
   });
 
+  it('skips Okanagan fit scoring when skipFitScoring is set', () => {
+    const oregon: Prospect = {
+      ...base,
+      region: 'Oregon',
+      city: 'Portland',
+      territoryCode: 'or',
+      territoryName: 'Oregon',
+      address: '',
+      phone: '',
+      website: null,
+      fit: '',
+      fitScore: null,
+      priority: null,
+      provisionalGrade: null,
+      idealOpeningUnits: null,
+      nextAction: null,
+      subterritory: null,
+      primaryDistrict: null,
+      retailCategory: null,
+    };
+    const fields = buildFillBlankProposal(oregon, evidence, {
+      lineCode: 'ogr',
+      skipFitScoring: true,
+    });
+    expect(fields.fitScore).toBeNull();
+    expect(fields.fit).toBeNull();
+    expect(fields.priority).toBeNull();
+    expect(fields.provisionalGrade).toBeNull();
+    expect(fields.idealOpeningUnits).toBeNull();
+    expect(fields.nextAction).toBeNull();
+    expect(fields.region).toBeNull();
+    expect(fields.website).toBe('https://example.com');
+  });
+
   it('does not label Website confirmed without an official site', () => {
     const blank: Prospect = {
       ...base,

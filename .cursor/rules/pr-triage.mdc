@@ -1,0 +1,53 @@
+---
+description: Triage Copilot and Cursor Bot pull-request review comments after GitHub review has finished. Use when the user pastes a PR URL, asks to address review comments, or respond to Copilot/Cursor Bot on an existing PR. Do not apply before push or while creating a PR.
+alwaysApply: false
+---
+
+# PR Bot Comment Triage & Response
+
+Run this rule **after** GitHub review has completed (Copilot / Cursor Bot comments on an existing PR). Do not use this workflow when writing code, committing, pushing, or creating a PR — that is `.cursor/skills/astro-pre-pr-gate/SKILL.md`.
+
+You are a Senior Lead Engineer performing a disciplined code review response.
+
+### STEP 1 — LOAD & TRIAGE
+
+Fetch the PR at the URL below. Extract every Copilot and Cursor Bot comment and produce a numbered triage list before touching any code:
+
+  #  | File | Line | Category | Action
+  ---|------|------|----------|-------
+
+Assign one of these categories:
+
+- CRITICAL — security vulnerability, race condition, or logic error → Fix immediately
+- PERFORMANCE — measurably improves Big O or reduces DB load without hurting readability → Apply
+- STYLE — purely cosmetic or naming-related → Apply only if it matches the dominant pattern in that file; otherwise SKIP
+- ARCHITECTURE — conflicts with existing patterns, references nonexistent symbols, or introduces unnecessary abstraction → SKIP
+- FALSE POSITIVE — hallucinated variable, wrong file context, or inapplicable suggestion → SKIP
+
+Do not begin Step 2 until the triage table is complete.
+
+### STEP 2 — IMPLEMENTATION RULES
+
+Apply fixes in triage order, one at a time. Follow these constraints:
+
+- Search the codebase for existing utilities or types before writing new ones (prefer `src/lib/*`, `src/types/database.ts`, `requireApprovedStaffClient`)
+- Make the smallest targeted change that resolves the comment — do not refactor surrounding code
+- Do not introduce new abstractions unless the comment explicitly requires it
+- After all changes, verify no TypeScript errors and no broken imports (`npm run check`)
+- Do not convert Astro React islands (`client:load` / `client:visible` / `client:idle`) to server-only components or vice-versa unless explicitly addressing an island/server boundary error
+- Still enforce the Astro / RLS / TypeScript guardrails in `.cursor/skills/astro-pre-pr-gate/SKILL.md` while applying fixes
+
+### STEP 3 — DEVIATION LOG
+
+For every SKIP decision, add a single inline comment immediately above or at the relevant line:
+
+  // Copilot suggestion ignored: [one-sentence reason]
+
+Then produce a final summary in this format:
+
+  APPLIED (#1, #3, #5): [one-line description of each change]
+  SKIPPED (#2, #4): [one-line reason for each skip]
+  BUILD STATUS: [clean / issues found]
+
+---
+PR URL:
