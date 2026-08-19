@@ -10,6 +10,7 @@ import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Textarea } from '@/components/ui/Input';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { staffAiPostFields } from '@/lib/staffAiClientContext';
+import { staffAiFetch } from '@/lib/staffAiFetch';
 import { supabase } from '@/lib/supabase';
 
 function messageText(message: UIMessage): string {
@@ -30,6 +31,7 @@ export function AIAssistantModal() {
     () =>
       new DefaultChatTransport({
         api: '/api/agent',
+        fetch: staffAiFetch,
         prepareSendMessagesRequest: async ({ id, messages, body }) => {
           const { data } = await supabase.auth.getSession();
           const token = data.session?.access_token;

@@ -33,6 +33,15 @@ vi.mock('@/lib/supabase', () => ({
           error: null,
         }),
     },
+    from: () => ({
+      select: () => ({
+        neq: () => ({
+          in: () => ({
+            order: () => Promise.resolve({ data: [], error: null }),
+          }),
+        }),
+      }),
+    }),
   },
 }));
 

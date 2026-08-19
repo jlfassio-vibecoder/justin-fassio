@@ -5,10 +5,32 @@ import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { syncProfileEmailWithAuthUser } from '@/lib/staffAccount';
 import type { Profile } from '@/types/database';
 
+const PROFILE_FETCH_RETRY_MS = 250;
+
+/** Browser/chrome transport failures (ERR_NETWORK_CHANGED → Failed to fetch). */
+export function isTransientAuthFetchError(error: { message?: string } | null | undefined): boolean {
+  const message = (error?.message ?? '').toLowerCase();
+  if (!message) return false;
+  return (
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('network changed') ||
+    message.includes('network_changed') ||
+    message.includes('load failed')
+  );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(() => isSupabaseConfigured);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const profileRef = useRef<Profile | null>(null);
   const reloadProfileRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
@@ -16,14 +38,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let active = true;
 
+    async function fetchProfileRow(userId: string) {
+      return supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    }
+
     async function loadProfile(userId: string, authEmail: string | null | undefined) {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      let { data, error } = await fetchProfileRow(userId);
+      if (error && isTransientAuthFetchError(error)) {
+        await delay(PROFILE_FETCH_RETRY_MS);
+        if (!active) return;
+        ({ data, error } = await fetchProfileRow(userId));
+      }
       if (!active) return;
+      if (error && isTransientAuthFetchError(error) && profileRef.current) {
+        return;
+      }
       if (error || !data) {
+        profileRef.current = null;
         setProfile(null);
         return;
       }
@@ -34,16 +65,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profileEmail: data.email,
       });
       if (!active) return;
-      setProfile(
-        synced.ok && synced.email !== data.email ? { ...data, email: synced.email } : data,
-      );
+      const next =
+        synced.ok && synced.email !== data.email ? { ...data, email: synced.email } : data;
+      profileRef.current = next;
+      setProfile(next);
     }
 
     async function syncSession(next: Session | null) {
       if (active) setLoading(true);
       setSession(next);
       if (next?.user) await loadProfile(next.user.id, next.user.email);
-      else setProfile(null);
+      else {
+        profileRef.current = null;
+        setProfile(null);
+      }
       if (active) setLoading(false);
     }
 

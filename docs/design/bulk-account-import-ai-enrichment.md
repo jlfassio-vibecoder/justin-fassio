@@ -1,9 +1,26 @@
 # Bulk account upload and AI enrichment
 
-Status: approved design; Phase A (data foundation) is in this branch  
-Scope: this document is the product spec. Phase A schema, types, and classification helpers ship with this PR. It does not authorize hosted migration apply, workbook import, outreach, or later-phase UI/APIs.  
+Status: **Complete** (A–E core epic closed 19 Aug 2026)  
+Epic index: [docs/epics/bulk-account-import-ai-enrichment.md](../epics/bulk-account-import-ai-enrichment.md)  
+Scope: this document remains the product spec. Later sections describe the original design-time snapshot and acceptance bar; they are not a live implementation checklist.  
 First implementation target: verified Old Guys Rule (OGR) historical customers in Washington and Oregon.  
 Later reuse: Faire customer files, ZoomInfo leads, research prospects, Eagle Peak books.
+
+### Production validation (19 Aug 2026)
+
+Hosted project `mqsyqxnzpncwdrnugytf`. Production app on main including PR [#94](https://github.com/jlfassio-vibecoder/justin-fassio/pull/94). Schema through `20260819140000` (F4 lookalike tables). No further feature work is required to close A–E.
+
+| Result                | Hosted observation                                                                                                                            |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| OGR historical import | One owner batch, source type `historical_customer`, file `OGR Washington and Oregon acounts.xlsx`, committed 19 Aug 2026 18:30 UTC            |
+| Row collapse          | 18 uploaded → 17 unique businesses (1 in-file duplicate skipped). 15 `create_retailer` imported; 2 `needs_review` skipped as documented holds |
+| Classification        | Snapshot `opened` + `historical_purchaser` / `reactivation_candidate`, `existing_ogr = yes`. 15 hosted RLAs carry those markers               |
+| Fabrication guards    | Import created 0 contacts. Commit path does not insert orders. 0 `lookalike_jobs` / candidates. 0 outreach automation runs                    |
+| Enrichment            | Batch left `enriching` with 15 jobs `queued` (resume from Import History). Not a closeout blocker                                             |
+| Lookalikes            | F4 schema applied; Find lookalikes stays enabled. Empty seed list until more historical purchasers exist if desired                           |
+| Original 25→24 metric | Proven in unit tests (Peninsula fixture). Live file was this combined 18-row workbook, not the two 13+11 design-time workbooks                |
+
+PRs: [#88](https://github.com/jlfassio-vibecoder/justin-fassio/pull/88) A, [#89](https://github.com/jlfassio-vibecoder/justin-fassio/pull/89) B, [#90](https://github.com/jlfassio-vibecoder/justin-fassio/pull/90) C, [#91](https://github.com/jlfassio-vibecoder/justin-fassio/pull/91) D, [#92](https://github.com/jlfassio-vibecoder/justin-fassio/pull/92) E. Later F: [#93](https://github.com/jlfassio-vibecoder/justin-fassio/pull/93) F1/F2, [#94](https://github.com/jlfassio-vibecoder/justin-fassio/pull/94) F3/F4.
 
 ---
 
@@ -23,6 +40,8 @@ The first cohort is 24 unique verified OGR customers from two workbooks (13 Oreg
 ---
 
 ## 2. Current AI Ingest audit
+
+Frozen **pre-implementation** audit (as of design approval, ~17 Aug 2026). The bulk wizard, `exceljs` parser, import APIs, and batch fill-blanks have since shipped; see the status block above. Keep this section as evidence of the Add via AI path the bulk workflow had to correct.
 
 The product label “AI Ingest” is not a named module. In the running app it is the one-at-a-time **Add via AI** create path plus the per-row **Verify & Update** / **Fill Blank Fields** research path. Contact ingest is a sibling flow.
 
@@ -845,16 +864,16 @@ Qualitative:
 
 These are implementation slices of **this** design, not a plan to write another plan.
 
-| Phase                                | Deliverable                                                                                                           |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| **A — Schema and classification**    | Markers, postal_code, import/enrich tables, field-change pending status, activity-view historical branch. No UI.      |
-| **B — Upload, map, preview, commit** | Owner wizard for OGR historical/Faire files; idempotent batch; no AI. Includes Peninsula collapse and Ship To review. |
-| **C — Directory presentation**       | Reactivation filter on Active Accounts; Prospects exclusion; territory chips for OR/WA.                               |
-| **D — Batch AI fill-blanks**         | Job runner reusing `researchCompany` / fill-blank helpers; progress, retry, cancel; persist briefs.                   |
-| **E — Protected review**             | Pending `retailer_field_changes` UI (approve/reject) for uncertain and protected diffs.                               |
-| **F — Later, separate**              | Lookalike discovery; ZoomInfo/Eagle Peak source type; unresponsive cadence automation; outreach eligibility.          |
+| Phase                                | Status (19 Aug 2026) | Deliverable                                                                                                           |
+| ------------------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **A — Schema and classification**    | Shipped #88          | Markers, postal_code, import/enrich tables, field-change pending status, activity-view historical branch. No UI.      |
+| **B — Upload, map, preview, commit** | Shipped #89          | Owner wizard for OGR historical/Faire files; idempotent batch; no AI. Includes Peninsula collapse and Ship To review. |
+| **C — Directory presentation**       | Shipped #90          | Reactivation filter on Active Accounts; Prospects exclusion; territory chips for OR/WA.                               |
+| **D — Batch AI fill-blanks**         | Shipped #91          | Job runner reusing `researchCompany` / fill-blank helpers; progress, retry, cancel; persist briefs.                   |
+| **E — Protected review**             | Shipped #92          | Pending `retailer_field_changes` UI (approve/reject) for uncertain and protected diffs.                               |
+| **F — Later, separate**              | Partial              | F1–F4 shipped #93/#94 (opt-in, unresponsive park, ZoomInfo EP, lookalikes). Cadence automation remains deferred.      |
 
-Phase B can ship value without D/E. Do not start F in the same effort as A–E.
+A–E is closed. Phase F was correctly out of the first build; F1–F4 shipped afterward and are not reopeners for this epic. Unresponsive cadence automation stays a later enhancement.
 
 ---
 
