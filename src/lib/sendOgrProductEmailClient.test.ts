@@ -88,6 +88,38 @@ describe('sendOgrProductEmail', () => {
     expect(body).not.toHaveProperty('productHref');
   });
 
+  it('includes salesLineId and retailerLineAccountId when provided', async () => {
+    getSessionMock.mockResolvedValue({
+      data: { session: { access_token: 'tok' } },
+    });
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, systemMessageId: 'sm-1' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await sendOgrProductEmail({
+      productId: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      to: 'buyer@example.com',
+      prospectId: 42,
+      salesLineId: '11111111-1111-4111-8111-111111111111',
+      retailerLineAccountId: 'a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+    });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body)) as Record<
+      string,
+      string | number
+    >;
+    expect(body).toEqual({
+      productId: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      to: 'buyer@example.com',
+      prospectId: 42,
+      salesLineId: '11111111-1111-4111-8111-111111111111',
+      retailerLineAccountId: 'a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+    });
+  });
+
   it('surfaces API error message', async () => {
     getSessionMock.mockResolvedValue({
       data: { session: { access_token: 'tok' } },

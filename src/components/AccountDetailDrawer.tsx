@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { AccountContactsSection } from '@/components/AccountContactsSection';
+import { AccountEmailProductPickerModal } from '@/components/AccountEmailProductPickerModal';
 import { AccountNotesEditor } from '@/components/AccountNotesEditor';
 import { AccountCalendarSection } from '@/components/calendar/AccountCalendarSection';
 import { ScheduleMeetingModal } from '@/components/calendar/ScheduleMeetingModal';
 import { AccountEmailSection } from '@/components/messages/AccountEmailSection';
 import { AccountMessagesSection } from '@/components/messages/AccountMessagesSection';
+import { OgrProductEmailComposerModal } from '@/components/OgrProductEmailComposerModal';
 import { Button } from '@/components/ui/Button';
 import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
@@ -14,11 +16,16 @@ import {
   searchContactsByName,
   type AccountContactSearchHit,
 } from '@/lib/accountContacts';
+import type { AccountProductEmailRecipientOption } from '@/lib/accountProductEmailRecipient';
 import { apparelSeasonLabel } from '@/lib/apparelSeasons';
 import type { AccountReorderSettingsRow } from '@/lib/accountReorderSettings';
 import { demoteToProspect } from '@/lib/convertToActiveAccount';
+import { catalogItemToPublicOgrProduct, type CatalogItem } from '@/lib/catalog';
 import { useOptionalLineContext } from '@/lib/lineContext';
+import { renderOgrProductEmailCard } from '@/lib/ogrProductEmailCard';
+import { buildOgrCollectionUrl, tryBuildOgrProductUrl } from '@/lib/productUrls';
 import { primaryRetailChannelLabel, updateProspectTaxonomy, type Prospect } from '@/lib/prospects';
+import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
 import { OutreachLeadStateChip } from '@/components/OutreachLeadStateChip';
 import { fetchOperationalLineAccount, isStaffSellingUiBlocked } from '@/lib/retailerLineAccounts';
@@ -60,6 +67,17 @@ function formatCad(amount: number): string {
 function formatTimestamp(iso: string | null): string {
   if (!iso) return '—';
   return iso.slice(0, 10);
+}
+
+type AccountEmailFlow = 'closed' | 'pick' | 'compose';
+
+function accountProductEmailCardHtml(item: CatalogItem): string {
+  if (typeof window === 'undefined') return '';
+  const href = tryBuildOgrProductUrl((item.publicSlug ?? '').trim(), window.location.origin);
+  if (!href) return '';
+  const catalogHref = buildOgrCollectionUrl(window.location.origin);
+  const presentation = buildPublicProductPresentation(catalogItemToPublicOgrProduct(item));
+  return renderOgrProductEmailCard(presentation, { href, catalogHref });
 }
 
 function LineRightsAssignField({ account }: { account: Prospect }) {
@@ -258,6 +276,23 @@ export function AccountDetailDrawer({
   const [demoteError, setDemoteError] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+  const [emailFlow, setEmailFlow] = useState<AccountEmailFlow>('closed');
+  const [emailProduct, setEmailProduct] = useState<CatalogItem | null>(null);
+  const [emailTo, setEmailTo] = useState('');
+  const [emailRecipientName, setEmailRecipientName] = useState('');
+  const [emailAccountContactId, setEmailAccountContactId] = useState<string | null>(null);
+  const [emailRecipientHint, setEmailRecipientHint] = useState<string | null>(null);
+  const [emailRecipientOptions, setEmailRecipientOptions] = useState<
+    AccountProductEmailRecipientOption[]
+  >([]);
+  const [retailerLineAccountRecord, setRetailerLineAccountRecord] = useState<{
+    scope: string;
+    id: string | null;
+  } | null>(null);
+  const [emailBoundAccountId, setEmailBoundAccountId] = useState<number | null>(
+    account?.id ?? null,
+  );
+  const composerSentRef = useRef(false);
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status
@@ -270,6 +305,42 @@ export function AccountDetailDrawer({
       defaultCurrency: line.defaultCurrency,
     },
   );
+  const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
+  const bigFishOutreachBlocked = line.lineSlug === 'big-fish' && !line.bigFishOutreach;
+  const emailProductBlocked = eaglePeakOutreachBlocked || bigFishOutreachBlocked;
+  const emailOverlayOpen = emailFlow !== 'closed';
+  const rlaScope = account && line.salesLineId ? `${account.id}:${line.salesLineId}` : null;
+  const retailerLineAccountId =
+    rlaScope && retailerLineAccountRecord?.scope === rlaScope ? retailerLineAccountRecord.id : null;
+
+  const emailSessionAccountId = account?.id ?? null;
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
+  if (emailSessionAccountId !== emailBoundAccountId) {
+    setEmailBoundAccountId(emailSessionAccountId);
+    setEmailFlow('closed');
+    setEmailProduct(null);
+    setEmailTo('');
+    setEmailRecipientName('');
+    setEmailAccountContactId(null);
+    setEmailRecipientHint(null);
+    setEmailRecipientOptions([]);
+  }
+
+  useEffect(() => {
+    if (!account || !line.salesLineId) return;
+    const scope = `${account.id}:${line.salesLineId}`;
+    let active = true;
+    void fetchOperationalLineAccount({
+      retailerId: account.id,
+      salesLineId: line.salesLineId,
+    }).then((result) => {
+      if (!active) return;
+      setRetailerLineAccountRecord({ scope, id: result.data?.id ?? null });
+    });
+    return () => {
+      active = false;
+    };
+  }, [account, line.salesLineId]);
 
   if (!account) return null;
   const current = account;
@@ -303,14 +374,34 @@ export function AccountDetailDrawer({
     onClose();
   }
 
+  function handleAccountClose() {
+    if (emailOverlayOpen) return;
+    onClose();
+  }
+
+  function resetEmailCompose() {
+    setEmailProduct(null);
+    setEmailTo('');
+    setEmailRecipientName('');
+    setEmailAccountContactId(null);
+    setEmailRecipientHint(null);
+    setEmailRecipientOptions([]);
+  }
+
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-neutral-900/40" onClick={onClose} aria-hidden="true" />
+      <div
+        className="fixed inset-0 z-40 bg-neutral-900/40"
+        onClick={handleAccountClose}
+        aria-hidden="true"
+      />
       <aside
         className="border-ink/15 bg-surface fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l shadow-xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="account-detail-title"
+        inert={emailOverlayOpen ? true : undefined}
+        aria-hidden={emailOverlayOpen || undefined}
       >
         <div className="border-ink/10 flex items-start justify-between gap-3 border-b px-5 py-4">
           <div className="min-w-0">
@@ -323,7 +414,7 @@ export function AccountDetailDrawer({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleAccountClose}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-transparent"
             aria-label="Close"
           >
@@ -449,6 +540,17 @@ export function AccountDetailDrawer({
               {demoteError}
             </p>
           ) : null}
+          {emailProductBlocked ? null : (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                composerSentRef.current = false;
+                setEmailFlow('pick');
+              }}
+            >
+              Email product
+            </Button>
+          )}
           {sellingBlocked ? (
             <p className="text-ink/60 m-0 text-xs">
               Selling for this line is not enabled yet (convert, orders, calls, and demote stay on
@@ -489,6 +591,58 @@ export function AccountDetailDrawer({
         onClose={() => setScheduleOpen(false)}
         onCreated={() => setCalendarRefreshKey((n) => n + 1)}
       />
+
+      {emailFlow === 'pick' ? (
+        <AccountEmailProductPickerModal
+          open
+          accountId={account.id}
+          salesLineId={line.salesLineId}
+          lineSlug={line.lineSlug}
+          onClose={() => {
+            setEmailFlow('closed');
+            resetEmailCompose();
+          }}
+          onPick={(pick) => {
+            setEmailProduct(pick.item);
+            setEmailTo(pick.to);
+            setEmailRecipientName(pick.recipientName);
+            setEmailAccountContactId(pick.accountContactId);
+            setEmailRecipientHint(pick.recipientHint);
+            setEmailRecipientOptions(pick.recipientOptions);
+            setEmailFlow('compose');
+          }}
+        />
+      ) : null}
+
+      {emailFlow === 'compose' && emailProduct ? (
+        <OgrProductEmailComposerModal
+          open
+          overlayClassName="z-[60]"
+          productId={emailProduct.id}
+          productName={emailProduct.name}
+          cardHtml={accountProductEmailCardHtml(emailProduct)}
+          defaultTo={emailTo}
+          defaultRecipientName={emailRecipientName}
+          recipientHint={emailRecipientHint}
+          prospectId={account.id}
+          accountContactId={emailAccountContactId}
+          salesLineId={line.salesLineId}
+          retailerLineAccountId={retailerLineAccountId}
+          recipientOptions={emailRecipientOptions}
+          onClose={() => {
+            if (composerSentRef.current) {
+              composerSentRef.current = false;
+              return;
+            }
+            setEmailFlow('pick');
+          }}
+          onSent={() => {
+            composerSentRef.current = true;
+            setEmailFlow('closed');
+            resetEmailCompose();
+          }}
+        />
+      ) : null}
     </>
   );
 }

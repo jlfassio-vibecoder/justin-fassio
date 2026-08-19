@@ -2,6 +2,7 @@ import { mapAttributeRow, type CatalogAttribute } from '@/lib/catalogAttributes'
 import { supabase } from '@/lib/supabase';
 import { resolveEffectiveNumber, type FieldMetaMap } from '@/lib/catalogProvenance';
 import { baseWholesaleUsd, mapCatalogVariantRow, type CatalogVariant } from '@/lib/catalogVariants';
+import type { PublicOgrProduct } from '@/lib/publicCatalog';
 import type {
   CatalogItemRow,
   CatalogProductAttributeRow,
@@ -250,12 +251,51 @@ export function catalogItemStub(
   };
 }
 
+/** Staff catalog row → public product shape for account email card preview (wholesale always null). */
+export function catalogItemToPublicOgrProduct(item: CatalogItem): PublicOgrProduct {
+  return {
+    id: item.id,
+    sku: item.sku,
+    publicSlug: (item.publicSlug ?? '').trim(),
+    name: item.name,
+    cat: item.cat,
+    color: item.color,
+    tagline: item.tagline,
+    description: item.salesDescription,
+    page: item.page,
+    catalogYear: item.catalogYear,
+    collection: item.collection,
+    wholesaleUsd: null,
+    msrpCad: item.msrpCad,
+    isNew: item.isNew,
+    featured: item.featured,
+    publicSortOrder: item.publicSortOrder,
+    primaryImageUrl: item.primaryImageUrl,
+    alternateImageUrls: item.alternateImageUrls,
+    unitOfMeasure: item.unitOfMeasure,
+    minimumQuantity: item.minimumQuantity,
+    orderMultiple: item.orderMultiple,
+    packQuantity: item.packQuantity,
+    lifestyleThemes: item.lifestyleThemes,
+    liveSku: item.liveSku,
+    availableSizes: item.variants.map((variant) => variant.size).filter(Boolean),
+  };
+}
+
 export type FetchCatalogItemsOptions = {
   /** Prefer explicit line UUID when available from line context. */
   lineId?: string;
   /** Fallback line code; defaults to `ogr` when neither is set (flag-off path). */
   lineCode?: string;
 };
+
+/** Same catalog scope as Rep Command Center: line UUID when set, else line code (default ogr). */
+export function catalogFetchOptionsForAccountEmail(
+  salesLineId: string | null,
+  lineSlug: string | null,
+): FetchCatalogItemsOptions {
+  return salesLineId ? { lineId: salesLineId } : { lineCode: lineSlug ?? 'ogr' };
+}
 
 export async function fetchCatalogItems(options: FetchCatalogItemsOptions = {}): Promise<{
   data: CatalogItem[];

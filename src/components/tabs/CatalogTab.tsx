@@ -7,7 +7,11 @@ import { Input, Select } from '@/components/ui/Input';
 import { RowActionsMenu } from '@/components/ui/RowActionsMenu';
 import { Tag } from '@/components/ui/Tag';
 import { resolvePrimaryImageSrc, type CatalogItem } from '@/lib/catalog';
-import { filterCatalogItems, type CatalogFlagFilter } from '@/lib/catalogFilters';
+import {
+  CATALOG_CATEGORY_FILTER_OPTIONS,
+  filterCatalogItems,
+  type CatalogFlagFilter,
+} from '@/lib/catalogFilters';
 import { factorsWithSettings, type CatalogSupplierTerms } from '@/lib/catalogSettings';
 import {
   DEFAULT_LANDED_COST_FACTORS,
@@ -39,18 +43,6 @@ function catalogThumbSrc(item: CatalogItem): string | null {
   if (/^https?:\/\//i.test(src) || src.startsWith('/')) return src;
   return null;
 }
-
-const CATEGORY_OPTIONS: { value: string; label: string }[] = [
-  { value: 'ALL', label: 'All Categories' },
-  { value: 'Short Sleeve Tees', label: 'Short Sleeve Tees' },
-  { value: 'Long Sleeve UPF50 Sun Tees', label: 'UPF50 Sun Protection Shirts' },
-  { value: 'Special Additions', label: 'Long Sleeve Tees, Tanks & Hoodies' },
-  { value: 'Headwear', label: 'Headwear' },
-  { value: 'Giftware', label: 'Giftware & Drinkware' },
-  { value: 'Vintage Metal Signs', label: 'Vintage Metal Signs' },
-  { value: 'Displays & POP', label: 'Displays & POP' },
-  { value: 'Magnets & Stickers', label: 'Magnets & Stickers' },
-];
 
 function parseRatePctInput(raw: string, fallback: number): number {
   const n = parseFloat(raw);
@@ -701,7 +693,7 @@ export function CatalogTab({
           onChange={(e) => setSearch(e.target.value)}
         />
         <Select className="w-auto" value={category} onChange={(e) => setCategory(e.target.value)}>
-          {CATEGORY_OPTIONS.map((opt) => (
+          {CATALOG_CATEGORY_FILTER_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>

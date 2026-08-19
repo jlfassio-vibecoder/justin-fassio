@@ -9,6 +9,8 @@ export type SendOgrProductEmailInput = {
   closingText?: string;
   prospectId?: number;
   accountContactId?: string;
+  salesLineId?: string;
+  retailerLineAccountId?: string;
 };
 
 export type SendOgrProductEmailResult =
@@ -49,6 +51,12 @@ export async function sendOgrProductEmail(
   }
   if (input.accountContactId != null && input.accountContactId.trim()) {
     body.accountContactId = input.accountContactId.trim();
+  }
+  if (input.salesLineId != null && input.salesLineId.trim()) {
+    body.salesLineId = input.salesLineId.trim();
+  }
+  if (input.retailerLineAccountId != null && input.retailerLineAccountId.trim()) {
+    body.retailerLineAccountId = input.retailerLineAccountId.trim();
   }
 
   const res = await fetch('/api/staff/ogr-product-email', {
