@@ -121,6 +121,47 @@ describe('review grouping', () => {
       }),
     ).toEqual([]);
   });
+
+  it('uses the latest change job when a retailer has multiple enrichment jobs', () => {
+    const laterJob = '33333333-3333-4333-8333-333333333333';
+    const snapshot = groupReviewRows({
+      batchId: 'batch-1',
+      changes: [
+        {
+          id: CHANGE_ID,
+          retailerId: 24,
+          fieldPath: 'phone',
+          oldValue: null,
+          newValue: '503-555-0100',
+          confidence: 'medium',
+          sourceUrls: [],
+          enrichmentJobId: JOB_ID,
+        },
+        {
+          id: laterJob,
+          retailerId: 24,
+          fieldPath: 'website',
+          oldValue: null,
+          newValue: 'https://coast.example',
+          confidence: 'medium',
+          sourceUrls: [],
+          enrichmentJobId: laterJob,
+        },
+      ],
+      retailers: [{ id: 24, name: 'Coast Outfitters', importProtected: false }],
+      jobs: [
+        { id: JOB_ID, retailerId: 24, researchBrief: 'Stale cancelled job.', evidence: null },
+        {
+          id: laterJob,
+          retailerId: 24,
+          researchBrief: 'Latest fill-blanks brief.',
+          evidence: { directoryOnly: true },
+        },
+      ],
+    });
+    expect(snapshot.groups[0]?.brief).toBe('Latest fill-blanks brief.');
+    expect(snapshot.groups[0]?.reasons).toEqual(['directory_only']);
+  });
 });
 
 describe('review engine file contracts', () => {
@@ -133,6 +174,15 @@ describe('review engine file contracts', () => {
     const rejectFn = engine.slice(engine.indexOf('async function rejectOnePendingChange'));
     expect(rejectFn).toMatch(/status: 'rejected'/);
     expect(rejectFn).not.toMatch(/from\('prospects'\)/);
+    const applyFn = engine.slice(
+      engine.indexOf('async function applyOnePendingChange'),
+      engine.indexOf('async function rejectOnePendingChange'),
+    );
+    expect(applyFn.indexOf("eq('status', 'pending')")).toBeLessThan(
+      applyFn.indexOf('[change.field_path]: decision.patchValue'),
+    );
+    expect(applyFn).toMatch(/eq\('status', 'pending'\)/);
+    expect(applyFn).toMatch(/update\(\{ status: 'pending' \}\)/);
     expect(engine).toMatch(/classifyApplyDecision/);
     expect(engine).not.toMatch(/applyProspectResearchUpdate/);
     expect(engine).not.toMatch(/mergeProfileNotes/);

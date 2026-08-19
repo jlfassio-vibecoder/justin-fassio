@@ -212,6 +212,11 @@ export function groupReviewRows(input: {
   const retailers = new Map(input.retailers.map((row) => [row.id, row]));
   const jobs = new Map(input.jobs.map((row) => [row.id, row]));
   const grouped = new Map<number, ReviewChangeRow[]>();
+  const jobIdByRetailer = new Map<number, string>();
+  const jobByRetailer = new Map<number, PendingReviewJob>();
+  for (const job of input.jobs) {
+    jobByRetailer.set(job.retailerId, job);
+  }
   for (const change of input.changes) {
     const retailer = retailers.get(change.retailerId);
     const rows = grouped.get(change.retailerId) ?? [];
@@ -228,14 +233,13 @@ export function groupReviewRows(input: {
       ),
     });
     grouped.set(change.retailerId, rows);
+    if (change.enrichmentJobId) jobIdByRetailer.set(change.retailerId, change.enrichmentJobId);
   }
   const groups: ReviewRetailerGroup[] = [...grouped.entries()]
     .map(([retailerId, changes]) => {
       const retailer = retailers.get(retailerId);
-      const jobId = input.changes.find((row) => row.retailerId === retailerId)?.enrichmentJobId;
-      const linkedJob =
-        (jobId ? jobs.get(jobId) : undefined) ??
-        input.jobs.find((row) => row.retailerId === retailerId);
+      const jobId = jobIdByRetailer.get(retailerId);
+      const linkedJob = (jobId ? jobs.get(jobId) : undefined) ?? jobByRetailer.get(retailerId);
       const evidence = parseReviewJobEvidence(linkedJob?.evidence ?? null);
       return {
         retailerId,

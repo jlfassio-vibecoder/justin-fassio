@@ -149,20 +149,39 @@ async function applyOnePendingChange(
       status: 409,
     };
   }
+
+  const { data: claimed, error: claimError } = await supabase
+    .from('retailer_field_changes')
+    .update({ status: 'applied' })
+    .eq('id', change.id)
+    .eq('status', 'pending')
+    .select(FIELD_CHANGE_SELECT)
+    .maybeSingle();
+  if (claimError) return { ok: false, error: claimError.message, status: 500 };
+  if (!claimed) {
+    const { data: latest } = await supabase
+      .from('retailer_field_changes')
+      .select('status')
+      .eq('id', change.id)
+      .maybeSingle();
+    if (latest?.status === 'applied') return { ok: true };
+    return { ok: false, error: 'Field change is not pending', status: 409 };
+  }
+
   if (decision.kind === 'write') {
     const { error: updateError } = await supabase
       .from('prospects')
       .update({ [change.field_path]: decision.patchValue } as ProspectPatch)
-      .eq('id', change.retailer_id);
-    if (updateError) return { ok: false, error: updateError.message, status: 500 };
+      .eq('id', claimed.retailer_id);
+    if (updateError) {
+      await supabase
+        .from('retailer_field_changes')
+        .update({ status: 'pending' })
+        .eq('id', claimed.id)
+        .eq('status', 'applied');
+      return { ok: false, error: updateError.message, status: 500 };
+    }
   }
-
-  const { error: appliedError } = await supabase
-    .from('retailer_field_changes')
-    .update({ status: 'applied' })
-    .eq('id', change.id)
-    .eq('status', 'pending');
-  if (appliedError) return { ok: false, error: appliedError.message, status: 500 };
 
   const { error: supersedeError } = await supabase
     .from('retailer_field_changes')
