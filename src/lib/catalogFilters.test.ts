@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { catalogItemStub } from '@/lib/catalog';
-import { filterCatalogItems } from '@/lib/catalogFilters';
+import { CATALOG_CATEGORY_FILTER_OPTIONS, filterCatalogItems } from '@/lib/catalogFilters';
 
 const SAMPLE = [
   catalogItemStub({
@@ -73,5 +73,12 @@ describe('filterCatalogItems', () => {
         flag: 'NAMEDROP',
       }).map((i) => i.sku),
     ).toEqual(['OG9001']);
+  });
+});
+
+describe('CATALOG_CATEGORY_FILTER_OPTIONS', () => {
+  it('starts with All Categories for Line Sheet and account picker', () => {
+    expect(CATALOG_CATEGORY_FILTER_OPTIONS[0]).toEqual({ value: 'ALL', label: 'All Categories' });
+    expect(CATALOG_CATEGORY_FILTER_OPTIONS.some((opt) => opt.value === 'Headwear')).toBe(true);
   });
 });

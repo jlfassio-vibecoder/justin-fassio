@@ -2,13 +2,14 @@ import { useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
-import { Field, FieldLabel, Input, Textarea } from '@/components/ui/Input';
+import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
 import {
   cancelAgentProductOutreachDraftClient,
   generateAgentProductOutreachDraft,
   sendAgentProductOutreachDraft,
   updateAgentProductOutreachDraftClient,
 } from '@/lib/agentProductOutreachDraftClient';
+import type { AccountProductEmailRecipientOption } from '@/lib/accountProductEmailRecipient';
 import {
   defaultOgrProductEmailSubject,
   OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
@@ -59,10 +60,42 @@ export type OgrProductEmailComposerModalProps = {
   cardHtml: string;
   /** When set, opens in agent-draft review mode (PATCH then send-draft). */
   draft?: OgrProductEmailComposerDraft | null;
+  /** Account-flow overlay stacking. Line Sheet omits this (default z-50). */
+  overlayClassName?: string;
+  defaultTo?: string;
+  defaultRecipientName?: string;
+  recipientHint?: string | null;
+  prospectId?: number;
+  accountContactId?: string | null;
+  salesLineId?: string | null;
+  retailerLineAccountId?: string | null;
+  /** When provided (account flow), show a contact select. */
+  recipientOptions?: AccountProductEmailRecipientOption[];
 };
 
 function buildCardPreviewSrcDoc(cardHtml: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><base target="_blank" rel="noopener"></head><body style="margin:0;padding:12px;background:#ffffff;font-family:Georgia,serif;">${cardHtml}</body></html>`;
+}
+
+function matchingRecipientOptionId(
+  options: AccountProductEmailRecipientOption[] | undefined,
+  email: string,
+  preferredId?: string | null,
+): string | null {
+  if (!options?.length) return preferredId?.trim() || null;
+  const normalized = email.trim().toLowerCase();
+  const preferred = preferredId?.trim();
+  if (preferred) {
+    const preferredOption = options.find((option) => option.id === preferred);
+    if (
+      preferredOption &&
+      (!normalized || preferredOption.email.trim().toLowerCase() === normalized)
+    ) {
+      return preferredOption.id;
+    }
+  }
+  if (!normalized) return null;
+  return options.find((option) => option.email.trim().toLowerCase() === normalized)?.id ?? null;
 }
 
 /** Fresh form instance per open — keyed remount resets defaults without setState-in-effect. */
@@ -74,13 +107,25 @@ function OgrProductEmailComposerForm({
   productName,
   cardHtml,
   draft,
+  overlayClassName,
+  defaultTo,
+  defaultRecipientName,
+  recipientHint,
+  prospectId,
+  accountContactId,
+  salesLineId,
+  retailerLineAccountId,
+  recipientOptions,
 }: Omit<OgrProductEmailComposerModalProps, 'open'>) {
   const line = useOptionalLineContext();
   const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
   const bigFishOutreachBlocked = line.lineSlug === 'big-fish' && !line.bigFishOutreach;
   const isDraftReview = draft != null;
-  const [to, setTo] = useState(draft?.to ?? '');
-  const [recipientName, setRecipientName] = useState(draft?.toName ?? '');
+  const [to, setTo] = useState(draft?.to ?? defaultTo ?? '');
+  const [recipientName, setRecipientName] = useState(draft?.toName ?? defaultRecipientName ?? '');
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(() =>
+    matchingRecipientOptionId(recipientOptions, draft?.to ?? defaultTo ?? '', accountContactId),
+  );
   const [subject, setSubject] = useState(
     () => draft?.subject ?? defaultOgrProductEmailSubject(productName),
   );
@@ -243,6 +288,8 @@ function OgrProductEmailComposerForm({
         return;
       }
 
+      const resolvedSalesLineId = salesLineId?.trim() || line.salesLineId?.trim() || undefined;
+      const resolvedContactId = selectedContactId?.trim() || undefined;
       const result = await sendOgrProductEmail({
         productId,
         to: trimmedTo,
@@ -250,6 +297,12 @@ function OgrProductEmailComposerForm({
         subject: subject.trim() || undefined,
         introText: introText.trim() || undefined,
         closingText: closingText.trim() || undefined,
+        ...(prospectId != null ? { prospectId } : {}),
+        ...(resolvedContactId ? { accountContactId: resolvedContactId } : {}),
+        ...(resolvedSalesLineId ? { salesLineId: resolvedSalesLineId } : {}),
+        ...(retailerLineAccountId?.trim()
+          ? { retailerLineAccountId: retailerLineAccountId.trim() }
+          : {}),
       });
       if (!result.ok) {
         setError(result.error);
@@ -265,6 +318,7 @@ function OgrProductEmailComposerForm({
   return (
     <DialogBackdrop
       open
+      overlayClassName={overlayClassName}
       onClose={() => {
         if (!busy) onClose();
       }}
@@ -293,18 +347,53 @@ function OgrProductEmailComposerForm({
             : 'Send a single-product outreach email. From address and signature are set on the server.'}
         </p>
 
+        {recipientOptions && recipientOptions.length >= 2 ? (
+          <Field>
+            <FieldLabel>Recipient</FieldLabel>
+            <Select
+              id="ogr-email-recipient"
+              value={selectedContactId ?? ''}
+              disabled={busy}
+              onChange={(e) => {
+                const nextId = e.target.value;
+                if (!nextId) {
+                  setSelectedContactId(null);
+                  return;
+                }
+                const option = recipientOptions.find((item) => item.id === nextId);
+                if (!option) return;
+                setSelectedContactId(option.id);
+                setTo(option.email);
+                setRecipientName(option.name);
+              }}
+            >
+              <option value="">Enter an address</option>
+              {recipientOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.name} ({option.email})
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
+
         <Field>
           <FieldLabel>To</FieldLabel>
           <Input
             id="ogr-email-to"
             type="email"
             value={to}
-            onChange={(e) => setTo(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setTo(next);
+              setSelectedContactId(matchingRecipientOptionId(recipientOptions, next));
+            }}
             placeholder="buyer@store.com"
             maxLength={MAX_TO}
             disabled={busy}
             autoFocus
           />
+          {recipientHint ? <p className="text-ink/55 m-0 mt-1 text-xs">{recipientHint}</p> : null}
         </Field>
 
         <Field>
@@ -419,11 +508,20 @@ export function OgrProductEmailComposerModal({
   productName,
   cardHtml,
   draft = null,
+  overlayClassName,
+  defaultTo,
+  defaultRecipientName,
+  recipientHint,
+  prospectId,
+  accountContactId,
+  salesLineId,
+  retailerLineAccountId,
+  recipientOptions,
 }: OgrProductEmailComposerModalProps) {
   if (!open) return null;
   return (
     <OgrProductEmailComposerForm
-      key={draft?.id ?? productId}
+      key={`${draft?.id ?? productId}:${accountContactId ?? defaultTo ?? ''}`}
       onClose={onClose}
       onSent={onSent}
       onDraftCancelled={onDraftCancelled}
@@ -431,6 +529,15 @@ export function OgrProductEmailComposerModal({
       productName={productName}
       cardHtml={cardHtml}
       draft={draft}
+      overlayClassName={overlayClassName}
+      defaultTo={defaultTo}
+      defaultRecipientName={defaultRecipientName}
+      recipientHint={recipientHint}
+      prospectId={prospectId}
+      accountContactId={accountContactId}
+      salesLineId={salesLineId}
+      retailerLineAccountId={retailerLineAccountId}
+      recipientOptions={recipientOptions}
     />
   );
 }

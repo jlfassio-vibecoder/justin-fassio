@@ -9,6 +9,7 @@ import {
   OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
   OGR_PRODUCT_EMAIL_DEFAULT_INTRO,
 } from '@/lib/ogrProductOutreachEmail';
+import { NO_SAVED_RECIPIENT_EMAIL_HINT } from '@/lib/accountProductEmailRecipient';
 
 const sendOgrProductEmailMock = vi.fn();
 
@@ -131,6 +132,75 @@ describe('OgrProductEmailComposerModal', () => {
     expect(payload).not.toHaveProperty('signatureName');
     expect(payload).not.toHaveProperty('productHref');
     expect(JSON.stringify(payload)).not.toContain(CARD_HTML);
+  });
+
+  it('account path sends prospectId and saved contact id', async () => {
+    const user = userEvent.setup();
+    sendOgrProductEmailMock.mockResolvedValue({ ok: true });
+    renderModal({
+      defaultTo: 'buyer@example.com',
+      defaultRecipientName: 'Sam',
+      prospectId: 42,
+      accountContactId: 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      salesLineId: '11111111-1111-4111-8111-111111111111',
+      retailerLineAccountId: 'a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      recipientOptions: [
+        {
+          id: 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+          email: 'buyer@example.com',
+          name: 'Sam',
+        },
+        { id: 'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', email: 'pat@example.com', name: 'Pat' },
+      ],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(sendOgrProductEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        recipientName: 'Sam',
+        prospectId: 42,
+        accountContactId: 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+        salesLineId: '11111111-1111-4111-8111-111111111111',
+        retailerLineAccountId: 'a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      }),
+    );
+  });
+
+  it('account path keeps prospectId and drops contact when the To address is typed', async () => {
+    const user = userEvent.setup();
+    sendOgrProductEmailMock.mockResolvedValue({ ok: true });
+    renderModal({
+      defaultTo: 'buyer@example.com',
+      defaultRecipientName: 'Sam',
+      prospectId: 42,
+      accountContactId: 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      recipientOptions: [
+        {
+          id: 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+          email: 'buyer@example.com',
+          name: 'Sam',
+        },
+        { id: 'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', email: 'pat@example.com', name: 'Pat' },
+      ],
+    });
+
+    const to = screen.getByPlaceholderText('buyer@store.com');
+    await user.clear(to);
+    await user.type(to, 'adhoc@example.com');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    const payload = sendOgrProductEmailMock.mock.calls[0]![0] as Record<string, unknown>;
+    expect(payload.prospectId).toBe(42);
+    expect(payload).not.toHaveProperty('accountContactId');
+    expect(payload.to).toBe('adhoc@example.com');
+  });
+
+  it('shows the no-saved-email hint', () => {
+    renderModal({ recipientHint: NO_SAVED_RECIPIENT_EMAIL_HINT });
+    expect(screen.getByText(NO_SAVED_RECIPIENT_EMAIL_HINT)).toBeInTheDocument();
   });
 
   it('shows server error and keeps modal open on failure', async () => {

@@ -21,6 +21,7 @@ import {
   normalizeSystemMessageEmail,
   requireExplicitProductOutreachCrmAssociation,
   resolveProductOutreachCrmAssociation,
+  validateProductOutreachRetailerLineAccount,
 } from '@/lib/systemMessages';
 
 type DbClient = SupabaseClient<Database>;
@@ -30,6 +31,7 @@ function mockClient(handlers: {
     ilike?: { data: unknown; error: unknown };
     eqMaybeSingle?: { data: unknown; error: unknown };
   };
+  retailerLineAccount?: { data: unknown; error: unknown };
   systemMessagesInsert?: { data: unknown; error: unknown };
   onInsert?: (row: unknown) => void;
 }): DbClient {
@@ -44,6 +46,18 @@ function mockClient(handlers: {
               Promise.resolve(
                 handlers.accountContacts?.eqMaybeSingle ?? { data: null, error: null },
               ),
+          }),
+        }),
+      };
+    }
+    if (table === 'retailer_line_accounts') {
+      return {
+        select: () => ({
+          eq: () => ({
+            neq: () => ({
+              maybeSingle: () =>
+                Promise.resolve(handlers.retailerLineAccount ?? { data: null, error: null }),
+            }),
           }),
         }),
       };
@@ -112,15 +126,34 @@ describe('matchUniqueAccountContactByEmail', () => {
 });
 
 describe('resolveProductOutreachCrmAssociation', () => {
-  it('rejects when only one of prospectId/accountContactId is provided', async () => {
+  it('rejects contact without prospect', async () => {
     const client = mockClient({});
+    const result = await resolveProductOutreachCrmAssociation(client, {
+      accountContactId: 'c1',
+      toEmail: 'buyer@example.com',
+    });
+    expect(result).toEqual({
+      ok: false,
+      error: 'prospectId is required when accountContactId is provided',
+    });
+  });
+
+  it('keeps prospect-only association without email rematch', async () => {
+    const client = mockClient({
+      accountContacts: {
+        ilike: {
+          data: [{ id: 'c9', account_id: 99, email: 'buyer@example.com' }],
+          error: null,
+        },
+      },
+    });
     const result = await resolveProductOutreachCrmAssociation(client, {
       prospectId: 42,
       toEmail: 'buyer@example.com',
     });
     expect(result).toEqual({
-      ok: false,
-      error: 'prospectId and accountContactId must be provided together',
+      ok: true,
+      association: { prospectId: 42, accountContactId: null },
     });
   });
 
@@ -239,6 +272,7 @@ describe('insertProductOutreachSystemMessage', () => {
         subject: 'Old Guys Rule — American Revival',
         prospect_id: 42,
         account_contact_id: 'c1',
+        retailer_line_account_id: null,
         sent_by: 'user-1',
         payload: {
           sku: 'OG2513',
@@ -256,6 +290,41 @@ describe('insertProductOutreachSystemMessage', () => {
       }),
     );
     expect(JSON.stringify(inserted?.payload)).not.toMatch(/<html|<p>|script/i);
+  });
+
+  it('stamps retailer_line_account_id when provided', async () => {
+    let inserted: Record<string, unknown> | undefined;
+    const client = mockClient({
+      systemMessagesInsert: { data: { id: 'sm-rla' }, error: null },
+      onInsert: (row) => {
+        inserted = row as Record<string, unknown>;
+      },
+    });
+
+    const result = await insertProductOutreachSystemMessage(client, {
+      catalogItemId: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      resendEmailId: 're_123',
+      toEmail: 'buyer@example.com',
+      subject: 'Hello',
+      prospectId: 42,
+      retailerLineAccountId: 'a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      sentBy: 'user-1',
+      payload: {
+        sku: 'OG2513',
+        name: 'American Revival',
+        slug: 'american-revival',
+        productHref: 'https://justinfassio.com/old-guys-rule-wholesale/american-revival',
+      },
+    });
+
+    expect(result).toEqual({ ok: true, id: 'sm-rla' });
+    expect(inserted).toEqual(
+      expect.objectContaining({
+        prospect_id: 42,
+        account_contact_id: null,
+        retailer_line_account_id: 'a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      }),
+    );
   });
 
   it('returns error when insert fails', async () => {
@@ -686,6 +755,80 @@ describe('requireExplicitProductOutreachCrmAssociation', () => {
     ).resolves.toEqual({
       ok: false,
       error: 'Account contact does not belong to the given prospect',
+    });
+  });
+});
+
+const RLA_ID = 'a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
+const LINE_ID = '11111111-1111-4111-8111-111111111111';
+
+describe('validateProductOutreachRetailerLineAccount', () => {
+  it('accepts an operational RLA that matches prospect and sales line', async () => {
+    const client = mockClient({
+      retailerLineAccount: {
+        data: {
+          id: RLA_ID,
+          retailer_id: 42,
+          sales_line_id: LINE_ID,
+          relationship_status: 'opened',
+        },
+        error: null,
+      },
+    });
+    await expect(
+      validateProductOutreachRetailerLineAccount(client, {
+        retailerLineAccountId: RLA_ID,
+        prospectId: 42,
+        salesLineId: LINE_ID,
+      }),
+    ).resolves.toEqual({ ok: true, retailerLineAccountId: RLA_ID });
+  });
+
+  it('rejects when retailer_id does not match prospect', async () => {
+    const client = mockClient({
+      retailerLineAccount: {
+        data: {
+          id: RLA_ID,
+          retailer_id: 99,
+          sales_line_id: LINE_ID,
+          relationship_status: 'opened',
+        },
+        error: null,
+      },
+    });
+    await expect(
+      validateProductOutreachRetailerLineAccount(client, {
+        retailerLineAccountId: RLA_ID,
+        prospectId: 42,
+        salesLineId: LINE_ID,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: 'Retailer line account does not belong to the given prospect',
+    });
+  });
+
+  it('rejects when sales_line_id does not match a provided salesLineId', async () => {
+    const client = mockClient({
+      retailerLineAccount: {
+        data: {
+          id: RLA_ID,
+          retailer_id: 42,
+          sales_line_id: LINE_ID,
+          relationship_status: 'opened',
+        },
+        error: null,
+      },
+    });
+    await expect(
+      validateProductOutreachRetailerLineAccount(client, {
+        retailerLineAccountId: RLA_ID,
+        prospectId: 42,
+        salesLineId: '22222222-2222-4222-8222-222222222222',
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: 'Retailer line account does not belong to the given sales line',
     });
   });
 });

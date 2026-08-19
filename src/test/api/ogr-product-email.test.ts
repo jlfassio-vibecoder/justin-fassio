@@ -11,6 +11,7 @@ const buildOgrCollectionUrlMock = vi.fn();
 const resolvePublicSiteOriginMock = vi.fn();
 const resolveProductOutreachCrmAssociationMock = vi.fn();
 const insertProductOutreachSystemMessageMock = vi.fn();
+const validateProductOutreachRetailerLineAccountMock = vi.fn();
 
 vi.mock('@/lib/agentAuth', () => ({
   requireApprovedStaffClient: (...args: unknown[]) => requireApprovedStaffClientMock(...args),
@@ -45,12 +46,16 @@ vi.mock('@/lib/systemMessages', () => ({
     resolveProductOutreachCrmAssociationMock(...args),
   insertProductOutreachSystemMessage: (...args: unknown[]) =>
     insertProductOutreachSystemMessageMock(...args),
+  validateProductOutreachRetailerLineAccount: (...args: unknown[]) =>
+    validateProductOutreachRetailerLineAccountMock(...args),
 }));
 
 import { POST } from '@/pages/api/staff/ogr-product-email';
 
 const PRODUCT_ID = 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
 const CONTACT_ID = 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
+const LINE_ID = '11111111-1111-4111-8111-111111111111';
+const RLA_ID = 'a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
 
 const publishedProduct: PublicOgrProduct = {
   id: PRODUCT_ID,
@@ -172,6 +177,10 @@ describe('POST /api/staff/ogr-product-email', () => {
     insertProductOutreachSystemMessageMock.mockResolvedValue({
       ok: true,
       id: 'sm-1',
+    });
+    validateProductOutreachRetailerLineAccountMock.mockResolvedValue({
+      ok: true,
+      retailerLineAccountId: RLA_ID,
     });
   });
 
@@ -357,7 +366,11 @@ describe('POST /api/staff/ogr-product-email', () => {
       resendEmailId: 're_123',
     });
 
-    expect(loadPublishedOgrProductForEmailMock).toHaveBeenCalledWith(expect.anything(), PRODUCT_ID);
+    expect(loadPublishedOgrProductForEmailMock).toHaveBeenCalledWith(
+      expect.anything(),
+      PRODUCT_ID,
+      undefined,
+    );
     expect(resolveProductOutreachCrmAssociationMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ toEmail: 'buyer@example.com' }),
@@ -455,22 +468,103 @@ describe('POST /api/staff/ogr-product-email', () => {
     expect(insertProductOutreachSystemMessageMock).not.toHaveBeenCalled();
   });
 
-  it('returns 400 when only prospectId is provided', async () => {
+  it('sends and logs when only prospectId is provided', async () => {
     resolveProductOutreachCrmAssociationMock.mockResolvedValue({
-      ok: false,
-      error: 'prospectId and accountContactId must be provided together',
+      ok: true,
+      association: { prospectId: 42, accountContactId: null },
+    });
+    const res = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'adhoc@example.com',
+        prospectId: 42,
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(resolveProductOutreachCrmAssociationMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ prospectId: 42, toEmail: 'adhoc@example.com' }),
+    );
+    expect(insertProductOutreachSystemMessageMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        prospectId: 42,
+        accountContactId: null,
+      }),
+    );
+  });
+
+  it('passes salesLineId through to product load', async () => {
+    const res = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        salesLineId: LINE_ID,
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(loadPublishedOgrProductForEmailMock).toHaveBeenCalledWith(
+      expect.anything(),
+      PRODUCT_ID,
+      {
+        salesLineId: LINE_ID,
+      },
+    );
+  });
+
+  it('stamps a validated retailer line account', async () => {
+    resolveProductOutreachCrmAssociationMock.mockResolvedValue({
+      ok: true,
+      association: { prospectId: 42, accountContactId: CONTACT_ID },
     });
     const res = await POST(
       requestWith({
         productId: PRODUCT_ID,
         to: 'buyer@example.com',
         prospectId: 42,
+        accountContactId: CONTACT_ID,
+        salesLineId: LINE_ID,
+        retailerLineAccountId: RLA_ID,
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(validateProductOutreachRetailerLineAccountMock).toHaveBeenCalledWith(expect.anything(), {
+      retailerLineAccountId: RLA_ID,
+      prospectId: 42,
+      salesLineId: LINE_ID,
+    });
+    expect(insertProductOutreachSystemMessageMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        prospectId: 42,
+        accountContactId: CONTACT_ID,
+        retailerLineAccountId: RLA_ID,
+      }),
+    );
+  });
+
+  it('rejects a mismatched retailer line account before send', async () => {
+    resolveProductOutreachCrmAssociationMock.mockResolvedValue({
+      ok: true,
+      association: { prospectId: 42, accountContactId: CONTACT_ID },
+    });
+    validateProductOutreachRetailerLineAccountMock.mockResolvedValue({
+      ok: false,
+      error: 'Retailer line account does not belong to the given prospect',
+    });
+    const res = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        prospectId: 42,
+        accountContactId: CONTACT_ID,
+        retailerLineAccountId: RLA_ID,
       }),
     );
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({
       ok: false,
-      error: 'prospectId and accountContactId must be provided together',
+      error: 'Retailer line account does not belong to the given prospect',
     });
     expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
     expect(insertProductOutreachSystemMessageMock).not.toHaveBeenCalled();

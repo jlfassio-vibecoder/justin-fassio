@@ -140,6 +140,7 @@ export type InsertProductOutreachSystemMessageInput = {
   subject: string;
   prospectId?: number | null;
   accountContactId?: string | null;
+  retailerLineAccountId?: string | null;
   sentBy: string;
   payload: ProductOutreachSystemMessagePayload;
 };
@@ -190,7 +191,9 @@ export type ResolveProductOutreachCrmResult =
 
 /**
  * Resolve CRM links for a product outreach send.
- * Explicit prospectId + accountContactId (both required together) win over email match.
+ * Explicit prospectId + accountContactId win over email match.
+ * Prospect without contact stays on that account (no email rematch).
+ * Contact without prospect is rejected. Neither id → unique email match.
  */
 export async function resolveProductOutreachCrmAssociation(
   client: DbClient,
@@ -203,10 +206,10 @@ export async function resolveProductOutreachCrmAssociation(
   const hasProspect = input.prospectId != null;
   const hasContact = input.accountContactId != null && input.accountContactId.trim() !== '';
 
-  if (hasProspect !== hasContact) {
+  if (hasContact && !hasProspect) {
     return {
       ok: false,
-      error: 'prospectId and accountContactId must be provided together',
+      error: 'prospectId is required when accountContactId is provided',
     };
   }
 
@@ -235,6 +238,16 @@ export async function resolveProductOutreachCrmAssociation(
       association: {
         prospectId,
         accountContactId: data.id,
+      },
+    };
+  }
+
+  if (hasProspect) {
+    return {
+      ok: true,
+      association: {
+        prospectId: input.prospectId as number,
+        accountContactId: null,
       },
     };
   }
@@ -276,6 +289,45 @@ export async function requireExplicitProductOutreachCrmAssociation(
       accountContactId: result.association.accountContactId,
     },
   };
+}
+
+export type ValidateProductOutreachRetailerLineAccountResult =
+  { ok: true; retailerLineAccountId: string } | { ok: false; error: string };
+
+/**
+ * Load an operational (non-terminated) RLA and confirm it belongs to the prospect
+ * (and sales line, when that id is sent).
+ */
+export async function validateProductOutreachRetailerLineAccount(
+  client: DbClient,
+  input: {
+    retailerLineAccountId: string;
+    prospectId: number;
+    salesLineId?: string | null;
+  },
+): Promise<ValidateProductOutreachRetailerLineAccountResult> {
+  const { data, error } = await client
+    .from('retailer_line_accounts')
+    .select('id, retailer_id, sales_line_id, relationship_status')
+    .eq('id', input.retailerLineAccountId)
+    .neq('relationship_status', 'terminated')
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, error: 'Could not validate retailer line account' };
+  }
+  if (!data) {
+    return { ok: false, error: 'Retailer line account not found' };
+  }
+  if (data.retailer_id !== input.prospectId) {
+    return { ok: false, error: 'Retailer line account does not belong to the given prospect' };
+  }
+  const salesLineId = input.salesLineId?.trim();
+  if (salesLineId && data.sales_line_id !== salesLineId) {
+    return { ok: false, error: 'Retailer line account does not belong to the given sales line' };
+  }
+
+  return { ok: true, retailerLineAccountId: data.id };
 }
 
 export type InsertProductOutreachSystemMessageResult =
@@ -833,6 +885,7 @@ export async function insertProductOutreachSystemMessage(
     subject: input.subject,
     prospect_id: input.prospectId ?? null,
     account_contact_id: input.accountContactId ?? null,
+    retailer_line_account_id: input.retailerLineAccountId ?? null,
     sent_by: input.sentBy,
     queued_at: now,
     sent_at: now,

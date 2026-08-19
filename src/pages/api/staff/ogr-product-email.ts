@@ -20,6 +20,7 @@ import { sendOgrProductOutreachEmail } from '@/lib/sendOgrProductOutreachEmail';
 import {
   insertProductOutreachSystemMessage,
   resolveProductOutreachCrmAssociation,
+  validateProductOutreachRetailerLineAccount,
 } from '@/lib/systemMessages';
 
 export const prerender = false;
@@ -63,19 +64,26 @@ function parseOptionalProspectId(
   return { ok: false, error: 'prospectId must be a positive integer' };
 }
 
-function parseOptionalAccountContactId(
+function parseOptionalUuid(
   value: unknown,
+  label: string,
 ): { ok: true; value: string | undefined } | { ok: false; error: string } {
   if (value == null) return { ok: true, value: undefined };
   if (typeof value !== 'string') {
-    return { ok: false, error: 'accountContactId must be a string' };
+    return { ok: false, error: `${label} must be a string` };
   }
   const trimmed = value.trim();
   if (!trimmed) return { ok: true, value: undefined };
   if (!UUID_RE.test(trimmed)) {
-    return { ok: false, error: 'accountContactId must be a valid UUID' };
+    return { ok: false, error: `${label} must be a valid UUID` };
   }
   return { ok: true, value: trimmed };
+}
+
+function parseOptionalAccountContactId(
+  value: unknown,
+): { ok: true; value: string | undefined } | { ok: false; error: string } {
+  return parseOptionalUuid(value, 'accountContactId');
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -91,6 +99,8 @@ export const POST: APIRoute = async ({ request }) => {
     closingText?: unknown;
     prospectId?: unknown;
     accountContactId?: unknown;
+    salesLineId?: unknown;
+    retailerLineAccountId?: unknown;
     html?: unknown;
     from?: unknown;
     signatureName?: unknown;
@@ -155,7 +165,20 @@ export const POST: APIRoute = async ({ request }) => {
   const accountContactIdResult = parseOptionalAccountContactId(body.accountContactId);
   if (!accountContactIdResult.ok) return jsonError(accountContactIdResult.error, 400);
 
-  const loaded = await loadPublishedOgrProductForEmail(gate.supabase, productId);
+  const salesLineIdResult = parseOptionalUuid(body.salesLineId, 'salesLineId');
+  if (!salesLineIdResult.ok) return jsonError(salesLineIdResult.error, 400);
+
+  const retailerLineAccountIdResult = parseOptionalUuid(
+    body.retailerLineAccountId,
+    'retailerLineAccountId',
+  );
+  if (!retailerLineAccountIdResult.ok) return jsonError(retailerLineAccountIdResult.error, 400);
+
+  const loaded = await loadPublishedOgrProductForEmail(
+    gate.supabase,
+    productId,
+    salesLineIdResult.value ? { salesLineId: salesLineIdResult.value } : undefined,
+  );
   if (!loaded.ok) {
     return jsonError(loaded.message, 404);
   }
@@ -169,6 +192,22 @@ export const POST: APIRoute = async ({ request }) => {
     });
     if (!crm.ok) {
       return jsonError(crm.error, 400);
+    }
+
+    let retailerLineAccountId: string | undefined;
+    if (retailerLineAccountIdResult.value) {
+      if (crm.association.prospectId == null) {
+        return jsonError('prospectId is required when retailerLineAccountId is provided', 400);
+      }
+      const rla = await validateProductOutreachRetailerLineAccount(gate.supabase, {
+        retailerLineAccountId: retailerLineAccountIdResult.value,
+        prospectId: crm.association.prospectId,
+        salesLineId: salesLineIdResult.value,
+      });
+      if (!rla.ok) {
+        return jsonError(rla.error, 400);
+      }
+      retailerLineAccountId = rla.retailerLineAccountId;
     }
 
     const presentation = buildPublicProductPresentation(loaded.product);
@@ -252,6 +291,7 @@ export const POST: APIRoute = async ({ request }) => {
       subject: message.subject,
       prospectId: crm.association.prospectId,
       accountContactId: crm.association.accountContactId,
+      retailerLineAccountId: retailerLineAccountId ?? null,
       sentBy: gate.userId,
       payload: {
         sku: loaded.product.sku,

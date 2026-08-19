@@ -88,8 +88,9 @@ function isPubliclyAvailable(row: EmailOgrProductRow): boolean {
 }
 
 /**
- * Authoritative staff-side load of a published OGR product for outreach email.
- * Rejects non-OGR, missing, unpublished, inactive, or slug-less items.
+ * Authoritative staff-side load of a published product for outreach email.
+ * Defaults to the OGR line when salesLineId is omitted.
+ * Rejects missing, unpublished, inactive, or slug-less items.
  */
 export async function loadPublishedOgrProductForEmail(
   supabase: AgentSupabase,
