@@ -24,6 +24,7 @@ import { persistLastLineSlug } from '@/lib/lineContextStorage';
 import { fetchNeedsMappingCount, type MessageThread } from '@/lib/messages';
 import {
   isProspectsPipelineRow,
+  isReactivationDirectoryRow,
   parseDirectoryTerritoryParam,
 } from '@/lib/accountImport/directoryPresentation';
 import { fetchProspects, type Prospect } from '@/lib/prospects';
@@ -216,11 +217,23 @@ export function RepCommandCenter({
     marginRangeDisplay,
   } = useLandedCostCalculator(catalog);
 
-  const { pipeline: pipelineProspects, active: activeAccounts } = useMemo(() => {
+  const {
+    pipeline: pipelineProspects,
+    active: activeAccounts,
+    accountsForTab,
+  } = useMemo(() => {
     const split = splitDirectoryByAccountOrLineRelationship(prospects, splitByRla);
+    const active = split.active;
+    const activeIds = new Set(active.map((row) => row.id));
+    const accountsForTab = [...active];
+    for (const row of prospects) {
+      if (activeIds.has(row.id) || !isReactivationDirectoryRow(row)) continue;
+      accountsForTab.push(row);
+    }
     return {
       pipeline: split.pipeline.filter(isProspectsPipelineRow),
-      active: split.active,
+      active,
+      accountsForTab,
     };
   }, [prospects, splitByRla]);
 
@@ -507,7 +520,7 @@ export function RepCommandCenter({
               )}
               {activeTab === 'accounts' && (
                 <ActiveAccountsTab
-                  accounts={activeAccounts}
+                  accounts={accountsForTab}
                   territories={territories}
                   onLogCall={(account) => openModal(account)}
                   onNotesSaved={(id, notes) => {

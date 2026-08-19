@@ -1,4 +1,7 @@
-import { HISTORICAL_OGR_IMPORT_DEFAULTS } from '@/lib/accountImport/classification';
+import {
+  HISTORICAL_OGR_IMPORT_DEFAULTS,
+  isLineAccountMarker,
+} from '@/lib/accountImport/classification';
 import { normalizeProspectName } from '@/lib/prospectListImport';
 import type {
   CollapsedImportRow,
@@ -6,7 +9,7 @@ import type {
   PreviewImportRow,
   PreviewMatch,
 } from '@/lib/accountImport/types';
-import type { AccountImportMatchDecision, LineAccountMarker } from '@/types/database';
+import type { AccountImportMatchDecision } from '@/types/database';
 
 export type ThinRetailer = {
   id: number;
@@ -67,9 +70,7 @@ function toPreviewMatch(retailer: ThinRetailer, rla: ThinRla | null): PreviewMat
     territoryCode: retailer.territoryCode,
     accountStatus: retailer.accountStatus,
     relationshipStatus: rla?.relationshipStatus ?? null,
-    markers: (rla?.markers ?? []).filter((m): m is LineAccountMarker =>
-      ['historical_purchaser', 'reactivation_candidate', 'reactivation_unresponsive'].includes(m),
-    ),
+    markers: (rla?.markers ?? []).filter(isLineAccountMarker),
   };
 }
 

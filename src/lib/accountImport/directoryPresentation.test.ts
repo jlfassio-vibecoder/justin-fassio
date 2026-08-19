@@ -3,8 +3,11 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   hasQualifyingOrderLast365Days,
+  isDefaultActiveAccountRow,
   isProspectsPipelineRow,
   isReactivationCandidate,
+  isReactivationDirectoryRow,
+  isReactivationFilterRow,
   parseDirectoryTerritoryParam,
   territoryDisplayLabel,
 } from '@/lib/accountImport/directoryPresentation';
@@ -73,6 +76,27 @@ describe('directory presentation', () => {
         lineAccountMarkers: ['reactivation_candidate'],
       }),
     ).toBe(false);
+  });
+
+  it('keeps inactive unresponsive historicals on Reactivation and off Prospects and default Active Accounts', () => {
+    const parked = {
+      accountStatus: 'inactive' as const,
+      lineRelationshipStatus: 'inactive' as const,
+      lineAccountMarkers: ['historical_purchaser', 'reactivation_unresponsive'],
+    };
+    expect(isProspectsPipelineRow(parked)).toBe(false);
+    expect(isDefaultActiveAccountRow(parked)).toBe(false);
+    expect(isReactivationCandidate(parked)).toBe(false);
+    expect(isReactivationDirectoryRow(parked)).toBe(true);
+    expect(isReactivationFilterRow(parked)).toBe(true);
+    expect(isReactivationFilterRow(parked, { hasQualifyingOrderLast365Days: true })).toBe(false);
+    expect(
+      isDefaultActiveAccountRow({
+        accountStatus: 'active_account',
+        lineRelationshipStatus: 'opened',
+        lineAccountMarkers: ['historical_purchaser', 'reactivation_candidate'],
+      }),
+    ).toBe(true);
   });
 
   it('drops opened historicals from Reactivation when a qualifying order exists in the last 365 days', () => {
@@ -145,14 +169,23 @@ describe('directory presentation', () => {
     const overlay = readFileSync(resolve(root, 'src/lib/prospects.ts'), 'utf8');
 
     expect(rcc).toMatch(/isProspectsPipelineRow/);
+    expect(rcc).toMatch(/isReactivationDirectoryRow/);
     expect(rcc).toMatch(/reactivation=1|reactivation/);
     expect(prospectsTab).toMatch(/isProspectsPipelineRow/);
     expect(prospectsTab).toMatch(/Import history/);
     expect(accountsTab).toMatch(/isReactivationCandidate/);
+    expect(accountsTab).toMatch(/isReactivationFilterRow/);
+    expect(accountsTab).toMatch(/isDefaultActiveAccountRow/);
     expect(accountsTab).toMatch(/hasQualifyingOrderLast365Days/);
     expect(accountsTab).toMatch(/ordersEvidenceReady/);
     expect(accountsTab).toMatch(/Reactivation/);
     expect(accountsTab).toMatch(/Import history/);
+    expect(accountsTab).toMatch(/Include in outreach/);
+    expect(accountsTab).toMatch(/Remove from outreach/);
+    expect(accountsTab).toMatch(/Mark unresponsive/);
+    expect(accountsTab).toMatch(/Reopen as candidate/);
+    expect(accountsTab).toMatch(/setReactivationUnresponsiveClient/);
+    expect(accountsTab).not.toMatch(/from '@\/lib\/setReactivationUnresponsive'/);
     expect(directory).toMatch(/All territories/);
     expect(directory).toMatch(/territoryDisplayLabel/);
     expect(regions).toMatch(/Oregon/);

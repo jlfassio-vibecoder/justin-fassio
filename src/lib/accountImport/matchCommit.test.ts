@@ -510,6 +510,11 @@ describe('account import commit rematch and resume', () => {
     expect(isFinishedBatchStatus('completed')).toBe(true);
     expect(parseConfirmClassification({}).runAiAfterImport).toBe(true);
     expect(parseConfirmClassification({ runAiAfterImport: false }).runAiAfterImport).toBe(false);
+    expect(
+      parseConfirmClassification({
+        markers: ['historical_purchaser', 'reactivation_candidate', 'outreach_eligible'],
+      }).markers,
+    ).toEqual(['historical_purchaser', 'reactivation_candidate']);
     expect(batchIsFullyTerminal([{ status: 'imported' }, { status: 'skipped' }])).toBe(true);
     expect(batchIsFullyTerminal([{ status: 'imported' }, { status: 'failed' }])).toBe(false);
     expect(batchIsFullyTerminal([])).toBe(false);

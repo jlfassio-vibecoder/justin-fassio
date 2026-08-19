@@ -3,8 +3,11 @@ import type { AccountContact } from '@/lib/accountContacts';
 import {
   channelMatchCost,
   compareOutreachProspectRank,
+  isRlaInOutreachPool,
   isWithinOutreachCooldown,
   pickOutreachContact,
+  prospectPassesAccountStatus,
+  prospectPassesOutreachPool,
   resolveProspectOutreachChannels,
 } from '@/lib/outreachEligibility';
 
@@ -121,5 +124,48 @@ describe('channelMatchCost', () => {
   it('returns 0 on match and 1 otherwise', () => {
     expect(channelMatchCost(['golf_retail'], ['golf_retail'])).toBe(0);
     expect(channelMatchCost(['marine_retail'], ['golf_retail'])).toBe(1);
+  });
+});
+
+describe('outreach pool eligibility', () => {
+  it('keeps prospects eligible and allows opted-in active accounts', () => {
+    expect(prospectPassesAccountStatus({ accountStatus: 'prospect' })).toBe(true);
+    expect(prospectPassesAccountStatus({ accountStatus: 'active_account' })).toBe(false);
+    expect(prospectPassesOutreachPool({ accountStatus: 'prospect' })).toBe(true);
+    expect(prospectPassesOutreachPool({ accountStatus: 'active_account' })).toBe(true);
+    expect(prospectPassesOutreachPool({ accountStatus: 'inactive' })).toBe(false);
+  });
+
+  it('includes OGR prospects and opted-in opened reactivation candidates', () => {
+    expect(isRlaInOutreachPool({ relationshipStatus: 'prospect', markers: [] })).toBe(true);
+    expect(
+      isRlaInOutreachPool({
+        relationshipStatus: 'opened',
+        markers: ['historical_purchaser', 'reactivation_candidate'],
+      }),
+    ).toBe(false);
+    expect(
+      isRlaInOutreachPool({
+        relationshipStatus: 'opened',
+        markers: ['historical_purchaser', 'reactivation_candidate', 'outreach_eligible'],
+      }),
+    ).toBe(true);
+    expect(
+      isRlaInOutreachPool({
+        relationshipStatus: 'opened',
+        markers: [
+          'historical_purchaser',
+          'reactivation_candidate',
+          'outreach_eligible',
+          'reactivation_unresponsive',
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      isRlaInOutreachPool({
+        relationshipStatus: 'inactive',
+        markers: ['historical_purchaser', 'reactivation_candidate', 'outreach_eligible'],
+      }),
+    ).toBe(false);
   });
 });

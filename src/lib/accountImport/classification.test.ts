@@ -2,20 +2,33 @@ import { describe, expect, it } from 'vitest';
 import {
   ACCOUNT_IMPORT_SOURCE_TYPES,
   HISTORICAL_OGR_IMPORT_DEFAULTS,
+  IMPORT_SETTABLE_MARKERS,
   LINE_ACCOUNT_MARKERS,
   activityStatusFromEvidence,
   hasMarker,
+  markersAfterMarkUnresponsive,
+  markersAfterOutreachOptIn,
+  markersAfterReopenCandidate,
   withMarkers,
+  withoutMarker,
 } from '@/lib/accountImport/classification';
+import { markersFromUnknown } from '@/lib/accountImport/preview';
 import { isVerifiedIdentityStatus } from '@/lib/retailerFieldChanges';
 
 describe('line account markers', () => {
-  it('allows only the v1 marker set', () => {
+  it('allows the F1 marker set including outreach_eligible', () => {
     expect([...LINE_ACCOUNT_MARKERS]).toEqual([
       'historical_purchaser',
       'reactivation_candidate',
       'reactivation_unresponsive',
+      'outreach_eligible',
     ]);
+    expect([...IMPORT_SETTABLE_MARKERS]).toEqual([
+      'historical_purchaser',
+      'reactivation_candidate',
+      'reactivation_unresponsive',
+    ]);
+    expect(IMPORT_SETTABLE_MARKERS).not.toContain('outreach_eligible');
   });
 
   it('hasMarker is false for missing or empty lists', () => {
@@ -31,6 +44,58 @@ describe('line account markers', () => {
     expect(
       withMarkers([], ['reactivation_candidate', 'historical_purchaser', 'reactivation_candidate']),
     ).toEqual(['reactivation_candidate', 'historical_purchaser']);
+  });
+
+  it('withoutMarker removes outreach_eligible and drops unknowns', () => {
+    expect(
+      withoutMarker(
+        ['historical_purchaser', 'reactivation_candidate', 'outreach_eligible'],
+        'outreach_eligible',
+      ),
+    ).toEqual(['historical_purchaser', 'reactivation_candidate']);
+    expect(withoutMarker(['nope', 'historical_purchaser'], 'historical_purchaser')).toEqual([]);
+  });
+
+  it('markersAfterOutreachOptIn toggles only the owner flag', () => {
+    expect(
+      markersAfterOutreachOptIn(['historical_purchaser', 'reactivation_candidate'], true),
+    ).toEqual(['historical_purchaser', 'reactivation_candidate', 'outreach_eligible']);
+    expect(
+      markersAfterOutreachOptIn(
+        ['historical_purchaser', 'reactivation_candidate', 'outreach_eligible'],
+        false,
+      ),
+    ).toEqual(['historical_purchaser', 'reactivation_candidate']);
+  });
+
+  it('markersAfterMarkUnresponsive keeps historical_purchaser and drops candidate plus opt-in', () => {
+    expect(
+      markersAfterMarkUnresponsive([
+        'historical_purchaser',
+        'reactivation_candidate',
+        'outreach_eligible',
+      ]),
+    ).toEqual(['historical_purchaser', 'reactivation_unresponsive']);
+  });
+
+  it('markersAfterReopenCandidate restores candidate without outreach_eligible', () => {
+    expect(
+      markersAfterReopenCandidate(['historical_purchaser', 'reactivation_unresponsive']),
+    ).toEqual(['historical_purchaser', 'reactivation_candidate']);
+    expect(
+      markersAfterReopenCandidate([
+        'historical_purchaser',
+        'reactivation_unresponsive',
+        'outreach_eligible',
+      ]),
+    ).toEqual(['historical_purchaser', 'reactivation_candidate']);
+  });
+
+  it('import marker parse never stamps outreach_eligible', () => {
+    expect(
+      markersFromUnknown(['historical_purchaser', 'reactivation_candidate', 'outreach_eligible']),
+    ).toEqual(['historical_purchaser', 'reactivation_candidate']);
+    expect(markersFromUnknown(['outreach_eligible'])).toEqual([]);
   });
 });
 

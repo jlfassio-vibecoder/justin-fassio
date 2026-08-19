@@ -16,9 +16,10 @@ import type { PrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
 import { allocateChannelsForDay } from '@/lib/outreachChannelAllocation';
 import {
   compareOutreachProspectRank,
+  isRlaInOutreachPool,
   isWithinOutreachCooldown,
   pickOutreachContact,
-  prospectPassesAccountStatus,
+  prospectPassesOutreachPool,
   resolveProspectOutreachChannels,
   type OutreachExclusionReason,
 } from '@/lib/outreachEligibility';
@@ -104,12 +105,22 @@ async function loadProspectAccounts(
 
   const { data: rlas, error: rlaError } = await client
     .from('retailer_line_accounts')
-    .select('retailer_id')
+    .select('retailer_id, relationship_status, line_account_markers')
     .eq('sales_line_id', ogr.id)
-    .eq('relationship_status', 'prospect');
+    .in('relationship_status', ['prospect', 'opened']);
   if (rlaError) return { ok: false, error: rlaError.message };
   const ids = [
-    ...new Set((rlas ?? []).map((row) => row.retailer_id).filter((id) => Number.isFinite(id))),
+    ...new Set(
+      (rlas ?? [])
+        .filter((row) =>
+          isRlaInOutreachPool({
+            relationshipStatus: row.relationship_status,
+            markers: row.line_account_markers,
+          }),
+        )
+        .map((row) => row.retailer_id)
+        .filter((id) => Number.isFinite(id)),
+    ),
   ];
   if (ids.length === 0) {
     return { ok: true, prospects: [] };
@@ -125,9 +136,10 @@ async function loadProspectAccounts(
     return { ok: false, error: error.message };
   }
 
+  const idSet = new Set(ids);
   return {
     ok: true,
-    prospects: (data ?? []).map((row) => mapProspectRow(row)),
+    prospects: (data ?? []).map((row) => mapProspectRow(row)).filter((p) => idSet.has(p.id)),
   };
 }
 
@@ -337,7 +349,8 @@ export async function selectOutreachTargets(
   if (!suppressedResult.ok) return { ok: false, error: suppressedResult.error };
 
   const prospects = prospectsResult.prospects.filter((p) => {
-    if (!prospectPassesAccountStatus(p)) {
+    // Copilot suggestion ignored: load already drops inactive RLAs; renaming this leftover gate would expand the exclusion union without a consumer.
+    if (!prospectPassesOutreachPool(p)) {
       excluded.push({ prospectId: p.id, reason: 'not_prospect' });
       return false;
     }

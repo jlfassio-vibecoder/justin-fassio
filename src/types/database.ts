@@ -42,7 +42,10 @@ export type RetailerFieldChangeStatus = 'pending' | 'applied' | 'rejected' | 'su
 export type ActivityStatus = 'never_ordered' | 'active' | 'dormant';
 export type ProductivityClass = 'productive' | 'developing' | 'low_value' | 'unclassified';
 export type LineAccountMarker =
-  'historical_purchaser' | 'reactivation_candidate' | 'reactivation_unresponsive';
+  | 'historical_purchaser'
+  | 'reactivation_candidate'
+  | 'reactivation_unresponsive'
+  | 'outreach_eligible';
 export type AccountImportSourceType =
   'historical_customer' | 'faire_customer' | 'zoominfo_lead' | 'research_prospect' | 'other';
 export type AccountImportBatchStatus =

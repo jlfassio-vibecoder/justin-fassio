@@ -11,9 +11,12 @@ import { Tag } from '@/components/ui/Tag';
 import { useAiAssist } from '@/hooks/useAiAssist';
 import { useAuth } from '@/hooks/useAuth';
 import { isApprovedOwner } from '@/lib/auth';
+import { hasMarker } from '@/lib/accountImport/classification';
 import {
   hasQualifyingOrderLast365Days,
+  isDefaultActiveAccountRow,
   isReactivationCandidate,
+  isReactivationFilterRow,
 } from '@/lib/accountImport/directoryPresentation';
 import {
   fetchAccountReorderSettingsForAccounts,
@@ -32,6 +35,9 @@ import {
 import { fetchOrdersForAccounts, type OrderRow } from '@/lib/orders';
 import { computeReorderSuggestion, formatLocalIsoDate } from '@/lib/reorderCadence';
 import type { Prospect } from '@/lib/prospects';
+import { setOutreachEligibleClient } from '@/lib/outreachOptInClient';
+import { setReactivationUnresponsiveClient } from '@/lib/reactivationUnresponsiveClient';
+import { accountStatusFromRelationship } from '@/lib/ogrCommercial';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
 
@@ -115,6 +121,10 @@ export function ActiveAccountsTab({
   const [importOpen, setImportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [appliedDirectoryDeepLink, setAppliedDirectoryDeepLink] = useState(false);
+  const [outreachBusyId, setOutreachBusyId] = useState<number | null>(null);
+  const [outreachError, setOutreachError] = useState<string | null>(null);
+  const [unresponsiveBusyId, setUnresponsiveBusyId] = useState<number | null>(null);
+  const [unresponsiveError, setUnresponsiveError] = useState<string | null>(null);
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (deepLinkAccountId != null && deepLinkAccountId !== appliedDeepLinkAccountId) {
@@ -148,10 +158,12 @@ export function ActiveAccountsTab({
   const ordersEvidenceReady = accountIdsKey === '' || ordersEvidenceKey === accountIdsKey;
 
   const visibleAccounts = useMemo(() => {
-    if (!reactivation) return accounts;
+    if (!reactivation) {
+      return accounts.filter(isDefaultActiveAccountRow);
+    }
     if (!ordersEvidenceReady || ordersError) return [];
     return accounts.filter((account) =>
-      isReactivationCandidate(account, {
+      isReactivationFilterRow(account, {
         hasQualifyingOrderLast365Days: hasQualifyingOrderLast365Days(
           ordersByAccount.get(account.id) ?? [],
           todayIso,
@@ -275,6 +287,54 @@ export function ActiveAccountsTab({
     reloadSettings();
   }
 
+  async function handleOutreachOptIn(account: Prospect, eligible: boolean) {
+    setOutreachBusyId(account.id);
+    setOutreachError(null);
+    const result = await setOutreachEligibleClient({
+      retailerId: account.id,
+      salesLineId,
+      eligible,
+    });
+    setOutreachBusyId(null);
+    if (!result.ok) {
+      setOutreachError(`${account.name}: ${result.error}`);
+      return;
+    }
+    onProspectUpdated?.({ ...account, lineAccountMarkers: result.markers });
+  }
+
+  async function handleReactivationUnresponsive(
+    account: Prospect,
+    action: 'mark_unresponsive' | 'reopen_candidate',
+  ) {
+    if (
+      action === 'mark_unresponsive' &&
+      !window.confirm(
+        `Mark ${account.name} unresponsive? It will leave the default Active Accounts list and nightly outreach until you reopen it as a candidate.`,
+      )
+    ) {
+      return;
+    }
+    setUnresponsiveBusyId(account.id);
+    setUnresponsiveError(null);
+    const result = await setReactivationUnresponsiveClient({
+      retailerId: account.id,
+      salesLineId,
+      action,
+    });
+    setUnresponsiveBusyId(null);
+    if (!result.ok) {
+      setUnresponsiveError(`${account.name}: ${result.error}`);
+      return;
+    }
+    onProspectUpdated?.({
+      ...account,
+      lineAccountMarkers: result.markers,
+      lineRelationshipStatus: result.relationshipStatus,
+      accountStatus: accountStatusFromRelationship(result.relationshipStatus),
+    });
+  }
+
   function renderAiReminder(account: Prospect) {
     const settings = settingsByAccount.get(account.id);
     if (!isContactDue(settings?.next_suggested_contact_date, todayIso)) {
@@ -373,6 +433,16 @@ export function ActiveAccountsTab({
                 Could not refresh AI reminders: {refreshError}
               </p>
             ) : null}
+            {outreachError ? (
+              <p className="text-sm text-red-700" role="alert">
+                Could not update outreach: {outreachError}
+              </p>
+            ) : null}
+            {unresponsiveError ? (
+              <p className="text-sm text-red-700" role="alert">
+                Could not update reactivation: {unresponsiveError}
+              </p>
+            ) : null}
           </>
         }
         renderExtraCells={(account) => {
@@ -398,27 +468,62 @@ export function ActiveAccountsTab({
         }}
         renderActions={(account) => {
           const chips = { prospectId: account.id, prospectName: account.name };
+          const accountItems: RowActionSection['items'] = [
+            {
+              id: 'open',
+              label: 'Open account',
+              onSelect: () => setDetailAccount(account),
+            },
+            {
+              id: 'log-call',
+              label: 'Log call',
+              onSelect: () => onLogCall(account),
+            },
+            {
+              id: 'log-order',
+              label: 'Log order / reorder',
+              onSelect: () => setHistoryAccount(account),
+            },
+          ];
+          const reactivationRow = isReactivationCandidate(account, {
+            hasQualifyingOrderLast365Days: hasQualifyingOrderLast365Days(
+              ordersByAccount.get(account.id) ?? [],
+              todayIso,
+            ),
+          });
+          const inOutreach = hasMarker(account.lineAccountMarkers, 'outreach_eligible');
+          const unresponsive = hasMarker(account.lineAccountMarkers, 'reactivation_unresponsive');
+          if (isApprovedOwner(profile) && reactivationRow && !unresponsive) {
+            accountItems.push({
+              id: 'outreach-opt-in',
+              label: inOutreach ? 'Remove from outreach' : 'Include in outreach',
+              disabled: outreachBusyId === account.id,
+              onSelect: () => void handleOutreachOptIn(account, !inOutreach),
+            });
+            accountItems.push({
+              id: 'mark-unresponsive',
+              label: 'Mark unresponsive',
+              disabled: unresponsiveBusyId === account.id,
+              onSelect: () => void handleReactivationUnresponsive(account, 'mark_unresponsive'),
+            });
+          }
+          if (
+            isApprovedOwner(profile) &&
+            unresponsive &&
+            account.lineRelationshipStatus === 'inactive'
+          ) {
+            accountItems.push({
+              id: 'reopen-candidate',
+              label: 'Reopen as candidate',
+              disabled: unresponsiveBusyId === account.id,
+              onSelect: () => void handleReactivationUnresponsive(account, 'reopen_candidate'),
+            });
+          }
           const sections: RowActionSection[] = [
             {
               id: 'account',
               label: 'Account',
-              items: [
-                {
-                  id: 'open',
-                  label: 'Open account',
-                  onSelect: () => setDetailAccount(account),
-                },
-                {
-                  id: 'log-call',
-                  label: 'Log call',
-                  onSelect: () => onLogCall(account),
-                },
-                {
-                  id: 'log-order',
-                  label: 'Log order / reorder',
-                  onSelect: () => setHistoryAccount(account),
-                },
-              ],
+              items: accountItems,
             },
             {
               id: 'ai',

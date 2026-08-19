@@ -791,7 +791,8 @@ create table if not exists retailer_line_accounts (
       line_account_markers <@ array[
         'historical_purchaser',
         'reactivation_candidate',
-        'reactivation_unresponsive'
+        'reactivation_unresponsive',
+        'outreach_eligible'
       ]::text[]
     )
 );

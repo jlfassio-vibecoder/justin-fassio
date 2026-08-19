@@ -3,6 +3,7 @@
  * Bounce/cooldown/pending-draft signals are query-derived from system_messages (no schema in v1).
  */
 
+import { hasMarker } from '@/lib/accountImport/classification';
 import type { AccountContact } from '@/lib/accountContacts';
 import {
   coercePrimaryRetailChannel,
@@ -176,4 +177,27 @@ export function compareOutreachProspectRank(
 
 export function prospectPassesAccountStatus(prospect: Pick<Prospect, 'accountStatus'>): boolean {
   return prospect.accountStatus === 'prospect';
+}
+
+/**
+ * Hard account-status gate for the nightly outreach pool.
+ * Prospects stay eligible; owner-opted reactivation rows are active_account.
+ * Inactive stays excluded.
+ */
+export function prospectPassesOutreachPool(prospect: Pick<Prospect, 'accountStatus'>): boolean {
+  if (prospect.accountStatus === 'inactive') return false;
+  return prospect.accountStatus === 'prospect' || prospect.accountStatus === 'active_account';
+}
+
+/** OGR RLA rows that may enter loadProspectAccounts. */
+export function isRlaInOutreachPool(row: {
+  relationshipStatus: string;
+  markers?: readonly string[] | null;
+}): boolean {
+  if (row.relationshipStatus === 'prospect') return true;
+  if (row.relationshipStatus !== 'opened') return false;
+  if (hasMarker(row.markers, 'reactivation_unresponsive')) return false;
+  return (
+    hasMarker(row.markers, 'reactivation_candidate') && hasMarker(row.markers, 'outreach_eligible')
+  );
 }
