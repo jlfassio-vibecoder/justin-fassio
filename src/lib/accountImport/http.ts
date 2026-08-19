@@ -81,7 +81,7 @@ export function parseRetailerIds(raw: unknown): number[] | undefined {
       typeof value === 'number' && Number.isFinite(value)
         ? Math.floor(value)
         : typeof value === 'string' && value.trim()
-          ? Number(value)
+          ? Math.floor(Number(value))
           : NaN,
     )
     .filter((id) => Number.isFinite(id) && id > 0);

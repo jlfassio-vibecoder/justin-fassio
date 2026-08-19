@@ -56,6 +56,8 @@ describe('ImportHistoryModal', () => {
     expect(src).toMatch(/Resume enrich/);
     expect(src).toMatch(/Retry failed/);
     expect(src).toMatch(/pumpEnrich/);
+    expect(src).toMatch(/jobs\.running > 0/);
+    expect(src).toMatch(/RUNNING_JOB_POLL_MS/);
     expect(src).not.toMatch(/from '@\/lib\/accountImport\/enrich'/);
   });
 });

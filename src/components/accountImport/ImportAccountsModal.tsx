@@ -34,7 +34,7 @@ import type {
   PreviewCounts,
   PreviewImportRow,
 } from '@/lib/accountImport/types';
-import type { EnrichmentSnapshot } from '@/lib/accountImport/enrichStatus';
+import { RUNNING_JOB_POLL_MS, type EnrichmentSnapshot } from '@/lib/accountImport/enrichStatus';
 import { ACCOUNT_IMPORT_TARGET_FIELDS } from '@/lib/accountImport/types';
 import { fetchRepresentedLines, type LinePortfolio } from '@/lib/lines';
 import { useOptionalLineContext } from '@/lib/lineContext';
@@ -156,6 +156,9 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
         setEnrichSnapshot(next.snapshot);
         if (next.snapshot.pauseReason === 'rate_limit') return;
         if (next.snapshot.jobs.queued + next.snapshot.jobs.running === 0) return;
+        if (next.snapshot.jobs.running > 0) {
+          await new Promise((resolve) => setTimeout(resolve, RUNNING_JOB_POLL_MS));
+        }
       }
     }
     void pump();
@@ -192,7 +195,7 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
   }
 
   function handleClose() {
-    if (step === 'importing') return;
+    if (busy || step === 'importing') return;
     pumpAbortRef.current = true;
     reset();
     onClose();
@@ -322,7 +325,7 @@ export function ImportAccountsModal({ open, onClose, onImported }: ImportAccount
             className="text-ink/70 hover:text-ink"
             onClick={handleClose}
             aria-label="Close"
-            disabled={step === 'importing'}
+            disabled={busy || step === 'importing'}
           >
             <X strokeWidth={2.75} className="h-5 w-5" />
           </button>

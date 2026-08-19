@@ -1,6 +1,7 @@
 import type { AccountEnrichmentJobStatus, AccountImportBatchStatus } from '@/types/database';
 
 export const STALE_RUNNING_MS = 120_000;
+export const RUNNING_JOB_POLL_MS = 1000;
 
 export const ENRICHABLE_BATCH_STATUSES: readonly AccountImportBatchStatus[] = [
   'committed',

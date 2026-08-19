@@ -23,6 +23,7 @@ import { commitReportToPreviewCounts } from '@/lib/accountImport/commitReportVie
 import {
   canResumeEnrich,
   canRetryFailedEnrich,
+  RUNNING_JOB_POLL_MS,
   type EnrichmentSnapshot,
 } from '@/lib/accountImport/enrichStatus';
 import type {
@@ -124,6 +125,9 @@ export function ImportHistoryModal({ open, onClose }: ImportHistoryModalProps) {
       setEnrichSnapshot(next.snapshot);
       if (next.snapshot.pauseReason === 'rate_limit') break;
       if (next.snapshot.jobs.queued + next.snapshot.jobs.running === 0) break;
+      if (next.snapshot.jobs.running > 0) {
+        await new Promise((resolve) => setTimeout(resolve, RUNNING_JOB_POLL_MS));
+      }
     }
     setPumping(false);
   }

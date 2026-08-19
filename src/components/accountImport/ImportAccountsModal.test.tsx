@@ -59,6 +59,9 @@ describe('ImportAccountsModal', () => {
     expect(modal).toMatch(/Per-row AI fill-blanks/);
     expect(modal).toMatch(/Enrich all/);
     expect(modal).toMatch(/Enrich selected/);
+    expect(modal).toMatch(/if \(busy \|\| step === 'importing'\) return/);
+    expect(modal).toMatch(/jobs\.running > 0/);
+    expect(modal).toMatch(/RUNNING_JOB_POLL_MS/);
     expect(modal).not.toMatch(/AI enrichment is not part of this import/);
     const progress = readFileSync(
       resolve(process.cwd(), 'src/components/accountImport/EnrichmentProgress.tsx'),
