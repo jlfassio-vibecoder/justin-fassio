@@ -66,14 +66,14 @@ export function parseFeatureFlag(raw: string | undefined | null): boolean {
 }
 
 function readEnv(name: string): string | undefined {
+  const fromProcess =
+    typeof process !== 'undefined' && process.env ? process.env[name] : undefined;
+  if (typeof fromProcess === 'string' && fromProcess.trim()) return fromProcess;
   const fromImportMeta =
     typeof import.meta !== 'undefined'
-      ? (import.meta.env as Record<string, string | undefined>)[name]
+      ? (import.meta.env as Record<string, string | undefined> | undefined)?.[name]
       : undefined;
-  if (typeof fromImportMeta === 'string') return fromImportMeta;
-  if (typeof process !== 'undefined' && process.env) {
-    return process.env[name];
-  }
+  if (typeof fromImportMeta === 'string' && fromImportMeta.trim()) return fromImportMeta;
   return undefined;
 }
 

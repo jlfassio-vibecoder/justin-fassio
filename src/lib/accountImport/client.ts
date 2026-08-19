@@ -9,6 +9,7 @@ import type {
   ImportHistoryBatchDetail,
   ImportHistoryBatchListItem,
 } from '@/lib/accountImport/history';
+import type { EnrichmentSnapshot } from '@/lib/accountImport/enrichStatus';
 import type { AccountImportSourceType } from '@/types/database';
 
 async function bearerHeaders(
@@ -206,4 +207,75 @@ export async function getAccountImportBatchClient(input: {
     return { ok: false, error: payload.error || `History detail failed (${res.status})` };
   }
   return { ok: true, batch: payload.batch };
+}
+
+async function enrichRequest(
+  path: 'start' | 'process' | 'cancel' | 'retry' | 'status',
+  input: { salesLineId: string; batchId: string; retailerIds?: number[]; failedOnly?: boolean },
+): Promise<{ ok: true; snapshot: EnrichmentSnapshot } | { ok: false; error: string }> {
+  const auth = await bearerHeaders(path !== 'status');
+  if (!auth.ok) return auth;
+  const batchPath = encodeURIComponent(input.batchId);
+  const base = `/api/staff/account-import/batches/${batchPath}/enrich/${path}`;
+  const statusQuery = new URLSearchParams({ sales_line_id: input.salesLineId }).toString();
+  const res =
+    path === 'status'
+      ? await fetch(`${base}?${statusQuery}`, {
+          headers: auth.headers,
+        })
+      : await fetch(base, {
+          method: 'POST',
+          headers: auth.headers,
+          body: JSON.stringify({
+            sales_line_id: input.salesLineId,
+            retailer_ids: input.retailerIds,
+            failed_only: input.failedOnly === true,
+          }),
+        });
+  const payload = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    error?: string;
+    snapshot?: EnrichmentSnapshot;
+  };
+  if (!res.ok || !payload.ok || !payload.snapshot) {
+    return { ok: false, error: payload.error || `Enrich ${path} failed (${res.status})` };
+  }
+  return { ok: true, snapshot: payload.snapshot };
+}
+
+export async function startAccountImportEnrichClient(input: {
+  salesLineId: string;
+  batchId: string;
+  retailerIds?: number[];
+  failedOnly?: boolean;
+}) {
+  return enrichRequest('start', input);
+}
+
+export async function processAccountImportEnrichClient(input: {
+  salesLineId: string;
+  batchId: string;
+}) {
+  return enrichRequest('process', input);
+}
+
+export async function getAccountImportEnrichStatusClient(input: {
+  salesLineId: string;
+  batchId: string;
+}) {
+  return enrichRequest('status', input);
+}
+
+export async function cancelAccountImportEnrichClient(input: {
+  salesLineId: string;
+  batchId: string;
+}) {
+  return enrichRequest('cancel', input);
+}
+
+export async function retryAccountImportEnrichClient(input: {
+  salesLineId: string;
+  batchId: string;
+}) {
+  return enrichRequest('retry', input);
 }

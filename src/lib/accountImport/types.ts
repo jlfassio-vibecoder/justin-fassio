@@ -115,6 +115,7 @@ export type ConfirmClassification = {
   markers: LineAccountMarker[];
   existingOgr: string;
   nextAction: string | null;
+  runAiAfterImport?: boolean;
 };
 
 export type AccountImportSourceOption = {

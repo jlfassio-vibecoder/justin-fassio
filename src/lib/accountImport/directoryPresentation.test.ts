@@ -165,6 +165,8 @@ describe('directory presentation', () => {
     );
     expect(historyModal).toMatch(/Re-upload the same file/);
     expect(historyModal).toMatch(/reactivation=1/);
+    expect(historyModal).toMatch(/Resume enrich/);
+    expect(historyModal).not.toMatch(/from '@\/lib\/accountImport\/enrich'/);
     expect(historyModal).not.toMatch(/resume-by-batchId|resumeByBatchId/);
   });
 });

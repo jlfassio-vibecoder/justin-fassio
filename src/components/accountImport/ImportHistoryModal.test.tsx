@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ImportHistoryModal } from '@/components/accountImport/ImportHistoryModal';
@@ -32,6 +34,11 @@ vi.mock('@/lib/lines', async () => {
 vi.mock('@/lib/accountImport/client', () => ({
   listAccountImportBatchesClient: () => Promise.resolve({ ok: true, batches: [] }),
   getAccountImportBatchClient: () => Promise.resolve({ ok: false, error: 'unused' }),
+  getAccountImportEnrichStatusClient: () => Promise.resolve({ ok: false, error: 'unused' }),
+  startAccountImportEnrichClient: () => Promise.resolve({ ok: false, error: 'unused' }),
+  processAccountImportEnrichClient: () => Promise.resolve({ ok: false, error: 'unused' }),
+  cancelAccountImportEnrichClient: () => Promise.resolve({ ok: false, error: 'unused' }),
+  retryAccountImportEnrichClient: () => Promise.resolve({ ok: false, error: 'unused' }),
 }));
 
 describe('ImportHistoryModal', () => {
@@ -39,5 +46,16 @@ describe('ImportHistoryModal', () => {
     render(<ImportHistoryModal open onClose={vi.fn()} />);
     expect(screen.getByText('Import history')).toBeInTheDocument();
     expect(screen.queryByText(/resume by batch/i)).not.toBeInTheDocument();
+  });
+
+  it('exposes Resume enrich and Retry failed as inline history controls', () => {
+    const src = readFileSync(
+      resolve(process.cwd(), 'src/components/accountImport/ImportHistoryModal.tsx'),
+      'utf8',
+    );
+    expect(src).toMatch(/Resume enrich/);
+    expect(src).toMatch(/Retry failed/);
+    expect(src).toMatch(/pumpEnrich/);
+    expect(src).not.toMatch(/from '@\/lib\/accountImport\/enrich'/);
   });
 });
