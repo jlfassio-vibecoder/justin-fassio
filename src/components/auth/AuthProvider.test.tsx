@@ -43,7 +43,7 @@ vi.mock('@/lib/supabase', () => ({
   },
 }));
 
-import { AuthProvider } from '@/components/auth/AuthProvider';
+import { AuthProvider, isTransientAuthFetchError } from '@/components/auth/AuthProvider';
 
 function AuthProbe() {
   const auth = useContext(AuthContext);
@@ -203,6 +203,61 @@ describe('AuthProvider', () => {
     });
     unmount();
     expect(unsubscribeMock).toHaveBeenCalled();
+  });
+
+  it('retries a Failed to fetch profile load', async () => {
+    getSessionMock.mockResolvedValue({ data: { session: sessionFor('owner@example.com') } });
+    maybeSingleMock
+      .mockResolvedValueOnce({ data: null, error: { message: 'TypeError: Failed to fetch' } })
+      .mockResolvedValueOnce({ data: PROFILE, error: null });
+
+    render(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>,
+    );
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('role').textContent).toBe('owner');
+      },
+      { timeout: 2000 },
+    );
+    expect(maybeSingleMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the last profile when a reload hits a network change', async () => {
+    const user = userEvent.setup();
+    getSessionMock.mockResolvedValue({ data: { session: sessionFor('owner@example.com') } });
+    maybeSingleMock
+      .mockResolvedValueOnce({ data: PROFILE, error: null })
+      .mockResolvedValue({ data: null, error: { message: 'Failed to fetch' } });
+
+    render(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('display-name').textContent).toBe('Owner');
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Reload profile' }));
+
+    await waitFor(() => {
+      expect(maybeSingleMock.mock.calls.length).toBeGreaterThanOrEqual(3);
+    });
+    expect(screen.getByTestId('display-name').textContent).toBe('Owner');
+    expect(screen.getByTestId('role').textContent).toBe('owner');
+  });
+});
+
+describe('isTransientAuthFetchError', () => {
+  it('matches Chrome transport failures', () => {
+    expect(isTransientAuthFetchError({ message: 'TypeError: Failed to fetch' })).toBe(true);
+    expect(isTransientAuthFetchError({ message: 'net::ERR_NETWORK_CHANGED' })).toBe(true);
+    expect(isTransientAuthFetchError({ message: 'JWT expired' })).toBe(false);
   });
 });
 

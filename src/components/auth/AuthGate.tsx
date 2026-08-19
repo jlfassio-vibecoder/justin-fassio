@@ -332,6 +332,21 @@ function AuthGateInner({
     page === 'prospective' ? (
       <ProspectiveLinesWorkspace lineSlug={urlLineSlug} />
     ) : (
+      <LineUnknownGate requestedSlug={urlLineSlug}>
+        {page === 'account' ? (
+          <StaffAccountPage />
+        ) : (
+          <RepCommandCenter
+            defaultTab={defaultTab}
+            multiLineUi={effectiveMultiLineUi}
+            lineAccountId={lineAccountId}
+          />
+        )}
+      </LineUnknownGate>
+    );
+
+  return (
+    <AiAssistProvider>
       <LineProvider
         multiLineUi={effectiveMultiLineUi}
         multiLineWrites={effectiveMultiLineWrites}
@@ -343,81 +358,66 @@ function AuthGateInner({
         bigFishOutreach={effectiveBigFishOutreach}
         urlLineSlug={urlLineSlug}
       >
-        <LineUnknownGate requestedSlug={urlLineSlug}>
-          {page === 'account' ? (
-            <StaffAccountPage />
-          ) : (
-            <RepCommandCenter
-              defaultTab={defaultTab}
-              multiLineUi={effectiveMultiLineUi}
-              lineAccountId={lineAccountId}
-            />
-          )}
-        </LineUnknownGate>
-      </LineProvider>
-    );
-
-  return (
-    <AiAssistProvider>
-      <div>
-        <div className="border-ink/10 bg-surface/60 text-ink/70 flex flex-wrap items-center justify-end gap-3 border-b px-7 py-2 text-xs">
-          {page === 'account' || page === 'prospective' ? (
-            <a href="/app" className="text-ink/80 hover:text-ink no-underline">
-              Command Center
+        <div>
+          <div className="border-ink/10 bg-surface/60 text-ink/70 flex flex-wrap items-center justify-end gap-3 border-b px-7 py-2 text-xs">
+            {page === 'account' || page === 'prospective' ? (
+              <a href="/app" className="text-ink/80 hover:text-ink no-underline">
+                Command Center
+              </a>
+            ) : null}
+            {isApprovedOwner(profile) && prospectiveLines ? (
+              <a href="/app/prospective-lines" className="text-ink/80 hover:text-ink no-underline">
+                Prospective Lines
+              </a>
+            ) : null}
+            <a
+              href="/app/account"
+              className="text-ink/80 hover:text-ink inline-flex items-center gap-1.5 no-underline"
+            >
+              <StaffToolbarAvatar
+                avatarPath={profile?.avatar_path}
+                displayName={profile?.display_name}
+                emails={[user?.email, profile?.email]}
+              />
+              <span>Account</span>
             </a>
-          ) : null}
-          {isApprovedOwner(profile) && prospectiveLines ? (
-            <a href="/app/prospective-lines" className="text-ink/80 hover:text-ink no-underline">
-              Prospective Lines
-            </a>
-          ) : null}
-          <a
-            href="/app/account"
-            className="text-ink/80 hover:text-ink inline-flex items-center gap-1.5 no-underline"
-          >
-            <StaffToolbarAvatar
-              avatarPath={profile?.avatar_path}
-              displayName={profile?.display_name}
-              emails={[user?.email, profile?.email]}
-            />
-            <span>Account</span>
-          </a>
-          <span className="truncate">{user?.email}</span>
-          {profile?.role && (
-            <span className="bg-bg rounded-full px-2.5 py-0.5 font-semibold capitalize">
-              {profile.role}
-            </span>
-          )}
-          {isApprovedStaff(profile) ? <OwnerWholesaleBuyersPanel /> : null}
-          {isApprovedOwner(profile) ? <OwnerPendingPanel /> : null}
-          <AIAssistantModal />
-          {pingStatus && <span className="text-ink/60">{pingStatus}</span>}
-          <Button
-            type="button"
-            variant="ghost"
-            className="text-xs"
-            disabled={pingBusy}
-            onClick={() => {
-              void handlePingServer();
-            }}
-          >
-            {pingBusy ? 'Pinging…' : 'Ping server'}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            className="text-xs"
-            onClick={() => {
-              void supabase.auth.signOut().then(() => {
-                window.location.href = '/';
-              });
-            }}
-          >
-            Sign out
-          </Button>
+            <span className="truncate">{user?.email}</span>
+            {profile?.role && (
+              <span className="bg-bg rounded-full px-2.5 py-0.5 font-semibold capitalize">
+                {profile.role}
+              </span>
+            )}
+            {isApprovedStaff(profile) ? <OwnerWholesaleBuyersPanel /> : null}
+            {isApprovedOwner(profile) ? <OwnerPendingPanel /> : null}
+            <AIAssistantModal />
+            {pingStatus && <span className="text-ink/60">{pingStatus}</span>}
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-xs"
+              disabled={pingBusy}
+              onClick={() => {
+                void handlePingServer();
+              }}
+            >
+              {pingBusy ? 'Pinging…' : 'Ping server'}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-xs"
+              onClick={() => {
+                void supabase.auth.signOut().then(() => {
+                  window.location.href = '/';
+                });
+              }}
+            >
+              Sign out
+            </Button>
+          </div>
+          {appShell}
         </div>
-        {appShell}
-      </div>
+      </LineProvider>
     </AiAssistProvider>
   );
 }

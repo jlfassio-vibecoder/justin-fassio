@@ -4,6 +4,12 @@ import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { createAgentCrmTools } from '@/lib/agentCrmTools';
 import { checkAgentRateLimit, rateLimitResponse } from '@/lib/agentRateLimit';
 import {
+  aiGatewayUserErrorMessage,
+  hasAiGatewayAuth,
+  LOCAL_AI_GATEWAY_AUTH_HELP,
+  staffGatewayModel,
+} from '@/lib/aiGatewayEnv';
+import {
   gateStaffAiContext,
   parseOptionalPositiveInt,
   parseOptionalUuidField,
@@ -76,6 +82,10 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonError(gated.error, gated.status);
   }
 
+  if (!hasAiGatewayAuth()) {
+    return jsonError(LOCAL_AI_GATEWAY_AUTH_HELP, 503);
+  }
+
   const tools = createAgentCrmTools(gate.supabase, gated.ctx ?? undefined);
   // AI SDK 6+: convertToModelMessages is async (supports async Tool.toModelOutput).
   const modelMessages = await convertToModelMessages(body.messages);
@@ -93,7 +103,7 @@ export const POST: APIRoute = async ({ request }) => {
   // Model strings like openai/gpt-4o route through Vercel AI Gateway (OIDC on Vercel; AI_GATEWAY_API_KEY locally).
   // Spend caps: stepCountIs(5) + maxOutputTokens; request rate: checkAgentRateLimit (per user, in-memory).
   const result = streamText({
-    model: 'openai/gpt-4o',
+    model: staffGatewayModel(),
     system,
     messages: modelMessages,
     tools,
@@ -101,5 +111,7 @@ export const POST: APIRoute = async ({ request }) => {
     maxOutputTokens: 1100,
   });
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    onError: aiGatewayUserErrorMessage,
+  });
 };

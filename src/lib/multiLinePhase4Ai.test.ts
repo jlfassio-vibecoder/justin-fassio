@@ -72,6 +72,12 @@ describe('Phase 4 FEATURE_MULTI_LINE_AI flag', () => {
     const gate = readFileSync(resolve(root, 'src/components/auth/AuthGate.tsx'), 'utf8');
     expect(gate).toMatch(/FEATURE_MULTI_LINE_AI/);
     expect(gate).toMatch(/multiLineAi/);
+    const providerOpen = gate.indexOf('<LineProvider');
+    const assistModal = gate.indexOf('<AIAssistantModal');
+    const providerClose = gate.lastIndexOf('</LineProvider>');
+    expect(providerOpen).toBeGreaterThan(-1);
+    expect(assistModal).toBeGreaterThan(providerOpen);
+    expect(providerClose).toBeGreaterThan(assistModal);
   });
 });
 
