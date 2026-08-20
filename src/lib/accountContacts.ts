@@ -135,6 +135,17 @@ export type FetchAllContactsOptions = {
   salesLineId?: string;
 };
 
+/** Keep PostgREST `.in(uuid…)` GET URLs under typical Kong/nginx limits (~8KB). */
+export const POSTGREST_UUID_IN_CHUNK = 80;
+
+export function chunkIds<T>(ids: readonly T[], size = POSTGREST_UUID_IN_CHUNK): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < ids.length; i += size) {
+    chunks.push(ids.slice(i, i + size));
+  }
+  return chunks;
+}
+
 /** All contacts joined with store fields for the Contacts directory. */
 export async function fetchAllContacts(options: FetchAllContactsOptions = {}): Promise<{
   data: ContactDirectoryRow[];
@@ -166,17 +177,23 @@ export async function fetchAllContacts(options: FetchAllContactsOptions = {}): P
       return { data: [], error: null };
     }
 
-    const { data: junctionRows, error: junctionError } = await supabase
-      .from('retailer_line_contacts')
-      .select('account_contact_id')
-      .in('retailer_line_account_id', lineAccountIds);
+    const junctionContactIds: string[] = [];
+    for (const chunk of chunkIds(lineAccountIds)) {
+      const { data: junctionRows, error: junctionError } = await supabase
+        .from('retailer_line_contacts')
+        .select('account_contact_id')
+        .in('retailer_line_account_id', chunk);
 
-    if (junctionError) {
-      return { data: [], error: junctionError.message };
+      if (junctionError) {
+        return { data: [], error: junctionError.message };
+      }
+      for (const row of junctionRows ?? []) {
+        junctionContactIds.push(row.account_contact_id);
+      }
     }
 
-    if ((junctionRows ?? []).length > 0) {
-      allowedContactIds = new Set((junctionRows ?? []).map((r) => r.account_contact_id));
+    if (junctionContactIds.length > 0) {
+      allowedContactIds = new Set(junctionContactIds);
     }
   }
 
