@@ -356,21 +356,31 @@ describe('Phase 6 insertOrder USD conversion', () => {
     expect(insertMock).not.toHaveBeenCalled();
   });
 
-  it('OGR still rejects USD original_currency', async () => {
+  it('OGR accepts USD original_currency with FX stamp', async () => {
     const usd = await insertOrder(
       {
         account_id: 1,
         order_type: 'initial',
         season: 'fathers_day',
+        order_date: '2026-08-15',
         total_amount_cad: 100,
+        original_amount: 100,
         original_currency: 'USD',
+        exchange_rate: 1.38,
+        exchange_rate_date: '2026-08-15',
         line_id: 'line-ogr',
         retailer_line_account_id: 'rla-ogr',
       },
-      { writesEnabled: true, lineCode: 'ogr' },
+      { writesEnabled: true, lineCode: 'ogr', lineDefaultCurrency: 'USD' },
     );
-    expect(usd.error).toMatch(/cannot use USD/);
-    expect(insertMock).not.toHaveBeenCalled();
+    expect(usd.error).toBeNull();
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        original_currency: 'USD',
+        total_amount_cad: 138,
+        conversion_source: 'staff_usd_cad',
+      }),
+    );
   });
 });
 

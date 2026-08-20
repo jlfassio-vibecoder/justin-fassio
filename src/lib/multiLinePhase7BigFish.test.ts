@@ -344,7 +344,7 @@ describe('Phase 7 insertOrder currency', () => {
     expect(insertMock).not.toHaveBeenCalled();
   });
 
-  it('rejects unknown default_currency and keeps OGR USD reject', async () => {
+  it('rejects unknown default_currency; OGR USD requires FX', async () => {
     const eur = await insertOrder(
       {
         account_id: 9,
@@ -375,9 +375,9 @@ describe('Phase 7 insertOrder currency', () => {
         line_id: 'line-ogr',
         retailer_line_account_id: 'rla-ogr',
       },
-      { writesEnabled: true, lineCode: 'ogr' },
+      { writesEnabled: true, lineCode: 'ogr', lineDefaultCurrency: 'USD' },
     );
-    expect(usd.error).toMatch(/cannot use USD/);
+    expect(usd.error).toMatch(/exchange_rate/);
     expect(insertMock).not.toHaveBeenCalled();
   });
 });

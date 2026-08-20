@@ -153,22 +153,35 @@ describe('Phase 3 insertOrder currency', () => {
     singleMock.mockResolvedValue({ data: { id: 'ord-1' }, error: null });
   });
 
-  it('OGR insert does not set original_currency = USD', async () => {
+  it('OGR unspecified defaults to USD with FX stamp; explicit CAD preserved', async () => {
     const usd = await insertOrder(
       {
         account_id: 1,
         order_type: 'initial',
         season: 'fathers_day',
+        order_date: '2026-08-15',
         total_amount_cad: 100,
+        original_amount: 100,
         original_currency: 'USD',
+        exchange_rate: 1.38,
+        exchange_rate_date: '2026-08-15',
         line_id: 'line-ogr',
         retailer_line_account_id: 'rla-ogr',
       },
-      { writesEnabled: true, lineCode: 'ogr' },
+      { writesEnabled: true, lineCode: 'ogr', lineDefaultCurrency: 'USD' },
     );
-    expect(usd.error).toMatch(/cannot use USD/);
-    expect(insertMock).not.toHaveBeenCalled();
+    expect(usd.error).toBeNull();
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        original_currency: 'USD',
+        original_amount: 100,
+        exchange_rate: 1.38,
+        total_amount_cad: 138,
+        conversion_source: 'staff_usd_cad',
+      }),
+    );
 
+    insertMock.mockClear();
     const cad = await insertOrder(
       {
         account_id: 1,
@@ -176,20 +189,20 @@ describe('Phase 3 insertOrder currency', () => {
         season: 'fathers_day',
         order_date: '2026-08-15',
         total_amount_cad: 100,
+        original_currency: 'CAD',
         line_id: 'line-ogr',
         retailer_line_account_id: 'rla-ogr',
       },
-      { writesEnabled: true, lineCode: 'ogr' },
+      { writesEnabled: true, lineCode: 'ogr', lineDefaultCurrency: 'USD' },
     );
     expect(cad.error).toBeNull();
     expect(insertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         original_currency: 'CAD',
         conversion_source: 'legacy_cad_column',
+        total_amount_cad: 100,
       }),
     );
-    const payload = insertMock.mock.calls[0]?.[0] as { original_currency?: string };
-    expect(payload.original_currency).not.toBe('USD');
   });
 });
 

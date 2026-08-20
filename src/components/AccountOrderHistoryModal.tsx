@@ -89,18 +89,21 @@ function OrderHistoryForm({
     },
   );
   const isEpOrder = line.lineSlug === 'eagle-peak' && line.eaglePeakSelling;
+  const isOgrOrder = !line.lineSlug || line.lineSlug === 'ogr';
+  const [ogrCurrency, setOgrCurrency] = useState<'USD' | 'CAD'>('USD');
+  const usesUsdFx = isEpOrder || (isOgrOrder && ogrCurrency === 'USD');
   const [amountUsd, setAmountUsd] = useState('');
   const [exchangeRate, setExchangeRate] = useState(() =>
-    isEpOrder ? String(loadLandedRatesPersistence().fx) : '',
+    usesUsdFx || isOgrOrder ? String(loadLandedRatesPersistence().fx) : '',
   );
-  const epPreview = isEpOrder
+  const usdPreview = usesUsdFx
     ? buildEaglePeakOrderConversion({
         originalAmountUsd: amountUsd,
         exchangeRate,
         exchangeRateDate: orderDate,
       })
     : null;
-  const epPreviewCad = epPreview?.ok ? epPreview.stamp.total_amount_cad.toFixed(2) : null;
+  const usdPreviewCad = usdPreview?.ok ? usdPreview.stamp.total_amount_cad.toFixed(2) : null;
 
   const filteredOrders = useMemo(
     () => filterOrdersBySeason(orders, seasonFilter),
@@ -112,15 +115,17 @@ function OrderHistoryForm({
     setError(null);
 
     const amount = amountCad === '' ? 0 : Number(amountCad);
-    let epStamp: ReturnType<typeof buildEaglePeakOrderConversion> | null = null;
-    if (isEpOrder) {
-      epStamp = buildEaglePeakOrderConversion({
+    let usdStamp: ReturnType<typeof buildEaglePeakOrderConversion> | null = null;
+    if (usesUsdFx) {
+      usdStamp = buildEaglePeakOrderConversion({
         originalAmountUsd: amountUsd,
         exchangeRate,
         exchangeRateDate: orderDate,
       });
-      if (!epStamp.ok) {
-        setError(epStamp.error);
+      if (!usdStamp.ok) {
+        setError(
+          isOgrOrder ? usdStamp.error.replace(/^Eagle Peak orders/, 'OGR orders') : usdStamp.error,
+        );
         return;
       }
     } else if (Number.isNaN(amount) || amount < 0) {
@@ -153,14 +158,22 @@ function OrderHistoryForm({
           order_type: orderType,
           season,
           order_date: orderDate,
-          total_amount_cad: epStamp?.ok ? epStamp.stamp.total_amount_cad : amount,
-          original_amount: epStamp?.ok ? epStamp.stamp.original_amount : undefined,
-          original_currency: epStamp?.ok ? epStamp.stamp.original_currency : undefined,
-          exchange_rate: epStamp?.ok ? epStamp.stamp.exchange_rate : undefined,
-          exchange_rate_date: epStamp?.ok ? epStamp.stamp.exchange_rate_date : undefined,
-          conversion_source: epStamp?.ok ? epStamp.stamp.conversion_source : undefined,
-          converted_amount: epStamp?.ok ? epStamp.stamp.converted_amount : undefined,
-          converted_currency: epStamp?.ok ? epStamp.stamp.converted_currency : undefined,
+          total_amount_cad: usdStamp?.ok ? usdStamp.stamp.total_amount_cad : amount,
+          original_amount: usdStamp?.ok
+            ? usdStamp.stamp.original_amount
+            : isOgrOrder && ogrCurrency === 'CAD'
+              ? amount
+              : undefined,
+          original_currency: usdStamp?.ok
+            ? usdStamp.stamp.original_currency
+            : isOgrOrder && ogrCurrency === 'CAD'
+              ? 'CAD'
+              : undefined,
+          exchange_rate: usdStamp?.ok ? usdStamp.stamp.exchange_rate : undefined,
+          exchange_rate_date: usdStamp?.ok ? usdStamp.stamp.exchange_rate_date : undefined,
+          conversion_source: usdStamp?.ok ? usdStamp.stamp.conversion_source : undefined,
+          converted_amount: usdStamp?.ok ? usdStamp.stamp.converted_amount : undefined,
+          converted_currency: usdStamp?.ok ? usdStamp.stamp.converted_currency : undefined,
           status,
           notes: notes.trim() || null,
         },
@@ -215,7 +228,22 @@ function OrderHistoryForm({
       order_type: orderType,
       season,
       order_date: orderDate,
-      total_amount_cad: amount,
+      total_amount_cad: usdStamp?.ok ? usdStamp.stamp.total_amount_cad : amount,
+      original_amount: usdStamp?.ok
+        ? usdStamp.stamp.original_amount
+        : isOgrOrder && ogrCurrency === 'CAD'
+          ? amount
+          : undefined,
+      original_currency: usdStamp?.ok
+        ? usdStamp.stamp.original_currency
+        : isOgrOrder && ogrCurrency === 'CAD'
+          ? 'CAD'
+          : undefined,
+      exchange_rate: usdStamp?.ok ? usdStamp.stamp.exchange_rate : undefined,
+      exchange_rate_date: usdStamp?.ok ? usdStamp.stamp.exchange_rate_date : undefined,
+      conversion_source: usdStamp?.ok ? usdStamp.stamp.conversion_source : undefined,
+      converted_amount: usdStamp?.ok ? usdStamp.stamp.converted_amount : undefined,
+      converted_currency: usdStamp?.ok ? usdStamp.stamp.converted_currency : undefined,
       status,
       notes: notes.trim() || null,
     });
@@ -393,8 +421,22 @@ function OrderHistoryForm({
               </Field>
             </div>
 
+            {isOgrOrder && !isEpOrder ? (
+              <Field>
+                <FieldLabel>Original currency</FieldLabel>
+                <Select
+                  value={ogrCurrency}
+                  onChange={(e) => setOgrCurrency(e.target.value as 'USD' | 'CAD')}
+                  disabled={busy}
+                >
+                  <option value="USD">USD (default)</option>
+                  <option value="CAD">CAD</option>
+                </Select>
+              </Field>
+            ) : null}
+
             <div className="grid grid-cols-2 gap-3">
-              {isEpOrder ? (
+              {usesUsdFx ? (
                 <>
                   <Field>
                     <FieldLabel>Amount (USD)</FieldLabel>
@@ -451,9 +493,9 @@ function OrderHistoryForm({
               </Field>
             </div>
 
-            {isEpOrder && epPreviewCad != null ? (
+            {usesUsdFx && usdPreviewCad != null ? (
               <p className="text-ink/60 m-0 text-sm">
-                CAD reporting amount: {epPreviewCad} (rate date = order date)
+                CAD reporting amount: {usdPreviewCad} (rate date = order date)
               </p>
             ) : null}
 

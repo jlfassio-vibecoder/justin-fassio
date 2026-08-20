@@ -27,6 +27,8 @@ export interface ConvertInitialOrderInput {
   /** YYYY-MM-DD; defaults to today (local). */
   orderDate?: string;
   lineId?: string | null;
+  /** Explicit original currency; defaults from FX fields or line default via insertOrder. */
+  originalCurrency?: 'USD' | 'CAD';
   originalAmountUsd?: number;
   exchangeRate?: number;
   exchangeRateDate?: string;
@@ -137,8 +139,14 @@ export async function convertToActiveAccount(
         season: input.initialOrder.season,
         order_date: orderDate,
         total_amount_cad: input.initialOrder.totalAmountCad,
-        original_amount: input.initialOrder.originalAmountUsd ?? null,
-        original_currency: input.initialOrder.originalAmountUsd != null ? 'USD' : null,
+        original_amount:
+          input.initialOrder.originalAmountUsd ??
+          (input.initialOrder.originalCurrency === 'CAD'
+            ? input.initialOrder.totalAmountCad
+            : null),
+        original_currency:
+          input.initialOrder.originalCurrency ??
+          (input.initialOrder.originalAmountUsd != null ? 'USD' : null),
         exchange_rate: input.initialOrder.exchangeRate ?? null,
         exchange_rate_date: input.initialOrder.exchangeRateDate ?? null,
         conversion_source: input.initialOrder.fxConversionSource ?? null,
