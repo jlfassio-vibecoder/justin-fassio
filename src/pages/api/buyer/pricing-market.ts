@@ -9,7 +9,11 @@ export const prerender = false;
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'private, no-store',
+      Vary: 'Authorization',
+    },
   });
 }
 
