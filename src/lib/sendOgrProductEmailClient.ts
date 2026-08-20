@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import type { PublicMarket } from '@/lib/pricingMarket';
 
 export type SendOgrProductEmailInput = {
   productId: string;
@@ -11,6 +12,7 @@ export type SendOgrProductEmailInput = {
   accountContactId?: string;
   salesLineId?: string;
   retailerLineAccountId?: string;
+  market?: PublicMarket;
 };
 
 export type SendOgrProductEmailResult =
@@ -57,6 +59,9 @@ export async function sendOgrProductEmail(
   }
   if (input.retailerLineAccountId != null && input.retailerLineAccountId.trim()) {
     body.retailerLineAccountId = input.retailerLineAccountId.trim();
+  }
+  if (input.market != null) {
+    body.market = input.market;
   }
 
   const res = await fetch('/api/staff/ogr-product-email', {

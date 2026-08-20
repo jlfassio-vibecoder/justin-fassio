@@ -1,6 +1,8 @@
 import { OGR_WHOLESALE_PATH } from '@/data/landing';
+import { ogrWholesaleCollectionPath, type PublicMarket } from '@/lib/pricingMarket';
 
 export { OGR_WHOLESALE_PATH };
+export type { PublicMarket };
 
 const DEFAULT_PUBLIC_SITE_ORIGIN = 'https://justinfassio.com';
 
@@ -18,19 +20,56 @@ export function normalizeOgrProductSlug(slug: string): string {
   return normalized;
 }
 
-/** `/old-guys-rule-wholesale/{slug}` — no query/hash. Throws on invalid slug. */
-export function buildOgrProductPath(slug: string): string {
+/** `/old-guys-rule-wholesale/{slug}` or `/old-guys-rule-wholesale/us/{slug}` — no query/hash. */
+export function buildOgrProductPath(slug: string, publicMarket: PublicMarket = 'ca'): string {
   const normalized = normalizeOgrProductSlug(slug);
-  return `${OGR_WHOLESALE_PATH}/${encodeURIComponent(normalized)}`;
+  return `${ogrWholesaleCollectionPath(publicMarket)}/${encodeURIComponent(normalized)}`;
 }
 
 /** Same as `buildOgrProductPath`, but returns null instead of throwing on invalid slug. */
-export function tryBuildOgrProductPath(slug: string): string | null {
+export function tryBuildOgrProductPath(
+  slug: string,
+  publicMarket: PublicMarket = 'ca',
+): string | null {
   try {
-    return buildOgrProductPath(slug);
+    return buildOgrProductPath(slug, publicMarket);
   } catch {
     return null;
   }
+}
+
+/**
+ * Product slug from a public OGR wholesale path, or null on collection / unknown.
+ * `us` is reserved and is never treated as a product slug.
+ */
+export function parseOgrWholesaleProductSlug(pathname: string): string | null {
+  const path = pathname.replace(/\/+$/, '') || '/';
+  const usPrefix = `${ogrWholesaleCollectionPath('us')}/`;
+  const caPrefix = `${ogrWholesaleCollectionPath('ca')}/`;
+  let rest: string | null = null;
+  if (path.startsWith(usPrefix)) {
+    rest = path.slice(usPrefix.length);
+  } else if (path.startsWith(caPrefix)) {
+    rest = path.slice(caPrefix.length);
+  }
+  if (!rest || rest.includes('/')) return null;
+  if (rest === 'us') return null;
+  try {
+    return decodeURIComponent(rest);
+  } catch {
+    return rest;
+  }
+}
+
+export function ogrWholesaleHrefForLocation(
+  nextMarket: PublicMarket,
+  location: { pathname: string; search: string },
+): string {
+  const slug = parseOgrWholesaleProductSlug(location.pathname);
+  const path = slug
+    ? buildOgrProductPath(slug, nextMarket)
+    : ogrWholesaleCollectionPath(nextMarket);
+  return location.search ? `${path}${location.search}` : path;
 }
 
 function normalizeOriginBase(origin: string): string {
@@ -68,18 +107,26 @@ export function buildCanonicalUrl(path: string, origin: string): string {
   return new URL(trimmedPath, `${originBase}/`).toString();
 }
 
-export function buildOgrCollectionUrl(origin: string): string {
-  return buildCanonicalUrl(OGR_WHOLESALE_PATH, origin);
+export function buildOgrCollectionUrl(origin: string, publicMarket: PublicMarket = 'ca'): string {
+  return buildCanonicalUrl(ogrWholesaleCollectionPath(publicMarket), origin);
 }
 
-export function buildOgrProductUrl(slug: string, origin: string): string {
-  return buildCanonicalUrl(buildOgrProductPath(slug), origin);
+export function buildOgrProductUrl(
+  slug: string,
+  origin: string,
+  publicMarket: PublicMarket = 'ca',
+): string {
+  return buildCanonicalUrl(buildOgrProductPath(slug, publicMarket), origin);
 }
 
 /** Same as `buildOgrProductUrl`, but returns null instead of throwing on invalid slug/origin. */
-export function tryBuildOgrProductUrl(slug: string, origin: string): string | null {
+export function tryBuildOgrProductUrl(
+  slug: string,
+  origin: string,
+  publicMarket: PublicMarket = 'ca',
+): string | null {
   try {
-    return buildOgrProductUrl(slug, origin);
+    return buildOgrProductUrl(slug, origin, publicMarket);
   } catch {
     return null;
   }

@@ -17,6 +17,7 @@ import type { SelectedOutreachTarget } from '@/lib/outreachSelectTargets';
 import { AGENT_OUTREACH_PENDING_DRAFT_STATUSES } from '@/lib/outreachSelectionConstants';
 import { loadPublishedOgrProductForEmail } from '@/lib/loadPublishedOgrProductForEmail';
 import { buildOgrProductUrl, resolvePublicSiteOrigin } from '@/lib/productUrls';
+import { resolveOgrPricingMarketForProductEmailDraft } from '@/lib/resolveAccountPricingMarket';
 import {
   buildPublicProductPresentation,
   PUBLIC_PRESENTATION_FORBIDDEN_KEYS,
@@ -438,8 +439,14 @@ export async function generateOgrProductOutreachDraft(
     return { ok: false, error: loaded.message };
   }
 
+  const emailMarket = (
+    await resolveOgrPricingMarketForProductEmailDraft(client, {
+      prospectId: target.prospectId,
+    })
+  ).publicMarket;
   const presentation = buildPublicProductPresentation(loaded.product, {
     salesVolumeRank: target.productSalesRank,
+    publicMarket: emailMarket,
   });
   const prospectCtx = await loadProspectContext(client, target.prospectId);
   const promptCtx = buildSafeOutreachPromptContext({
@@ -457,12 +464,17 @@ export async function generateOgrProductOutreachDraft(
 
   const copy = await produceOutreachCopy(promptCtx);
   const subject = defaultOgrProductEmailSubject(presentation.name);
-  const productHref = buildOgrProductUrl(resolvePublicSiteOrigin(), presentation.slug);
+  const origin = resolvePublicSiteOrigin();
+  const productHref =
+    emailMarket === 'us'
+      ? buildOgrProductUrl(presentation.slug, origin, 'us')
+      : buildOgrProductUrl(presentation.slug, origin);
   const payload: ProductOutreachSystemMessagePayload = {
     sku: presentation.sku,
     name: presentation.name,
     slug: presentation.slug,
     productHref,
+    ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
     generation: buildGenerationMeta(target, copy),
   };
 

@@ -6,7 +6,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { cartItemsToDraft, fetchBuyerCartItems, enqueueBuyerCartSync } from '@/lib/buyerCart';
 import { fetchBuyerLikedProductIds } from '@/lib/buyerLikes';
 import { fetchPublicOgrProducts, type PublicOgrProduct } from '@/lib/publicCatalog';
-import { tryBuildOgrProductPath, OGR_WHOLESALE_PATH } from '@/lib/productUrls';
+import { tryBuildOgrProductPath } from '@/lib/productUrls';
+import { fetchBuyerPricingMarket } from '@/lib/buyerPricingMarket';
+import { ogrWholesaleCollectionPath, type PublicMarket } from '@/lib/pricingMarket';
 import { formatMerchandiseSubtotalUsd, formatWholesaleUsd } from '@/lib/wholesalePricing';
 import {
   getWholesaleOrderDraftSnapshot,
@@ -21,6 +23,7 @@ function BuyerAccountInner() {
   const [likedIds, setLikedIds] = useState<string[]>([]);
   const [products, setProducts] = useState<PublicOgrProduct[]>([]);
   const [statusNote, setStatusNote] = useState<string | null>(null);
+  const [showroomMarket, setShowroomMarket] = useState<PublicMarket>('ca');
 
   useEffect(() => {
     if (!loading && configured && !session) {
@@ -48,6 +51,10 @@ function BuyerAccountInner() {
 
       if (catalogResult.data) setProducts(catalogResult.data);
       if (likesResult.data) setLikedIds(likesResult.data);
+
+      const rlaMarket = await fetchBuyerPricingMarket();
+      if (!active) return;
+      if (rlaMarket) setShowroomMarket(rlaMarket.publicMarket);
 
       const local = getWholesaleOrderDraftSnapshot();
       if (cartResult.data.length > 0 && local.lines.length === 0) {
@@ -101,7 +108,10 @@ function BuyerAccountInner() {
           Justin Fassio
         </a>
         <div className="flex items-center gap-3 text-sm">
-          <a href={OGR_WHOLESALE_PATH} className="text-ink/70 no-underline hover:underline">
+          <a
+            href={ogrWholesaleCollectionPath(showroomMarket)}
+            className="text-ink/70 no-underline hover:underline"
+          >
             Showroom
           </a>
           <Button
@@ -149,7 +159,10 @@ function BuyerAccountInner() {
           ) : draft.lines.length === 0 ? (
             <p className="text-ink/60 m-0 text-sm">
               No saved lines yet.{' '}
-              <a href={OGR_WHOLESALE_PATH} className="text-accent-700 hover:underline">
+              <a
+                href={ogrWholesaleCollectionPath(showroomMarket)}
+                className="text-accent-700 hover:underline"
+              >
                 Browse the collection
               </a>
             </p>
@@ -173,7 +186,7 @@ function BuyerAccountInner() {
               </ul>
               <div className="flex flex-wrap gap-2">
                 <a
-                  href={`${OGR_WHOLESALE_PATH}#order-builder`}
+                  href={`${ogrWholesaleCollectionPath(showroomMarket)}#order-builder`}
                   className="bg-accent-700 px-4.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center rounded-full py-2 text-sm no-underline"
                 >
                   Continue in showroom
@@ -210,7 +223,7 @@ function BuyerAccountInner() {
           ) : (
             <ul className="gap-3.1 m-0 grid list-none p-0 sm:grid-cols-2">
               {likedProducts.map((product) => {
-                const productPath = tryBuildOgrProductPath(product.publicSlug);
+                const productPath = tryBuildOgrProductPath(product.publicSlug, showroomMarket);
                 return (
                   <li key={product.id} className="border-divider rounded-lg border p-3 text-sm">
                     {productPath ? (

@@ -17,6 +17,8 @@ import {
 } from '@/lib/productUrls';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import { sendOgrProductOutreachEmail } from '@/lib/sendOgrProductOutreachEmail';
+import { resolvePricingMarketForRetailerLineAccount } from '@/lib/resolveAccountPricingMarket';
+import { normalizePublicMarket, type PublicMarket } from '@/lib/pricingMarket';
 import {
   insertProductOutreachSystemMessage,
   resolveProductOutreachCrmAssociation,
@@ -86,6 +88,22 @@ function parseOptionalAccountContactId(
   return parseOptionalUuid(value, 'accountContactId');
 }
 
+function parseOptionalPublicMarket(
+  value: unknown,
+): { ok: true; value: PublicMarket | undefined } | { ok: false; error: string } {
+  if (value == null) return { ok: true, value: undefined };
+  if (typeof value !== 'string') {
+    return { ok: false, error: 'market must be ca or us' };
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return { ok: true, value: undefined };
+  const normalized = normalizePublicMarket(trimmed);
+  if (!normalized) {
+    return { ok: false, error: 'market must be ca or us' };
+  }
+  return { ok: true, value: normalized };
+}
+
 export const POST: APIRoute = async ({ request }) => {
   const gate = await requireApprovedStaffClient(request);
   if (!gate.ok) return gate.response;
@@ -105,6 +123,7 @@ export const POST: APIRoute = async ({ request }) => {
     from?: unknown;
     signatureName?: unknown;
     productHref?: unknown;
+    market?: unknown;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -174,6 +193,9 @@ export const POST: APIRoute = async ({ request }) => {
   );
   if (!retailerLineAccountIdResult.ok) return jsonError(retailerLineAccountIdResult.error, 400);
 
+  const marketResult = parseOptionalPublicMarket(body.market);
+  if (!marketResult.ok) return jsonError(marketResult.error, 400);
+
   const loaded = await loadPublishedOgrProductForEmail(
     gate.supabase,
     productId,
@@ -213,12 +235,22 @@ export const POST: APIRoute = async ({ request }) => {
       retailerLineAccountId = rla.retailerLineAccountId;
     }
 
-    const presentation = buildPublicProductPresentation(loaded.product);
+    const emailMarket = retailerLineAccountId
+      ? (await resolvePricingMarketForRetailerLineAccount(gate.supabase, retailerLineAccountId))
+          .publicMarket
+      : (marketResult.value ?? 'ca');
+    const presentation = buildPublicProductPresentation(loaded.product, {
+      publicMarket: emailMarket,
+    });
     const origin = resolvePublicSiteOrigin({
       requestOrigin: new URL(request.url).origin,
     });
-    productHref = buildOgrProductUrl(presentation.slug, origin);
-    const catalogHref = buildOgrCollectionUrl(origin);
+    productHref =
+      emailMarket === 'us'
+        ? buildOgrProductUrl(presentation.slug, origin, 'us')
+        : buildOgrProductUrl(presentation.slug, origin);
+    const catalogHref =
+      emailMarket === 'us' ? buildOgrCollectionUrl(origin, 'us') : buildOgrCollectionUrl(origin);
 
     const [{ data: profile }, { data: userData }] = await Promise.all([
       gate.supabase
@@ -301,6 +333,7 @@ export const POST: APIRoute = async ({ request }) => {
         name: loaded.product.name,
         slug: presentation.slug,
         productHref,
+        ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
       },
     });
 

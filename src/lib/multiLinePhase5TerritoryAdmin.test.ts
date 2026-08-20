@@ -57,6 +57,7 @@ const OR_GEO = {
   level: 'province_state',
   status: 'active',
   parent_territory_id: null,
+  country_code: 'US',
 };
 
 type MockOpts = {
@@ -409,6 +410,7 @@ describe('Phase 5 line + geo allowlists', () => {
       territoryId: OR_GEO.id,
       territoryCode: 'or',
       territoryName: 'Oregon',
+      countryCode: 'US',
       parentTerritoryCode: null,
       parentTerritoryName: null,
       geoLevel: 'province_state',

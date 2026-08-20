@@ -24,6 +24,7 @@ import { catalogItemToPublicOgrProduct, type CatalogItem } from '@/lib/catalog';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { renderOgrProductEmailCard } from '@/lib/ogrProductEmailCard';
 import { buildOgrCollectionUrl, tryBuildOgrProductUrl } from '@/lib/productUrls';
+import { resolvePricingMarketFromRlaAssignment, type PublicMarket } from '@/lib/pricingMarket';
 import { primaryRetailChannelLabel, updateProspectTaxonomy, type Prospect } from '@/lib/prospects';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
@@ -71,12 +72,18 @@ function formatTimestamp(iso: string | null): string {
 
 type AccountEmailFlow = 'closed' | 'pick' | 'compose';
 
-function accountProductEmailCardHtml(item: CatalogItem): string {
+function accountProductEmailCardHtml(item: CatalogItem, publicMarket: PublicMarket = 'ca'): string {
   if (typeof window === 'undefined') return '';
-  const href = tryBuildOgrProductUrl((item.publicSlug ?? '').trim(), window.location.origin);
+  const href = tryBuildOgrProductUrl(
+    (item.publicSlug ?? '').trim(),
+    window.location.origin,
+    publicMarket,
+  );
   if (!href) return '';
-  const catalogHref = buildOgrCollectionUrl(window.location.origin);
-  const presentation = buildPublicProductPresentation(catalogItemToPublicOgrProduct(item));
+  const catalogHref = buildOgrCollectionUrl(window.location.origin, publicMarket);
+  const presentation = buildPublicProductPresentation(catalogItemToPublicOgrProduct(item), {
+    publicMarket,
+  });
   return renderOgrProductEmailCard(presentation, { href, catalogHref });
 }
 
@@ -289,6 +296,7 @@ export function AccountDetailDrawer({
     scope: string;
     id: string | null;
   } | null>(null);
+  const [accountEmailMarket, setAccountEmailMarket] = useState<PublicMarket>('ca');
   const [emailBoundAccountId, setEmailBoundAccountId] = useState<number | null>(
     account?.id ?? null,
   );
@@ -330,17 +338,45 @@ export function AccountDetailDrawer({
     if (!account || !line.salesLineId) return;
     const scope = `${account.id}:${line.salesLineId}`;
     let active = true;
-    void fetchOperationalLineAccount({
-      retailerId: account.id,
-      salesLineId: line.salesLineId,
-    }).then((result) => {
+    void (async () => {
+      const rla = await fetchOperationalLineAccount({
+        retailerId: account.id,
+        salesLineId: line.salesLineId ?? '',
+      });
       if (!active) return;
-      setRetailerLineAccountRecord({ scope, id: result.data?.id ?? null });
-    });
+      setRetailerLineAccountRecord({ scope, id: rla.data?.id ?? null });
+      if (!rla.data) {
+        setAccountEmailMarket('ca');
+        return;
+      }
+      if (!rla.data.salesLineTerritoryId || !line.lineSlug) {
+        setAccountEmailMarket(resolvePricingMarketFromRlaAssignment(null).publicMarket);
+        return;
+      }
+      const list = await fetchSalesLineTerritoriesClient(line.lineSlug);
+      if (!active) return;
+      if (!list.ok) {
+        setAccountEmailMarket(resolvePricingMarketFromRlaAssignment(null).publicMarket);
+        return;
+      }
+      const assignment = list.assignments.find((row) => row.id === rla.data?.salesLineTerritoryId);
+      setAccountEmailMarket(
+        resolvePricingMarketFromRlaAssignment(
+          assignment
+            ? {
+                status: assignment.status,
+                countryCode: assignment.countryCode,
+                territoryId: assignment.territoryId,
+                territoryCode: assignment.territoryCode,
+              }
+            : null,
+        ).publicMarket,
+      );
+    })();
     return () => {
       active = false;
     };
-  }, [account, line.salesLineId]);
+  }, [account, line.lineSlug, line.salesLineId]);
 
   if (!account) return null;
   const current = account;
@@ -620,7 +656,7 @@ export function AccountDetailDrawer({
           overlayClassName="z-[60]"
           productId={emailProduct.id}
           productName={emailProduct.name}
-          cardHtml={accountProductEmailCardHtml(emailProduct)}
+          cardHtml={accountProductEmailCardHtml(emailProduct, accountEmailMarket)}
           defaultTo={emailTo}
           defaultRecipientName={emailRecipientName}
           recipientHint={emailRecipientHint}

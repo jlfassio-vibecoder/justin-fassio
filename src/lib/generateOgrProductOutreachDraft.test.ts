@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const generateObjectMock = vi.fn();
@@ -206,5 +208,16 @@ describe('produceOutreachCopy', () => {
     const result = await produceOutreachCopy(ctx);
     expect(result.fallback).toBe('defaults');
     expect(result.introText).toBe(OGR_PRODUCT_EMAIL_DEFAULT_INTRO);
+  });
+});
+
+describe('product URL argument order', () => {
+  it('builds hrefs as slug, origin, optional market', () => {
+    const src = readFileSync(
+      resolve(process.cwd(), 'src/lib/generateOgrProductOutreachDraft.ts'),
+      'utf8',
+    );
+    expect(src).toMatch(/buildOgrProductUrl\(presentation\.slug, origin/);
+    expect(src).not.toMatch(/buildOgrProductUrl\(resolvePublicSiteOrigin\(\)/);
   });
 });

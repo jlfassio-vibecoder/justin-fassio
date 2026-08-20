@@ -3,6 +3,7 @@ import {
   OGR_PUBLIC_SITE_NAME,
   type PublicProductPresentation,
 } from '@/lib/publicProductPresentation';
+import type { PublicMarket } from '@/lib/pricingMarket';
 
 export type PageSeoImage = {
   /** Absolute http(s) URL only. */
@@ -20,8 +21,11 @@ export type PageMetadata = {
 };
 
 const COLLECTION_TITLE = 'Old Guys Rule Wholesale Canada | Justin Fassio';
+const COLLECTION_TITLE_US = 'Old Guys Rule Wholesale | Justin Fassio';
 const COLLECTION_DESCRIPTION_FALLBACK =
   'Browse the Old Guys Rule wholesale collection for Canadian retailers. Men’s lifestyle apparel—request pricing and availability through Justin Fassio.';
+const COLLECTION_DESCRIPTION_FALLBACK_US =
+  'Browse the Old Guys Rule wholesale collection. Men’s lifestyle apparel—request pricing and availability through Justin Fassio.';
 const PRODUCT_IMAGE_ALT_FALLBACK = 'Old Guys Rule product';
 const COLLECTION_IMAGE_ALT_FALLBACK = 'Old Guys Rule wholesale collection';
 
@@ -40,6 +44,10 @@ export function isPublicAbsoluteImageUrl(url: string | null | undefined): boolea
 
 function collapseWhitespace(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
+}
+
+function looksLikeCanadianRetailCopy(value: string): boolean {
+  return /canadian retailers|wholesale canada|typical canadian retail|gst\/pst|\bc\$/i.test(value);
 }
 
 function resolveSeoImage(
@@ -94,12 +102,18 @@ export function buildOgrCollectionMetadata(input: {
     heroImageUrl: string | null;
   } | null;
   image?: PageSeoImage | null;
+  publicMarket?: PublicMarket;
 }): PageMetadata {
   const line = input.line ?? null;
+  const publicMarket = input.publicMarket ?? 'ca';
+  const fallbackDescription =
+    publicMarket === 'us' ? COLLECTION_DESCRIPTION_FALLBACK_US : COLLECTION_DESCRIPTION_FALLBACK;
+  const lineDescription = collapseWhitespace(line?.description ?? '');
+  const lineTagline = collapseWhitespace(line?.tagline ?? '');
   const description =
-    collapseWhitespace(line?.description ?? '') ||
-    collapseWhitespace(line?.tagline ?? '') ||
-    COLLECTION_DESCRIPTION_FALLBACK;
+    publicMarket === 'us' && looksLikeCanadianRetailCopy(lineDescription || lineTagline)
+      ? fallbackDescription
+      : lineDescription || lineTagline || fallbackDescription;
   const lineName = collapseWhitespace(line?.name ?? '') || OGR_PUBLIC_BRAND_NAME;
   const imageAlt = `${lineName} wholesale collection`;
   const image =
@@ -108,7 +122,7 @@ export function buildOgrCollectionMetadata(input: {
       : resolveSeoImage(line?.heroImageUrl, imageAlt, COLLECTION_IMAGE_ALT_FALLBACK);
 
   return {
-    title: COLLECTION_TITLE,
+    title: publicMarket === 'us' ? COLLECTION_TITLE_US : COLLECTION_TITLE,
     description,
     canonicalUrl: input.canonicalUrl,
     siteName: OGR_PUBLIC_SITE_NAME,

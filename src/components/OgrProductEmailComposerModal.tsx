@@ -26,6 +26,7 @@ import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { sendOgrProductEmail } from '@/lib/sendOgrProductEmailClient';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { staffAiPostFields } from '@/lib/staffAiClientContext';
+import type { PublicMarket } from '@/lib/pricingMarket';
 
 const MAX_TO = OGR_PRODUCT_EMAIL_MAX_TO;
 const MAX_RECIPIENT_NAME = OGR_PRODUCT_EMAIL_MAX_RECIPIENT_NAME;
@@ -69,6 +70,8 @@ export type OgrProductEmailComposerModalProps = {
   accountContactId?: string | null;
   salesLineId?: string | null;
   retailerLineAccountId?: string | null;
+  /** Line Sheet selector. Account flow omits this; server uses RLA when present. */
+  publicMarket?: PublicMarket;
   /** When provided (account flow), show a contact select. */
   recipientOptions?: AccountProductEmailRecipientOption[];
 };
@@ -115,6 +118,7 @@ function OgrProductEmailComposerForm({
   accountContactId,
   salesLineId,
   retailerLineAccountId,
+  publicMarket,
   recipientOptions,
 }: Omit<OgrProductEmailComposerModalProps, 'open'>) {
   const line = useOptionalLineContext();
@@ -303,6 +307,7 @@ function OgrProductEmailComposerForm({
         ...(retailerLineAccountId?.trim()
           ? { retailerLineAccountId: retailerLineAccountId.trim() }
           : {}),
+        ...(publicMarket ? { market: publicMarket } : {}),
       });
       if (!result.ok) {
         setError(result.error);
@@ -516,6 +521,7 @@ export function OgrProductEmailComposerModal({
   accountContactId,
   salesLineId,
   retailerLineAccountId,
+  publicMarket,
   recipientOptions,
 }: OgrProductEmailComposerModalProps) {
   if (!open) return null;
@@ -537,6 +543,7 @@ export function OgrProductEmailComposerModal({
       accountContactId={accountContactId}
       salesLineId={salesLineId}
       retailerLineAccountId={retailerLineAccountId}
+      publicMarket={publicMarket}
       recipientOptions={recipientOptions}
     />
   );

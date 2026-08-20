@@ -29,6 +29,7 @@ import {
 import { patchCatalogItem } from '@/lib/updateCatalogItemClient';
 import type { CatalogItemPatch } from '@/lib/updateCatalogItem';
 import { tryBuildOgrProductUrl, buildOgrCollectionUrl } from '@/lib/productUrls';
+import { resolvePricingMarketFromStaffSelector, type PublicMarket } from '@/lib/pricingMarket';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import {
   buildOgrProductEmailCardPlainText,
@@ -217,11 +218,11 @@ function parseNewlineList(raw: string): string[] {
     .filter(Boolean);
 }
 
-function publicWholesaleUrl(slug: string): string {
+function publicWholesaleUrl(slug: string, publicMarket: PublicMarket = 'ca'): string {
   const trimmed = slug.trim();
   if (!trimmed) return '';
   if (typeof window === 'undefined') return '';
-  return tryBuildOgrProductUrl(trimmed, window.location.origin) ?? '';
+  return tryBuildOgrProductUrl(trimmed, window.location.origin, publicMarket) ?? '';
 }
 
 function parseDraftNumber(raw: string): number {
@@ -280,6 +281,7 @@ interface ProductDetailDrawerProps {
   items: CatalogItem[];
   factors: LandedCostFactors;
   supplierTerms?: CatalogSupplierTerms | null;
+  presentationMarket?: PublicMarket;
   /** When set, open the agent draft review modal after the drawer mounts. */
   initialReviewDraftId?: string | null;
   onClose: () => void;
@@ -292,6 +294,7 @@ export function ProductDetailDrawer({
   items,
   factors,
   supplierTerms = null,
+  presentationMarket = 'ca',
   initialReviewDraftId = null,
   onClose,
   onSaved,
@@ -305,6 +308,7 @@ export function ProductDetailDrawer({
       items={items}
       factors={factors}
       supplierTerms={supplierTerms}
+      presentationMarket={presentationMarket}
       initialReviewDraftId={initialReviewDraftId}
       onClose={onClose}
       onSaved={onSaved}
@@ -318,6 +322,7 @@ function ProductDetailDrawerInner({
   items,
   factors,
   supplierTerms,
+  presentationMarket = 'ca',
   initialReviewDraftId = null,
   onClose,
   onSaved,
@@ -327,6 +332,7 @@ function ProductDetailDrawerInner({
   items: CatalogItem[];
   factors: LandedCostFactors;
   supplierTerms: CatalogSupplierTerms | null;
+  presentationMarket?: PublicMarket;
   initialReviewDraftId?: string | null;
   onClose: () => void;
   onSaved: (item: CatalogItem) => void;
@@ -447,12 +453,18 @@ function ProductDetailDrawerInner({
   const emailCardPreviewHtml = useMemo(() => {
     if (!emailModalOpen) return '';
     if (typeof window === 'undefined') return '';
-    const href = tryBuildOgrProductUrl(draft.publicSlug, window.location.origin);
+    const href = tryBuildOgrProductUrl(
+      draft.publicSlug,
+      window.location.origin,
+      presentationMarket ?? 'ca',
+    );
     if (!href) return '';
-    const catalogHref = buildOgrCollectionUrl(window.location.origin);
-    const presentation = buildPublicProductPresentation(draftToPublicOgrProduct(item, draft));
+    const catalogHref = buildOgrCollectionUrl(window.location.origin, presentationMarket ?? 'ca');
+    const presentation = buildPublicProductPresentation(draftToPublicOgrProduct(item, draft), {
+      publicMarket: presentationMarket ?? 'ca',
+    });
     return renderOgrProductEmailCard(presentation, { href, catalogHref });
-  }, [emailModalOpen, draft, item]);
+  }, [emailModalOpen, draft, item, presentationMarket]);
 
   const dirty = useMemo(() => {
     return JSON.stringify(draft) !== JSON.stringify(itemToDraft(item));
@@ -473,6 +485,9 @@ function ProductDetailDrawerInner({
   const displayWholesale = parseOptionalNumber(draft.priceUsd) ?? item.catalogPriceUsd;
   const displayMsrp = parseOptionalNumber(draft.msrpCad) ?? item.catalogMsrpCad;
   const landedOverride = parseOptionalNumber(draft.landedCadOverride);
+  const showCanadianLanded = resolvePricingMarketFromStaffSelector(
+    presentationMarket ?? 'ca',
+  ).showCanadianLanded;
 
   const safeVariantIndex = draft.variants.length
     ? Math.min(selectedVariantIndex, draft.variants.length - 1)
@@ -1356,7 +1371,7 @@ function ProductDetailDrawerInner({
           </Section>
 
           <Section
-            title="Canadian pricing"
+            title={showCanadianLanded ? 'Canadian pricing' : 'Wholesale'}
             open={openSections.pricing}
             onToggle={() => toggleSection('pricing')}
           >
@@ -1389,76 +1404,86 @@ function ProductDetailDrawerInner({
                   Catalog: ${item.catalogPriceUsd.toFixed(2)}
                 </p>
               </Field>
-              <Field>
-                <FieldLabel>
-                  MSRP CAD
-                  {hasManualOverride(item.msrpCadOverride) ? ' (override)' : ''}
-                </FieldLabel>
-                <Input
-                  value={draft.msrpCad}
-                  disabled={readOnly || busy}
-                  onChange={(e) => setDraft((d) => ({ ...d, msrpCad: e.target.value }))}
-                />
-                <p className="text-ink/55 m-0 mt-1 text-xs">
-                  Catalog: ${item.catalogMsrpCad.toFixed(2)}
-                </p>
-              </Field>
-              <Field>
-                <FieldLabel>Landed CAD override</FieldLabel>
-                <Input
-                  value={draft.landedCadOverride}
-                  placeholder={calculatedLanded.toFixed(2)}
-                  disabled={readOnly || busy}
-                  onChange={(e) => setDraft((d) => ({ ...d, landedCadOverride: e.target.value }))}
-                />
-                <p className="text-ink/55 m-0 mt-1 text-xs">
-                  Calculated (before recoverable GST): ${calculatedLanded.toFixed(2)}
-                </p>
-              </Field>
-              <div className="text-sm">
-                <p className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
-                  Retailer margin
-                </p>
-                <p className="m-0 mt-1 font-semibold">
-                  {margin == null ? '—' : `${margin.toFixed(1)}%`}
-                  {marginCad != null ? ` · $${marginCad.toFixed(2)} CAD` : ''}
-                </p>
-              </div>
-            </div>
-            <dl className="border-ink/10 mt-3 grid grid-cols-2 gap-2 border-t pt-3 text-xs sm:grid-cols-4">
-              <div>
-                <dt className="text-ink/55 uppercase">FX</dt>
-                <dd className="m-0">{breakdown.fx}</dd>
-              </div>
-              <div>
-                <dt className="text-ink/55 uppercase">Freight</dt>
-                <dd className="m-0">${(breakdown.afterFreight - breakdown.afterFx).toFixed(2)}</dd>
-              </div>
-              <div>
-                <dt className="text-ink/55 uppercase">Duty / surtax / other</dt>
-                <dd className="m-0">
-                  ${(breakdown.beforeGst - breakdown.afterFreight).toFixed(2)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-ink/55 uppercase">Before-GST landed</dt>
-                <dd className="m-0">${breakdown.beforeGst.toFixed(2)}</dd>
-              </div>
-              <div>
-                <dt className="text-ink/55 uppercase">GST</dt>
-                <dd className="m-0">${(breakdown.withGst - breakdown.beforeGst).toFixed(2)}</dd>
-              </div>
-              <div>
-                <dt className="text-ink/55 uppercase">Cash cost incl. GST</dt>
-                <dd className="m-0">${breakdown.withGst.toFixed(2)}</dd>
-              </div>
-              {breakdown.brokerageAllocationCad ? (
-                <div>
-                  <dt className="text-ink/55 uppercase">Brokerage</dt>
-                  <dd className="m-0">${breakdown.brokerageAllocationCad.toFixed(2)}</dd>
-                </div>
+              {showCanadianLanded ? (
+                <>
+                  <Field>
+                    <FieldLabel>
+                      MSRP CAD
+                      {hasManualOverride(item.msrpCadOverride) ? ' (override)' : ''}
+                    </FieldLabel>
+                    <Input
+                      value={draft.msrpCad}
+                      disabled={readOnly || busy}
+                      onChange={(e) => setDraft((d) => ({ ...d, msrpCad: e.target.value }))}
+                    />
+                    <p className="text-ink/55 m-0 mt-1 text-xs">
+                      Catalog: ${item.catalogMsrpCad.toFixed(2)}
+                    </p>
+                  </Field>
+                  <Field>
+                    <FieldLabel>Landed CAD override</FieldLabel>
+                    <Input
+                      value={draft.landedCadOverride}
+                      placeholder={calculatedLanded.toFixed(2)}
+                      disabled={readOnly || busy}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, landedCadOverride: e.target.value }))
+                      }
+                    />
+                    <p className="text-ink/55 m-0 mt-1 text-xs">
+                      Calculated (before recoverable GST): ${calculatedLanded.toFixed(2)}
+                    </p>
+                  </Field>
+                  <div className="text-sm">
+                    <p className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
+                      Retailer margin
+                    </p>
+                    <p className="m-0 mt-1 font-semibold">
+                      {margin == null ? '—' : `${margin.toFixed(1)}%`}
+                      {marginCad != null ? ` · $${marginCad.toFixed(2)} CAD` : ''}
+                    </p>
+                  </div>
+                </>
               ) : null}
-            </dl>
+            </div>
+            {showCanadianLanded ? (
+              <dl className="border-ink/10 mt-3 grid grid-cols-2 gap-2 border-t pt-3 text-xs sm:grid-cols-4">
+                <div>
+                  <dt className="text-ink/55 uppercase">FX</dt>
+                  <dd className="m-0">{breakdown.fx}</dd>
+                </div>
+                <div>
+                  <dt className="text-ink/55 uppercase">Freight</dt>
+                  <dd className="m-0">
+                    ${(breakdown.afterFreight - breakdown.afterFx).toFixed(2)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-ink/55 uppercase">Duty / surtax / other</dt>
+                  <dd className="m-0">
+                    ${(breakdown.beforeGst - breakdown.afterFreight).toFixed(2)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-ink/55 uppercase">Before-GST landed</dt>
+                  <dd className="m-0">${breakdown.beforeGst.toFixed(2)}</dd>
+                </div>
+                <div>
+                  <dt className="text-ink/55 uppercase">GST</dt>
+                  <dd className="m-0">${(breakdown.withGst - breakdown.beforeGst).toFixed(2)}</dd>
+                </div>
+                <div>
+                  <dt className="text-ink/55 uppercase">Cash cost incl. GST</dt>
+                  <dd className="m-0">${breakdown.withGst.toFixed(2)}</dd>
+                </div>
+                {breakdown.brokerageAllocationCad ? (
+                  <div>
+                    <dt className="text-ink/55 uppercase">Brokerage</dt>
+                    <dd className="m-0">${breakdown.brokerageAllocationCad.toFixed(2)}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            ) : null}
           </Section>
 
           <Section
@@ -1735,7 +1760,7 @@ function ProductDetailDrawerInner({
                   variant="secondary"
                   disabled={!draft.publicSlug.trim()}
                   onClick={() => {
-                    const url = publicWholesaleUrl(draft.publicSlug);
+                    const url = publicWholesaleUrl(draft.publicSlug, presentationMarket ?? 'ca');
                     if (!url) return;
                     void navigator.clipboard.writeText(url).then(() => {
                       setLinkCopied(true);
@@ -1753,7 +1778,7 @@ function ProductDetailDrawerInner({
                     !draft.isPubliclyPublished ? 'Publish to preview on the public site' : undefined
                   }
                   onClick={() => {
-                    const url = publicWholesaleUrl(draft.publicSlug);
+                    const url = publicWholesaleUrl(draft.publicSlug, presentationMarket ?? 'ca');
                     if (url) window.open(url, '_blank', 'noopener,noreferrer');
                   }}
                 >
@@ -1770,7 +1795,11 @@ function ProductDetailDrawerInner({
                     variant="secondary"
                     disabled={!draft.publicSlug.trim()}
                     onClick={() => {
-                      const href = tryBuildOgrProductUrl(draft.publicSlug, window.location.origin);
+                      const href = tryBuildOgrProductUrl(
+                        draft.publicSlug,
+                        window.location.origin,
+                        presentationMarket ?? 'ca',
+                      );
                       if (!href) {
                         setEmailCardCopyState('error');
                         if (emailCardCopyTimerRef.current != null) {
@@ -1784,8 +1813,12 @@ function ProductDetailDrawerInner({
                       }
                       const presentation = buildPublicProductPresentation(
                         draftToPublicOgrProduct(item, draft),
+                        { publicMarket: presentationMarket ?? 'ca' },
                       );
-                      const catalogHref = buildOgrCollectionUrl(window.location.origin);
+                      const catalogHref = buildOgrCollectionUrl(
+                        window.location.origin,
+                        presentationMarket ?? 'ca',
+                      );
                       const html = renderOgrProductEmailCard(presentation, { href, catalogHref });
                       const plainText = buildOgrProductEmailCardPlainText({
                         productName: presentation.name,
@@ -2112,6 +2145,7 @@ function ProductDetailDrawerInner({
         productName={draft.name.trim()}
         cardHtml={emailCardPreviewHtml}
         draft={emailReviewDraft}
+        publicMarket={presentationMarket ?? 'ca'}
       />
     </>
   );

@@ -1,11 +1,13 @@
 import { useId, useRef, useState } from 'react';
 import type { WholesaleOrderDraft } from '@/lib/wholesaleOrderDraft';
 import { orderTotals } from '@/lib/wholesaleOrderDraft';
+import type { PublicMarket } from '@/lib/pricingMarket';
 import type { WholesaleRequestType } from '@/lib/wholesaleOrderRequestSchema';
 
 type Props = {
   draft: WholesaleOrderDraft;
   onSuccess: (requestNumber: string, requestType: WholesaleRequestType) => void;
+  publicMarket?: PublicMarket;
 };
 
 const RETAIL_CHANNELS = [
@@ -18,6 +20,10 @@ const RETAIL_CHANNELS = [
 ];
 
 const PROVINCES = ['AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 'ON', 'PE', 'QC', 'SK', 'YT'];
+const US_STATES = [
+  { value: 'OR', label: 'Oregon' },
+  { value: 'WA', label: 'Washington' },
+];
 
 type FormState = {
   businessName: string;
@@ -62,7 +68,7 @@ function newIdempotencyKey(): string {
   return `idem-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
+export function WholesaleBuyerForm({ draft, onSuccess, publicMarket = 'ca' }: Props) {
   const formId = useId();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
@@ -72,6 +78,7 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
   const { totalUnits } = orderTotals(draft);
   const isInquiry = draft.lines.length === 0;
   const requestType: WholesaleRequestType = isInquiry ? 'inquiry' : 'order';
+  const isUsMarket = publicMarket === 'us';
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -106,11 +113,12 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
           retailChannel: form.retailChannel,
           isExistingCustomer: form.isExistingCustomer === 'yes',
           website: form.website || null,
-          gstHstNumber: form.gstHstNumber || null,
+          gstHstNumber: isUsMarket ? null : form.gstHstNumber || null,
           poNumber: form.poNumber || null,
           notes: form.notes || null,
           preferredContactMethod: form.preferredContactMethod || null,
           companyFax: form.companyFax || null,
+          publicMarket,
           lines: draft.lines.map((l) => ({
             productId: l.productId,
             sku: l.sku,
@@ -227,7 +235,10 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span>Province{isInquiry ? '' : ' *'}</span>
+          <span>
+            {isUsMarket ? 'State' : 'Province'}
+            {isInquiry ? '' : ' *'}
+          </span>
           <select
             required={!isInquiry}
             className={fieldClass}
@@ -235,15 +246,24 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
             onChange={(e) => setField('province', e.target.value)}
           >
             <option value="">Select</option>
-            {PROVINCES.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
+            {isUsMarket
+              ? US_STATES.map((state) => (
+                  <option key={state.value} value={state.value}>
+                    {state.label}
+                  </option>
+                ))
+              : PROVINCES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span>Postal code{isInquiry ? '' : ' *'}</span>
+          <span>
+            {isUsMarket ? 'ZIP code' : 'Postal code'}
+            {isInquiry ? '' : ' *'}
+          </span>
           <input
             required={!isInquiry}
             className={fieldClass}
@@ -293,14 +313,16 @@ export function WholesaleBuyerForm({ draft, onSuccess }: Props) {
             autoComplete="url"
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span>GST/HST number</span>
-          <input
-            className={fieldClass}
-            value={form.gstHstNumber}
-            onChange={(e) => setField('gstHstNumber', e.target.value)}
-          />
-        </label>
+        {isUsMarket ? null : (
+          <label className="flex flex-col gap-1 text-sm">
+            <span>GST/HST number</span>
+            <input
+              className={fieldClass}
+              value={form.gstHstNumber}
+              onChange={(e) => setField('gstHstNumber', e.target.value)}
+            />
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-sm">
           <span>PO number</span>
           <input

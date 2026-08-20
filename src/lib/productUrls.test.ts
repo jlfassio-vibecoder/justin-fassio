@@ -5,6 +5,8 @@ import {
   buildOgrProductPath,
   buildOgrProductUrl,
   normalizeOgrProductSlug,
+  ogrWholesaleHrefForLocation,
+  parseOgrWholesaleProductSlug,
   OGR_WHOLESALE_PATH,
   resolvePublicSiteOrigin,
   tryBuildOgrProductPath,
@@ -30,6 +32,9 @@ describe('normalizeOgrProductSlug', () => {
 describe('buildOgrProductPath', () => {
   it('builds the collection product path', () => {
     expect(buildOgrProductPath('american-revival')).toBe(`${OGR_WHOLESALE_PATH}/american-revival`);
+    expect(buildOgrProductPath('american-revival', 'us')).toBe(
+      `${OGR_WHOLESALE_PATH}/us/american-revival`,
+    );
   });
 
   it('normalizes before building', () => {
@@ -47,13 +52,53 @@ describe('buildOgrProductPath', () => {
   });
 });
 
+describe('parseOgrWholesaleProductSlug', () => {
+  it('reads CA and US product paths and never treats us as a slug', () => {
+    expect(parseOgrWholesaleProductSlug('/old-guys-rule-wholesale/american-revival')).toBe(
+      'american-revival',
+    );
+    expect(parseOgrWholesaleProductSlug('/old-guys-rule-wholesale/us/american-revival')).toBe(
+      'american-revival',
+    );
+    expect(parseOgrWholesaleProductSlug('/old-guys-rule-wholesale')).toBeNull();
+    expect(parseOgrWholesaleProductSlug('/old-guys-rule-wholesale/us')).toBeNull();
+  });
+
+  it('preserves collection filters when switching markets', () => {
+    expect(
+      ogrWholesaleHrefForLocation('us', {
+        pathname: '/old-guys-rule-wholesale',
+        search: '?cat=tees',
+      }),
+    ).toBe('/old-guys-rule-wholesale/us?cat=tees');
+    expect(
+      ogrWholesaleHrefForLocation('ca', {
+        pathname: '/old-guys-rule-wholesale/us/american-revival',
+        search: '',
+      }),
+    ).toBe('/old-guys-rule-wholesale/american-revival');
+    expect(
+      ogrWholesaleHrefForLocation('us', {
+        pathname: '/old-guys-rule-wholesale/american-revival',
+        search: '?cat=tees',
+      }),
+    ).toBe('/old-guys-rule-wholesale/us/american-revival?cat=tees');
+  });
+});
+
 describe('absolute URL builders', () => {
   it('builds collection and product absolute URLs without double slashes', () => {
     expect(buildOgrCollectionUrl('https://justinfassio.com')).toBe(
       'https://justinfassio.com/old-guys-rule-wholesale',
     );
+    expect(buildOgrCollectionUrl('https://justinfassio.com', 'us')).toBe(
+      'https://justinfassio.com/old-guys-rule-wholesale/us',
+    );
     expect(buildOgrProductUrl('american-revival', 'https://justinfassio.com/')).toBe(
       'https://justinfassio.com/old-guys-rule-wholesale/american-revival',
+    );
+    expect(buildOgrProductUrl('american-revival', 'https://justinfassio.com', 'us')).toBe(
+      'https://justinfassio.com/old-guys-rule-wholesale/us/american-revival',
     );
   });
 
@@ -85,6 +130,16 @@ describe('absolute URL builders', () => {
     expect(() =>
       buildCanonicalUrl('/old-guys-rule-wholesale?x=1', 'https://justinfassio.com'),
     ).toThrow(/query or hash/);
+  });
+
+  it('builds canonical product URLs without query or hash', () => {
+    expect(buildOgrProductUrl('american-revival', 'https://justinfassio.com', 'us')).toBe(
+      'https://justinfassio.com/old-guys-rule-wholesale/us/american-revival',
+    );
+    expect(buildOgrProductUrl('american-revival', 'https://justinfassio.com', 'us')).not.toMatch(
+      /[?#]/,
+    );
+    expect(buildOgrProductUrl('american-revival', 'https://justinfassio.com')).not.toMatch(/[?#]/);
   });
 
   it('never adds tracking params and is deterministic', () => {

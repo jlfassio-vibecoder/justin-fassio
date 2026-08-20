@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { normalizePublicMarket, type PublicMarket } from '@/lib/pricingMarket';
 import type { Database, SystemMessageInsert, SystemMessageUpdate } from '@/types/database';
 
 type DbClient = SupabaseClient<Database>;
@@ -72,14 +73,23 @@ export type ProductOutreachSystemMessagePayload = {
   slug: string;
   productHref: string;
   from?: string;
+  /** Explicit public market for accountless drafts. Canadian drafts omit this. */
+  publicMarket?: PublicMarket;
   /** Phase 2 generation audit — preserved across approve-and-send. */
   generation?: ProductOutreachGenerationMeta;
 };
+
+export function publicMarketFromOutreachPayload(payload: unknown): PublicMarket | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  const value = (payload as { publicMarket?: unknown }).publicMarket;
+  return typeof value === 'string' ? normalizePublicMarket(value) : null;
+}
 
 /** Build lean payload for insert/update/send, optionally preserving generation meta. */
 export function buildProductOutreachPayload(
   base: Pick<ProductOutreachSystemMessagePayload, 'sku' | 'name' | 'slug' | 'productHref'> & {
     from?: string;
+    publicMarket?: PublicMarket;
   },
   generation?: ProductOutreachGenerationMeta | null,
 ): ProductOutreachSystemMessagePayload {
@@ -89,6 +99,7 @@ export function buildProductOutreachPayload(
     slug: base.slug,
     productHref: base.productHref,
     ...(base.from ? { from: base.from } : {}),
+    ...(base.publicMarket === 'us' ? { publicMarket: 'us' as const } : {}),
     ...(generation ? { generation } : {}),
   };
 }
@@ -425,6 +436,7 @@ function mapAgentDraftRow(row: {
     row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
       ? (row.payload as Record<string, unknown>)
       : {};
+  const payloadMarket = publicMarketFromOutreachPayload(payload);
 
   return {
     id: row.id,
@@ -450,6 +462,7 @@ function mapAgentDraftRow(row: {
         slug: typeof payload.slug === 'string' ? payload.slug : '',
         productHref: typeof payload.productHref === 'string' ? payload.productHref : '',
         ...(typeof payload.from === 'string' ? { from: payload.from } : {}),
+        ...(payloadMarket ? { publicMarket: payloadMarket } : {}),
       },
       parseGenerationMeta(payload.generation),
     ),
@@ -895,6 +908,7 @@ export async function insertProductOutreachSystemMessage(
       slug: input.payload.slug,
       productHref: input.payload.productHref,
       ...(input.payload.from ? { from: input.payload.from } : {}),
+      ...(input.payload.publicMarket === 'us' ? { publicMarket: 'us' as const } : {}),
     },
   };
 

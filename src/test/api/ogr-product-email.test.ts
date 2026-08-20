@@ -12,6 +12,7 @@ const resolvePublicSiteOriginMock = vi.fn();
 const resolveProductOutreachCrmAssociationMock = vi.fn();
 const insertProductOutreachSystemMessageMock = vi.fn();
 const validateProductOutreachRetailerLineAccountMock = vi.fn();
+const resolvePricingMarketForRetailerLineAccountMock = vi.fn();
 
 vi.mock('@/lib/agentAuth', () => ({
   requireApprovedStaffClient: (...args: unknown[]) => requireApprovedStaffClientMock(...args),
@@ -39,6 +40,11 @@ vi.mock('@/lib/productUrls', () => ({
   buildOgrProductUrl: (...args: unknown[]) => buildOgrProductUrlMock(...args),
   buildOgrCollectionUrl: (...args: unknown[]) => buildOgrCollectionUrlMock(...args),
   resolvePublicSiteOrigin: (...args: unknown[]) => resolvePublicSiteOriginMock(...args),
+}));
+
+vi.mock('@/lib/resolveAccountPricingMarket', () => ({
+  resolvePricingMarketForRetailerLineAccount: (...args: unknown[]) =>
+    resolvePricingMarketForRetailerLineAccountMock(...args),
 }));
 
 vi.mock('@/lib/systemMessages', () => ({
@@ -181,6 +187,10 @@ describe('POST /api/staff/ogr-product-email', () => {
     validateProductOutreachRetailerLineAccountMock.mockResolvedValue({
       ok: true,
       retailerLineAccountId: RLA_ID,
+    });
+    resolvePricingMarketForRetailerLineAccountMock.mockResolvedValue({
+      publicMarket: 'ca',
+      showCanadianRetail: true,
     });
   });
 
@@ -375,7 +385,9 @@ describe('POST /api/staff/ogr-product-email', () => {
       expect.anything(),
       expect.objectContaining({ toEmail: 'buyer@example.com' }),
     );
-    expect(buildPublicProductPresentationMock).toHaveBeenCalledWith(publishedProduct);
+    expect(buildPublicProductPresentationMock).toHaveBeenCalledWith(publishedProduct, {
+      publicMarket: 'ca',
+    });
     expect(resolvePublicSiteOriginMock).toHaveBeenCalled();
     expect(buildOgrProductUrlMock).toHaveBeenCalledWith(
       'american-revival',
@@ -423,6 +435,7 @@ describe('POST /api/staff/ogr-product-email', () => {
     // Pathnames may contain "wholesale"; assert against pricing leakage instead.
     expect(buildPublicProductPresentationMock).toHaveBeenCalledWith(
       expect.objectContaining({ wholesaleUsd: null }),
+      { publicMarket: 'ca' },
     );
     const sentHtml = String(sendOgrProductOutreachEmailMock.mock.calls[0]?.[0]?.html ?? '');
     expect(sentHtml).not.toMatch(/wholesaleUsd|US\$\s*\d|\$\d+\.\d{2}/i);
@@ -540,6 +553,111 @@ describe('POST /api/staff/ogr-product-email', () => {
         accountContactId: CONTACT_ID,
         retailerLineAccountId: RLA_ID,
       }),
+    );
+  });
+
+  it('uses U.S. product hrefs for a US-assigned account and keeps CA URLs without an account', async () => {
+    resolveProductOutreachCrmAssociationMock.mockResolvedValue({
+      ok: true,
+      association: { prospectId: 42, accountContactId: CONTACT_ID },
+    });
+    resolvePricingMarketForRetailerLineAccountMock.mockResolvedValue({
+      publicMarket: 'us',
+      showCanadianRetail: false,
+    });
+    buildOgrProductUrlMock.mockReturnValue(
+      'https://justinfassio.com/old-guys-rule-wholesale/us/american-revival',
+    );
+    buildOgrCollectionUrlMock.mockReturnValue(
+      'https://justinfassio.com/old-guys-rule-wholesale/us',
+    );
+
+    const usRes = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        prospectId: 42,
+        accountContactId: CONTACT_ID,
+        salesLineId: LINE_ID,
+        retailerLineAccountId: RLA_ID,
+      }),
+    );
+    expect(usRes.status).toBe(200);
+    expect(buildOgrProductUrlMock).toHaveBeenCalledWith(
+      'american-revival',
+      'https://justinfassio.com',
+      'us',
+    );
+    expect(buildOgrCollectionUrlMock).toHaveBeenCalledWith('https://justinfassio.com', 'us');
+  });
+
+  it('uses a validated client market for standalone sends and rejects unknown markets', async () => {
+    buildOgrProductUrlMock.mockReturnValue(
+      'https://justinfassio.com/old-guys-rule-wholesale/us/american-revival',
+    );
+    buildOgrCollectionUrlMock.mockReturnValue(
+      'https://justinfassio.com/old-guys-rule-wholesale/us',
+    );
+
+    const usRes = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        market: 'us',
+      }),
+    );
+    expect(usRes.status).toBe(200);
+    expect(buildOgrProductUrlMock).toHaveBeenCalledWith(
+      'american-revival',
+      'https://justinfassio.com',
+      'us',
+    );
+    expect(resolvePricingMarketForRetailerLineAccountMock).not.toHaveBeenCalled();
+
+    const bad = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        market: 'mx',
+      }),
+    );
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toEqual({ ok: false, error: 'market must be ca or us' });
+  });
+
+  it('lets a validated RLA market override a conflicting client market', async () => {
+    resolveProductOutreachCrmAssociationMock.mockResolvedValue({
+      ok: true,
+      association: { prospectId: 42, accountContactId: CONTACT_ID },
+    });
+    resolvePricingMarketForRetailerLineAccountMock.mockResolvedValue({
+      publicMarket: 'us',
+      showCanadianRetail: false,
+    });
+    buildOgrProductUrlMock.mockReturnValue(
+      'https://justinfassio.com/old-guys-rule-wholesale/us/american-revival',
+    );
+
+    const res = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        prospectId: 42,
+        accountContactId: CONTACT_ID,
+        salesLineId: LINE_ID,
+        retailerLineAccountId: RLA_ID,
+        market: 'ca',
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(resolvePricingMarketForRetailerLineAccountMock).toHaveBeenCalledWith(
+      expect.anything(),
+      RLA_ID,
+    );
+    expect(buildOgrProductUrlMock).toHaveBeenCalledWith(
+      'american-revival',
+      'https://justinfassio.com',
+      'us',
     );
   });
 

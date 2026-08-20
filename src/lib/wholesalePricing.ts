@@ -29,6 +29,11 @@ export function formatSuggestedRetailCad(msrpCad: number): string | null {
   return `Typical Canadian retail: ${formatCadAmount(range.low)}–${formatCadAmount(range.high)}`;
 }
 
+/** Non-numeric U.S. copy. Never converts `msrpCad` into a US$ retail number. */
+export function formatSuggestedRetailUs(): string {
+  return 'Suggested retail is set independently by each retailer.';
+}
+
 export const RETAIL_PRICE_DISCLAIMER = 'Retailers independently set resale prices.';
 
 export const WHOLESALE_LOCKED_LABEL = 'Wholesale pricing available after retailer verification';

@@ -16,10 +16,12 @@ import {
   resolvePublicSiteOrigin,
 } from '@/lib/productUrls';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
+import { resolveOgrPricingMarketForProductEmailDraft } from '@/lib/resolveAccountPricingMarket';
 import { sendOgrProductOutreachEmail } from '@/lib/sendOgrProductOutreachEmail';
 import {
   getAgentProductOutreachDraftById,
   markAgentProductOutreachDraftSent,
+  publicMarketFromOutreachPayload,
   requireExplicitProductOutreachCrmAssociation,
 } from '@/lib/systemMessages';
 
@@ -67,12 +69,24 @@ export const POST: APIRoute = async ({ params, request }) => {
   let productHref: string;
   let catalogHref: string;
   try {
-    const presentation = buildPublicProductPresentation(loaded.product);
     const origin = resolvePublicSiteOrigin({
       requestOrigin: new URL(request.url).origin,
     });
-    productHref = buildOgrProductUrl(presentation.slug, origin);
-    catalogHref = buildOgrCollectionUrl(origin);
+    const emailMarket = (
+      await resolveOgrPricingMarketForProductEmailDraft(gate.supabase, {
+        prospectId: crm.association.prospectId,
+        payloadMarket: publicMarketFromOutreachPayload(draft.payload),
+      })
+    ).publicMarket;
+    const presentation = buildPublicProductPresentation(loaded.product, {
+      publicMarket: emailMarket,
+    });
+    productHref =
+      emailMarket === 'us'
+        ? buildOgrProductUrl(presentation.slug, origin, 'us')
+        : buildOgrProductUrl(presentation.slug, origin);
+    catalogHref =
+      emailMarket === 'us' ? buildOgrCollectionUrl(origin, 'us') : buildOgrCollectionUrl(origin);
 
     const [{ data: profile }, { data: userData }] = await Promise.all([
       gate.supabase
@@ -149,6 +163,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         slug: presentation.slug,
         productHref,
         from: undefined,
+        ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
       },
     });
 

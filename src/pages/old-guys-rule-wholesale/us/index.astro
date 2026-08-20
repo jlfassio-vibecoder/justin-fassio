@@ -34,12 +34,14 @@ const shareImage = resolveOgrCollectionShareImage({
 });
 const canonicalUrl = buildOgrCollectionUrl(
   resolvePublicSiteOrigin({ requestOrigin: Astro.url.origin }),
+  'us',
 );
 const seo = toLayoutSeoProps(
   buildOgrCollectionMetadata({
     canonicalUrl,
     line: ogrLine,
     image: shareImage,
+    publicMarket: 'us',
   }),
 );
 ---
@@ -58,7 +60,7 @@ const seo = toLayoutSeoProps(
         </a>
       </main>
     ) : (
-      <WholesaleShowroom client:load products={products} terms={resolvedTerms} publicMarket="ca" />
+      <WholesaleShowroom client:load products={products} terms={resolvedTerms} publicMarket="us" />
     )
   }
 </Layout>

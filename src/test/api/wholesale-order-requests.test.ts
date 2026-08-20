@@ -321,4 +321,85 @@ describe('POST /api/wholesale/order-requests', () => {
       }),
     );
   });
+
+  it('passes publicMarket through to prospect matching', async () => {
+    const admin = createAdminMock({
+      wholesale_order_requests: {
+        maybeSingle: async () => ({ data: null, error: null }),
+        insertResult: {
+          data: { id: 'req-us', request_number: 'W-2026-000300' },
+          error: null,
+        },
+        updateResult: { error: null },
+      },
+      wholesale_order_request_items: {
+        insertResult: { error: null },
+      },
+      prospect_updates: {
+        insertResult: { error: null },
+      },
+    });
+    getServiceRoleClientMock.mockReturnValue(admin);
+    matchOrCreateWholesaleProspectMock.mockResolvedValue({
+      ok: true,
+      prospectId: 91,
+      matched: 'created',
+    });
+
+    const res = await POST(
+      requestWith({
+        ...validBody,
+        idempotencyKey: 'd0eebc99-9c0b-4ef8-bb6d-6bb9bd380a44',
+        publicMarket: 'us',
+        city: 'Portland',
+        province: 'OR',
+        postalCode: '97201',
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(matchOrCreateWholesaleProspectMock).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({
+        publicMarket: 'us',
+        province: 'OR',
+      }),
+    );
+  });
+
+  it('stores an unresolvable U.S. inquiry without linking a prospect', async () => {
+    const admin = createAdminMock({
+      wholesale_order_requests: {
+        maybeSingle: async () => ({ data: null, error: null }),
+        insertResult: {
+          data: { id: 'req-review', request_number: 'W-2026-000400' },
+          error: null,
+        },
+        updateResult: { error: null },
+      },
+    });
+    getServiceRoleClientMock.mockReturnValue(admin);
+    matchOrCreateWholesaleProspectMock.mockResolvedValue({
+      ok: false,
+      error: 'U.S. state could not be assigned to an OGR territory',
+      reviewWithoutProspect: true,
+    });
+
+    const res = await POST(
+      requestWith({
+        idempotencyKey: 'e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a55',
+        requestType: 'inquiry',
+        businessName: 'Portland Outfitters',
+        buyerName: 'Sam Buyer',
+        email: 'sam@example.com',
+        notes: 'Do you open accounts in California?',
+        publicMarket: 'us',
+        province: 'CA',
+        companyFax: '',
+        lines: [],
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(admin.updateCalls.some((c) => 'prospect_id' in (c.payload as object))).toBe(false);
+    expect(ensureWholesaleBuyerAccountMock).not.toHaveBeenCalled();
+  });
 });

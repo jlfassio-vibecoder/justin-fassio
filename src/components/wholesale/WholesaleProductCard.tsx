@@ -1,11 +1,13 @@
 import {
   formatSuggestedRetailCad,
+  formatSuggestedRetailUs,
   formatWholesaleUsd,
   hasWholesalePricing,
   RETAIL_PRICE_DISCLAIMER,
   WHOLESALE_LOCKED_LABEL,
 } from '@/lib/wholesalePricing';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
+import type { PublicMarket } from '@/lib/pricingMarket';
 import {
   BEST_SELLER_BADGE_MAX_RANK,
   isLifestyleTheme,
@@ -15,6 +17,7 @@ import { Heart } from 'lucide-react';
 
 type Props = {
   product: PublicOgrProduct;
+  publicMarket?: PublicMarket;
   onViewDetails: (product: PublicOgrProduct) => void;
   onAddToOrder: (product: PublicOgrProduct) => void;
   onRequestAccess: () => void;
@@ -52,6 +55,7 @@ function ProductImage({ product }: { product: PublicOgrProduct }) {
 
 export function WholesaleProductCard({
   product,
+  publicMarket = 'ca',
   onViewDetails,
   onAddToOrder,
   onRequestAccess,
@@ -60,7 +64,10 @@ export function WholesaleProductCard({
   onToggleLike,
   likeDisabled = false,
 }: Props) {
-  const retail = formatSuggestedRetailCad(product.msrpCad);
+  const showCanadianRetail = publicMarket === 'ca';
+  const retail = showCanadianRetail
+    ? formatSuggestedRetailCad(product.msrpCad)
+    : formatSuggestedRetailUs();
   const wholesale = formatWholesaleUsd(product.wholesaleUsd);
   const canWholesale = hasWholesalePricing(product.wholesaleUsd);
   const showBestSellerRank =
