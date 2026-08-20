@@ -26,6 +26,10 @@ interface ConvertAccountModalProps {
   prospect: Prospect | null;
   /** Prefill estimated CAD (e.g. from Log Call order value). */
   prefillAmountCad?: number | null;
+  /** When set (e.g. from Log Call USD stamp), prefer over back-computing USD from CAD. */
+  prefillAmountUsd?: number | null;
+  prefillExchangeRate?: number | null;
+  prefillExchangeRateDate?: string | null;
   catalog?: CatalogItem[];
   /** Default conversion source — `call` when opened from Log Call. */
   defaultConversionSource?: ConversionSource;
@@ -38,6 +42,9 @@ const NONE_VALUE = '__none__';
 function ConvertAccountForm({
   prospect,
   prefillAmountCad,
+  prefillAmountUsd,
+  prefillExchangeRate,
+  prefillExchangeRateDate,
   catalog,
   defaultConversionSource,
   onClose,
@@ -45,6 +52,9 @@ function ConvertAccountForm({
 }: {
   prospect: Prospect;
   prefillAmountCad: number | null;
+  prefillAmountUsd: number | null;
+  prefillExchangeRate: number | null;
+  prefillExchangeRateDate: string | null;
   catalog?: CatalogItem[];
   defaultConversionSource: ConversionSource;
   onClose: () => void;
@@ -80,15 +90,26 @@ function ConvertAccountForm({
   const usesUsdFx = isEpOrder || (isOgrOrder && ogrCurrency === 'USD');
   const [amountUsd, setAmountUsd] = useState(() => {
     if (!usesUsdFx && !isOgrOrder) return '';
+    if (prefillAmountUsd != null && prefillAmountUsd > 0) {
+      return String(prefillAmountUsd);
+    }
     if (prefillAmountCad == null || prefillAmountCad <= 0) return '';
-    const fx = loadLandedRatesPersistence().fx;
+    const fx =
+      prefillExchangeRate != null && prefillExchangeRate > 0
+        ? prefillExchangeRate
+        : loadLandedRatesPersistence().fx;
     if (!(fx > 0)) return '';
     return String(Math.round((prefillAmountCad / fx) * 100) / 100);
   });
-  const [exchangeRate, setExchangeRate] = useState(() =>
-    isEpOrder || isOgrOrder ? String(loadLandedRatesPersistence().fx) : '',
+  const [exchangeRate, setExchangeRate] = useState(() => {
+    if (prefillExchangeRate != null && prefillExchangeRate > 0) {
+      return String(prefillExchangeRate);
+    }
+    return isEpOrder || isOgrOrder ? String(loadLandedRatesPersistence().fx) : '';
+  });
+  const [exchangeRateDate, setExchangeRateDate] = useState(
+    () => prefillExchangeRateDate?.trim() || formatLocalIsoDate(new Date()),
   );
-  const [exchangeRateDate, setExchangeRateDate] = useState(() => formatLocalIsoDate(new Date()));
   const usdPreview = usesUsdFx
     ? buildEaglePeakOrderConversion({
         originalAmountUsd: amountUsd,
@@ -455,6 +476,9 @@ export function ConvertAccountModal({
   open,
   prospect,
   prefillAmountCad = null,
+  prefillAmountUsd = null,
+  prefillExchangeRate = null,
+  prefillExchangeRateDate = null,
   catalog,
   defaultConversionSource = 'manual',
   onClose,
@@ -464,9 +488,12 @@ export function ConvertAccountModal({
 
   return (
     <ConvertAccountForm
-      key={`${prospect.id}-${prefillAmountCad ?? 'none'}-${defaultConversionSource}`}
+      key={`${prospect.id}-${prefillAmountCad ?? 'none'}-${prefillAmountUsd ?? 'none'}-${prefillExchangeRate ?? 'none'}-${defaultConversionSource}`}
       prospect={prospect}
       prefillAmountCad={prefillAmountCad}
+      prefillAmountUsd={prefillAmountUsd}
+      prefillExchangeRate={prefillExchangeRate}
+      prefillExchangeRateDate={prefillExchangeRateDate}
       catalog={catalog}
       defaultConversionSource={defaultConversionSource}
       onClose={onClose}

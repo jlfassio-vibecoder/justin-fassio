@@ -169,6 +169,7 @@ describe('LogCallModal', () => {
     });
     expect(insertMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        call_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
         order_value_original_currency: 'USD',
         order_value_original_amount: 1200,
         order_value_exchange_rate: 1.45,

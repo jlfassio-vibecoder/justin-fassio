@@ -78,6 +78,11 @@ export function LogCallModal({
   const [error, setError] = useState<string | null>(null);
   const [convertProspect, setConvertProspect] = useState<Prospect | null>(null);
   const [convertPrefillCad, setConvertPrefillCad] = useState<number | null>(null);
+  const [convertPrefillUsd, setConvertPrefillUsd] = useState<number | null>(null);
+  const [convertPrefillExchangeRate, setConvertPrefillExchangeRate] = useState<number | null>(null);
+  const [convertPrefillExchangeRateDate, setConvertPrefillExchangeRateDate] = useState<
+    string | null
+  >(null);
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status
@@ -131,6 +136,9 @@ export function LogCallModal({
     clearForm();
     setConvertProspect(null);
     setConvertPrefillCad(null);
+    setConvertPrefillUsd(null);
+    setConvertPrefillExchangeRate(null);
+    setConvertPrefillExchangeRateDate(null);
     onClose();
   }
 
@@ -149,23 +157,28 @@ export function LogCallModal({
       return;
     }
 
+    const callDate = exchangeRateDate.trim() || formatLocalIsoDate(new Date());
     const row: CallInsert = {
       prospect_id: storeId,
       contact_name: trimmedContact,
       outcome,
       pmf_score: Number(pmfScore),
       order_value_cad: 0,
+      call_date: callDate,
       objection_tags: feedback,
       notes: notes.trim() || null,
     };
 
     let convertPrefillCadValue: number | null = null;
+    let convertPrefillUsdValue: number | null = null;
+    let convertPrefillRateValue: number | null = null;
+    let convertPrefillRateDateValue: string | null = null;
     if (orderValue !== '' && Number(orderValue) > 0) {
       if (isOgrCall && usesUsdFx) {
         const stamped = buildUsdToCadCallOrderValue({
           originalAmountUsd: orderValue,
           exchangeRate,
-          exchangeRateDate,
+          exchangeRateDate: callDate,
         });
         if (!stamped.ok) {
           setError(stamped.error);
@@ -173,10 +186,13 @@ export function LogCallModal({
         }
         Object.assign(row, stamped.stamp);
         convertPrefillCadValue = stamped.stamp.order_value_cad;
+        convertPrefillUsdValue = stamped.stamp.order_value_original_amount;
+        convertPrefillRateValue = stamped.stamp.order_value_exchange_rate;
+        convertPrefillRateDateValue = stamped.stamp.order_value_exchange_rate_date;
       } else if (isOgrCall && ogrCurrency === 'CAD') {
         const stamped = buildCadCallOrderValue({
           amountCad: orderValue,
-          exchangeRateDate,
+          exchangeRateDate: callDate,
         });
         if (!stamped.ok) {
           setError(stamped.error);
@@ -246,6 +262,9 @@ export function LogCallModal({
 
     if (shouldPromptConvert) {
       setConvertPrefillCad(savedOrderValueCad > 0 ? savedOrderValueCad : null);
+      setConvertPrefillUsd(convertPrefillUsdValue);
+      setConvertPrefillExchangeRate(convertPrefillRateValue);
+      setConvertPrefillExchangeRateDate(convertPrefillRateDateValue);
       setConvertProspect(prospectForConvert);
       return;
     }
@@ -512,6 +531,9 @@ export function LogCallModal({
         open={showConvert}
         prospect={convertProspect}
         prefillAmountCad={convertPrefillCad}
+        prefillAmountUsd={convertPrefillUsd}
+        prefillExchangeRate={convertPrefillExchangeRate}
+        prefillExchangeRateDate={convertPrefillExchangeRateDate}
         catalog={catalog}
         defaultConversionSource="call"
         onClose={handleClose}
