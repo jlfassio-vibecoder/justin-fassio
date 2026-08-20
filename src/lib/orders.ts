@@ -74,9 +74,11 @@ export type InsertOrderOptions = {
 };
 
 /** Staff-confirmed USD→CAD booking stamp. Never copy CAD into original_amount. */
-export const EAGLE_PEAK_ORDER_CONVERSION_SOURCE = 'staff_usd_cad';
+export const STAFF_USD_CAD_CONVERSION_SOURCE = 'staff_usd_cad';
+/** @deprecated Prefer STAFF_USD_CAD_CONVERSION_SOURCE — alias kept for Eagle Peak tests. */
+export const EAGLE_PEAK_ORDER_CONVERSION_SOURCE = STAFF_USD_CAD_CONVERSION_SOURCE;
 
-export type EaglePeakOrderConversionStamp = {
+export type UsdToCadOrderConversionStamp = {
   original_amount: number;
   original_currency: 'USD';
   total_amount_cad: number;
@@ -86,6 +88,8 @@ export type EaglePeakOrderConversionStamp = {
   converted_amount: number;
   converted_currency: 'CAD';
 };
+
+export type EaglePeakOrderConversionStamp = UsdToCadOrderConversionStamp;
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
@@ -101,39 +105,30 @@ function asFiniteNumber(value: unknown): number | null {
 }
 
 /**
- * Build a complete Eagle Peak conversion record.
+ * Build a complete USD→CAD conversion record.
  * Requires USD original + FX rate + rate date. Does not treat USD as CAD 1:1.
  */
-export function buildEaglePeakOrderConversion(input: {
+export function buildUsdToCadOrderConversion(input: {
   originalAmountUsd: unknown;
   exchangeRate: unknown;
   exchangeRateDate: unknown;
-}): { ok: true; stamp: EaglePeakOrderConversionStamp } | { ok: false; error: string } {
+  requireLabel?: string;
+}): { ok: true; stamp: UsdToCadOrderConversionStamp } | { ok: false; error: string } {
+  const label = input.requireLabel ?? 'USD orders';
+  const requireMsg = `${label} require original_amount in USD, exchange_rate, and exchange_rate_date`;
   const originalAmountUsd = asFiniteNumber(input.originalAmountUsd);
   const exchangeRate = asFiniteNumber(input.exchangeRate);
   const exchangeRateDate =
     typeof input.exchangeRateDate === 'string' ? input.exchangeRateDate.trim() : '';
 
   if (originalAmountUsd == null || originalAmountUsd < 0) {
-    return {
-      ok: false,
-      error:
-        'Eagle Peak orders require original_amount in USD, exchange_rate, and exchange_rate_date',
-    };
+    return { ok: false, error: requireMsg };
   }
   if (exchangeRate == null || exchangeRate <= 0) {
-    return {
-      ok: false,
-      error:
-        'Eagle Peak orders require original_amount in USD, exchange_rate, and exchange_rate_date',
-    };
+    return { ok: false, error: requireMsg };
   }
   if (!exchangeRateDate) {
-    return {
-      ok: false,
-      error:
-        'Eagle Peak orders require original_amount in USD, exchange_rate, and exchange_rate_date',
-    };
+    return { ok: false, error: requireMsg };
   }
 
   const totalAmountCad = roundMoney(originalAmountUsd * exchangeRate);
@@ -145,11 +140,44 @@ export function buildEaglePeakOrderConversion(input: {
       total_amount_cad: totalAmountCad,
       exchange_rate: exchangeRate,
       exchange_rate_date: exchangeRateDate,
-      conversion_source: EAGLE_PEAK_ORDER_CONVERSION_SOURCE,
+      conversion_source: STAFF_USD_CAD_CONVERSION_SOURCE,
       converted_amount: totalAmountCad,
       converted_currency: 'CAD',
     },
   };
+}
+
+/** Eagle Peak alias — preserves EP-specific error wording for existing tests. */
+export function buildEaglePeakOrderConversion(input: {
+  originalAmountUsd: unknown;
+  exchangeRate: unknown;
+  exchangeRateDate: unknown;
+}): { ok: true; stamp: EaglePeakOrderConversionStamp } | { ok: false; error: string } {
+  return buildUsdToCadOrderConversion({
+    ...input,
+    requireLabel: 'Eagle Peak orders',
+  });
+}
+
+function applyUsdStamp(payload: OrderInsert, stamp: UsdToCadOrderConversionStamp): void {
+  payload.original_amount = stamp.original_amount;
+  payload.original_currency = stamp.original_currency;
+  payload.total_amount_cad = stamp.total_amount_cad;
+  payload.exchange_rate = stamp.exchange_rate;
+  payload.exchange_rate_date = stamp.exchange_rate_date;
+  payload.conversion_source = stamp.conversion_source;
+  payload.converted_amount = stamp.converted_amount;
+  payload.converted_currency = stamp.converted_currency;
+}
+
+function applyCadLegacyStamp(payload: OrderInsert): void {
+  payload.original_amount = payload.original_amount ?? payload.total_amount_cad;
+  payload.original_currency = 'CAD';
+  payload.conversion_source = payload.conversion_source ?? 'legacy_cad_column';
+  payload.exchange_rate = payload.exchange_rate ?? 1;
+  payload.exchange_rate_date = payload.exchange_rate_date ?? payload.order_date;
+  payload.converted_amount = payload.converted_amount ?? payload.total_amount_cad;
+  payload.converted_currency = payload.converted_currency ?? 'CAD';
 }
 
 export async function insertOrder(
@@ -185,9 +213,6 @@ export async function insertOrder(
         error: 'line_id and retailer_line_account_id are required',
       };
     }
-    if (options.lineCode === 'ogr' && payload.original_currency === 'USD') {
-      return { data: null, error: 'OGR orders cannot use USD as original_currency' };
-    }
     if (options.lineCode === 'eagle-peak' && !options.eaglePeakSellingEnabled) {
       return { data: null, error: 'Eagle Peak selling is not enabled' };
     }
@@ -198,52 +223,6 @@ export async function insertOrder(
       typeof options.lineDefaultCurrency === 'string' ? options.lineDefaultCurrency.trim() : '';
     if (options.lineCode === 'big-fish' && !lineDefaultCurrency) {
       return { data: null, error: 'Big Fish orders require default_currency to be configured' };
-    }
-    if (options.lineCode === 'eagle-peak') {
-      const providedCurrency =
-        typeof payload.original_currency === 'string' ? payload.original_currency.trim() : '';
-      if (providedCurrency && providedCurrency !== 'USD') {
-        return { data: null, error: 'Eagle Peak orders require original_currency = USD' };
-      }
-      const built = buildEaglePeakOrderConversion({
-        originalAmountUsd: payload.original_amount,
-        exchangeRate: payload.exchange_rate,
-        exchangeRateDate: payload.exchange_rate_date ?? payload.order_date,
-      });
-      if (!built.ok) {
-        return { data: null, error: built.error };
-      }
-      payload.original_amount = built.stamp.original_amount;
-      payload.original_currency = built.stamp.original_currency;
-      payload.total_amount_cad = built.stamp.total_amount_cad;
-      payload.exchange_rate = built.stamp.exchange_rate;
-      payload.exchange_rate_date = built.stamp.exchange_rate_date;
-      payload.conversion_source = built.stamp.conversion_source;
-      payload.converted_amount = built.stamp.converted_amount;
-      payload.converted_currency = built.stamp.converted_currency;
-    }
-    if (options.lineCode === 'big-fish' && lineDefaultCurrency === 'USD') {
-      const providedCurrency =
-        typeof payload.original_currency === 'string' ? payload.original_currency.trim() : '';
-      if (providedCurrency && providedCurrency !== 'USD') {
-        return { data: null, error: 'Big Fish USD orders require original_currency = USD' };
-      }
-      const built = buildEaglePeakOrderConversion({
-        originalAmountUsd: payload.original_amount,
-        exchangeRate: payload.exchange_rate,
-        exchangeRateDate: payload.exchange_rate_date ?? payload.order_date,
-      });
-      if (!built.ok) {
-        return { data: null, error: built.error };
-      }
-      payload.original_amount = built.stamp.original_amount;
-      payload.original_currency = built.stamp.original_currency;
-      payload.total_amount_cad = built.stamp.total_amount_cad;
-      payload.exchange_rate = built.stamp.exchange_rate;
-      payload.exchange_rate_date = built.stamp.exchange_rate_date;
-      payload.conversion_source = built.stamp.conversion_source;
-      payload.converted_amount = built.stamp.converted_amount;
-      payload.converted_currency = built.stamp.converted_currency;
     }
     if (
       options.lineCode === 'big-fish' &&
@@ -256,18 +235,54 @@ export async function insertOrder(
         error: 'Big Fish orders require default_currency of USD or CAD',
       };
     }
+
     if (!payload.original_currency) {
-      const originalCurrency =
-        options.lineCode === 'ogr' ? 'CAD' : (options.lineDefaultCurrency ?? 'CAD');
-      payload.original_currency = originalCurrency;
-      payload.original_amount = payload.original_amount ?? payload.total_amount_cad;
-      if (originalCurrency === 'CAD') {
-        payload.conversion_source = payload.conversion_source ?? 'legacy_cad_column';
-        payload.exchange_rate = payload.exchange_rate ?? 1;
-        payload.exchange_rate_date = payload.exchange_rate_date ?? payload.order_date;
-        payload.converted_amount = payload.converted_amount ?? payload.total_amount_cad;
-        payload.converted_currency = payload.converted_currency ?? 'CAD';
+      if (options.lineCode === 'eagle-peak') {
+        payload.original_currency = 'USD';
+      } else if (options.lineCode === 'ogr') {
+        payload.original_currency = lineDefaultCurrency || 'USD';
+      } else if (options.lineCode === 'big-fish') {
+        payload.original_currency = lineDefaultCurrency;
+      } else {
+        payload.original_currency = lineDefaultCurrency || 'CAD';
       }
+    }
+
+    const resolvedCurrency =
+      typeof payload.original_currency === 'string' ? payload.original_currency.trim() : '';
+
+    if (options.lineCode === 'eagle-peak' && resolvedCurrency !== 'USD') {
+      return { data: null, error: 'Eagle Peak orders require original_currency = USD' };
+    }
+    if (
+      options.lineCode === 'big-fish' &&
+      lineDefaultCurrency === 'USD' &&
+      resolvedCurrency !== 'USD'
+    ) {
+      return { data: null, error: 'Big Fish USD orders require original_currency = USD' };
+    }
+
+    if (resolvedCurrency === 'USD') {
+      const requireLabel =
+        options.lineCode === 'eagle-peak'
+          ? 'Eagle Peak orders'
+          : options.lineCode === 'big-fish'
+            ? 'Big Fish USD orders'
+            : options.lineCode === 'ogr'
+              ? 'OGR orders'
+              : 'USD orders';
+      const built = buildUsdToCadOrderConversion({
+        originalAmountUsd: payload.original_amount,
+        exchangeRate: payload.exchange_rate,
+        exchangeRateDate: payload.exchange_rate_date ?? payload.order_date,
+        requireLabel,
+      });
+      if (!built.ok) {
+        return { data: null, error: built.error };
+      }
+      applyUsdStamp(payload, built.stamp);
+    } else if (resolvedCurrency === 'CAD') {
+      applyCadLegacyStamp(payload);
     }
   }
 

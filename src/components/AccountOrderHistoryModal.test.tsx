@@ -121,7 +121,7 @@ describe('AccountOrderHistoryModal', () => {
       error: null,
     });
     fetchLineMetaMock.mockResolvedValue({
-      data: { code: 'ogr', status: 'active', defaultCurrency: 'CAD' },
+      data: { code: 'ogr', status: 'active', defaultCurrency: 'USD' },
       error: null,
     });
     insertOrderMock.mockResolvedValue({ data: { id: 'ord-new' }, error: null });
@@ -175,6 +175,7 @@ describe('AccountOrderHistoryModal', () => {
     );
 
     fireEvent.change(screen.getByPlaceholderText('0'), { target: { value: '500' } });
+    fireEvent.change(screen.getByPlaceholderText('1.45'), { target: { value: '1.4' } });
     const form = container.querySelector('form');
     expect(form).toBeTruthy();
     fireEvent.submit(form!);
@@ -187,9 +188,16 @@ describe('AccountOrderHistoryModal', () => {
           retailer_line_account_id: 'rla-ogr',
           order_type: 'reorder',
           status: 'submitted',
-          total_amount_cad: 500,
+          original_amount: 500,
+          original_currency: 'USD',
+          exchange_rate: 1.4,
+          total_amount_cad: 700,
         }),
-        expect.objectContaining({ writesEnabled: true, lineCode: 'ogr' }),
+        expect.objectContaining({
+          writesEnabled: true,
+          lineCode: 'ogr',
+          lineDefaultCurrency: 'USD',
+        }),
       );
     });
 

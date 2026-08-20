@@ -10,12 +10,15 @@ import { useAiAssist } from '@/hooks/useAiAssist';
 import { buildCallDraft, type CallDraftFormat } from '@/lib/aiAssistPrefill';
 import type { CatalogItem } from '@/lib/catalog';
 import { CALL_OUTCOMES } from '@/lib/callOutcomes';
+import { buildCadCallOrderValue, buildUsdToCadCallOrderValue } from '@/lib/calls';
 import { isConversionOutcome } from '@/lib/convertToActiveAccount';
 import { useOptionalLineContext } from '@/lib/lineContext';
+import { loadLandedRatesPersistence } from '@/lib/landedRatesStorage';
 import { OBJECTION_TAGS } from '@/lib/objectionCatalog';
 import type { Prospect } from '@/lib/prospects';
 import { resolveOgrLineId } from '@/lib/lines';
 import { ensureRetailerLineAccount, isStaffSellingUiBlocked } from '@/lib/retailerLineAccounts';
+import { formatLocalIsoDate } from '@/lib/reorderCadence';
 import { supabase } from '@/lib/supabase';
 import type { CallInsert } from '@/types/database';
 
@@ -66,12 +69,20 @@ export function LogCallModal({
   const [outcome, setOutcome] = useState<string>(CALL_OUTCOMES[0]);
   const [pmfScore, setPmfScore] = useState('10');
   const [orderValue, setOrderValue] = useState('');
+  const [ogrCurrency, setOgrCurrency] = useState<'USD' | 'CAD'>('USD');
+  const [exchangeRate, setExchangeRate] = useState(() => String(loadLandedRatesPersistence().fx));
+  const [exchangeRateDate, setExchangeRateDate] = useState(() => formatLocalIsoDate(new Date()));
   const [notes, setNotes] = useState('');
   const [draftFormat, setDraftFormat] = useState<CallDraftFormat>('email');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [convertProspect, setConvertProspect] = useState<Prospect | null>(null);
   const [convertPrefillCad, setConvertPrefillCad] = useState<number | null>(null);
+  const [convertPrefillUsd, setConvertPrefillUsd] = useState<number | null>(null);
+  const [convertPrefillExchangeRate, setConvertPrefillExchangeRate] = useState<number | null>(null);
+  const [convertPrefillExchangeRateDate, setConvertPrefillExchangeRateDate] = useState<
+    string | null
+  >(null);
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status
@@ -90,6 +101,17 @@ export function LogCallModal({
   const modalCity = selected ? `${selected.city} (${selected.region})` : '';
   const showLogForm = open && convertProspect == null;
   const showConvert = convertProspect != null;
+  const isOgrCall = !line.lineSlug || line.lineSlug === 'ogr';
+  const usesUsdFx = isOgrCall && ogrCurrency === 'USD';
+  const usdPreview =
+    usesUsdFx && orderValue !== ''
+      ? buildUsdToCadCallOrderValue({
+          originalAmountUsd: orderValue,
+          exchangeRate,
+          exchangeRateDate,
+        })
+      : null;
+  const usdPreviewCad = usdPreview?.ok ? usdPreview.stamp.order_value_cad.toFixed(2) : null;
 
   function toggleFeedback(option: string) {
     setFeedback((prev) =>
@@ -114,6 +136,9 @@ export function LogCallModal({
     clearForm();
     setConvertProspect(null);
     setConvertPrefillCad(null);
+    setConvertPrefillUsd(null);
+    setConvertPrefillExchangeRate(null);
+    setConvertPrefillExchangeRateDate(null);
     onClose();
   }
 
@@ -132,15 +157,59 @@ export function LogCallModal({
       return;
     }
 
+    const callDate = exchangeRateDate.trim() || formatLocalIsoDate(new Date());
     const row: CallInsert = {
       prospect_id: storeId,
       contact_name: trimmedContact,
       outcome,
       pmf_score: Number(pmfScore),
-      order_value_cad: orderValue === '' ? 0 : Number(orderValue),
+      order_value_cad: 0,
+      call_date: callDate,
       objection_tags: feedback,
       notes: notes.trim() || null,
     };
+
+    let convertPrefillCadValue: number | null = null;
+    let convertPrefillUsdValue: number | null = null;
+    let convertPrefillRateValue: number | null = null;
+    let convertPrefillRateDateValue: string | null = null;
+    if (orderValue !== '' && Number(orderValue) > 0) {
+      if (isOgrCall && usesUsdFx) {
+        const stamped = buildUsdToCadCallOrderValue({
+          originalAmountUsd: orderValue,
+          exchangeRate,
+          exchangeRateDate: callDate,
+        });
+        if (!stamped.ok) {
+          setError(stamped.error);
+          return;
+        }
+        Object.assign(row, stamped.stamp);
+        convertPrefillCadValue = stamped.stamp.order_value_cad;
+        convertPrefillUsdValue = stamped.stamp.order_value_original_amount;
+        convertPrefillRateValue = stamped.stamp.order_value_exchange_rate;
+        convertPrefillRateDateValue = stamped.stamp.order_value_exchange_rate_date;
+      } else if (isOgrCall && ogrCurrency === 'CAD') {
+        const stamped = buildCadCallOrderValue({
+          amountCad: orderValue,
+          exchangeRateDate: callDate,
+        });
+        if (!stamped.ok) {
+          setError(stamped.error);
+          return;
+        }
+        Object.assign(row, stamped.stamp);
+        convertPrefillCadValue = stamped.stamp.order_value_cad;
+      } else {
+        const amount = Number(orderValue);
+        if (Number.isNaN(amount) || amount < 0) {
+          setError('Enter a valid order value (CAD).');
+          return;
+        }
+        row.order_value_cad = amount;
+        convertPrefillCadValue = amount;
+      }
+    }
 
     const salesLineId = line.salesLineId || (await resolveOgrLineId());
     if (salesLineId) {
@@ -170,7 +239,7 @@ export function LogCallModal({
     onSaved?.();
 
     const savedOutcome = outcome;
-    const savedOrderValue = orderValue === '' ? 0 : Number(orderValue);
+    const savedOrderValueCad = convertPrefillCadValue ?? 0;
     const prospectForConvert = selected;
     const chips = {
       prospectId: storeId,
@@ -192,7 +261,10 @@ export function LogCallModal({
       prospectForConvert.accountStatus !== 'inactive';
 
     if (shouldPromptConvert) {
-      setConvertPrefillCad(savedOrderValue > 0 ? savedOrderValue : null);
+      setConvertPrefillCad(savedOrderValueCad > 0 ? savedOrderValueCad : null);
+      setConvertPrefillUsd(convertPrefillUsdValue);
+      setConvertPrefillExchangeRate(convertPrefillRateValue);
+      setConvertPrefillExchangeRateDate(convertPrefillRateDateValue);
       setConvertProspect(prospectForConvert);
       return;
     }
@@ -333,17 +405,85 @@ export function LogCallModal({
                   <option value="1">1 — Poor fit</option>
                 </Select>
               </Field>
-              <Field>
-                <FieldLabel>Order value (CAD)</FieldLabel>
-                <Input
-                  type="number"
-                  min="0"
-                  placeholder="0 if no PO yet"
-                  value={orderValue}
-                  onChange={(e) => setOrderValue(e.target.value)}
-                />
-              </Field>
+              {isOgrCall ? (
+                <Field>
+                  <FieldLabel>Original currency</FieldLabel>
+                  <Select
+                    value={ogrCurrency}
+                    onChange={(e) => setOgrCurrency(e.target.value as 'USD' | 'CAD')}
+                  >
+                    <option value="USD">USD (default)</option>
+                    <option value="CAD">CAD</option>
+                  </Select>
+                </Field>
+              ) : (
+                <Field>
+                  <FieldLabel>Order value (CAD)</FieldLabel>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="0 if no PO yet"
+                    value={orderValue}
+                    onChange={(e) => setOrderValue(e.target.value)}
+                  />
+                </Field>
+              )}
             </div>
+
+            {isOgrCall ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Field>
+                  <FieldLabel>{usesUsdFx ? 'Order value (USD)' : 'Order value (CAD)'}</FieldLabel>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0 if no PO yet"
+                    value={orderValue}
+                    onChange={(e) => setOrderValue(e.target.value)}
+                  />
+                </Field>
+                {orderValue !== '' && usesUsdFx ? (
+                  <Field>
+                    <FieldLabel>USD to CAD rate</FieldLabel>
+                    <Input
+                      type="number"
+                      min="0.01"
+                      step="0.0001"
+                      placeholder="1.45"
+                      value={exchangeRate}
+                      onChange={(e) => setExchangeRate(e.target.value)}
+                    />
+                  </Field>
+                ) : null}
+                {orderValue !== '' && !usesUsdFx ? (
+                  <Field>
+                    <FieldLabel>Rate date</FieldLabel>
+                    <Input
+                      type="date"
+                      value={exchangeRateDate}
+                      onChange={(e) => setExchangeRateDate(e.target.value)}
+                    />
+                  </Field>
+                ) : null}
+              </div>
+            ) : null}
+
+            {isOgrCall && usesUsdFx && orderValue !== '' ? (
+              <>
+                <Field>
+                  <FieldLabel>Rate date</FieldLabel>
+                  <Input
+                    type="date"
+                    value={exchangeRateDate}
+                    onChange={(e) => setExchangeRateDate(e.target.value)}
+                  />
+                </Field>
+                {usdPreviewCad != null ? (
+                  <p className="text-ink/60 m-0 text-sm">CAD reporting amount: {usdPreviewCad}</p>
+                ) : null}
+              </>
+            ) : null}
 
             <Field>
               <FieldLabel>Primary buyer feedback</FieldLabel>
@@ -391,6 +531,9 @@ export function LogCallModal({
         open={showConvert}
         prospect={convertProspect}
         prefillAmountCad={convertPrefillCad}
+        prefillAmountUsd={convertPrefillUsd}
+        prefillExchangeRate={convertPrefillExchangeRate}
+        prefillExchangeRateDate={convertPrefillExchangeRateDate}
         catalog={catalog}
         defaultConversionSource="call"
         onClose={handleClose}

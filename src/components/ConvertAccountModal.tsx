@@ -26,6 +26,10 @@ interface ConvertAccountModalProps {
   prospect: Prospect | null;
   /** Prefill estimated CAD (e.g. from Log Call order value). */
   prefillAmountCad?: number | null;
+  /** When set (e.g. from Log Call USD stamp), prefer over back-computing USD from CAD. */
+  prefillAmountUsd?: number | null;
+  prefillExchangeRate?: number | null;
+  prefillExchangeRateDate?: string | null;
   catalog?: CatalogItem[];
   /** Default conversion source — `call` when opened from Log Call. */
   defaultConversionSource?: ConversionSource;
@@ -38,6 +42,9 @@ const NONE_VALUE = '__none__';
 function ConvertAccountForm({
   prospect,
   prefillAmountCad,
+  prefillAmountUsd,
+  prefillExchangeRate,
+  prefillExchangeRateDate,
   catalog,
   defaultConversionSource,
   onClose,
@@ -45,6 +52,9 @@ function ConvertAccountForm({
 }: {
   prospect: Prospect;
   prefillAmountCad: number | null;
+  prefillAmountUsd: number | null;
+  prefillExchangeRate: number | null;
+  prefillExchangeRateDate: string | null;
   catalog?: CatalogItem[];
   defaultConversionSource: ConversionSource;
   onClose: () => void;
@@ -75,25 +85,39 @@ function ConvertAccountForm({
     },
   );
   const isEpOrder = line.lineSlug === 'eagle-peak' && line.eaglePeakSelling;
+  const isOgrOrder = !line.lineSlug || line.lineSlug === 'ogr';
+  const [ogrCurrency, setOgrCurrency] = useState<'USD' | 'CAD'>('USD');
+  const usesUsdFx = isEpOrder || (isOgrOrder && ogrCurrency === 'USD');
   const [amountUsd, setAmountUsd] = useState(() => {
-    if (!isEpOrder) return '';
+    if (!usesUsdFx && !isOgrOrder) return '';
+    if (prefillAmountUsd != null && prefillAmountUsd > 0) {
+      return String(prefillAmountUsd);
+    }
     if (prefillAmountCad == null || prefillAmountCad <= 0) return '';
-    const fx = loadLandedRatesPersistence().fx;
+    const fx =
+      prefillExchangeRate != null && prefillExchangeRate > 0
+        ? prefillExchangeRate
+        : loadLandedRatesPersistence().fx;
     if (!(fx > 0)) return '';
     return String(Math.round((prefillAmountCad / fx) * 100) / 100);
   });
-  const [exchangeRate, setExchangeRate] = useState(() =>
-    isEpOrder ? String(loadLandedRatesPersistence().fx) : '',
+  const [exchangeRate, setExchangeRate] = useState(() => {
+    if (prefillExchangeRate != null && prefillExchangeRate > 0) {
+      return String(prefillExchangeRate);
+    }
+    return isEpOrder || isOgrOrder ? String(loadLandedRatesPersistence().fx) : '';
+  });
+  const [exchangeRateDate, setExchangeRateDate] = useState(
+    () => prefillExchangeRateDate?.trim() || formatLocalIsoDate(new Date()),
   );
-  const [exchangeRateDate, setExchangeRateDate] = useState(() => formatLocalIsoDate(new Date()));
-  const epPreview = isEpOrder
+  const usdPreview = usesUsdFx
     ? buildEaglePeakOrderConversion({
         originalAmountUsd: amountUsd,
         exchangeRate,
         exchangeRateDate,
       })
     : null;
-  const epPreviewCad = epPreview?.ok ? epPreview.stamp.total_amount_cad.toFixed(2) : null;
+  const usdPreviewCad = usdPreview?.ok ? usdPreview.stamp.total_amount_cad.toFixed(2) : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -131,22 +155,24 @@ function ConvertAccountForm({
     setBusy(true);
 
     const amount = amountCad === '' ? 0 : Number(amountCad);
-    if (withOrder && !isEpOrder && (Number.isNaN(amount) || amount < 0)) {
+    if (withOrder && !usesUsdFx && (Number.isNaN(amount) || amount < 0)) {
       setBusy(false);
       setError('Enter a valid order amount (CAD).');
       return;
     }
 
-    let epStamp: ReturnType<typeof buildEaglePeakOrderConversion> | null = null;
-    if (withOrder && isEpOrder) {
-      epStamp = buildEaglePeakOrderConversion({
+    let usdStamp: ReturnType<typeof buildEaglePeakOrderConversion> | null = null;
+    if (withOrder && usesUsdFx) {
+      usdStamp = buildEaglePeakOrderConversion({
         originalAmountUsd: amountUsd,
         exchangeRate,
         exchangeRateDate,
       });
-      if (!epStamp.ok) {
+      if (!usdStamp.ok) {
         setBusy(false);
-        setError(epStamp.error);
+        setError(
+          isOgrOrder ? usdStamp.error.replace(/^Eagle Peak orders/, 'OGR orders') : usdStamp.error,
+        );
         return;
       }
     }
@@ -175,11 +201,16 @@ function ConvertAccountForm({
       initialOrder: withOrder
         ? {
             season,
-            totalAmountCad: epStamp?.ok ? epStamp.stamp.total_amount_cad : amount,
-            originalAmountUsd: epStamp?.ok ? epStamp.stamp.original_amount : undefined,
-            exchangeRate: epStamp?.ok ? epStamp.stamp.exchange_rate : undefined,
-            exchangeRateDate: epStamp?.ok ? epStamp.stamp.exchange_rate_date : undefined,
-            fxConversionSource: epStamp?.ok ? epStamp.stamp.conversion_source : undefined,
+            totalAmountCad: usdStamp?.ok ? usdStamp.stamp.total_amount_cad : amount,
+            originalCurrency: usdStamp?.ok
+              ? 'USD'
+              : isOgrOrder && ogrCurrency === 'CAD'
+                ? 'CAD'
+                : undefined,
+            originalAmountUsd: usdStamp?.ok ? usdStamp.stamp.original_amount : undefined,
+            exchangeRate: usdStamp?.ok ? usdStamp.stamp.exchange_rate : undefined,
+            exchangeRateDate: usdStamp?.ok ? usdStamp.stamp.exchange_rate_date : undefined,
+            fxConversionSource: usdStamp?.ok ? usdStamp.stamp.conversion_source : undefined,
             notes: notes.trim() || null,
             lineId,
           }
@@ -265,7 +296,21 @@ function ConvertAccountForm({
           </Select>
         </Field>
 
-        {isEpOrder ? (
+        {isOgrOrder && !isEpOrder ? (
+          <Field>
+            <FieldLabel>Original currency</FieldLabel>
+            <Select
+              value={ogrCurrency}
+              onChange={(e) => setOgrCurrency(e.target.value as 'USD' | 'CAD')}
+              disabled={busy}
+            >
+              <option value="USD">USD (default)</option>
+              <option value="CAD">CAD</option>
+            </Select>
+          </Field>
+        ) : null}
+
+        {usesUsdFx ? (
           <>
             <Field>
               <FieldLabel>Order value (USD)</FieldLabel>
@@ -301,8 +346,8 @@ function ConvertAccountForm({
                 required
               />
             </Field>
-            {epPreviewCad != null ? (
-              <p className="text-ink/60 m-0 text-sm">CAD reporting amount: {epPreviewCad}</p>
+            {usdPreviewCad != null ? (
+              <p className="text-ink/60 m-0 text-sm">CAD reporting amount: {usdPreviewCad}</p>
             ) : null}
           </>
         ) : (
@@ -431,6 +476,9 @@ export function ConvertAccountModal({
   open,
   prospect,
   prefillAmountCad = null,
+  prefillAmountUsd = null,
+  prefillExchangeRate = null,
+  prefillExchangeRateDate = null,
   catalog,
   defaultConversionSource = 'manual',
   onClose,
@@ -440,9 +488,12 @@ export function ConvertAccountModal({
 
   return (
     <ConvertAccountForm
-      key={`${prospect.id}-${prefillAmountCad ?? 'none'}-${defaultConversionSource}`}
+      key={`${prospect.id}-${prefillAmountCad ?? 'none'}-${prefillAmountUsd ?? 'none'}-${prefillExchangeRate ?? 'none'}-${defaultConversionSource}`}
       prospect={prospect}
       prefillAmountCad={prefillAmountCad}
+      prefillAmountUsd={prefillAmountUsd}
+      prefillExchangeRate={prefillExchangeRate}
+      prefillExchangeRateDate={prefillExchangeRateDate}
       catalog={catalog}
       defaultConversionSource={defaultConversionSource}
       onClose={onClose}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LogCallModal } from '@/components/LogCallModal';
@@ -155,19 +155,33 @@ describe('LogCallModal', () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     const onSaved = vi.fn();
-    render(<ModalHarness onClose={onClose} onSaved={onSaved} />);
+    const { container } = render(<ModalHarness onClose={onClose} onSaved={onSaved} />);
 
     await user.type(screen.getByPlaceholderText(/Dave Miller/i), 'Dave Miller (Owner)');
-    await user.type(screen.getByPlaceholderText(/0 if no PO/i), '1200');
-    await user.click(screen.getByRole('button', { name: /Save Call Record/i }));
+    fireEvent.change(screen.getByPlaceholderText(/0 if no PO/i), { target: { value: '1200' } });
+    fireEvent.change(screen.getByPlaceholderText('1.45'), { target: { value: '1.45' } });
+    const form = container.querySelector('form');
+    expect(form).toBeTruthy();
+    fireEvent.submit(form!);
 
     await waitFor(() => {
       expect(insertMock).toHaveBeenCalled();
     });
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        call_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        order_value_original_currency: 'USD',
+        order_value_original_amount: 1200,
+        order_value_exchange_rate: 1.45,
+        order_value_cad: 1740,
+      }),
+    );
     expect(onSaved).toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect(await screen.findByText(/Convert to Active Account/i)).toBeInTheDocument();
+    // Convert modal defaults to USD; prefill CAD reporting back-converts to original USD.
     expect(screen.getByDisplayValue('1200')).toBeInTheDocument();
+    expect(screen.getByText(/CAD reporting amount: 1740/i)).toBeInTheDocument();
   });
 
   it('closes without convert prompt for non-conversion outcomes', async () => {
