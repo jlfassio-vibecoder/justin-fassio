@@ -5,6 +5,7 @@ import {
   lifestyleThemeLabel,
 } from '@/lib/crmRetailTaxonomy';
 import { PUBLIC_CATALOG_FORBIDDEN_KEYS, type PublicOgrProduct } from '@/lib/publicCatalog';
+import type { PublicMarket } from '@/lib/pricingMarket';
 import {
   formatSuggestedRetailCad,
   RETAIL_PRICE_DISCLAIMER,
@@ -80,6 +81,8 @@ export type PublicProductPresentation = {
 export type PublicProductPresentationContext = {
   /** Absolute sales-volume rank (#1 = highest). Omit/null → not a best seller. */
   salesVolumeRank?: number | null;
+  /** Public market for share copy and suggested retail. Defaults to Canadian. */
+  publicMarket?: PublicMarket;
 };
 
 function trimText(value: string | null | undefined): string {
@@ -114,7 +117,11 @@ function coerceSalesVolumeRank(raw: number | null | undefined): number | null {
   return n;
 }
 
-function buildSuggestedRetail(msrpCad: number): PublicProductPresentation['suggestedRetail'] {
+function buildSuggestedRetail(
+  msrpCad: number,
+  publicMarket: PublicMarket,
+): PublicProductPresentation['suggestedRetail'] {
+  if (publicMarket !== 'ca') return null;
   const range = typicalRetailCadRange(msrpCad);
   if (!range) return null;
   const display = formatSuggestedRetailCad(msrpCad);
@@ -136,9 +143,13 @@ function buildPublicShareDescription(
   description: string,
   name: string,
   sku: string,
+  publicMarket: PublicMarket,
 ): string {
   if (tagline) return tagline;
   if (description) return description;
+  if (publicMarket === 'us') {
+    return `${name} (${sku}) — wholesale for retailers via ${OGR_PUBLIC_SITE_NAME}.`;
+  }
   return `${name} (${sku}) — wholesale for Canadian retailers via ${OGR_PUBLIC_SITE_NAME}.`;
 }
 
@@ -172,6 +183,7 @@ export function buildPublicProductPresentation(
 
   const salesVolumeRank = coerceSalesVolumeRank(context.salesVolumeRank);
   const isBestSeller = salesVolumeRank != null && salesVolumeRank <= BEST_SELLER_BADGE_MAX_RANK;
+  const publicMarket = context.publicMarket ?? 'ca';
 
   return {
     id: product.id,
@@ -191,8 +203,14 @@ export function buildPublicProductPresentation(
     isBestSeller,
     isNew: product.isNew,
     isFeatured: product.featured,
-    suggestedRetail: buildSuggestedRetail(product.msrpCad),
+    suggestedRetail: buildSuggestedRetail(product.msrpCad, publicMarket),
     publicShareTitle: buildPublicShareTitle(name),
-    publicShareDescription: buildPublicShareDescription(tagline, description, name, sku),
+    publicShareDescription: buildPublicShareDescription(
+      tagline,
+      description,
+      name,
+      sku,
+      publicMarket,
+    ),
   };
 }

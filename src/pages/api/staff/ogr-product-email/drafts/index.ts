@@ -20,6 +20,7 @@ import {
   OGR_PRODUCT_EMAIL_DEFAULT_INTRO,
 } from '@/lib/ogrProductOutreachEmail';
 import { buildOgrProductUrl, resolvePublicSiteOrigin } from '@/lib/productUrls';
+import { resolveOgrPricingMarketForProductEmailDraft } from '@/lib/resolveAccountPricingMarket';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import {
   insertAgentProductOutreachDraft,
@@ -136,11 +137,21 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonError(loaded.message, 404);
   }
 
-  const presentation = buildPublicProductPresentation(loaded.product);
   const origin = resolvePublicSiteOrigin({
     requestOrigin: new URL(request.url).origin,
   });
-  const productHref = buildOgrProductUrl(presentation.slug, origin);
+  const emailMarket = (
+    await resolveOgrPricingMarketForProductEmailDraft(gate.supabase, {
+      prospectId: crm.association.prospectId,
+    })
+  ).publicMarket;
+  const presentation = buildPublicProductPresentation(loaded.product, {
+    publicMarket: emailMarket,
+  });
+  const productHref =
+    emailMarket === 'us'
+      ? buildOgrProductUrl(presentation.slug, origin, 'us')
+      : buildOgrProductUrl(presentation.slug, origin);
 
   const subject = subjectResult.value ?? defaultOgrProductEmailSubject(presentation.name);
   const introText = introResult.value ?? OGR_PRODUCT_EMAIL_DEFAULT_INTRO;
@@ -161,6 +172,7 @@ export const POST: APIRoute = async ({ request }) => {
       name: presentation.name,
       slug: presentation.slug,
       productHref,
+      ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
     },
   });
 

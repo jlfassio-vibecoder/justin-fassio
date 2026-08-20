@@ -35,6 +35,7 @@ export type SalesLineTerritoryAssignment = {
   territoryId: string;
   territoryCode: string;
   territoryName: string;
+  countryCode: string | null;
   parentTerritoryCode: string | null;
   parentTerritoryName: string | null;
   geoLevel: string;
@@ -122,6 +123,7 @@ type GeoRow = {
   level: string;
   status: string;
   parent_territory_id: string | null;
+  country_code: string | null;
 };
 
 function mapAssignment(
@@ -146,6 +148,7 @@ function mapAssignment(
     territoryId: row.territory_id,
     territoryCode: geo.code,
     territoryName: geo.name,
+    countryCode: geo.country_code,
     parentTerritoryCode: parent?.code ?? null,
     parentTerritoryName: parent?.name ?? null,
     geoLevel: geo.level,
@@ -167,7 +170,7 @@ async function loadGeoMap(
   if (ids.length === 0) return { ok: true, geos: new Map() };
   const { data, error } = await client
     .from('territories')
-    .select('id, code, name, level, status, parent_territory_id')
+    .select('id, code, name, level, status, parent_territory_id, country_code')
     .in('id', ids);
   if (error) return { ok: false, error: error.message };
   return {
@@ -224,6 +227,7 @@ export async function fetchSalesLineTerritories(
           level: 'province_state',
           status: 'active',
           parent_territory_id: null,
+          country_code: null,
         },
         parent ? { code: parent.code, name: parent.name } : null,
       );
@@ -239,7 +243,7 @@ async function resolveGeo(
   if (input.territoryId?.trim()) {
     const { data, error } = await client
       .from('territories')
-      .select('id, code, name, level, status, parent_territory_id')
+      .select('id, code, name, level, status, parent_territory_id, country_code')
       .eq('id', input.territoryId.trim())
       .maybeSingle();
     if (error) return { ok: false, error: error.message };
@@ -250,7 +254,7 @@ async function resolveGeo(
   if (!code) return { ok: false, error: TERRITORY_ADMIN_ERRORS.unknownGeo };
   const { data, error } = await client
     .from('territories')
-    .select('id, code, name, level, status, parent_territory_id')
+    .select('id, code, name, level, status, parent_territory_id, country_code')
     .eq('code', code)
     .maybeSingle();
   if (error) return { ok: false, error: error.message };

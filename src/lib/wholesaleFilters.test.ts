@@ -10,7 +10,9 @@ import type { PublicOgrProduct } from '@/lib/publicCatalog';
 import {
   formatMerchandiseSubtotalUsd,
   formatSuggestedRetailCad,
+  formatSuggestedRetailUs,
   formatWholesaleUsd,
+  typicalRetailCadRange,
 } from '@/lib/wholesalePricing';
 import { OGR_WHOLESALE_PATH } from '@/data/landing';
 import {
@@ -64,6 +66,14 @@ describe('wholesale pricing labels', () => {
     expect(formatSuggestedRetailCad(39.99)).toBe('Typical Canadian retail: C$39.99–C$44.99');
     expect(formatSuggestedRetailCad(0)).toBeNull();
     expect(formatMerchandiseSubtotalUsd(100.5)).toBe('US$100.50');
+  });
+
+  it('keeps CAD typical-retail math unchanged and never invents a US MSRP', () => {
+    expect(typicalRetailCadRange(39.99)).toEqual({ low: 39.99, high: 44.99 });
+    expect(formatSuggestedRetailUs()).toBe(
+      'Suggested retail is set independently by each retailer.',
+    );
+    expect(formatSuggestedRetailUs()).not.toMatch(/C\$|US\$\d|Typical Canadian retail/);
   });
 });
 

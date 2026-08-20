@@ -134,6 +134,24 @@ describe('OgrProductEmailComposerModal', () => {
     expect(JSON.stringify(payload)).not.toContain(CARD_HTML);
   });
 
+  it('sends the Line Sheet market for accountless U.S. mail', async () => {
+    const user = userEvent.setup();
+    sendOgrProductEmailMock.mockResolvedValue({ ok: true });
+    renderModal({
+      defaultTo: 'buyer@example.com',
+      defaultRecipientName: 'Sam',
+      publicMarket: 'us',
+    });
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    expect(sendOgrProductEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        market: 'us',
+      }),
+    );
+  });
+
   it('account path sends prospectId and saved contact id', async () => {
     const user = userEvent.setup();
     sendOgrProductEmailMock.mockResolvedValue({ ok: true });

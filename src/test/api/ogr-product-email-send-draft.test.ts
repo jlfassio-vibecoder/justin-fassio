@@ -9,6 +9,7 @@ const buildPublicProductPresentationMock = vi.fn();
 const buildOgrProductUrlMock = vi.fn();
 const buildOgrCollectionUrlMock = vi.fn();
 const resolvePublicSiteOriginMock = vi.fn();
+const resolveOgrPricingMarketForProspectMock = vi.fn();
 const resolveStaffOutreachSenderNamesMock = vi.fn();
 const renderOgrProductOutreachEmailMock = vi.fn();
 const sendOgrProductOutreachEmailMock = vi.fn();
@@ -24,6 +25,11 @@ vi.mock('@/lib/systemMessages', () => ({
     markAgentProductOutreachDraftSentMock(...args),
   requireExplicitProductOutreachCrmAssociation: (...args: unknown[]) =>
     requireExplicitProductOutreachCrmAssociationMock(...args),
+  publicMarketFromOutreachPayload: (payload: unknown) => {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+    const value = (payload as { publicMarket?: unknown }).publicMarket;
+    return value === 'ca' || value === 'us' ? value : null;
+  },
 }));
 
 vi.mock('@/lib/loadPublishedOgrProductForEmail', () => ({
@@ -40,6 +46,11 @@ vi.mock('@/lib/productUrls', () => ({
   buildOgrProductUrl: (...args: unknown[]) => buildOgrProductUrlMock(...args),
   buildOgrCollectionUrl: (...args: unknown[]) => buildOgrCollectionUrlMock(...args),
   resolvePublicSiteOrigin: (...args: unknown[]) => resolvePublicSiteOriginMock(...args),
+}));
+
+vi.mock('@/lib/resolveAccountPricingMarket', () => ({
+  resolveOgrPricingMarketForProductEmailDraft: (...args: unknown[]) =>
+    resolveOgrPricingMarketForProspectMock(...args),
 }));
 
 vi.mock('@/lib/ogrProductEmailSender', () => ({
@@ -142,6 +153,7 @@ describe('POST /api/staff/ogr-product-email/drafts/[id]/send', () => {
       slug: 'american-revival',
     });
     resolvePublicSiteOriginMock.mockReturnValue('https://justinfassio.com');
+    resolveOgrPricingMarketForProspectMock.mockResolvedValue({ publicMarket: 'ca' });
     buildOgrProductUrlMock.mockReturnValue(
       'https://justinfassio.com/old-guys-rule-wholesale/american-revival',
     );
@@ -215,5 +227,62 @@ describe('POST /api/staff/ogr-product-email/drafts/[id]/send', () => {
     const res = await POST(ctx());
     expect(res.status).toBe(409);
     expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('recomputes U.S. hrefs from the current RLA and does not keep the stored Canadian URL', async () => {
+    resolveOgrPricingMarketForProspectMock.mockResolvedValue({ publicMarket: 'us' });
+    buildOgrProductUrlMock.mockReturnValue(
+      'https://justinfassio.com/old-guys-rule-wholesale/us/american-revival',
+    );
+    buildOgrCollectionUrlMock.mockReturnValue(
+      'https://justinfassio.com/old-guys-rule-wholesale/us',
+    );
+    const res = await POST(ctx());
+    expect(res.status).toBe(200);
+    expect(resolveOgrPricingMarketForProspectMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ prospectId: 42, payloadMarket: null }),
+    );
+    expect(buildOgrProductUrlMock).toHaveBeenCalledWith(
+      'american-revival',
+      'https://justinfassio.com',
+      'us',
+    );
+    expect(renderOgrProductOutreachEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        productHref: 'https://justinfassio.com/old-guys-rule-wholesale/us/american-revival',
+      }),
+    );
+    expect(markAgentProductOutreachDraftSentMock).toHaveBeenCalledWith(
+      expect.anything(),
+      DRAFT_ID,
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          publicMarket: 'us',
+          productHref: 'https://justinfassio.com/old-guys-rule-wholesale/us/american-revival',
+        }),
+      }),
+    );
+  });
+
+  it('uses unknown-market U.S. paths when the assignment is invalid instead of Canada', async () => {
+    resolveOgrPricingMarketForProspectMock.mockResolvedValue({
+      publicMarket: 'us',
+      source: 'unknown',
+    });
+    buildOgrProductUrlMock.mockReturnValue(
+      'https://justinfassio.com/old-guys-rule-wholesale/us/american-revival',
+    );
+    const res = await POST(ctx());
+    expect(res.status).toBe(200);
+    expect(buildOgrProductUrlMock).toHaveBeenCalledWith(
+      'american-revival',
+      'https://justinfassio.com',
+      'us',
+    );
+    expect(buildOgrProductUrlMock).not.toHaveBeenCalledWith(
+      'american-revival',
+      'https://justinfassio.com',
+    );
   });
 });

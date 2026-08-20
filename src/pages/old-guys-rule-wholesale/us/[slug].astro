@@ -42,7 +42,7 @@ const resolvedTerms: PublicOgrSupplierTerms = terms ?? {
 };
 
 const ogrLine = lines.find((line) => line.code === 'ogr') ?? null;
-const presentation = buildPublicProductPresentation(product, { publicMarket: 'ca' });
+const presentation = buildPublicProductPresentation(product, { publicMarket: 'us' });
 const shareImage = resolveOgrProductShareImage({
   presentation,
   lineHeroImageUrl: ogrLine?.heroImageUrl,
@@ -50,6 +50,7 @@ const shareImage = resolveOgrProductShareImage({
 const canonicalUrl = buildOgrProductUrl(
   presentation.slug,
   resolvePublicSiteOrigin({ requestOrigin: Astro.url.origin }),
+  'us',
 );
 const seo = toLayoutSeoProps(
   buildOgrProductMetadata({
@@ -61,5 +62,5 @@ const seo = toLayoutSeoProps(
 ---
 
 <Layout {...seo}>
-  <WholesaleProductPage client:load product={product} terms={resolvedTerms} publicMarket="ca" />
+  <WholesaleProductPage client:load product={product} terms={resolvedTerms} publicMarket="us" />
 </Layout>

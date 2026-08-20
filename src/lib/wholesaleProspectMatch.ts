@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { nextProspectId } from '@/lib/createEnrichedProspect';
+import { ogrUsInboundTerritoryCode } from '@/lib/ogrUsInboundTerritory';
+import type { PublicMarket } from '@/lib/pricingMarket';
 import { resolveTerritoryIdByCode, territoryCodeFromProvince } from '@/lib/territories';
 import type { Database } from '@/types/database';
 
@@ -15,11 +17,12 @@ export type WholesaleProspectMatchInput = {
   website?: string | null;
   retailChannel?: string | null;
   isExistingCustomer?: boolean;
+  publicMarket?: PublicMarket;
 };
 
 export type WholesaleProspectMatchResult =
   | { ok: true; prospectId: number; matched: WholesaleProspectMatchKind }
-  | { ok: false; error: string };
+  | { ok: false; error: string; reviewWithoutProspect?: true };
 
 type AdminClient = SupabaseClient<Database>;
 
@@ -113,6 +116,46 @@ async function allocateNextId(admin: AdminClient): Promise<number | { error: str
   return nextProspectId(data?.id);
 }
 
+async function resolveInboundTerritoryId(
+  admin: AdminClient,
+  input: WholesaleProspectMatchInput,
+): Promise<{ id: string } | { error: string } | { reviewWithoutProspect: true }> {
+  if (input.publicMarket === 'us') {
+    const code = ogrUsInboundTerritoryCode(input.province);
+    if (!code) return { reviewWithoutProspect: true };
+    return resolveTerritoryIdByCode(admin, code);
+  }
+  return resolveTerritoryIdByCode(admin, territoryCodeFromProvince(input.province));
+}
+
+/** After RLA insert, attach the active OGR SLT for OR/WA. Missing SLT stays unassigned (review). */
+async function assignActiveOgrSalesLineTerritory(
+  admin: AdminClient,
+  input: { retailerId: number; salesLineId: string; territoryId: string },
+): Promise<void> {
+  const { data: slt } = await admin
+    .from('sales_line_territories')
+    .select('id')
+    .eq('sales_line_id', input.salesLineId)
+    .eq('territory_id', input.territoryId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (!slt?.id) return;
+
+  const { data: rla } = await admin
+    .from('retailer_line_accounts')
+    .select('id')
+    .eq('retailer_id', input.retailerId)
+    .eq('sales_line_id', input.salesLineId)
+    .maybeSingle();
+  if (!rla?.id) return;
+
+  await admin
+    .from('retailer_line_accounts')
+    .update({ sales_line_territory_id: slt.id })
+    .eq('id', rla.id);
+}
+
 async function createInboundProspect(
   admin: AdminClient,
   input: WholesaleProspectMatchInput,
@@ -120,10 +163,14 @@ async function createInboundProspect(
   const allocated = await allocateNextId(admin);
   if (typeof allocated !== 'number') return { ok: false, error: allocated.error };
 
-  const territory = await resolveTerritoryIdByCode(
-    admin,
-    territoryCodeFromProvince(input.province),
-  );
+  const territory = await resolveInboundTerritoryId(admin, input);
+  if ('reviewWithoutProspect' in territory) {
+    return {
+      ok: false,
+      error: 'U.S. state could not be assigned to an OGR territory',
+      reviewWithoutProspect: true,
+    };
+  }
   if ('error' in territory) return { ok: false, error: territory.error };
 
   const existingOgr = input.isExistingCustomer ? 'yes' : 'unknown';
@@ -212,6 +259,14 @@ async function createInboundProspect(
         { onConflict: 'retailer_line_account_id,account_contact_id' },
       );
     }
+  }
+
+  if (input.publicMarket === 'us') {
+    await assignActiveOgrSalesLineTerritory(admin, {
+      retailerId: prospect.id,
+      salesLineId: ogr.id,
+      territoryId: territory.id,
+    });
   }
 
   return { ok: true, prospectId: prospect.id, matched: 'created' };

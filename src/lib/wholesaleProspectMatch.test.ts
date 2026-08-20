@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   buildWholesaleActivityNote,
   categoryFromRetailChannel,
@@ -25,6 +27,7 @@ function query(result: { data: unknown; error: unknown | null }) {
   const self = () => api;
   api.select = vi.fn(self);
   api.insert = vi.fn(self);
+  api.update = vi.fn(self);
   api.upsert = vi.fn(self);
   api.ilike = vi.fn(self);
   api.eq = vi.fn(self);
@@ -193,5 +196,112 @@ describe('matchOrCreateWholesaleProspect', () => {
 
     const result = await matchOrCreateWholesaleProspect({ from } as unknown as Admin, input);
     expect(result).toEqual({ ok: true, prospectId: 6, matched: 'created' });
+  });
+
+  it('creates a U.S. Oregon prospect without calling the BC fallback mapper', async () => {
+    let prospectSelectCalls = 0;
+    const prospectInsert = vi.fn(() => ({
+      select: () => ({
+        single: async () => ({ data: { id: 200 }, error: null }),
+      }),
+    }));
+    const rlaUpdate = vi.fn(() => query({ data: { id: 'rla-or' }, error: null }));
+    const from = vi.fn((table: string) => {
+      if (table === 'account_contacts') {
+        const q = query({ data: [], error: null });
+        q.insert = vi.fn(async () => ({ data: null, error: null }));
+        return q;
+      }
+      if (table === 'territories') {
+        const q = query({ data: { id: 'terr-or' }, error: null });
+        q.eq = vi.fn((column: string, value: unknown) => {
+          if (column === 'code' && value === 'bc') {
+            throw new Error('must not resolve BC for U.S. Oregon inbound');
+          }
+          return q;
+        });
+        return q;
+      }
+      if (table === 'prospects') {
+        prospectSelectCalls += 1;
+        if (prospectSelectCalls === 1) {
+          return query({ data: [], error: null });
+        }
+        const q = query({ data: { id: 199 }, error: null });
+        q.insert = prospectInsert;
+        return q;
+      }
+      if (table === 'lines') {
+        return query({ data: { id: 'line-ogr' }, error: null });
+      }
+      if (table === 'retailer_line_accounts') {
+        const q = query({ data: { id: 'rla-or' }, error: null });
+        q.update = rlaUpdate;
+        return q;
+      }
+      if (table === 'sales_line_territories') {
+        return query({ data: { id: 'slt-or' }, error: null });
+      }
+      if (table === 'retailer_line_contacts') {
+        return query({ data: null, error: null });
+      }
+      throw new Error(`unexpected table ${table}`);
+    });
+
+    const result = await matchOrCreateWholesaleProspect({ from } as unknown as Admin, {
+      ...input,
+      city: 'Portland',
+      province: 'OR',
+      publicMarket: 'us',
+    });
+    expect(result).toEqual({ ok: true, prospectId: 200, matched: 'created' });
+    expect(prospectInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        territory_id: 'terr-or',
+        region: 'OR',
+      }),
+    );
+    expect(rlaUpdate).toHaveBeenCalledWith({ sales_line_territory_id: 'slt-or' });
+  });
+
+  it('skips CRM create for an unresolvable U.S. state instead of assigning BC', async () => {
+    let prospectSelectCalls = 0;
+    const from = vi.fn((table: string) => {
+      if (table === 'account_contacts') {
+        return query({ data: [], error: null });
+      }
+      if (table === 'prospects') {
+        prospectSelectCalls += 1;
+        if (prospectSelectCalls === 1) {
+          return query({ data: [], error: null });
+        }
+        const q = query({ data: { id: 5 }, error: null });
+        q.insert = vi.fn(() => {
+          throw new Error('must not insert a prospect for unresolved U.S. state');
+        });
+        return q;
+      }
+      if (table === 'territories') {
+        throw new Error('must not resolve a territory for unresolved U.S. state');
+      }
+      throw new Error(`unexpected table ${table}`);
+    });
+
+    const result = await matchOrCreateWholesaleProspect({ from } as unknown as Admin, {
+      ...input,
+      province: 'CA',
+      publicMarket: 'us',
+    });
+    expect(result).toEqual({
+      ok: false,
+      error: 'U.S. state could not be assigned to an OGR territory',
+      reviewWithoutProspect: true,
+    });
+  });
+
+  it('never routes U.S. creates through the unknown-province → BC helper', () => {
+    const src = readFileSync(resolve(process.cwd(), 'src/lib/wholesaleProspectMatch.ts'), 'utf8');
+    expect(src).toMatch(/ogrUsInboundTerritoryCode/);
+    expect(src).toMatch(/if \(input\.publicMarket === 'us'\)/);
   });
 });

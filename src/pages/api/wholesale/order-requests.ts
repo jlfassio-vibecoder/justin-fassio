@@ -174,6 +174,7 @@ export const POST: APIRoute = async ({ request }) => {
     website: body.website,
     retailChannel: body.retailChannel,
     isExistingCustomer: body.isExistingCustomer,
+    publicMarket: body.publicMarket,
   });
 
   if (match.ok) {
@@ -211,6 +212,8 @@ export const POST: APIRoute = async ({ request }) => {
     } else if ('skipped' in buyerAccount && buyerAccount.skipped) {
       console.info('[wholesale-order-requests] buyer account skipped', buyerAccount.reason);
     }
+  } else if (match.reviewWithoutProspect) {
+    console.info('[wholesale-order-requests] U.S. territory needs review', body.province);
   } else {
     console.error('[wholesale-order-requests] prospect match failed', match.error);
   }

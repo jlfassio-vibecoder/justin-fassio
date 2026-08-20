@@ -8,6 +8,7 @@ const requireExplicitProductOutreachCrmAssociationMock = vi.fn();
 const buildPublicProductPresentationMock = vi.fn();
 const buildOgrProductUrlMock = vi.fn();
 const resolvePublicSiteOriginMock = vi.fn();
+const resolveOgrPricingMarketForProspectMock = vi.fn();
 
 vi.mock('@/lib/agentAuth', () => ({
   requireApprovedStaffClient: (...args: unknown[]) => requireApprovedStaffClientMock(...args),
@@ -35,6 +36,11 @@ vi.mock('@/lib/publicProductPresentation', () => ({
 vi.mock('@/lib/productUrls', () => ({
   buildOgrProductUrl: (...args: unknown[]) => buildOgrProductUrlMock(...args),
   resolvePublicSiteOrigin: (...args: unknown[]) => resolvePublicSiteOriginMock(...args),
+}));
+
+vi.mock('@/lib/resolveAccountPricingMarket', () => ({
+  resolveOgrPricingMarketForProductEmailDraft: (...args: unknown[]) =>
+    resolveOgrPricingMarketForProspectMock(...args),
 }));
 
 import { GET, POST } from '@/pages/api/staff/ogr-product-email/drafts/index';
@@ -79,6 +85,7 @@ describe('POST /api/staff/ogr-product-email/drafts', () => {
       slug: 'american-revival',
     });
     resolvePublicSiteOriginMock.mockReturnValue('https://justinfassio.com');
+    resolveOgrPricingMarketForProspectMock.mockResolvedValue({ publicMarket: 'ca' });
     buildOgrProductUrlMock.mockReturnValue(
       'https://justinfassio.com/old-guys-rule-wholesale/american-revival',
     );
@@ -140,6 +147,37 @@ describe('POST /api/staff/ogr-product-email/drafts', () => {
     );
     expect(res.status).toBe(400);
     expect(insertAgentProductOutreachDraftMock).not.toHaveBeenCalled();
+  });
+
+  it('stamps a U.S. href and payload market when the current RLA is US', async () => {
+    resolveOgrPricingMarketForProspectMock.mockResolvedValue({ publicMarket: 'us' });
+    buildOgrProductUrlMock.mockReturnValue(
+      'https://justinfassio.com/old-guys-rule-wholesale/us/american-revival',
+    );
+    const res = await POST(
+      requestWith({
+        productId: PRODUCT_ID,
+        to: 'buyer@example.com',
+        toName: 'Sam',
+        prospectId: 42,
+        accountContactId: CONTACT_ID,
+      }),
+    );
+    expect(res.status).toBe(201);
+    expect(buildOgrProductUrlMock).toHaveBeenCalledWith(
+      'american-revival',
+      'https://justinfassio.com',
+      'us',
+    );
+    expect(insertAgentProductOutreachDraftMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          productHref: 'https://justinfassio.com/old-guys-rule-wholesale/us/american-revival',
+          publicMarket: 'us',
+        }),
+      }),
+    );
   });
 });
 

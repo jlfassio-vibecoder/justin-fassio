@@ -55,6 +55,20 @@ describe('isPublicAbsoluteImageUrl', () => {
 });
 
 describe('buildOgrProductMetadata', () => {
+  it('uses the U.S. product canonical and does not point at the Canadian route', () => {
+    const presentation = buildPublicProductPresentation(fixture(), { publicMarket: 'us' });
+    const canonicalUrl =
+      'https://justinfassio.com/old-guys-rule-wholesale/us/american-revival-og2513';
+    const metadata = buildOgrProductMetadata({ presentation, canonicalUrl });
+    expect(metadata.canonicalUrl).toBe(canonicalUrl);
+    expect(metadata.canonicalUrl).not.toBe(
+      'https://justinfassio.com/old-guys-rule-wholesale/american-revival-og2513',
+    );
+    expect(metadata.description).not.toContain('Typical Canadian retail');
+    expect(metadata.description).not.toContain('C$');
+    expect(metadata.description).not.toContain('GST/PST');
+  });
+
   it('maps presentation share fields and absolute image', () => {
     const presentation = buildPublicProductPresentation(fixture());
     const canonicalUrl = 'https://justinfassio.com/old-guys-rule-wholesale/american-revival-og2513';
@@ -163,6 +177,33 @@ describe('buildOgrCollectionMetadata', () => {
     });
     expect(fallback.description).toContain('Canadian retailers');
     expect(fallback.image).toBeNull();
+  });
+
+  it('drops Wholesale Canada and Canadian-retailer fallback copy for the U.S. market', () => {
+    const metadata = buildOgrCollectionMetadata({
+      canonicalUrl: 'https://justinfassio.com/old-guys-rule-wholesale/us',
+      line: null,
+      publicMarket: 'us',
+    });
+    expect(metadata.title).toBe('Old Guys Rule Wholesale | Justin Fassio');
+    expect(metadata.title).not.toContain('Wholesale Canada');
+    expect(metadata.description).not.toContain('Canadian retailers');
+  });
+
+  it('does not emit Canadian line copy on U.S. collection pages', () => {
+    const metadata = buildOgrCollectionMetadata({
+      canonicalUrl: 'https://justinfassio.com/old-guys-rule-wholesale/us',
+      line: {
+        name: 'Old Guys Rule',
+        tagline: 'Now Repping',
+        description: 'Men’s lifestyle apparel for Canadian retailers.',
+        heroImageUrl: null,
+      },
+      publicMarket: 'us',
+    });
+    expect(metadata.canonicalUrl).toBe('https://justinfassio.com/old-guys-rule-wholesale/us');
+    expect(metadata.description).not.toContain('Canadian retailers');
+    expect(metadata.description).toContain('request pricing and availability');
   });
 
   it('uses explicit image override when provided, including null', () => {

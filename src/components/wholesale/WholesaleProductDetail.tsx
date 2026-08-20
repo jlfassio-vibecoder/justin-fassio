@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   formatSuggestedRetailCad,
+  formatSuggestedRetailUs,
   formatWholesaleUsd,
   hasWholesalePricing,
   RETAIL_PRICE_DISCLAIMER,
@@ -8,11 +9,13 @@ import {
 } from '@/lib/wholesalePricing';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
 import { tryBuildOgrProductUrl } from '@/lib/productUrls';
+import type { PublicMarket } from '@/lib/pricingMarket';
 import type { WholesaleOrderLine } from '@/lib/wholesaleOrderDraft';
 import { lifestyleThemeLabel } from '@/lib/crmRetailTaxonomy';
 
 type Props = {
   product: PublicOgrProduct;
+  publicMarket?: PublicMarket;
   onAddLines: (lines: WholesaleOrderLine[]) => void;
   onRequestAccess: () => void;
   onClose?: () => void;
@@ -28,6 +31,7 @@ function galleryUrls(product: PublicOgrProduct): string[] {
 
 export function WholesaleProductDetail({
   product,
+  publicMarket = 'ca',
   onAddLines,
   onRequestAccess,
   onClose,
@@ -41,7 +45,10 @@ export function WholesaleProductDetail({
     Object.fromEntries(sizes.map((s) => [s, 0])),
   );
   const [copied, setCopied] = useState(false);
-  const retail = formatSuggestedRetailCad(product.msrpCad);
+  const showCanadianRetail = publicMarket === 'ca';
+  const retail = showCanadianRetail
+    ? formatSuggestedRetailCad(product.msrpCad)
+    : formatSuggestedRetailUs();
   const wholesale = formatWholesaleUsd(product.wholesaleUsd);
   const canWholesale = hasWholesalePricing(product.wholesaleUsd);
   const totalUnits = useMemo(
@@ -76,7 +83,7 @@ export function WholesaleProductDetail({
   }
 
   async function copyLink() {
-    const url = tryBuildOgrProductUrl(product.publicSlug, window.location.origin);
+    const url = tryBuildOgrProductUrl(product.publicSlug, window.location.origin, publicMarket);
     if (!url) return;
     try {
       await navigator.clipboard.writeText(url);

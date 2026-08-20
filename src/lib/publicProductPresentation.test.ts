@@ -176,6 +176,25 @@ describe('buildPublicProductPresentation', () => {
     );
   });
 
+  it('drops CAD retail numbers and Canadian-retailer copy for the U.S. market', () => {
+    const presentation = buildPublicProductPresentation(fixture({ msrpCad: 39.99 }), {
+      publicMarket: 'us',
+    });
+    expect(presentation.suggestedRetail).toBeNull();
+    expect(JSON.stringify(presentation)).not.toMatch(
+      /C\$|Typical Canadian retail|Wholesale Canada/,
+    );
+
+    const fallback = buildPublicProductPresentation(
+      fixture({ tagline: '', description: '', msrpCad: 39.99 }),
+      { publicMarket: 'us' },
+    );
+    expect(fallback.publicShareDescription).toBe(
+      `American Revival (OG2513) — wholesale for retailers via ${OGR_PUBLIC_SITE_NAME}.`,
+    );
+    expect(fallback.publicShareDescription).not.toContain('Canadian retailers');
+  });
+
   it('never leaks wholesale or staff fields onto the presentation object', () => {
     const presentation = buildPublicProductPresentation(fixture({ wholesaleUsd: 13 }));
     expect(presentation).not.toHaveProperty('wholesaleUsd');

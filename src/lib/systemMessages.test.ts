@@ -1035,6 +1035,30 @@ describe('buildProductOutreachPayload', () => {
     expect(payload.generation?.promptVersion).toBe('v1');
     expect(payload.sku).toBe('OG1');
   });
+
+  it('stamps U.S. publicMarket and omits it for Canadian drafts', async () => {
+    const { buildProductOutreachPayload, publicMarketFromOutreachPayload } =
+      await import('@/lib/systemMessages');
+    const us = buildProductOutreachPayload({
+      sku: 'OG1',
+      name: 'Tee',
+      slug: 'tee',
+      productHref: 'https://justinfassio.com/old-guys-rule-wholesale/us/tee',
+      publicMarket: 'us',
+    });
+    expect(us.publicMarket).toBe('us');
+    expect(publicMarketFromOutreachPayload(us)).toBe('us');
+
+    const ca = buildProductOutreachPayload({
+      sku: 'OG1',
+      name: 'Tee',
+      slug: 'tee',
+      productHref: 'https://justinfassio.com/old-guys-rule-wholesale/tee',
+      publicMarket: 'ca',
+    });
+    expect(ca.publicMarket).toBeUndefined();
+    expect(publicMarketFromOutreachPayload(ca)).toBeNull();
+  });
 });
 
 describe('fetchPendingAgentDraftCountsByCatalogItemId', () => {

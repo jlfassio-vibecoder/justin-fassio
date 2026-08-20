@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ogrUsInboundTerritoryCode } from '@/lib/ogrUsInboundTerritory';
 
 export const wholesaleOrderLineSchema = z.object({
   productId: z.uuid(),
@@ -38,6 +39,8 @@ export const wholesaleOrderRequestBodySchema = z
     preferredContactMethod: z.string().trim().max(80).optional().nullable(),
     /** Honeypot — must be empty. */
     companyFax: z.string().max(200).optional().nullable(),
+    /** Closed enum from the public route. Omitted clients stay Canadian. */
+    publicMarket: z.enum(['ca', 'us']).optional().default('ca'),
     lines: z.array(wholesaleOrderLineSchema).max(200).default([]),
   })
   .superRefine((data, ctx) => {
@@ -66,14 +69,30 @@ export const wholesaleOrderRequestBodySchema = z
         message: 'City is required',
       });
     }
-    if (!data.province) {
+    if (data.publicMarket === 'us') {
+      if (!ogrUsInboundTerritoryCode(data.province)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['province'],
+          message: 'Oregon or Washington is required',
+        });
+      }
+    } else if (!data.province) {
       ctx.addIssue({
         code: 'custom',
         path: ['province'],
         message: 'Province is required',
       });
     }
-    if (data.postalCode.length < 3) {
+    if (data.publicMarket === 'us') {
+      if (data.postalCode.length < 5) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['postalCode'],
+          message: 'ZIP code is required',
+        });
+      }
+    } else if (data.postalCode.length < 3) {
       ctx.addIssue({
         code: 'custom',
         path: ['postalCode'],

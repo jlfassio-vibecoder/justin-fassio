@@ -73,4 +73,46 @@ describe('wholesaleOrderRequestBodySchema', () => {
       );
     }
   });
+
+  it('defaults omitted publicMarket to Canada and accepts a U.S. Oregon order', () => {
+    const omitted = wholesaleOrderRequestBodySchema.safeParse(orderBase);
+    expect(omitted.success).toBe(true);
+    if (omitted.success) expect(omitted.data.publicMarket).toBe('ca');
+
+    const usOrder = wholesaleOrderRequestBodySchema.safeParse({
+      ...orderBase,
+      publicMarket: 'us',
+      city: 'Portland',
+      province: 'OR',
+      postalCode: '97201',
+    });
+    expect(usOrder.success).toBe(true);
+    if (usOrder.success) {
+      expect(usOrder.data.publicMarket).toBe('us');
+      expect(usOrder.data.province).toBe('OR');
+    }
+  });
+
+  it('rejects a U.S. order with a Canadian province', () => {
+    const parsed = wholesaleOrderRequestBodySchema.safeParse({
+      ...orderBase,
+      publicMarket: 'us',
+      province: 'BC',
+      postalCode: '97201',
+    });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(
+        parsed.error.issues.some((i) => i.message === 'Oregon or Washington is required'),
+      ).toBe(true);
+    }
+  });
+
+  it('rejects an unknown publicMarket', () => {
+    const parsed = wholesaleOrderRequestBodySchema.safeParse({
+      ...orderBase,
+      publicMarket: 'mx',
+    });
+    expect(parsed.success).toBe(false);
+  });
 });

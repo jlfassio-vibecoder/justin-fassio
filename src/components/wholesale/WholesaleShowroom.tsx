@@ -26,12 +26,21 @@ import { WholesaleProductDetail } from '@/components/wholesale/WholesaleProductD
 import { cartItemsToDraft, fetchBuyerCartItems, enqueueBuyerCartSync } from '@/lib/buyerCart';
 import { fetchBuyerLikedProductIds, toggleBuyerProductLike } from '@/lib/buyerLikes';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
-import { tryBuildOgrProductPath, OGR_WHOLESALE_PATH } from '@/lib/productUrls';
+import { parseOgrWholesaleProductSlug, tryBuildOgrProductPath } from '@/lib/productUrls';
+import {
+  ogrWholesaleCollectionPath,
+  resolvePricingMarketFromPublicPath,
+  type PricingMarket,
+  type PublicMarket,
+} from '@/lib/pricingMarket';
+import { WholesaleMarketSwitcher } from '@/components/wholesale/WholesaleMarketSwitcher';
+import { alignBuyerPricingMarket } from '@/lib/buyerPricingMarket';
 
 type Props = {
   products: PublicOgrProduct[];
   terms: PublicOgrSupplierTerms;
   initialQuickViewSlug?: string | null;
+  publicMarket?: PublicMarket;
 };
 
 const DEFAULT_TERMS: PublicOgrSupplierTerms = {
@@ -50,8 +59,13 @@ export function WholesaleShowroom({
   products: initialProducts,
   terms,
   initialQuickViewSlug = null,
+  publicMarket = 'ca',
 }: Props) {
   const resolvedTerms = terms ?? DEFAULT_TERMS;
+  const collectionPath = ogrWholesaleCollectionPath(publicMarket);
+  const [pricingMarket, setPricingMarket] = useState<PricingMarket>(() =>
+    resolvePricingMarketFromPublicPath(collectionPath),
+  );
   const [products, setProducts] = useState(initialProducts);
   const [filters, setFilters] = useState<WholesaleFilterState>(readFiltersFromLocation);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -70,16 +84,8 @@ export function WholesaleShowroom({
     function onPopState() {
       setFilters(readFiltersFromLocation());
       const path = window.location.pathname;
-      const match = path.match(
-        new RegExp(`^${OGR_WHOLESALE_PATH.replace(/\//g, '\\/')}\\/([^/]+)\\/?$`),
-      );
-      if (match?.[1]) {
-        let segment = match[1];
-        try {
-          segment = decodeURIComponent(match[1]);
-        } catch {
-          /* keep raw segment */
-        }
+      const segment = parseOgrWholesaleProductSlug(path);
+      if (segment) {
         const product = products.find((p) => p.publicSlug === segment);
         setQuickView(product ?? null);
       } else {
@@ -108,6 +114,15 @@ export function WholesaleShowroom({
 
       if (!active || profile?.role !== 'buyer') return;
       setBuyerUserId(session.user.id);
+
+      const rlaMarket = await alignBuyerPricingMarket(publicMarket);
+      if (!active) return;
+      if (
+        rlaMarket &&
+        (rlaMarket.source === 'rla_territory_assignment' || rlaMarket.source === 'unknown')
+      ) {
+        setPricingMarket(rlaMarket);
+      }
 
       const catalog = await fetchPublicOgrProducts();
       if (active && catalog.data) {
@@ -171,7 +186,7 @@ export function WholesaleShowroom({
     setFilters(next);
     const params = wholesaleFiltersToSearchParams(next);
     const qs = params.toString();
-    const url = qs ? `${OGR_WHOLESALE_PATH}?${qs}` : OGR_WHOLESALE_PATH;
+    const url = qs ? `${collectionPath}?${qs}` : collectionPath;
     window.history.replaceState({}, '', url);
   }
 
@@ -183,7 +198,7 @@ export function WholesaleShowroom({
     setQuickView(product);
     const params = wholesaleFiltersToSearchParams(filters);
     const qs = params.toString();
-    const path = tryBuildOgrProductPath(product.publicSlug);
+    const path = tryBuildOgrProductPath(product.publicSlug, publicMarket);
     if (!path) return;
     const url = qs ? `${path}?${qs}` : path;
     window.history.pushState({}, '', url);
@@ -193,7 +208,7 @@ export function WholesaleShowroom({
     setQuickView(null);
     const params = wholesaleFiltersToSearchParams(filters);
     const qs = params.toString();
-    window.history.pushState({}, '', qs ? `${OGR_WHOLESALE_PATH}?${qs}` : OGR_WHOLESALE_PATH);
+    window.history.pushState({}, '', qs ? `${collectionPath}?${qs}` : collectionPath);
   }
 
   function openAddPanel(product: PublicOgrProduct) {
@@ -258,15 +273,17 @@ export function WholesaleShowroom({
 
       <section className="px-8.1 mx-auto max-w-[1240px] pt-4 pb-10">
         <span className="bg-accent-100 text-accent-800 inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] tracking-wide">
-          Wholesale Canada
+          {pricingMarket.showCanadianRetail ? 'Wholesale Canada' : 'Wholesale United States'}
         </span>
         <h1 className="font-heading mt-3.1 m-0 max-w-[18ch] text-4xl leading-[1.08] md:text-5xl">
           Old Guys Rule Wholesale
         </h1>
         <p className="text-ink/70 mt-3.1 m-0 max-w-[540px] text-base">
-          A proven men’s lifestyle collection for Canadian retailers—fishing, boats, golf, camping,
-          garages, cold beer and well-earned retirement.
+          {pricingMarket.showCanadianRetail
+            ? 'A proven men’s lifestyle collection for Canadian retailers—fishing, boats, golf, camping, garages, cold beer and well-earned retirement.'
+            : 'A proven men’s lifestyle collection—fishing, boats, golf, camping, garages, cold beer and well-earned retirement.'}
         </p>
+        <WholesaleMarketSwitcher market={publicMarket} />
         <div className="mt-6.1 gap-3.1 flex flex-wrap">
           <a
             href="#collection"
@@ -321,6 +338,7 @@ export function WholesaleShowroom({
               <WholesaleProductCard
                 key={product.id}
                 product={product}
+                publicMarket={pricingMarket.publicMarket}
                 salesRank={salesRanks.get(product.id) ?? null}
                 onViewDetails={openQuickView}
                 onAddToOrder={openAddPanel}
@@ -363,7 +381,11 @@ export function WholesaleShowroom({
               </p>
             </div>
           ) : (
-            <WholesaleBuyerForm draft={draft} onSuccess={handleSuccess} />
+            <WholesaleBuyerForm
+              draft={draft}
+              onSuccess={handleSuccess}
+              publicMarket={publicMarket}
+            />
           )}
         </div>
         <WholesaleOrderBuilder
@@ -411,6 +433,7 @@ export function WholesaleShowroom({
           <div className="bg-bg max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl p-5 shadow-lg">
             <WholesaleProductDetail
               product={quickView}
+              publicMarket={pricingMarket.publicMarket}
               showClose
               onClose={closeQuickView}
               onRequestAccess={() => {
