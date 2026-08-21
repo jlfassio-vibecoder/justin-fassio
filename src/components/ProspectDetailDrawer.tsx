@@ -20,6 +20,8 @@ interface ProspectDetailDrawerProps {
   onConverted?: () => void;
   onNotesSaved?: (notes: string | null) => void;
   onTaxonomySaved?: (prospect: Prospect) => void;
+  /** Bump to refetch AccountContactsSection after Log Call creates a contact. */
+  contactsReloadToken?: number;
 }
 
 const STATUS_LABEL: Record<Prospect['accountStatus'], string> = {
@@ -35,6 +37,7 @@ export function ProspectDetailDrawer({
   onConverted,
   onNotesSaved,
   onTaxonomySaved,
+  contactsReloadToken = 0,
 }: ProspectDetailDrawerProps) {
   const [convertOpen, setConvertOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -123,7 +126,7 @@ export function ProspectDetailDrawer({
             onSaved={onNotesSaved}
           />
 
-          <AccountContactsSection accountId={prospect.id} />
+          <AccountContactsSection accountId={prospect.id} reloadToken={contactsReloadToken} />
 
           <AccountMessagesSection prospectId={prospect.id} />
 

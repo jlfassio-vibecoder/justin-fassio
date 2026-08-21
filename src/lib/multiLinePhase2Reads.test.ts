@@ -158,7 +158,7 @@ describe('Phase 2 write-path files untouched', () => {
     const convert = readFileSync(resolve(root, 'src/lib/convertToActiveAccount.ts'), 'utf8');
     expect(convert).toMatch(/export async function convert/);
 
-    const logCall = readFileSync(resolve(root, 'src/components/LogCallModal.tsx'), 'utf8');
+    const logCall = readFileSync(resolve(root, 'src/components/LogCallFormModal.tsx'), 'utf8');
     expect(logCall).toMatch(/from\('calls'\)/);
 
     const dualWrite = readFileSync(

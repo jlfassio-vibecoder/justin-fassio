@@ -56,6 +56,7 @@ interface ActiveAccountsTabProps {
   deepLinkTerritory?: string | null;
   onDirectoryDeepLinkConsumed?: () => void;
   onImported?: () => void;
+  contactsReloadToken?: number;
 }
 
 function formatCad(amount: number): string {
@@ -90,6 +91,7 @@ export function ActiveAccountsTab({
   deepLinkTerritory = null,
   onDirectoryDeepLinkConsumed,
   onImported,
+  contactsReloadToken = 0,
 }: ActiveAccountsTabProps) {
   const { openAssist } = useAiAssist();
   const { profile } = useAuth();
@@ -621,6 +623,7 @@ export function ActiveAccountsTab({
 
       <AccountDetailDrawer
         account={detailAccount}
+        contactsReloadToken={contactsReloadToken}
         summary={
           detailAccount
             ? {
