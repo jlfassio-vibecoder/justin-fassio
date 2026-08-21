@@ -97,6 +97,8 @@ interface CatalogTabProps {
   /** Deep-link: open agent draft review once drawer is open. */
   deepLinkDraftId?: string | null;
   onDeepLinkConsumed?: () => void;
+  /** Fired after a successful product email send from a product drawer. */
+  onProductEmailSent?: () => void;
 }
 
 export function CatalogTab({
@@ -122,6 +124,7 @@ export function CatalogTab({
   deepLinkSku = null,
   deepLinkDraftId = null,
   onDeepLinkConsumed,
+  onProductEmailSent,
 }: CatalogTabProps) {
   const line = useOptionalLineContext();
   const [search, setSearch] = useState('');
@@ -886,6 +889,7 @@ export function CatalogTab({
           onCatalogChange?.(catalog.map((row) => (row.id === updated.id ? updated : row)));
           setSelectedSku(updated.sku);
         }}
+        onProductEmailSent={onProductEmailSent}
       />
 
       {lineEditOpen && cardLine ? (

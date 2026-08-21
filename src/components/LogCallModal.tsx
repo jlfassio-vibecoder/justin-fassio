@@ -15,6 +15,7 @@ interface LogCallModalProps {
   onConverted?: () => void;
   onRetailerUpdated?: () => void;
   onContactCreated?: () => void;
+  activityHistoryReloadToken?: number;
 }
 
 /**
@@ -32,6 +33,7 @@ export function LogCallModal({
   onConverted,
   onRetailerUpdated,
   onContactCreated,
+  activityHistoryReloadToken,
 }: LogCallModalProps) {
   const selected = storeId != null ? prospects.find((p) => p.id === storeId) : undefined;
   const mode = resolveLogCallMode(selected?.accountStatus);
@@ -46,6 +48,7 @@ export function LogCallModal({
     onConverted,
     onRetailerUpdated,
     onContactCreated,
+    activityHistoryReloadToken,
   };
 
   if (mode === 'account') {

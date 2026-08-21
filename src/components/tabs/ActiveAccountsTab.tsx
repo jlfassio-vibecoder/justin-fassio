@@ -57,6 +57,8 @@ interface ActiveAccountsTabProps {
   onDirectoryDeepLinkConsumed?: () => void;
   onImported?: () => void;
   contactsReloadToken?: number;
+  /** Bump Log Call activity after a product email send. */
+  onProductEmailSent?: () => void;
 }
 
 function formatCad(amount: number): string {
@@ -92,6 +94,7 @@ export function ActiveAccountsTab({
   onDirectoryDeepLinkConsumed,
   onImported,
   contactsReloadToken = 0,
+  onProductEmailSent,
 }: ActiveAccountsTabProps) {
   const { openAssist } = useAiAssist();
   const { profile } = useAuth();
@@ -624,6 +627,7 @@ export function ActiveAccountsTab({
       <AccountDetailDrawer
         account={detailAccount}
         contactsReloadToken={contactsReloadToken}
+        onProductEmailSent={onProductEmailSent}
         summary={
           detailAccount
             ? {
