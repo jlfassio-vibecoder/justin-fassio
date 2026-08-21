@@ -136,6 +136,8 @@ export function AddAccountContactInline({
           setBusy(true);
           const demoted = await demoteAccountPrimaryContact(currentPrimary.id, writeOpts);
           if (demoted.error) {
+            // Demote may have partially applied before junction failure; restore best-effort.
+            await restoreAccountPrimaryContact(currentPrimary.id, writeOpts);
             setBusy(false);
             setError(demoted.error);
             return;

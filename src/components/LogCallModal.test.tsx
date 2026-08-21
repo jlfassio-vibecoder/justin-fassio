@@ -437,6 +437,9 @@ describe('LogCallModal', () => {
     render(<ModalHarness />);
 
     await user.type(screen.getByPlaceholderText(/Call summary/i), 'Notes stay while adding');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Add new contact/i })).toBeInTheDocument();
+    });
     await user.click(screen.getByRole('button', { name: /Add new contact/i }));
     expect(screen.getByText('New contact')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Notes stay while adding')).toBeInTheDocument();

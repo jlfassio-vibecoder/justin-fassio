@@ -392,7 +392,11 @@ export async function insertAccountContact(
 
   const mapped = mapAccountContactRow(data as AccountContactRow);
   const junctionError = await maybeUpsertLineContactJunction(mapped, options);
-  if (junctionError) return { data: null, error: junctionError };
+  if (junctionError) {
+    // Roll back the committed person row so primary restore / retry stays consistent.
+    await supabase.from('account_contacts').delete().eq('id', mapped.id);
+    return { data: null, error: junctionError };
+  }
   return { data: mapped, error: null };
 }
 
@@ -414,7 +418,16 @@ export async function updateAccountContact(
 
   const mapped = mapAccountContactRow(data as AccountContactRow);
   const junctionError = await maybeUpsertLineContactJunction(mapped, options);
-  if (junctionError) return { data: null, error: junctionError };
+  if (junctionError) {
+    // Revert primary flag when that was the write that partially applied.
+    if (typeof input.is_primary === 'boolean') {
+      await supabase
+        .from('account_contacts')
+        .update({ is_primary: !input.is_primary })
+        .eq('id', id);
+    }
+    return { data: null, error: junctionError };
+  }
   return { data: mapped, error: null };
 }
 

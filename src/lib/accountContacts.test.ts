@@ -230,6 +230,42 @@ describe('accountContacts', () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 
+  it('insertAccountContact deletes person row when junction upsert fails', async () => {
+    const single = vi.fn().mockResolvedValue({ data: sampleRow, error: null });
+    const select = vi.fn().mockReturnValue({ single });
+    const insert = vi.fn().mockReturnValue({ select });
+    const eq = vi.fn().mockResolvedValue({ error: null });
+    const del = vi.fn().mockReturnValue({ eq });
+    const upsert = vi.fn().mockResolvedValue({ error: { message: 'junction boom' } });
+
+    fetchOperationalLineAccountMock.mockResolvedValue({
+      data: {
+        id: 'rla-line-a',
+        retailerId: 12,
+        salesLineId: 'line-a',
+        relationshipStatus: 'prospect',
+        notes: null,
+        salesLineTerritoryId: null,
+      },
+      error: null,
+    });
+
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === 'account_contacts') return { insert, delete: del } as never;
+      if (table === 'retailer_line_contacts') return { upsert } as never;
+      throw new Error(`unexpected table ${table}`);
+    });
+
+    const result = await insertAccountContact(
+      { account_id: 12, role: 'buyer', full_name: 'Pat Buyer' },
+      { salesLineId: 'line-a' },
+    );
+    expect(result.data).toBeNull();
+    expect(result.error).toBe('junction boom');
+    expect(del).toHaveBeenCalled();
+    expect(eq).toHaveBeenCalledWith('id', 'c1');
+  });
+
   it('searchContactsByName returns [] for blank query without querying', async () => {
     const result = await searchContactsByName('   ');
     expect(result).toEqual({ data: [], error: null });

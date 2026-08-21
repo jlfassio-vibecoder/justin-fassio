@@ -1,5 +1,5 @@
 // Copilot suggestion ignored: React 19 types export SubmitEvent; FormEvent is deprecated for form onSubmit.
-import { useEffect, useState, type SubmitEvent } from 'react';
+import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
 import { ConvertAccountModal } from '@/components/ConvertAccountModal';
 import { AddAccountContactInline } from '@/components/AddAccountContactInline';
@@ -105,6 +105,7 @@ export function LogCallFormModal({
   const [contactName, setContactName] = useState('');
   const [selectedContactId, setSelectedContactId] = useState('');
   const [contacts, setContacts] = useState<AccountContact[]>([]);
+  const [contactsReady, setContactsReady] = useState(false);
   const [showAddContact, setShowAddContact] = useState(false);
   const [outcome, setOutcome] = useState<string>(() => defaultOutcomeForMode(mode));
   const [pmfScore, setPmfScore] = useState('10');
@@ -119,11 +120,15 @@ export function LogCallFormModal({
   const selectedCategory = selected?.category ?? '';
   const [retailChannel, setRetailChannel] = useState(selectedCategory);
   const [channelStoreId, setChannelStoreId] = useState(storeId);
+  const [channelOpen, setChannelOpen] = useState(open);
+  const [syncedCategory, setSyncedCategory] = useState(selectedCategory);
   const [previousCalls, setPreviousCalls] = useState<PreviousCallForLog[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<SaveSuccessState | null>(null);
+  const submitGenRef = useRef(0);
+  const closedDuringSubmitRef = useRef(false);
   const [convertProspect, setConvertProspect] = useState<Prospect | null>(null);
   const [convertPrefillCad, setConvertPrefillCad] = useState<number | null>(null);
   const [convertPrefillUsd, setConvertPrefillUsd] = useState<number | null>(null);
@@ -166,7 +171,9 @@ export function LogCallFormModal({
   if (storeId !== channelStoreId) {
     setChannelStoreId(storeId);
     setRetailChannel(selectedCategory);
+    setSyncedCategory(selectedCategory);
     setContacts([]);
+    setContactsReady(false);
     setPreviousCalls([]);
     setHistoryError(null);
     setSelectedContactId('');
@@ -176,6 +183,21 @@ export function LogCallFormModal({
     setOutcome(defaultOutcomeForMode(mode));
     setSaveSuccess(null);
     setError(null);
+  }
+  if (open !== channelOpen) {
+    setChannelOpen(open);
+    if (open) {
+      setRetailChannel(selectedCategory);
+      setSyncedCategory(selectedCategory);
+      setContactsReady(false);
+    } else {
+      setContactsReady(false);
+      setShowAddContact(false);
+    }
+  }
+  if (open && selectedCategory !== syncedCategory) {
+    setSyncedCategory(selectedCategory);
+    setRetailChannel(selectedCategory);
   }
 
   useEffect(() => {
@@ -189,6 +211,7 @@ export function LogCallFormModal({
       ]);
       if (!active) return;
       setContacts(contactsResult.data);
+      setContactsReady(true);
       const primary = contactsResult.data.find((c) => c.isPrimary) ?? contactsResult.data[0];
       if (primary) {
         setSelectedContactId(primary.id);
@@ -228,6 +251,9 @@ export function LogCallFormModal({
   }
 
   function handleClose() {
+    closedDuringSubmitRef.current = true;
+    submitGenRef.current += 1;
+    setBusy(false);
     clearForm();
     setConvertProspect(null);
     setConvertPrefillCad(null);
@@ -267,6 +293,10 @@ export function LogCallFormModal({
       return;
     }
 
+    const submitGen = ++submitGenRef.current;
+    closedDuringSubmitRef.current = false;
+    setBusy(true);
+
     const built = await buildLogCallInsert({
       prospectId: storeId,
       contactName: trimmedContact,
@@ -275,7 +305,7 @@ export function LogCallFormModal({
       objectionTags: feedback,
       notes: notes.trim() || null,
       callDate,
-      followUpDate: followUpDate.trim() || null,
+      followUpDate: showFollowUpDate ? followUpDate.trim() || null : null,
       orderValue,
       isOgrCall,
       ogrCurrency,
@@ -286,7 +316,10 @@ export function LogCallFormModal({
       bigFishSellingEnabled: line.bigFishSelling,
     });
 
+    if (closedDuringSubmitRef.current || submitGen !== submitGenRef.current) return;
+
     if (!built.ok) {
+      setBusy(false);
       setError(built.error);
       return;
     }
@@ -294,24 +327,29 @@ export function LogCallFormModal({
     const initialCategory = selected?.category ?? '';
     if (retailChannel && retailChannel !== initialCategory) {
       const channelUpdate = await updateProspectRetailChannel(storeId, retailChannel);
+      if (closedDuringSubmitRef.current || submitGen !== submitGenRef.current) return;
       if (channelUpdate.error) {
+        setBusy(false);
         setError(channelUpdate.error);
         return;
       }
       onRetailerUpdated?.();
     }
 
-    setBusy(true);
+    if (closedDuringSubmitRef.current || submitGen !== submitGenRef.current) return;
+
     const { error: insertError } = await supabase.from('calls').insert(built.row);
-    setBusy(false);
+    if (closedDuringSubmitRef.current || submitGen !== submitGenRef.current) return;
 
     if (insertError) {
+      setBusy(false);
       setError(insertError.message);
       return;
     }
 
     onSaved?.();
     await refreshPreviousCalls(storeId);
+    if (closedDuringSubmitRef.current || submitGen !== submitGenRef.current) return;
 
     const chips = {
       prospectId: storeId,
@@ -350,6 +388,7 @@ export function LogCallFormModal({
       setConvertPrefillExchangeRate(built.convertPrefillExchangeRate);
       setConvertPrefillExchangeRateDate(built.convertPrefillExchangeRateDate);
       setConvertProspect(selected);
+      setBusy(false);
       return;
     }
 
@@ -359,6 +398,7 @@ export function LogCallFormModal({
     setFollowUpDate('');
     setOutcome(defaultOutcomeForMode(mode));
     setSaveSuccess({ chips });
+    setBusy(false);
   }
 
   function handleDraftFollowUp() {
@@ -501,7 +541,7 @@ export function LogCallFormModal({
               <Field>
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <FieldLabel>Contact</FieldLabel>
-                  {storeId != null && !sellingBlocked && !showAddContact ? (
+                  {storeId != null && !sellingBlocked && !showAddContact && contactsReady ? (
                     <button
                       type="button"
                       className="text-accent-700 font-heading cursor-pointer border-0 bg-transparent p-0 text-xs underline"
