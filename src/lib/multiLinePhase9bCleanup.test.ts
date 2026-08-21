@@ -37,12 +37,14 @@ describe('Phase 9B directory overlay and OGR fallback writes', () => {
     expect(src).not.toMatch(/\.eq\('account_status', options\.accountStatus\)/);
   });
 
-  it('contacts directory overlays RLA status without writesEnabled', () => {
+  it('contacts directory overlays RLA status; junction requires explicit salesLineId', () => {
     const src = readFileSync(resolve(root, 'src/lib/accountContacts.ts'), 'utf8');
     expect(src).toMatch(/overlayContactAccountStatus/);
     expect(src).toMatch(/resolveOgrLineId/);
     const junction = src.slice(src.indexOf('async function maybeUpsertLineContactJunction'));
-    expect(junction).toMatch(/resolveWriteSalesLineId/);
+    expect(junction).toMatch(/fetchOperationalLineAccount/);
+    expect(junction).not.toMatch(/ensureRetailerLineAccount/);
+    expect(junction).not.toMatch(/resolveWriteSalesLineId/);
     expect(junction).not.toMatch(/if \(.*writesEnabled/);
     expect(junction).not.toMatch(/options\?\.writesEnabled/);
   });
@@ -73,9 +75,12 @@ describe('Phase 9B directory overlay and OGR fallback writes', () => {
     );
     expect(orders).toMatch(/resolveOgrLineId/);
 
-    const logCall = readFileSync(resolve(root, 'src/components/LogCallModal.tsx'), 'utf8');
-    expect(logCall).toMatch(/line\.salesLineId \|\| \(await resolveOgrLineId\(\)\)/);
-    expect(logCall).not.toMatch(/line\.multiLineWrites && line\.salesLineId/);
+    const logCall = readFileSync(resolve(root, 'src/lib/logCallForm.ts'), 'utf8');
+    expect(logCall).toMatch(/input\.salesLineId \|\| \(await resolveOgrLineId\(\)\)/);
+    expect(logCall).not.toMatch(/multiLineWrites && .*salesLineId/);
+
+    const logCallForm = readFileSync(resolve(root, 'src/components/LogCallFormModal.tsx'), 'utf8');
+    expect(logCallForm).not.toMatch(/line\.multiLineWrites && line\.salesLineId/);
 
     const orderModal = readFileSync(
       resolve(root, 'src/components/AccountOrderHistoryModal.tsx'),

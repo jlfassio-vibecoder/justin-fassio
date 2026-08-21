@@ -368,9 +368,8 @@ export function RepCommandCenter({
   }, [activeTab]);
 
   function openModal(prospect?: Prospect) {
-    if (!prospect && prospects.length === 0) return;
-    const store = prospect ?? prospects[0];
-    setModalStoreId(store ? store.id : null);
+    // Generic Log Call requires an explicit selection — do not default to prospects[0].
+    setModalStoreId(prospect ? prospect.id : null);
     setModalOpen(true);
   }
 
@@ -498,6 +497,7 @@ export function RepCommandCenter({
                   territories={territories}
                   onLogCall={(prospect) => openModal(prospect)}
                   onConverted={reloadDirectory}
+                  contactsReloadToken={contactsReloadToken}
                   onProspectCreated={(prospect) => {
                     setProspects((prev) =>
                       [...prev.filter((p) => p.id !== prospect.id), prospect].sort(
@@ -523,6 +523,7 @@ export function RepCommandCenter({
                   accounts={accountsForTab}
                   territories={territories}
                   onLogCall={(account) => openModal(account)}
+                  contactsReloadToken={contactsReloadToken}
                   onNotesSaved={(id, notes) => {
                     setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
                   }}
@@ -589,6 +590,8 @@ export function RepCommandCenter({
         onStoreChange={(id) => setModalStoreId(id)}
         onSaved={() => setCallsReloadToken((n) => n + 1)}
         onConverted={reloadDirectory}
+        onRetailerUpdated={reloadDirectory}
+        onContactCreated={() => setContactsReloadToken((n) => n + 1)}
       />
 
       <StaffChatDock

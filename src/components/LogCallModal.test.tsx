@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LogCallModal } from '@/components/LogCallModal';
@@ -13,6 +13,10 @@ import {
 
 const insertMock = vi.fn();
 const convertMock = vi.fn();
+const openAssistMock = vi.fn();
+const insertAccountContactMock = vi.fn();
+let previousCallRows: Record<string, unknown>[] = [];
+const contactsRows: Record<string, unknown>[] = [];
 
 const TEST_PROSPECTS: Prospect[] = [
   {
@@ -33,6 +37,19 @@ const TEST_PROSPECTS: Prospect[] = [
     ...BC_PROSPECT_TERRITORY,
   },
 ];
+
+vi.mock('@/hooks/useAiAssist', () => ({
+  useAiAssist: () => ({ openAssist: openAssistMock }),
+}));
+
+vi.mock('@/lib/accountContacts', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/lib/accountContacts')>('@/lib/accountContacts');
+  return {
+    ...actual,
+    insertAccountContact: (...args: unknown[]) => insertAccountContactMock(...args),
+  };
+});
 
 vi.mock('@/lib/convertToActiveAccount', async () => {
   const actual = await vi.importActual<typeof import('@/lib/convertToActiveAccount')>(
@@ -63,6 +80,22 @@ vi.mock('@/lib/retailerLineAccounts', async () => {
   };
 });
 
+function chainable(result: { data: unknown; error: unknown }) {
+  const api: Record<string, unknown> = {};
+  const self = () => api;
+  api.select = self;
+  api.eq = self;
+  api.order = self;
+  api.limit = () => Promise.resolve(result);
+  api.maybeSingle = () => Promise.resolve(result);
+  api.single = () => Promise.resolve(result);
+  api.insert = (row: unknown) => insertMock(row);
+  api.update = () => ({
+    eq: () => Promise.resolve({ error: null }),
+  });
+  return api;
+}
+
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: {
@@ -71,17 +104,61 @@ vi.mock('@/lib/supabase', () => ({
     from: (table: string) => {
       if (table === 'calls') {
         return {
-          insert: (row: unknown) => insertMock(row),
-        };
-      }
-      if (table === 'lines') {
-        return {
+          insert: (row: unknown) => {
+            const payload = row as Record<string, unknown>;
+            previousCallRows = [
+              {
+                id: `call-${previousCallRows.length + 1}`,
+                call_date: payload.call_date,
+                contact_name: payload.contact_name,
+                outcome: payload.outcome,
+                objection_tags: payload.objection_tags ?? [],
+                follow_up_date: payload.follow_up_date ?? null,
+                notes: payload.notes ?? null,
+                created_at: new Date().toISOString(),
+              },
+              ...previousCallRows,
+            ];
+            return insertMock(row);
+          },
           select: () => ({
             eq: () => ({
-              maybeSingle: async () => ({ data: { id: 'line-ogr' }, error: null }),
+              eq: () => ({
+                order: () => ({
+                  order: () => ({
+                    limit: async () => ({ data: previousCallRows, error: null }),
+                  }),
+                }),
+              }),
+              order: () => ({
+                order: () => ({
+                  limit: async () => ({ data: previousCallRows, error: null }),
+                }),
+              }),
             }),
           }),
         };
+      }
+      if (table === 'prospects') {
+        return {
+          update: () => ({
+            eq: async () => ({ error: null }),
+          }),
+        };
+      }
+      if (table === 'account_contacts') {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                order: async () => ({ data: contactsRows, error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === 'lines') {
+        return chainable({ data: { id: 'line-ogr' }, error: null });
       }
       throw new Error(`Unexpected table: ${table}`);
     },
@@ -90,19 +167,21 @@ vi.mock('@/lib/supabase', () => ({
 
 function ModalHarness({
   initialOpen = true,
+  initialStoreId = 1 as number | null,
   onClose = vi.fn(),
   onSaved = vi.fn(),
   onConverted = vi.fn(),
   prospects = TEST_PROSPECTS,
 }: {
   initialOpen?: boolean;
+  initialStoreId?: number | null;
   onClose?: () => void;
   onSaved?: () => void;
   onConverted?: () => void;
   prospects?: Prospect[];
 }) {
   const [open, setOpen] = useState(initialOpen);
-  const [storeId, setStoreId] = useState<number | null>(1);
+  const [storeId, setStoreId] = useState<number | null>(initialStoreId);
 
   return (
     <AiAssistProvider>
@@ -130,8 +209,50 @@ function ModalHarness({
 describe('LogCallModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    previousCallRows = [];
+    contactsRows.length = 0;
     insertMock.mockResolvedValue({ error: null });
     convertMock.mockResolvedValue({ ok: true, alreadyActive: false });
+    insertAccountContactMock.mockResolvedValue({
+      data: {
+        id: 'c-new',
+        accountId: 1,
+        role: 'buyer',
+        fullName: 'New Contact',
+        title: 'Buyer',
+        phone: null,
+        email: 'new@example.com',
+        isPrimary: false,
+        notes: null,
+        createdAt: '',
+        updatedAt: '',
+      },
+      error: null,
+    });
+  });
+
+  it('shows Log Prospect Call for prospect records', () => {
+    render(<ModalHarness />);
+    expect(screen.getByText('Log Prospect Call')).toBeInTheDocument();
+    expect(screen.queryByText(/Draft as/i)).not.toBeInTheDocument();
+  });
+
+  it('shows Log Call for active accounts with account feedback tags', async () => {
+    const activeProspects: Prospect[] = [
+      { ...TEST_PROSPECTS[0]!, accountStatus: 'active_account' },
+    ];
+    render(<ModalHarness prospects={activeProspects} />);
+    expect(screen.getByText('Log Call')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Happy with assortment/i })).toBeInTheDocument();
+    expect(screen.queryByText(/PMF fit score/i)).not.toBeInTheDocument();
+  });
+
+  it('requires selecting a record when opened without storeId', async () => {
+    const user = userEvent.setup();
+    render(<ModalHarness initialStoreId={null} />);
+    expect(screen.getByRole('button', { name: /Save Call Record/i })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: /Save Call Record/i }));
+    expect(insertMock).not.toHaveBeenCalled();
   });
 
   it('clears feedback checkboxes after cancel and reopen', async () => {
@@ -151,7 +272,7 @@ describe('LogCallModal', () => {
     expect(screen.getByRole('checkbox', { name: /Loves display rack/i })).not.toBeChecked();
   });
 
-  it('after Closed PO save, prompts convert instead of closing immediately', async () => {
+  it('after Closed PO save, prompts convert instead of opening AI', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     const onSaved = vi.fn();
@@ -178,13 +299,13 @@ describe('LogCallModal', () => {
     );
     expect(onSaved).toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+    expect(openAssistMock).not.toHaveBeenCalled();
     expect(await screen.findByText(/Convert to Active Account/i)).toBeInTheDocument();
-    // Convert modal defaults to USD; prefill CAD reporting back-converts to original USD.
     expect(screen.getByDisplayValue('1200')).toBeInTheDocument();
     expect(screen.getByText(/CAD reporting amount: 1740/i)).toBeInTheDocument();
   });
 
-  it('closes without convert prompt for non-conversion outcomes', async () => {
+  it('after non-conversion save, stays open with optional AI draft (default off)', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     const onSaved = vi.fn();
@@ -192,13 +313,52 @@ describe('LogCallModal', () => {
 
     await user.selectOptions(screen.getByDisplayValue(/Closed PO/i), 'Follow-up Scheduled');
     await user.type(screen.getByPlaceholderText(/Dave Miller/i), 'Dave Miller (Owner)');
+    const followUp = screen.getByLabelText(/Follow-up date/i);
+    fireEvent.change(followUp, { target: { value: '2026-09-01' } });
+    await user.type(screen.getByPlaceholderText(/Call summary/i), 'Discussed spring reorder');
     await user.click(screen.getByRole('button', { name: /Save Call Record/i }));
 
     await waitFor(() => {
       expect(onSaved).toHaveBeenCalled();
-      expect(onClose).toHaveBeenCalled();
     });
-    expect(screen.queryByText(/Convert to Active Account/i)).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(openAssistMock).not.toHaveBeenCalled();
+    expect(await screen.findByText(/Call saved/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Draft follow-up with AI/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Draft follow-up with AI/i }));
+    expect(openAssistMock).toHaveBeenCalled();
+  });
+
+  it('round-trips notes and structured fields into Previous calls after save', async () => {
+    const user = userEvent.setup();
+    render(<ModalHarness />);
+
+    await user.selectOptions(screen.getByDisplayValue(/Closed PO/i), 'Follow-up Scheduled');
+    await user.click(screen.getByRole('checkbox', { name: /Loves display rack/i }));
+    await user.type(screen.getByPlaceholderText(/Dave Miller/i), 'Sam Buyer (Buyer)');
+    fireEvent.change(screen.getByLabelText(/Follow-up date/i), { target: { value: '2026-10-15' } });
+    await user.type(screen.getByPlaceholderText(/Call summary/i), 'Full notes for history panel');
+    await user.click(screen.getByRole('button', { name: /Save Call Record/i }));
+
+    await waitFor(() => {
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contact_name: 'Sam Buyer (Buyer)',
+          outcome: 'Follow-up Scheduled',
+          follow_up_date: '2026-10-15',
+          notes: 'Full notes for history panel',
+          objection_tags: ['Loves display rack'],
+        }),
+      );
+    });
+
+    const history = await screen.findByLabelText(/Previous calls/i);
+    expect(within(history).getByText(/Full notes for history panel/i)).toBeInTheDocument();
+    expect(within(history).getByText(/Sam Buyer \(Buyer\)/i)).toBeInTheDocument();
+    expect(within(history).getByText(/Follow-up Scheduled/i)).toBeInTheDocument();
+    expect(within(history).getByText(/Loves display rack/i)).toBeInTheDocument();
+    expect(within(history).getByText(/Follow-up 2026-10-15/i)).toBeInTheDocument();
   });
 
   it('skips convert prompt when prospect is already an active account', async () => {
@@ -215,9 +375,11 @@ describe('LogCallModal', () => {
 
     await waitFor(() => {
       expect(onSaved).toHaveBeenCalled();
-      expect(onClose).toHaveBeenCalled();
     });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(openAssistMock).not.toHaveBeenCalled();
     expect(screen.queryByText(/Convert to Active Account/i)).not.toBeInTheDocument();
+    expect(await screen.findByText(/Call saved/i)).toBeInTheDocument();
   });
 
   it('skips convert prompt when prospect is inactive', async () => {
@@ -232,9 +394,9 @@ describe('LogCallModal', () => {
 
     await waitFor(() => {
       expect(onSaved).toHaveBeenCalled();
-      expect(onClose).toHaveBeenCalled();
     });
     expect(screen.queryByText(/Convert to Active Account/i)).not.toBeInTheDocument();
+    expect(await screen.findByText(/Call saved/i)).toBeInTheDocument();
   });
 
   it('shows an error and stays open when insert fails', async () => {
@@ -251,5 +413,65 @@ describe('LogCallModal', () => {
     expect(onSaved).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: /Save Call Record/i })).toBeInTheDocument();
+  });
+
+  it('does not create a CRM contact when only typing a call contact name', async () => {
+    const user = userEvent.setup();
+    render(<ModalHarness />);
+
+    await user.type(screen.getByPlaceholderText(/Call summary/i), 'Keep these notes');
+    await user.type(screen.getByPlaceholderText(/Dave Miller/i), 'Typed Only Person');
+    await user.click(screen.getByRole('button', { name: /Save Call Record/i }));
+
+    await waitFor(() => {
+      expect(insertMock).toHaveBeenCalled();
+    });
+    expect(insertAccountContactMock).not.toHaveBeenCalled();
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ contact_name: 'Typed Only Person' }),
+    );
+  });
+
+  it('Add new contact creates CRM contact, selects it, and preserves call notes', async () => {
+    const user = userEvent.setup();
+    render(<ModalHarness />);
+
+    await user.type(screen.getByPlaceholderText(/Call summary/i), 'Notes stay while adding');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Add new contact/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /Add new contact/i }));
+    expect(screen.getByText('New contact')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Notes stay while adding')).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText(/^e\.g\. Dave Miller$/i), 'New Contact');
+    await user.click(screen.getByRole('button', { name: /Save contact/i }));
+
+    await waitFor(() => {
+      expect(insertAccountContactMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          account_id: 1,
+          full_name: 'New Contact',
+        }),
+        expect.anything(),
+      );
+    });
+
+    expect(screen.queryByText('New contact')).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('Notes stay while adding')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Dave Miller \(Owner\)/i)).toHaveValue(
+      'New Contact (Buyer)',
+    );
+    expect(screen.getByRole('option', { name: /New Contact \(Buyer\)/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Save Call Record/i }));
+    await waitFor(() => {
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contact_name: expect.stringContaining('New Contact'),
+          notes: 'Notes stay while adding',
+        }),
+      );
+    });
   });
 });

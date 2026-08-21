@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
-import { resolveOgrLineId, resolveWriteSalesLineId } from '@/lib/lines';
+import { resolveOgrLineId } from '@/lib/lines';
 import { accountStatusFromRelationship } from '@/lib/ogrCommercial';
-import { ensureRetailerLineAccount } from '@/lib/retailerLineAccounts';
+import { fetchOperationalLineAccount } from '@/lib/retailerLineAccounts';
 import type {
   AccountContact as AccountContactRow,
   AccountContactInsert,
@@ -344,24 +344,28 @@ async function fetchRelationshipStatusByRetailer(
   return { data: map, error: null };
 }
 
+/**
+ * Upsert retailer_line_contacts for an existing RLA on the explicit sales line only.
+ * Never creates an RLA (no client-created RLA). Skips when salesLineId is missing or no RLA.
+ * OGR DB trigger on account_contacts may still ensure an OGR RLA — unchanged.
+ */
 async function maybeUpsertLineContactJunction(
   contact: AccountContact,
   options?: { writesEnabled?: boolean; salesLineId?: string | null },
 ): Promise<string | null> {
-  const salesLineId = await resolveWriteSalesLineId(options?.salesLineId);
-  if (!salesLineId) return 'OGR sales line not found';
+  const salesLineId = options?.salesLineId?.trim() || null;
+  if (!salesLineId) return null;
 
-  const ensured = await ensureRetailerLineAccount({
+  const existing = await fetchOperationalLineAccount({
     retailerId: contact.accountId,
     salesLineId,
   });
-  if (ensured.gate === 'reject' || ensured.error || !ensured.data) {
-    return ensured.error ?? 'Line account not found';
-  }
+  if (existing.error) return existing.error;
+  if (!existing.data) return null;
 
   const { error } = await supabase.from('retailer_line_contacts').upsert(
     {
-      retailer_line_account_id: ensured.data.id,
+      retailer_line_account_id: existing.data.id,
       account_contact_id: contact.id,
       role: contact.role,
       is_primary: contact.isPrimary,
@@ -388,7 +392,11 @@ export async function insertAccountContact(
 
   const mapped = mapAccountContactRow(data as AccountContactRow);
   const junctionError = await maybeUpsertLineContactJunction(mapped, options);
-  if (junctionError) return { data: null, error: junctionError };
+  if (junctionError) {
+    // Roll back the committed person row so primary restore / retry stays consistent.
+    await supabase.from('account_contacts').delete().eq('id', mapped.id);
+    return { data: null, error: junctionError };
+  }
   return { data: mapped, error: null };
 }
 
@@ -410,11 +418,104 @@ export async function updateAccountContact(
 
   const mapped = mapAccountContactRow(data as AccountContactRow);
   const junctionError = await maybeUpsertLineContactJunction(mapped, options);
-  if (junctionError) return { data: null, error: junctionError };
+  if (junctionError) {
+    // Revert primary flag when that was the write that partially applied.
+    if (typeof input.is_primary === 'boolean') {
+      await supabase
+        .from('account_contacts')
+        .update({ is_primary: !input.is_primary })
+        .eq('id', id);
+    }
+    return { data: null, error: junctionError };
+  }
   return { data: mapped, error: null };
 }
 
 export async function deleteAccountContact(id: string): Promise<{ error: string | null }> {
   const { error } = await supabase.from('account_contacts').delete().eq('id', id);
   return { error: error?.message ?? null };
+}
+
+/** Normalize email for same-account duplicate checks. */
+export function normalizeContactEmail(email: string | null | undefined): string {
+  return (email ?? '').trim().toLowerCase();
+}
+
+/** Normalize full name for same-account duplicate checks. */
+export function normalizeContactFullName(fullName: string | null | undefined): string {
+  return (fullName ?? '').trim().toLowerCase();
+}
+
+/** Exact email match (case-insensitive). Hard duplicate. */
+export function findExactEmailDuplicate(
+  contacts: readonly AccountContact[],
+  email: string | null | undefined,
+): AccountContact | null {
+  const normalized = normalizeContactEmail(email);
+  if (!normalized) return null;
+  return contacts.find((c) => normalizeContactEmail(c.email) === normalized) ?? null;
+}
+
+/** Name-only match when there is no email collision. Soft warning. */
+export function findNameOnlyDuplicate(
+  contacts: readonly AccountContact[],
+  fullName: string,
+): AccountContact | null {
+  const name = normalizeContactFullName(fullName);
+  if (!name) return null;
+  return contacts.find((c) => normalizeContactFullName(c.fullName) === name) ?? null;
+}
+
+export type AccountContactDuplicateMatch =
+  { kind: 'email'; contact: AccountContact } | { kind: 'name'; contact: AccountContact };
+
+/** Classify same-account duplicate: email hard, else name soft. */
+export function classifyAccountContactDuplicate(
+  contacts: readonly AccountContact[],
+  input: { fullName: string; email?: string | null },
+): AccountContactDuplicateMatch | null {
+  const byEmail = findExactEmailDuplicate(contacts, input.email);
+  if (byEmail) return { kind: 'email', contact: byEmail };
+  const byName = findNameOnlyDuplicate(contacts, input.fullName);
+  if (byName) return { kind: 'name', contact: byName };
+  return null;
+}
+
+/**
+ * @deprecated Prefer classifyAccountContactDuplicate (email hard / name soft).
+ * Kept for callers that still treat any match as a block.
+ */
+export function findObviousAccountContactDuplicate(
+  contacts: readonly AccountContact[],
+  input: { fullName: string; email?: string | null },
+): AccountContact | null {
+  return classifyAccountContactDuplicate(contacts, input)?.contact ?? null;
+}
+
+/** First primary contact on the account list, if any. */
+export function findPrimaryAccountContact(
+  contacts: readonly AccountContact[],
+): AccountContact | null {
+  return contacts.find((c) => c.isPrimary) ?? null;
+}
+
+/**
+ * Demote an existing primary contact before promoting another.
+ * Uses updateAccountContact so RLA junction stays in sync when salesLineId is set.
+ */
+export async function demoteAccountPrimaryContact(
+  contactId: string,
+  options?: { writesEnabled?: boolean; salesLineId?: string | null },
+): Promise<{ error: string | null }> {
+  const result = await updateAccountContact(contactId, { is_primary: false }, options);
+  return { error: result.error };
+}
+
+/** Restore a contact as primary after a failed create/promote. */
+export async function restoreAccountPrimaryContact(
+  contactId: string,
+  options?: { writesEnabled?: boolean; salesLineId?: string | null },
+): Promise<{ error: string | null }> {
+  const result = await updateAccountContact(contactId, { is_primary: true }, options);
+  return { error: result.error };
 }

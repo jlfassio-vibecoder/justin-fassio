@@ -55,6 +55,8 @@ interface AccountDetailDrawerProps {
   onNotesSaved?: (notes: string | null) => void;
   onTaxonomySaved?: (prospect: Prospect) => void;
   onDemoted?: (prospect: Prospect) => void;
+  /** Bump to refetch AccountContactsSection after Log Call creates a contact. */
+  contactsReloadToken?: number;
 }
 
 function formatCad(amount: number): string {
@@ -278,6 +280,7 @@ export function AccountDetailDrawer({
   onNotesSaved,
   onTaxonomySaved,
   onDemoted,
+  contactsReloadToken = 0,
 }: AccountDetailDrawerProps) {
   const [demoteBusy, setDemoteBusy] = useState(false);
   const [demoteError, setDemoteError] = useState<string | null>(null);
@@ -556,7 +559,11 @@ export function AccountDetailDrawer({
 
           <ContactNameSearch key={account.id} currentAccountId={account.id} />
 
-          <AccountContactsSection key={account.id} accountId={account.id} />
+          <AccountContactsSection
+            key={account.id}
+            accountId={account.id}
+            reloadToken={contactsReloadToken}
+          />
 
           <AccountMessagesSection key={`messages-${account.id}`} prospectId={account.id} />
 

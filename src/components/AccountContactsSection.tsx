@@ -18,6 +18,8 @@ import { isStaffSellingUiBlocked } from '@/lib/retailerLineAccounts';
 
 interface AccountContactsSectionProps {
   accountId: number;
+  /** When bumped, refetch contacts (e.g. after Log Call creates a contact). */
+  reloadToken?: number;
 }
 
 const emptyForm = {
@@ -30,7 +32,10 @@ const emptyForm = {
   isPrimary: false,
 };
 
-export function AccountContactsSection({ accountId }: AccountContactsSectionProps) {
+export function AccountContactsSection({
+  accountId,
+  reloadToken: externalReloadToken = 0,
+}: AccountContactsSectionProps) {
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status
@@ -50,7 +55,7 @@ export function AccountContactsSection({ accountId }: AccountContactsSectionProp
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [reloadToken, setReloadToken] = useState(0);
+  const [localReloadToken, setLocalReloadToken] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -72,11 +77,11 @@ export function AccountContactsSection({ accountId }: AccountContactsSectionProp
     return () => {
       active = false;
     };
-  }, [accountId, reloadToken]);
+  }, [accountId, externalReloadToken, localReloadToken]);
 
   const reload = useCallback(() => {
     setLoading(true);
-    setReloadToken((n) => n + 1);
+    setLocalReloadToken((n) => n + 1);
   }, []);
 
   function startAdd() {
@@ -129,7 +134,7 @@ export function AccountContactsSection({ accountId }: AccountContactsSectionProp
 
     const writeOpts = {
       writesEnabled: line.multiLineWrites,
-      salesLineId: line.multiLineWrites ? line.salesLineId : null,
+      salesLineId: line.salesLineId,
     };
     const result =
       editingId != null

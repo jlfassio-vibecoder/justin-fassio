@@ -40,7 +40,26 @@ function thread(
 
 describe('staff chat dock helpers', () => {
   beforeEach(() => {
-    window.localStorage.clear();
+    const store = new Map<string, string>();
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          store.set(key, value);
+        },
+        removeItem: (key: string) => {
+          store.delete(key);
+        },
+        clear: () => {
+          store.clear();
+        },
+        get length() {
+          return store.size;
+        },
+        key: (index: number) => [...store.keys()][index] ?? null,
+      } satisfies Storage,
+    });
   });
 
   it('opens a new live chat slot expanded', () => {
