@@ -15,8 +15,11 @@ const insertMock = vi.fn();
 const convertMock = vi.fn();
 const openAssistMock = vi.fn();
 const insertAccountContactMock = vi.fn();
+const fetchContactActivityHistoryMock = vi.fn();
 let previousCallRows: Record<string, unknown>[] = [];
 const contactsRows: Record<string, unknown>[] = [];
+let systemMessageRows: Record<string, unknown>[] = [];
+let useActivityHistoryMock = false;
 
 const TEST_PROSPECTS: Prospect[] = [
   {
@@ -37,6 +40,23 @@ const TEST_PROSPECTS: Prospect[] = [
     ...BC_PROSPECT_TERRITORY,
   },
 ];
+
+vi.mock('@/lib/contactActivityHistory', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/contactActivityHistory')>(
+    '@/lib/contactActivityHistory',
+  );
+  return {
+    ...actual,
+    fetchContactActivityHistory: (...args: unknown[]) => {
+      if (useActivityHistoryMock) {
+        return fetchContactActivityHistoryMock(...args);
+      }
+      return actual.fetchContactActivityHistory(
+        ...(args as Parameters<typeof actual.fetchContactActivityHistory>),
+      );
+    },
+  };
+});
 
 vi.mock('@/hooks/useAiAssist', () => ({
   useAiAssist: () => ({ openAssist: openAssistMock }),
@@ -157,6 +177,24 @@ vi.mock('@/lib/supabase', () => ({
           }),
         };
       }
+      if (table === 'system_messages') {
+        const api: Record<string, unknown> = {};
+        const self = () => api;
+        api.select = self;
+        api.eq = self;
+        api.not = self;
+        api.or = self;
+        api.order = self;
+        api.limit = async () => ({ data: systemMessageRows, error: null });
+        return api;
+      }
+      if (table === 'profiles') {
+        return {
+          select: () => ({
+            in: async () => ({ data: [], error: null }),
+          }),
+        };
+      }
       if (table === 'lines') {
         return chainable({ data: { id: 'line-ogr' }, error: null });
       }
@@ -211,6 +249,8 @@ describe('LogCallModal', () => {
     vi.clearAllMocks();
     previousCallRows = [];
     contactsRows.length = 0;
+    systemMessageRows = [];
+    useActivityHistoryMock = false;
     insertMock.mockResolvedValue({ error: null });
     convertMock.mockResolvedValue({ ok: true, alreadyActive: false });
     insertAccountContactMock.mockResolvedValue({
@@ -330,7 +370,7 @@ describe('LogCallModal', () => {
     expect(openAssistMock).toHaveBeenCalled();
   });
 
-  it('round-trips notes and structured fields into Previous calls after save', async () => {
+  it('round-trips notes and structured fields into Previous activity after save', async () => {
     const user = userEvent.setup();
     render(<ModalHarness />);
 
@@ -353,12 +393,50 @@ describe('LogCallModal', () => {
       );
     });
 
-    const history = await screen.findByLabelText(/Previous calls/i);
+    const history = await screen.findByLabelText(/Previous activity/i);
+    expect(within(history).getByText(/^Call$/i)).toBeInTheDocument();
     expect(within(history).getByText(/Full notes for history panel/i)).toBeInTheDocument();
     expect(within(history).getByText(/Sam Buyer \(Buyer\)/i)).toBeInTheDocument();
     expect(within(history).getByText(/Follow-up Scheduled/i)).toBeInTheDocument();
     expect(within(history).getByText(/Loves display rack/i)).toBeInTheDocument();
     expect(within(history).getByText(/Follow-up 2026-10-15/i)).toBeInTheDocument();
+  });
+
+  it('shows sent product email once in Previous activity with Email badge', async () => {
+    systemMessageRows = [
+      {
+        id: 'sm-1',
+        to_email: 'buyer@example.com',
+        to_name: 'Pat Buyer',
+        subject: 'Trail Cap for your shop',
+        status: 'sent',
+        origin: 'manual_product_email',
+        intro_text: null,
+        sent_at: '2026-08-21T14:30:00.000Z',
+        prospect_id: 1,
+        account_contact_id: null,
+        retailer_line_account_id: null,
+        catalog_item_id: 'cat-1',
+        sent_by: null,
+        payload: {
+          sku: 'TC-1',
+          name: 'Trail Cap',
+          slug: 'trail-cap',
+          productHref: 'https://example.com/p',
+        },
+        created_at: '2026-08-21T14:30:00.000Z',
+      },
+    ];
+
+    render(<ModalHarness />);
+
+    const history = await screen.findByLabelText(/Previous activity/i);
+    await waitFor(() => {
+      expect(within(history).getByText(/^Email$/i)).toBeInTheDocument();
+    });
+    expect(within(history).getByText(/Trail Cap for your shop/i)).toBeInTheDocument();
+    expect(within(history).getByText(/Trail Cap \(TC-1\)/i)).toBeInTheDocument();
+    expect(within(history).getAllByText(/^Email$/i)).toHaveLength(1);
   });
 
   it('skips convert prompt when prospect is already an active account', async () => {
@@ -473,5 +551,80 @@ describe('LogCallModal', () => {
         }),
       );
     });
+  });
+
+  it('clears activity on store change and ignores stale history responses', async () => {
+    const user = userEvent.setup();
+    useActivityHistoryMock = true;
+
+    let resolveFirst!: (value: {
+      data: Array<{
+        kind: 'call';
+        id: string;
+        occurredAt: string;
+        sortAt: string;
+        contactLabel: string | null;
+        outcome: string;
+        notes: string;
+        objectionTags: string[];
+        followUpDate: null;
+      }>;
+      error: null;
+    }) => void;
+
+    const firstPromise = new Promise<Parameters<typeof resolveFirst>[0]>((resolve) => {
+      resolveFirst = resolve;
+    });
+
+    fetchContactActivityHistoryMock.mockImplementation(
+      (input: { prospectId: number; salesLineId: string | null }) => {
+        if (input.prospectId === 1) return firstPromise;
+        return Promise.resolve({ data: [], error: null });
+      },
+    );
+
+    const prospects: Prospect[] = [
+      TEST_PROSPECTS[0]!,
+      {
+        ...TEST_PROSPECTS[0]!,
+        id: 2,
+        name: 'Other Store',
+        city: 'Vernon',
+      },
+    ];
+
+    render(<ModalHarness prospects={prospects} />);
+
+    await user.selectOptions(screen.getByDisplayValue(/Kelowna Golf & Country Club/i), '2');
+
+    expect(screen.getByLabelText(/Previous activity/i)).toHaveTextContent(
+      /No prior activity on this line/i,
+    );
+
+    resolveFirst({
+      data: [
+        {
+          kind: 'call',
+          id: 'stale-call',
+          occurredAt: '2026-08-01',
+          sortAt: '2026-08-01T00:00:00.000Z',
+          contactLabel: 'Stale Contact',
+          outcome: 'Left Message / Gatekeeper',
+          notes: 'Should not appear',
+          objectionTags: [],
+          followUpDate: null,
+        },
+      ],
+      error: null,
+    });
+
+    await waitFor(() => {
+      expect(fetchContactActivityHistoryMock).toHaveBeenCalledWith(
+        expect.objectContaining({ prospectId: 2 }),
+      );
+    });
+
+    expect(screen.queryByText(/Should not appear/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Stale Contact/i)).not.toBeInTheDocument();
   });
 });

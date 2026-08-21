@@ -26,11 +26,13 @@ import {
 } from '@/lib/logCallCatalogs';
 import {
   buildLogCallInsert,
-  fetchPreviousCallsForLog,
   formatCallContactName,
   updateProspectRetailChannel,
-  type PreviousCallForLog,
 } from '@/lib/logCallForm';
+import {
+  fetchContactActivityHistory,
+  type ContactActivityItem,
+} from '@/lib/contactActivityHistory';
 import type { Prospect } from '@/lib/prospects';
 import { isStaffSellingUiBlocked } from '@/lib/retailerLineAccounts';
 import { formatLocalIsoDate } from '@/lib/reorderCadence';
@@ -51,6 +53,8 @@ export interface LogCallFormModalProps {
   onRetailerUpdated?: () => void;
   /** Fired after a new CRM contact is created from Log Call (bump contacts reload). */
   onContactCreated?: () => void;
+  /** Bump after a product email send so open Log Call refetches activity. */
+  activityHistoryReloadToken?: number;
 }
 
 type SaveSuccessState = {
@@ -61,6 +65,14 @@ type SaveSuccessState = {
     objectionTags?: string[];
   };
 };
+
+function formatActivityWhen(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return iso;
+  }
+}
 
 function clearEditableFields(setters: {
   setFeedback: (v: string[]) => void;
@@ -99,6 +111,7 @@ export function LogCallFormModal({
   onConverted,
   onRetailerUpdated,
   onContactCreated,
+  activityHistoryReloadToken = 0,
 }: LogCallFormModalProps) {
   const { openAssist } = useAiAssist();
   const [feedback, setFeedback] = useState<string[]>([]);
@@ -122,7 +135,7 @@ export function LogCallFormModal({
   const [channelStoreId, setChannelStoreId] = useState(storeId);
   const [channelOpen, setChannelOpen] = useState(open);
   const [syncedCategory, setSyncedCategory] = useState(selectedCategory);
-  const [previousCalls, setPreviousCalls] = useState<PreviousCallForLog[]>([]);
+  const [activityItems, setActivityItems] = useState<ContactActivityItem[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +150,7 @@ export function LogCallFormModal({
     string | null
   >(null);
   const line = useOptionalLineContext();
+  const [activityLineId, setActivityLineId] = useState(line.salesLineId);
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status
       ? { code: line.lineSlug, status: line.status, defaultCurrency: line.defaultCurrency }
@@ -174,7 +188,7 @@ export function LogCallFormModal({
     setSyncedCategory(selectedCategory);
     setContacts([]);
     setContactsReady(false);
-    setPreviousCalls([]);
+    setActivityItems([]);
     setHistoryError(null);
     setSelectedContactId('');
     setContactName('');
@@ -183,6 +197,11 @@ export function LogCallFormModal({
     setOutcome(defaultOutcomeForMode(mode));
     setSaveSuccess(null);
     setError(null);
+  }
+  if (line.salesLineId !== activityLineId) {
+    setActivityLineId(line.salesLineId);
+    setActivityItems([]);
+    setHistoryError(null);
   }
   if (open !== channelOpen) {
     setChannelOpen(open);
@@ -207,7 +226,7 @@ export function LogCallFormModal({
     void (async () => {
       const [contactsResult, historyResult] = await Promise.all([
         fetchContactsForAccount(storeId),
-        fetchPreviousCallsForLog({ prospectId: storeId, salesLineId: line.salesLineId }),
+        fetchContactActivityHistory({ prospectId: storeId, salesLineId: line.salesLineId }),
       ]);
       if (!active) return;
       setContacts(contactsResult.data);
@@ -217,14 +236,14 @@ export function LogCallFormModal({
         setSelectedContactId(primary.id);
         setContactName(formatCallContactName(primary));
       }
-      setPreviousCalls(historyResult.data);
+      setActivityItems(historyResult.data);
       setHistoryError(historyResult.error);
     })();
 
     return () => {
       active = false;
     };
-  }, [open, storeId, line.salesLineId]);
+  }, [open, storeId, line.salesLineId, activityHistoryReloadToken]);
 
   function toggleFeedback(option: string) {
     setFeedback((prev) =>
@@ -263,12 +282,15 @@ export function LogCallFormModal({
     onClose();
   }
 
-  async function refreshPreviousCalls(prospectId: number) {
-    const result = await fetchPreviousCallsForLog({
+  async function refreshActivityHistory(prospectId: number) {
+    const salesLineId = line.salesLineId;
+    const result = await fetchContactActivityHistory({
       prospectId,
-      salesLineId: line.salesLineId,
+      salesLineId,
     });
-    setPreviousCalls(result.data);
+    // Ignore stale responses after store/line context changed.
+    if (storeId !== prospectId || line.salesLineId !== salesLineId) return;
+    setActivityItems(result.data);
     setHistoryError(result.error);
   }
 
@@ -348,7 +370,7 @@ export function LogCallFormModal({
     }
 
     onSaved?.();
-    await refreshPreviousCalls(storeId);
+    await refreshActivityHistory(storeId);
     if (closedDuringSubmitRef.current || submitGen !== submitGenRef.current) return;
 
     const chips = {
@@ -481,32 +503,61 @@ export function LogCallFormModal({
             </Field>
 
             {storeId != null ? (
-              <section className="border-ink/10 gap-2 border-t pt-3" aria-label="Previous calls">
-                <h3 className="font-heading text-ink m-0 text-sm font-semibold">Previous calls</h3>
+              <section className="border-ink/10 gap-2 border-t pt-3" aria-label="Previous activity">
+                <h3 className="font-heading text-ink m-0 text-sm font-semibold">
+                  Previous activity
+                </h3>
                 {historyError ? (
                   <p className="text-accent-800 m-0 text-sm">{historyError}</p>
-                ) : previousCalls.length === 0 ? (
-                  <p className="text-ink/60 m-0 text-sm">No prior calls on this line.</p>
+                ) : activityItems.length === 0 ? (
+                  <p className="text-ink/60 m-0 text-sm">No prior activity on this line.</p>
                 ) : (
                   <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
-                    {previousCalls.map((call) => (
+                    {activityItems.map((item) => (
                       <li
-                        key={call.id}
+                        key={`${item.kind}-${item.id}`}
                         className="border-ink/10 bg-bg/60 rounded-lg border px-3 py-2 text-sm"
                       >
-                        <div className="text-ink/80 flex flex-wrap gap-x-2 gap-y-0.5">
-                          <span>{call.callDate}</span>
-                          {call.contactName ? <span>· {call.contactName}</span> : null}
-                          <span>· {call.outcome}</span>
-                          {call.followUpDate ? <span>· Follow-up {call.followUpDate}</span> : null}
+                        <div className="text-ink/80 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <span className="border-ink/20 text-ink/70 rounded border px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
+                            {item.kind === 'email' ? 'Email' : 'Call'}
+                          </span>
+                          <span>
+                            {item.kind === 'email'
+                              ? formatActivityWhen(item.occurredAt)
+                              : item.occurredAt}
+                          </span>
+                          {item.contactLabel ? <span>· {item.contactLabel}</span> : null}
+                          {item.kind === 'call' && item.outcome ? (
+                            <span>· {item.outcome}</span>
+                          ) : null}
+                          {item.kind === 'call' && item.followUpDate ? (
+                            <span>· Follow-up {item.followUpDate}</span>
+                          ) : null}
+                          {item.kind === 'email' && item.subject ? (
+                            <span>· {item.subject}</span>
+                          ) : null}
                         </div>
-                        {call.objectionTags.length > 0 ? (
+                        {item.kind === 'email' ? (
+                          <div className="text-ink/65 m-0 mt-1 flex flex-col gap-0.5 text-xs">
+                            {item.productLabel ? <span>{item.productLabel}</span> : null}
+                            {item.senderLabel ? <span>From {item.senderLabel}</span> : null}
+                            {item.messageSummary ? (
+                              <span className="text-ink/80 whitespace-pre-wrap">
+                                {item.messageSummary}
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {item.kind === 'call' &&
+                        item.objectionTags &&
+                        item.objectionTags.length > 0 ? (
                           <p className="text-ink/65 m-0 mt-1 text-xs">
-                            {call.objectionTags.join(' · ')}
+                            {item.objectionTags.join(' · ')}
                           </p>
                         ) : null}
-                        {call.notes ? (
-                          <p className="text-ink/80 m-0 mt-1 whitespace-pre-wrap">{call.notes}</p>
+                        {item.kind === 'call' && item.notes ? (
+                          <p className="text-ink/80 m-0 mt-1 whitespace-pre-wrap">{item.notes}</p>
                         ) : null}
                       </li>
                     ))}

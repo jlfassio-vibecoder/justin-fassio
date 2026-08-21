@@ -287,6 +287,7 @@ interface ProductDetailDrawerProps {
   onClose: () => void;
   onSaved: (item: CatalogItem) => void;
   onNavigate: (sku: string) => void;
+  onProductEmailSent?: () => void;
 }
 
 export function ProductDetailDrawer({
@@ -299,6 +300,7 @@ export function ProductDetailDrawer({
   onClose,
   onSaved,
   onNavigate,
+  onProductEmailSent,
 }: ProductDetailDrawerProps) {
   if (!item) return null;
   return (
@@ -313,6 +315,7 @@ export function ProductDetailDrawer({
       onClose={onClose}
       onSaved={onSaved}
       onNavigate={onNavigate}
+      onProductEmailSent={onProductEmailSent}
     />
   );
 }
@@ -327,6 +330,7 @@ function ProductDetailDrawerInner({
   onClose,
   onSaved,
   onNavigate,
+  onProductEmailSent,
 }: {
   item: CatalogItem;
   items: CatalogItem[];
@@ -337,6 +341,7 @@ function ProductDetailDrawerInner({
   onClose: () => void;
   onSaved: (item: CatalogItem) => void;
   onNavigate: (sku: string) => void;
+  onProductEmailSent?: () => void;
 }) {
   const line = useOptionalLineContext();
   const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
@@ -2133,6 +2138,7 @@ function ProductDetailDrawerInner({
         onSent={() => {
           setEmailSendState('sent');
           setEmailHistoryReloadToken((n) => n + 1);
+          onProductEmailSent?.();
           if (emailSendTimerRef.current != null) {
             window.clearTimeout(emailSendTimerRef.current);
           }

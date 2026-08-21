@@ -57,6 +57,8 @@ interface AccountDetailDrawerProps {
   onDemoted?: (prospect: Prospect) => void;
   /** Bump to refetch AccountContactsSection after Log Call creates a contact. */
   contactsReloadToken?: number;
+  /** Fired after a successful product email send from this drawer. */
+  onProductEmailSent?: () => void;
 }
 
 function formatCad(amount: number): string {
@@ -281,6 +283,7 @@ export function AccountDetailDrawer({
   onTaxonomySaved,
   onDemoted,
   contactsReloadToken = 0,
+  onProductEmailSent,
 }: AccountDetailDrawerProps) {
   const [demoteBusy, setDemoteBusy] = useState(false);
   const [demoteError, setDemoteError] = useState<string | null>(null);
@@ -683,6 +686,7 @@ export function AccountDetailDrawer({
             composerSentRef.current = true;
             setEmailFlow('closed');
             resetEmailCompose();
+            onProductEmailSent?.();
           }}
         />
       ) : null}

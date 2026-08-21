@@ -105,6 +105,7 @@ export function RepCommandCenter({
   const [callsReloadToken, setCallsReloadToken] = useState(0);
   const [directoryReloadToken, setDirectoryReloadToken] = useState(0);
   const [contactsReloadToken, setContactsReloadToken] = useState(0);
+  const [activityHistoryReloadToken, setActivityHistoryReloadToken] = useState(0);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [supplierTerms, setSupplierTerms] = useState<CatalogSupplierTerms | null>(null);
   const [prospects, setProspects] = useState<Prospect[]>([]);
@@ -475,6 +476,7 @@ export function RepCommandCenter({
                   deepLinkSku={deepLinkSku}
                   deepLinkDraftId={deepLinkDraftId}
                   onDeepLinkConsumed={clearCatalogDeepLink}
+                  onProductEmailSent={() => setActivityHistoryReloadToken((n) => n + 1)}
                 />
               )}
               {activeTab === 'dashboard' && (
@@ -524,6 +526,7 @@ export function RepCommandCenter({
                   territories={territories}
                   onLogCall={(account) => openModal(account)}
                   contactsReloadToken={contactsReloadToken}
+                  onProductEmailSent={() => setActivityHistoryReloadToken((n) => n + 1)}
                   onNotesSaved={(id, notes) => {
                     setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
                   }}
@@ -592,6 +595,7 @@ export function RepCommandCenter({
         onConverted={reloadDirectory}
         onRetailerUpdated={reloadDirectory}
         onContactCreated={() => setContactsReloadToken((n) => n + 1)}
+        activityHistoryReloadToken={activityHistoryReloadToken}
       />
 
       <StaffChatDock
