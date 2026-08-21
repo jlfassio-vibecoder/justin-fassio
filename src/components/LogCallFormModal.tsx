@@ -67,11 +67,10 @@ type SaveSuccessState = {
 };
 
 function formatActivityWhen(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
+  const date = new Date(iso);
+  // Copilot: new Date() does not throw on bad input — check validity explicitly.
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString();
 }
 
 function clearEditableFields(setters: {
