@@ -22,6 +22,7 @@ import {
   suggestedAssignmentForLocation,
 } from '@/lib/salesLineTerritories';
 import { resolveTerritoryIdByCode } from '@/lib/territories';
+import { runOperationalTerritoryReviewSyncForProspectId } from '@/lib/operationalTerritories/syncOperationalTerritoryReview';
 import { isUuid } from '@/lib/resolveSalesLineQuery';
 import type { AccountImportMatchDecision, LookalikeCandidateStatus } from '@/types/database';
 
@@ -511,5 +512,6 @@ export async function reviewLookalikeCandidate(
     .update({ status: 'approved', retailer_id: id })
     .eq('id', input.candidateId);
   if (stampError) return { ok: false, error: stampError.message, status: 500 };
+  await runOperationalTerritoryReviewSyncForProspectId(supabase, id, { locationChanged: true });
   return loadSnapshot(supabase, input.jobId);
 }

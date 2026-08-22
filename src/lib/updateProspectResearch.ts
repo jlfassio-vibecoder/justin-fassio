@@ -15,6 +15,11 @@ import {
 } from '@/lib/fillBlankProspectFields';
 import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
 import {
+  locationChangedBetween,
+  locationFingerprintFromProspect,
+} from '@/lib/operationalTerritories/locationFingerprint';
+import { runOperationalTerritoryReviewSyncAfterWrite } from '@/lib/operationalTerritories/syncOperationalTerritoryReview';
+import {
   insertRetailerFieldChanges,
   isVerifiedIdentityField,
   isVerifiedIdentityStatus,
@@ -239,7 +244,13 @@ export async function applyProspectResearchUpdate(
       });
       if (!audit.ok) return audit;
     }
-    return { ok: true, prospect: mapProspectRow(data as ProspectRow) };
+    const prospect = mapProspectRow(data as ProspectRow);
+    const locationChanged = locationChangedBetween(
+      locationFingerprintFromProspect(existing.data),
+      locationFingerprintFromProspect(prospect),
+    );
+    await runOperationalTerritoryReviewSyncAfterWrite(supabase, prospect, { locationChanged });
+    return { ok: true, prospect };
   }
 
   const parsed = enrichedProspectSchema.safeParse(input.fields);
@@ -299,7 +310,15 @@ export async function applyProspectResearchUpdate(
     if (!audit.ok) return audit;
   }
 
-  return { ok: true, prospect: mapProspectRow(data as ProspectRow) };
+  const prospect = mapProspectRow(data as ProspectRow);
+  const prior = currentForAudit ?? (await fetchProspectById(supabase, input.id)).data ?? prospect;
+  const locationChanged = locationChangedBetween(
+    locationFingerprintFromProspect(prior),
+    locationFingerprintFromProspect(prospect),
+  );
+  await runOperationalTerritoryReviewSyncAfterWrite(supabase, prospect, { locationChanged });
+
+  return { ok: true, prospect };
 }
 
 export {

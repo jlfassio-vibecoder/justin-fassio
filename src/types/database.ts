@@ -333,7 +333,10 @@ export interface Database {
           reason: string;
           payload: Record<string, unknown>;
           resolved_at: string | null;
+          resolution: string | null;
+          resolved_by: string | null;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -342,7 +345,10 @@ export interface Database {
           reason: string;
           payload?: Record<string, unknown>;
           resolved_at?: string | null;
+          resolution?: string | null;
+          resolved_by?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
           id?: string;
@@ -351,7 +357,10 @@ export interface Database {
           reason?: string;
           payload?: Record<string, unknown>;
           resolved_at?: string | null;
+          resolution?: string | null;
+          resolved_by?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -2716,6 +2725,14 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      upsert_operational_territory_review: {
+        Args: {
+          p_entity_id: string;
+          p_reason: string;
+          p_payload: Record<string, unknown>;
+        };
+        Returns: string;
+      };
       is_approved_staff: {
         Args: Record<string, never>;
         Returns: boolean;
@@ -2939,3 +2956,8 @@ export type AccountImportBatch = Database['public']['Tables']['account_import_ba
 export type AccountImportRow = Database['public']['Tables']['account_import_rows']['Row'];
 export type AccountEnrichmentJob = Database['public']['Tables']['account_enrichment_jobs']['Row'];
 export type MigrationReviewQueueRow = Database['public']['Tables']['migration_review_queue']['Row'];
+export type OperationalTerritoryReviewQueueRow =
+  Database['public']['Tables']['operational_territory_review_queue']['Row'];
+
+export type OperationalTerritoryReviewResolution =
+  'assigned' | 'left_unassigned' | 'no_longer_applicable' | 'legacy_resolved';

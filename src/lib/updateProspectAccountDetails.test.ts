@@ -11,6 +11,7 @@ import {
 
 const insertRetailerFieldChangesMock = vi.hoisted(() => vi.fn());
 const resolveOpsReviewMock = vi.hoisted(() => vi.fn());
+const syncOpsReviewMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/retailerFieldChanges', async () => {
   const actual = await vi.importActual<typeof import('@/lib/retailerFieldChanges')>(
@@ -25,6 +26,10 @@ vi.mock('@/lib/retailerFieldChanges', async () => {
 vi.mock('@/lib/operationalTerritories/reviewQueue', () => ({
   resolveOperationalTerritoryReviewForProspect: (...args: unknown[]) =>
     resolveOpsReviewMock(...args),
+}));
+
+vi.mock('@/lib/operationalTerritories/syncOperationalTerritoryReview', () => ({
+  syncOperationalTerritoryReview: (...args: unknown[]) => syncOpsReviewMock(...args),
 }));
 
 vi.mock('@/lib/supabase', () => ({
@@ -261,6 +266,7 @@ describe('updateProspectAccountDetails', () => {
     vi.clearAllMocks();
     insertRetailerFieldChangesMock.mockResolvedValue({ ok: true });
     resolveOpsReviewMock.mockResolvedValue({ ok: true, resolved: 1 });
+    syncOpsReviewMock.mockResolvedValue({ ok: true });
     vi.mocked(supabase.auth.getUser).mockResolvedValue({
       data: { user: { id: 'user-actor-1' } },
       error: null,
@@ -448,6 +454,7 @@ describe('operational territory save path', () => {
     vi.clearAllMocks();
     insertRetailerFieldChangesMock.mockResolvedValue({ ok: true });
     resolveOpsReviewMock.mockResolvedValue({ ok: true, resolved: 1 });
+    syncOpsReviewMock.mockResolvedValue({ ok: true });
     vi.mocked(supabase.auth.getUser).mockResolvedValue({
       data: { user: { id: 'user-actor-1' } },
       error: null,
@@ -504,7 +511,45 @@ describe('operational territory save path', () => {
         }),
       ]),
     );
-    expect(resolveOpsReviewMock).toHaveBeenCalledWith(existing.id, supabase);
+    expect(resolveOpsReviewMock).toHaveBeenCalledWith(
+      existing.id,
+      { resolution: 'assigned', resolvedBy: 'user-actor-1' },
+      supabase,
+    );
+    expect(syncOpsReviewMock).toHaveBeenCalled();
+  });
+
+  it('returns reviewWarning when sync fails after save', async () => {
+    const existing = baseProspect({
+      territoryCode: 'wa',
+      territoryId: 'terr-wa',
+      territoryName: 'Washington',
+    });
+    const draft = draftFromProspect(existing);
+    draft.postalCode = '98102';
+
+    vi.mocked(supabase.from).mockImplementation(() => {
+      const chain = {
+        update: () => chain,
+        eq: () => chain,
+        select: () => chain,
+        single: async () => ({
+          data: prospectRowFromExisting(existing, { postal_code: '98102' }),
+          error: null,
+        }),
+      };
+      return chain as never;
+    });
+    syncOpsReviewMock.mockResolvedValue({ ok: false, error: 'rpc down' });
+
+    const result = await updateProspectAccountDetails(existing, draft, {
+      storeTerritoryCode: 'wa',
+      operationalTerritories: OPS_OPTIONS,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.reviewWarning).toMatch(/rpc down/);
+    }
   });
 
   it('clears ops assignment without resolving review queue', async () => {

@@ -4349,16 +4349,31 @@ create table if not exists operational_territory_review_queue (
   reason text not null,
   payload jsonb not null default '{}'::jsonb,
   resolved_at timestamptz,
-  created_at timestamptz not null default now()
+  resolution text,
+  resolved_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint operational_territory_review_queue_resolution_check check (
+    (resolved_at is null and resolution is null and resolved_by is null)
+    or (
+      resolved_at is not null
+      and resolution in ('assigned', 'left_unassigned', 'no_longer_applicable', 'legacy_resolved')
+      and (
+        resolution in ('no_longer_applicable', 'legacy_resolved')
+        or resolved_by is not null
+        or resolution = 'assigned'
+      )
+    )
+  )
 );
 
 create index if not exists operational_territory_review_queue_unresolved_idx
   on operational_territory_review_queue (entity_type, created_at)
   where resolved_at is null;
 
-create unique index if not exists operational_territory_review_queue_unresolved_entity_uidx
-  on operational_territory_review_queue (entity_type, entity_id, reason)
-  where resolved_at is null;
+create unique index if not exists operational_territory_review_queue_unresolved_prospect_uidx
+  on operational_territory_review_queue (entity_id)
+  where resolved_at is null and entity_type = 'prospect';
 
 alter table operational_territory_review_queue enable row level security;
 
@@ -4367,6 +4382,42 @@ create policy "approved staff full access" on operational_territory_review_queue
   for all to authenticated
   using (public.is_approved_staff())
   with check (public.is_approved_staff());
+
+create or replace function public.upsert_operational_territory_review(
+  p_entity_id text,
+  p_reason text,
+  p_payload jsonb
+) returns uuid
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare v_id uuid;
+begin
+  update operational_territory_review_queue
+  set payload = p_payload, updated_at = now()
+  where entity_type = 'prospect'
+    and entity_id = p_entity_id
+    and resolved_at is null
+  returning id into v_id;
+  if v_id is not null then return v_id; end if;
+
+  begin
+    insert into operational_territory_review_queue (entity_type, entity_id, reason, payload)
+    values ('prospect', p_entity_id, p_reason, p_payload)
+    returning id into v_id;
+    return v_id;
+  exception when unique_violation then
+    update operational_territory_review_queue
+    set payload = p_payload, updated_at = now()
+    where entity_type = 'prospect'
+      and entity_id = p_entity_id
+      and resolved_at is null
+    returning id into v_id;
+    return v_id;
+  end;
+end;
+$$;
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- prospects.operational_territory_id (nullable; never auto-backfilled)

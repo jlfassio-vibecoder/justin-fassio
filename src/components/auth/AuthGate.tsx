@@ -5,6 +5,8 @@ import { OwnerWholesaleBuyersPanel } from '@/components/auth/OwnerWholesaleBuyer
 import { PendingApprovalScreen } from '@/components/auth/PendingApprovalScreen';
 import { WrongPortalScreen } from '@/components/auth/WrongPortalScreen';
 import { StaffAccountPage } from '@/components/staff/StaffAccountPage';
+import { OpsTerritoryReviewWorkspace } from '@/components/opsTerritoryReview/OpsTerritoryReviewWorkspace';
+import { OpsTerritoryReviewNavLink } from '@/components/opsTerritoryReview/OpsTerritoryReviewNavLink';
 import { ProspectiveLinesWorkspace } from '@/components/ProspectiveLinesWorkspace';
 import { RepCommandCenter } from '@/components/RepCommandCenter';
 import { AIAssistantModal } from '@/components/ui/AIAssistantModal';
@@ -20,7 +22,7 @@ import { createStaffAvatarSignedUrl, staffAccountInitials } from '@/lib/staffAcc
 import type { StaffIslandFeatureFlags } from '@/lib/staffFeatures';
 import type { TabKey } from '@/types';
 
-export type AuthGatePage = 'app' | 'account' | 'prospective';
+export type AuthGatePage = 'app' | 'account' | 'prospective' | 'opsTerritoryReview';
 
 const TAB_KEYS: TabKey[] = [
   'briefing',
@@ -156,6 +158,7 @@ function AuthGateInner({
   const { loading, session, user, profile, configured } = useAuth();
   const [pingBusy, setPingBusy] = useState(false);
   const [pingStatus, setPingStatus] = useState<string | null>(null);
+  const [opsReviewReloadToken, setOpsReviewReloadToken] = useState(0);
   const [defaultTab] = useState<TabKey | undefined>(() => pathTab ?? tabFromSearch());
   const [features, setFeatures] = useState<StaffIslandFeatureFlags | null>(null);
   const [featuresLoading, setFeaturesLoading] = useState(
@@ -331,6 +334,11 @@ function AuthGateInner({
   const appShell =
     page === 'prospective' ? (
       <ProspectiveLinesWorkspace lineSlug={urlLineSlug} />
+    ) : page === 'opsTerritoryReview' ? (
+      <OpsTerritoryReviewWorkspace
+        reloadToken={opsReviewReloadToken}
+        onQueueChanged={() => setOpsReviewReloadToken((n) => n + 1)}
+      />
     ) : (
       <LineUnknownGate requestedSlug={urlLineSlug}>
         {page === 'account' ? (
@@ -360,10 +368,13 @@ function AuthGateInner({
       >
         <div>
           <div className="border-ink/10 bg-surface/60 text-ink/70 flex flex-wrap items-center justify-end gap-3 border-b px-7 py-2 text-xs">
-            {page === 'account' || page === 'prospective' ? (
+            {page === 'account' || page === 'prospective' || page === 'opsTerritoryReview' ? (
               <a href="/app" className="text-ink/80 hover:text-ink no-underline">
                 Command Center
               </a>
+            ) : null}
+            {isApprovedStaff(profile) ? (
+              <OpsTerritoryReviewNavLink reloadToken={opsReviewReloadToken} />
             ) : null}
             {isApprovedOwner(profile) && prospectiveLines ? (
               <a href="/app/prospective-lines" className="text-ink/80 hover:text-ink no-underline">

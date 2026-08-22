@@ -11,6 +11,10 @@ vi.mock('@/lib/companyWebResearch', () => ({
   researchCompany: (...args: unknown[]) => researchCompanyMock(...args),
 }));
 
+vi.mock('@/lib/operationalTerritories/syncOperationalTerritoryReview', () => ({
+  runOperationalTerritoryReviewSyncAfterWrite: vi.fn().mockResolvedValue(null),
+}));
+
 import { createEnrichedProspect } from '@/lib/createEnrichedProspect';
 import type { AgentSupabase } from '@/lib/agentAuth';
 
