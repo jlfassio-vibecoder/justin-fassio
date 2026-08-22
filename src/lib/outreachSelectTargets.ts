@@ -13,7 +13,10 @@ import {
   type AccountContact,
 } from '@/lib/accountContacts';
 import type { PrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
-import { allocateChannelsForDay } from '@/lib/outreachChannelAllocation';
+import {
+  allocateChannelsForDay,
+  type AllocateChannelsForDayResult,
+} from '@/lib/outreachChannelAllocation';
 import {
   compareOutreachProspectRank,
   isRlaInOutreachPool,
@@ -67,6 +70,8 @@ export type SelectOutreachTargetsInput = {
   preparationDate?: string;
   capacity: number;
   weights?: Parameters<typeof allocateChannelsForDay>[0]['weights'];
+  /** When provided, skips internal allocateChannelsForDay (nightly prep uses one shared allocation). */
+  channelAllocation?: AllocateChannelsForDayResult;
   /** Injectable clock for cooldown / prep-date derivation. */
   asOf?: Date;
 };
@@ -327,11 +332,13 @@ export async function selectOutreachTargets(
     return { ok: true, targets: [], excluded };
   }
 
-  const allocation = allocateChannelsForDay({
-    preparationDate,
-    capacity,
-    weights: input.weights,
-  });
+  const allocation =
+    input.channelAllocation ??
+    allocateChannelsForDay({
+      preparationDate,
+      capacity,
+      weights: input.weights,
+    });
   const allocatedWithSlots = new Set(
     allocation.channelOrder.filter((ch) => (allocation.slotsByChannel[ch] ?? 0) > 0),
   );

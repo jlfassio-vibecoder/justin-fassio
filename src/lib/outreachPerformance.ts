@@ -1,5 +1,5 @@
 /**
- * Phase 4 performance slices — learning inputs only (not autonomous Phase 1 dispatch).
+ * Phase 4 performance slices — learning inputs for channel allocation weights and reporting.
  * Unattributed converts are excluded from learned numerators.
  */
 

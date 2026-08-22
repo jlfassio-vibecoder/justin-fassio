@@ -310,7 +310,14 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
           {briefing.channelAllocation && (
             <Card>
               <CardTitle className="text-[15px]">Channel allocation</CardTitle>
-              <CardMeta className="mb-2">From last prep run (informational)</CardMeta>
+              <CardMeta className="mb-2">
+                From last prep run
+                {briefing.channelAllocation.meta?.weightSource === 'measured'
+                  ? ' · measured conversion weights'
+                  : briefing.channelAllocation.meta?.weightSource === 'uniform'
+                    ? ' · even rotation (insufficient data)'
+                    : ' (informational)'}
+              </CardMeta>
               <ul className="m-0 flex list-none flex-wrap gap-2 p-0 text-sm">
                 {Object.entries(briefing.channelAllocation.slotsByChannel)
                   .filter(([, n]) => n > 0)
@@ -400,10 +407,13 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
 
           {briefing.performance && (
             <Card>
-              <CardTitle className="text-[15px]">Learning slices (informational)</CardTitle>
+              <CardTitle className="text-[15px]">Learning slices</CardTitle>
               <CardMeta className="mb-2">
-                Not used for autonomous targeting yet · lookback {briefing.performance.lookbackDays}
-                d
+                {briefing.channelAllocation?.meta?.weightSource === 'measured'
+                  ? 'Channel allocation uses blended conversion rates'
+                  : 'Insufficient attributed conversions — using even channel rotation'}
+                {' · lookback '}
+                {briefing.performance.lookbackDays}d
               </CardMeta>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-left text-sm">

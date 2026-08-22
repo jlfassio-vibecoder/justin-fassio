@@ -43,6 +43,7 @@ vi.mock('@/lib/outreachSellingDays', async () => {
 });
 
 import { runOutreachNightlyPrep } from '@/lib/outreachNightlyPrep';
+import { defaultOutreachGoalSettings } from '@/lib/outreachGoals';
 
 function makeClient(overrides?: {
   existingRun?: Record<string, unknown> | null;
@@ -147,8 +148,9 @@ describe('runOutreachNightlyPrep', () => {
     loadOutreachGoalDashboardSnapshotMock.mockResolvedValue({
       ok: true,
       snapshot: {
-        settings: { businessTimezone: 'America/Vancouver' },
+        settings: defaultOutreachGoalSettings(),
         pace: { recommendedDailySends: 3, goalMet: false },
+        performance: null,
       },
     });
     allocateChannelsForDayMock.mockReturnValue({
@@ -187,6 +189,91 @@ describe('runOutreachNightlyPrep', () => {
     const genArg = generateOgrProductOutreachDraftsMock.mock.calls[0][1];
     expect(genArg.regenerate).toBe(false);
     expect(genArg.automationRunId).toBe('run-1');
+  });
+
+  it('passes shared channelAllocation and uniform weights to selectOutreachTargets', async () => {
+    const client = makeClient();
+    await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'cron',
+      preparationDate: '2026-08-13',
+    });
+
+    expect(allocateChannelsForDayMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preparationDate: '2026-08-13',
+        capacity: 3,
+        weights: undefined,
+      }),
+    );
+
+    const selectArg = selectOutreachTargetsMock.mock.calls[0][1];
+    expect(selectArg.channelAllocation).toEqual(
+      expect.objectContaining({
+        channelOrder: ['grocery'],
+        slotsByChannel: { grocery: 3 },
+        meta: expect.objectContaining({ weightSource: 'uniform', weights: undefined }),
+      }),
+    );
+    expect(selectArg.weights).toBeUndefined();
+  });
+
+  it('passes measured weights when performance clears global gate', async () => {
+    loadOutreachGoalDashboardSnapshotMock.mockResolvedValue({
+      ok: true,
+      snapshot: {
+        settings: defaultOutreachGoalSettings(),
+        pace: { recommendedDailySends: 3, goalMet: false },
+        performance: {
+          lookbackDays: 90,
+          minAttributedConversions: 8,
+          byChannel: [
+            {
+              key: 'golf_retail',
+              label: 'Golf',
+              sends: 50,
+              attributedConversions: 5,
+              conversionRate: 0.1,
+              confidence: 'insufficient',
+            },
+            {
+              key: 'marine_retail',
+              label: 'Marine',
+              sends: 50,
+              attributedConversions: 3,
+              conversionRate: 0.06,
+              confidence: 'insufficient',
+            },
+          ],
+          byProduct: [],
+          byFitBand: [],
+          byLeadState: [],
+        },
+      },
+    });
+
+    const client = makeClient();
+    await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'cron',
+      preparationDate: '2026-08-13',
+    });
+
+    expect(allocateChannelsForDayMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        weights: expect.objectContaining({
+          golf_retail: expect.any(Number),
+          marine_retail: expect.any(Number),
+        }),
+      }),
+    );
+
+    const selectArg = selectOutreachTargetsMock.mock.calls[0][1];
+    expect(selectArg.meta?.weightSource).toBeUndefined();
+    expect(selectArg.channelAllocation.meta).toEqual(
+      expect.objectContaining({ weightSource: 'measured' }),
+    );
+    expect(selectArg.weights.golf_retail).toBeGreaterThan(selectArg.weights.marine_retail);
   });
 
   it('returns existing succeeded run as noop (no duplicate drafts)', async () => {
