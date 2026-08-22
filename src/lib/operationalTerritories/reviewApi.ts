@@ -80,6 +80,9 @@ export async function applyOperationalTerritorySuggestion(
   }
 
   const opsTerritoriesResult = await fetchOperationalTerritories(supabase);
+  if (opsTerritoriesResult.error) {
+    return { ok: false, error: opsTerritoriesResult.error, status: 500 };
+  }
   const opsTerritories = opsTerritoriesResult.data;
   const match = opsTerritories.find((row) => row.code === suggestion.territoryCode);
   if (!match) {
@@ -122,6 +125,9 @@ export async function assignOperationalTerritory(
   if (!loaded.ok) return { ok: false, error: loaded.error, status: 404 };
 
   const opsTerritoriesResult = await fetchOperationalTerritories(supabase);
+  if (opsTerritoriesResult.error) {
+    return { ok: false, error: opsTerritoriesResult.error, status: 500 };
+  }
   const draft = draftFromProspect(loaded.prospect);
   draft.operationalTerritoryId = operationalTerritoryId;
 

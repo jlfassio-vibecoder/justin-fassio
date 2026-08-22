@@ -109,7 +109,8 @@ export type CreateEnrichedProspectInput = {
 };
 
 export type CreateEnrichedProspectResult =
-  { ok: true; prospect: Prospect; researchBrief: string | null } | { ok: false; error: string };
+  | { ok: true; prospect: Prospect; researchBrief: string | null; reviewWarning?: string | null }
+  | { ok: false; error: string };
 
 export type InferEnrichedProspectFieldsResult =
   | { ok: true; fields: EnrichedProspectFields; researchBrief: string | null }
@@ -249,10 +250,10 @@ async function insertProspect(
     return { ok: false, error: 'Insert returned no row' };
   }
   const prospect = mapProspectRow(data as ProspectListRow);
-  await runOperationalTerritoryReviewSyncAfterWrite(supabase, prospect, {
+  const reviewWarning = await runOperationalTerritoryReviewSyncAfterWrite(supabase, prospect, {
     locationChanged: true,
   });
-  return { ok: true, prospect, researchBrief: null };
+  return { ok: true, prospect, researchBrief: null, reviewWarning };
 }
 
 async function insertBuyerContact(

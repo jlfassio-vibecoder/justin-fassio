@@ -41,7 +41,7 @@ export type PreviewProspectResearchResult =
   { ok: true; preview: ProspectResearchPreview } | { ok: false; error: string };
 
 export type ApplyProspectResearchResult =
-  { ok: true; prospect: Prospect } | { ok: false; error: string };
+  { ok: true; prospect: Prospect; reviewWarning?: string | null } | { ok: false; error: string };
 
 export type ApplyProspectResearchAiAudit = {
   actorId: string;
@@ -249,8 +249,10 @@ export async function applyProspectResearchUpdate(
       locationFingerprintFromProspect(existing.data),
       locationFingerprintFromProspect(prospect),
     );
-    await runOperationalTerritoryReviewSyncAfterWrite(supabase, prospect, { locationChanged });
-    return { ok: true, prospect };
+    const reviewWarning = await runOperationalTerritoryReviewSyncAfterWrite(supabase, prospect, {
+      locationChanged,
+    });
+    return { ok: true, prospect, reviewWarning };
   }
 
   const parsed = enrichedProspectSchema.safeParse(input.fields);
@@ -316,9 +318,11 @@ export async function applyProspectResearchUpdate(
     locationFingerprintFromProspect(prior),
     locationFingerprintFromProspect(prospect),
   );
-  await runOperationalTerritoryReviewSyncAfterWrite(supabase, prospect, { locationChanged });
+  const reviewWarning = await runOperationalTerritoryReviewSyncAfterWrite(supabase, prospect, {
+    locationChanged,
+  });
 
-  return { ok: true, prospect };
+  return { ok: true, prospect, reviewWarning };
 }
 
 export {

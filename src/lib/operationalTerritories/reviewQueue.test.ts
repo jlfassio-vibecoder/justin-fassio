@@ -59,6 +59,7 @@ describe('ops review queue migration', () => {
     expect(sql).toMatch(/legacy_resolved/);
     expect(sql).toMatch(/upsert_operational_territory_review/);
     expect(sql).toMatch(/unique_violation/);
+    expect(sql).toMatch(/grant execute on function public\.upsert_operational_territory_review/);
     expect(sql).toMatch(/operational_territory_review_queue_unresolved_prospect_uidx/);
     expect(sql).toMatch(/insert into operational_territory_review_queue/);
     expect(sql).toMatch(/on delete set null/i);

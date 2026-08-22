@@ -108,6 +108,18 @@ describe('operational territory review API helpers', () => {
     expect(resolveMock).not.toHaveBeenCalled();
   });
 
+  it('apply suggestion returns 500 when operational territories fetch fails', async () => {
+    fetchOpsMock.mockResolvedValueOnce({ data: [], error: 'db down' });
+
+    const result = await applyOperationalTerritorySuggestion(supabase as never, 9, 'actor-1');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(500);
+      expect(result.error).toBe('db down');
+    }
+    expect(updateProspectAccountDetailsMock).not.toHaveBeenCalled();
+  });
+
   it('apply suggestion returns 409 when suggestion is unavailable', async () => {
     supabase.from.mockReturnValue({
       select: () => ({

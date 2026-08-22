@@ -4395,7 +4395,7 @@ as $$
 declare v_id uuid;
 begin
   update operational_territory_review_queue
-  set payload = p_payload, updated_at = now()
+  set reason = p_reason, payload = p_payload, updated_at = now()
   where entity_type = 'prospect'
     and entity_id = p_entity_id
     and resolved_at is null
@@ -4409,7 +4409,7 @@ begin
     return v_id;
   exception when unique_violation then
     update operational_territory_review_queue
-    set payload = p_payload, updated_at = now()
+    set reason = p_reason, payload = p_payload, updated_at = now()
     where entity_type = 'prospect'
       and entity_id = p_entity_id
       and resolved_at is null
@@ -4418,6 +4418,9 @@ begin
   end;
 end;
 $$;
+
+revoke all on function public.upsert_operational_territory_review(text, text, jsonb) from public;
+grant execute on function public.upsert_operational_territory_review(text, text, jsonb) to authenticated;
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- prospects.operational_territory_id (nullable; never auto-backfilled)
