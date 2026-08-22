@@ -28,7 +28,9 @@ import {
 export type ProspectCategory = PrimaryRetailChannel;
 export type BcProspectRegion =
   'Okanagan' | 'Shuswap' | 'Vancouver Island' | 'Sea-to-Sky' | 'Kootenays' | 'Fraser Valley';
-export type ProspectRegion = BcProspectRegion | 'Oregon' | 'Washington';
+/** Known region labels; prospects.region is free text and may include other values. */
+export type ProspectRegion =
+  BcProspectRegion | 'Oregon' | 'Washington' | 'Alberta' | 'California' | 'British Columbia';
 
 /** Nullable planning fields from the BC named prospect list sheet. */
 export type ProspectPlanningFields = {
@@ -100,7 +102,8 @@ export interface Prospect extends ProspectPlanningFields, ProspectTaxonomyFields
   id: number;
   name: string;
   category: ProspectCategory;
-  region: ProspectRegion;
+  /** Free-text CRM region (known labels + custom values from AI/editor). */
+  region: string;
   city: string;
   address: string;
   phone: string;
@@ -170,7 +173,7 @@ export function mapProspectRow(row: ProspectListRow): Prospect {
     id: row.id,
     name: row.name,
     category,
-    region: row.region as ProspectRegion,
+    region: row.region,
     city: row.city,
     address: row.address,
     phone: row.phone,
@@ -188,6 +191,22 @@ export function mapProspectRow(row: ProspectListRow): Prospect {
     lifestyleThemes: normalizeLifestyleThemes(asStringArray(row.lifestyle_themes)),
     retailCapabilities: normalizeRetailCapabilities(asStringArray(row.retail_capabilities)),
     ...mapPlanningFields(row),
+  };
+}
+
+/**
+ * After a prospects row update, keep line-scoped commercial fields from the
+ * in-memory directory prospect (RLA overlay). Never replace those from legacy
+ * account_status on the raw row alone.
+ */
+export function mergeProspectIdentity(existing: Prospect, saved: Prospect): Prospect {
+  return {
+    ...saved,
+    accountStatus: existing.accountStatus,
+    convertedAt: existing.convertedAt,
+    initialOrderDate: existing.initialOrderDate,
+    lineRelationshipStatus: existing.lineRelationshipStatus,
+    lineAccountMarkers: existing.lineAccountMarkers,
   };
 }
 
@@ -368,6 +387,7 @@ export type ProspectTaxonomyPatch = {
 export async function updateProspectTaxonomy(
   id: number,
   patch: ProspectTaxonomyPatch,
+  existing?: Prospect,
 ): Promise<{ data: Prospect | null; error: string | null }> {
   const secondary = clampSecondaryChannels(patch.category, patch.secondaryChannels);
   const subOpts = subchannelOptionsFor(patch.category, secondary);
@@ -389,7 +409,11 @@ export async function updateProspectTaxonomy(
     return { data: null, error: error.message };
   }
 
-  return { data: mapProspectRow(data as ProspectListRow), error: null };
+  const mapped = mapProspectRow(data as ProspectListRow);
+  return {
+    data: existing ? mergeProspectIdentity(existing, mapped) : mapped,
+    error: null,
+  };
 }
 
 export { primaryRetailChannelLabel, normalizePrimaryChannels };

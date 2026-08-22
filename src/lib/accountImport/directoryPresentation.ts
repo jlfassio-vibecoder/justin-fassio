@@ -1,3 +1,4 @@
+import { isStoreTerritoryCode } from '@/lib/territories';
 import { hasMarker } from '@/lib/accountImport/classification';
 import type { AccountStatus, RelationshipStatus } from '@/types/database';
 
@@ -103,12 +104,48 @@ export function territoryDisplayLabel(input: {
   if (code === 'or') return 'Oregon';
   if (code === 'wa') return 'Washington';
   if (code === 'bc') return 'British Columbia';
+  if (code === 'ab') return 'Alberta';
+  if (code === 'ca') return 'California';
   return null;
+}
+
+/**
+ * City / region / store territory for drawer and directory headers.
+ * When region equals the store territory name, omit the duplicate:
+ * `Grand Ronde · Oregon` instead of `Grand Ronde (Oregon) · Oregon`.
+ */
+export function formatAccountLocationLine(input: {
+  city: string;
+  region: string;
+  territoryCode?: string | null;
+  territoryName?: string | null;
+}): string {
+  const city = input.city.trim();
+  const region = input.region.trim();
+  const territory = territoryDisplayLabel({
+    territoryCode: input.territoryCode,
+    territoryName: input.territoryName,
+  });
+
+  if (!city && !region && !territory) return '';
+
+  const regionMatchesTerritory =
+    Boolean(territory) && region.toLowerCase() === territory!.toLowerCase();
+
+  if (regionMatchesTerritory) {
+    if (city && territory) return `${city} · ${territory}`;
+    return city || territory || '';
+  }
+
+  const cityRegion = city ? (region ? `${city} (${region})` : city) : region;
+  if (cityRegion && territory) return `${cityRegion} · ${territory}`;
+  return cityRegion || territory || '';
 }
 
 export function parseDirectoryTerritoryParam(raw: string | null): string | null {
   if (!raw) return null;
   const value = raw.trim();
-  if (value === 'ALL' || value === 'or' || value === 'wa' || value === 'bc') return value;
+  if (value === 'ALL') return value;
+  if (isStoreTerritoryCode(value)) return value.trim().toLowerCase();
   return null;
 }

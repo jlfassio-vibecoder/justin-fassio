@@ -6,18 +6,22 @@ import { CATEGORY_MAPPING_GUIDANCE } from '@/lib/enrichGuidance';
 import {
   mapProspectRow,
   PROSPECT_SELECT,
+  type BcProspectRegion,
   type Prospect,
   type ProspectListRow,
-  type ProspectRegion,
 } from '@/lib/prospects';
 import { PRIMARY_RETAIL_CHANNELS, type PrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
-import { BC_TERRITORY_CODE, resolveTerritoryIdByCode } from '@/lib/territories';
+import {
+  resolveStoreTerritoryCodeFromEnrichment,
+  resolveTerritoryIdByCode,
+} from '@/lib/territories';
 
 export const PROSPECT_CATEGORIES = PRIMARY_RETAIL_CHANNELS.map((o) => o.value) as [
   PrimaryRetailChannel,
   ...PrimaryRetailChannel[],
 ];
 
+/** BC subregions — still used by fill-blank; Add via AI no longer forces this enum. */
 export const PROSPECT_REGIONS = [
   'Okanagan',
   'Shuswap',
@@ -25,7 +29,7 @@ export const PROSPECT_REGIONS = [
   'Sea-to-Sky',
   'Kootenays',
   'Fraser Valley',
-] as const satisfies readonly ProspectRegion[];
+] as const satisfies readonly BcProspectRegion[];
 
 export const enrichedProspectSchema = z.object({
   name: z.string().min(1).describe('Cleaned business / store name'),
@@ -34,8 +38,22 @@ export const enrichedProspectSchema = z.object({
     .describe(
       'Primary retail channel code from actual merchandise (see CATEGORY_MAPPING_GUIDANCE). Never map hunting/fishing specialty to golf_retail.',
     ),
-  region: z.enum(PROSPECT_REGIONS),
-  city: z.string().min(1).describe('BC city or town'),
+  region: z
+    .string()
+    .min(1)
+    .describe(
+      'CRM region label from research: BC subregion (Okanagan, Shuswap, Vancouver Island, Sea-to-Sky, Kootenays, Fraser Valley) or province/state name (Oregon, Washington, Alberta, California, British Columbia) when that is the best regional label. Free text allowed; do not invent.',
+    ),
+  city: z
+    .string()
+    .min(1)
+    .describe('Store city or town from research / official site when known; do not invent.'),
+  provinceOrState: z
+    .string()
+    .nullish()
+    .describe(
+      'Political province or state when known from address/research: British Columbia, Alberta, California, Oregon, or Washington. Null when unknown — do not guess.',
+    ),
   fitScore: z.number().int().min(1).max(10),
   notes: z.string().min(1).describe('Two short sentences on store positioning and customer vibe'),
   address: z
@@ -66,7 +84,11 @@ export type CreateEnrichedProspectInput = {
   city?: string;
   /** Buyer retail channel hint for research + category mapping. */
   retailChannelHint?: string;
-  /** Territory code (bc/ab/ca/or/wa). Defaults to British Columbia unless a non-OGR line is set. */
+  /**
+   * Optional inbound store territory seed (bc/ab/ca/or/wa).
+   * Used only when research does not yield a resolvable province/region.
+   * Do not pass the directory filter code.
+   */
   territoryCode?: string;
   /** When provided (e.g. by contact enrich), skip a second web search. */
   researchBrief?: string | null;
@@ -110,7 +132,7 @@ export function proposedProspectFromFields(
     ...current,
     name: fields.name.trim(),
     category: fields.category,
-    region: fields.region,
+    region: fields.region.trim(),
     city: fields.city.trim(),
     address: fields.address?.trim() || '',
     phone: fields.phone?.trim() || '',
@@ -194,7 +216,7 @@ async function insertProspect(
       id,
       name: fields.name.trim(),
       category: fields.category,
-      region: fields.region,
+      region: fields.region.trim(),
       city: fields.city.trim(),
       address: fields.address?.trim() || '',
       phone: fields.phone?.trim() || '',
@@ -341,12 +363,13 @@ export async function inferEnrichedProspectFields(
       schemaName: 'EnrichedProspect',
       prompt: [
         input.aiPersona?.trim() ||
-          'You help a BC wholesale apparel sales rep (Old Guys Rule) onboard a new retailer prospect.',
+          'You help a wholesale apparel sales rep (Old Guys Rule) onboard a new retailer prospect across BC, Alberta, California, Oregon, and Washington.',
         'Infer structured CRM fields from the company name, optional official website, and web research brief.',
         'Prefer known inbound form facts (city/phone/channel) over guesses when they conflict with thin research.',
         CATEGORY_MAPPING_GUIDANCE,
-        'Region must be exactly one of: Okanagan, Shuswap, Vancouver Island, Sea-to-Sky, Kootenays, Fraser Valley.',
-        'City must match the researched store location when known.',
+        'Set city and address from the researched store location when known; do not invent geography.',
+        'Set provinceOrState to British Columbia, Alberta, California, Oregon, or Washington when the address/research clearly identifies that province or state; otherwise null.',
+        'Set region to a useful CRM label: a BC subregion (Okanagan, Shuswap, Vancouver Island, Sea-to-Sky, Kootenays, Fraser Valley) when applicable, or the province/state name when that is the best regional label.',
         'fitScore is 1–10 for likely fit with casual lifestyle apparel wholesale (outdoor specialty that sells apparel can score mid–high).',
         'notes must be exactly two short sentences on positioning / customer vibe based on real merchandise.',
         'Clean up the business name; do not invent phone numbers or street addresses.',
@@ -368,7 +391,8 @@ export async function inferEnrichedProspectFields(
 }
 
 /**
- * Infer CRM fields for a BC retailer via AI Gateway (+ optional web research), then INSERT under JWT/RLS.
+ * Infer CRM fields via AI Gateway (+ optional web research), then INSERT under JWT/RLS.
+ * Store territory is derived from researched province/region (or an explicit inbound seed).
  * Address/phone only when research cites them. Encodes fit score + notes into `fit`.
  */
 export async function createEnrichedProspect(
@@ -381,12 +405,20 @@ export async function createEnrichedProspect(
   }
 
   const { fields, researchBrief } = inferred;
-  // Geography FK is NOT NULL; BC remains the insert default. OGR/BC *AI* strategy
-  // (persona, region rubric) is already gated via input.aiPersona / lineCode.
-  const territory = await resolveTerritoryIdByCode(
-    supabase,
-    input.territoryCode?.trim() || BC_TERRITORY_CODE,
-  );
+  const territoryCode = resolveStoreTerritoryCodeFromEnrichment({
+    provinceOrState: fields.provinceOrState,
+    region: fields.region,
+    seedTerritoryCode: input.territoryCode,
+  });
+  if (!territoryCode) {
+    return {
+      ok: false,
+      error:
+        'Could not determine store territory from the researched location. Add a clearer website or address, or try again after confirming the province/state.',
+    };
+  }
+
+  const territory = await resolveTerritoryIdByCode(supabase, territoryCode);
   if ('error' in territory) {
     return { ok: false, error: territory.error };
   }

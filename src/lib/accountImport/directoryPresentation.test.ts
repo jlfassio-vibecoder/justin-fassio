@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  formatAccountLocationLine,
   hasQualifyingOrderLast365Days,
   isDefaultActiveAccountRow,
   isProspectsPipelineRow,
@@ -159,7 +160,29 @@ describe('directory presentation', () => {
     );
     expect(parseDirectoryTerritoryParam('ALL')).toBe('ALL');
     expect(parseDirectoryTerritoryParam('or')).toBe('or');
+    expect(parseDirectoryTerritoryParam('ab')).toBe('ab');
+    expect(parseDirectoryTerritoryParam('ca')).toBe('ca');
+    expect(parseDirectoryTerritoryParam('AB')).toBe('ab');
     expect(parseDirectoryTerritoryParam('nope')).toBeNull();
+  });
+
+  it('dedupes location line when region matches store territory', () => {
+    expect(
+      formatAccountLocationLine({
+        city: 'Grand Ronde',
+        region: 'Oregon',
+        territoryCode: 'or',
+        territoryName: 'Oregon',
+      }),
+    ).toBe('Grand Ronde · Oregon');
+    expect(
+      formatAccountLocationLine({
+        city: 'Grand Ronde',
+        region: 'Oregon',
+        territoryCode: 'bc',
+        territoryName: 'British Columbia',
+      }),
+    ).toBe('Grand Ronde (Oregon) · British Columbia');
   });
 
   it('source: Prospects exclude historicals; Active Accounts has Reactivation and Import history', () => {
@@ -202,7 +225,7 @@ describe('directory presentation', () => {
     expect(accountsTab).toMatch(/setReactivationUnresponsiveClient/);
     expect(accountsTab).not.toMatch(/from '@\/lib\/setReactivationUnresponsive'/);
     expect(directory).toMatch(/All territories/);
-    expect(directory).toMatch(/territoryDisplayLabel/);
+    expect(directory).toMatch(/formatAccountLocationLine/);
     expect(regions).toMatch(/Oregon/);
     expect(regions).toMatch(/Washington/);
     expect(overlay).toMatch(/line_account_markers/);

@@ -39,6 +39,7 @@ interface MessagesTabProps {
   onNeedsMappingCountChange?: (count: number) => void;
   onLogCall: (prospect: Prospect) => void;
   onNotesSaved?: (id: number, notes: string | null) => void;
+  onProspectUpdated?: (prospect: Prospect) => void;
   onOpenLiveChat?: (thread: MessageThread) => void;
   onSurfaceLiveChatPill?: (thread: MessageThread) => void;
 }
@@ -48,6 +49,7 @@ export function MessagesTab({
   onNeedsMappingCountChange,
   onLogCall,
   onNotesSaved,
+  onProspectUpdated,
   onOpenLiveChat,
   onSurfaceLiveChatPill,
 }: MessagesTabProps) {
@@ -274,6 +276,14 @@ export function MessagesTab({
             setDetailStore({ ...detailStore, notes });
             onNotesSaved?.(detailStore.id, notes);
           }}
+          onTaxonomySaved={(prospect) => {
+            setDetailStore(prospect);
+            onProspectUpdated?.(prospect);
+          }}
+          onIdentitySaved={(prospect) => {
+            setDetailStore(prospect);
+            onProspectUpdated?.(prospect);
+          }}
         />
       ) : (
         <ProspectDetailDrawer
@@ -287,6 +297,14 @@ export function MessagesTab({
             if (!detailStore) return;
             setDetailStore({ ...detailStore, notes });
             onNotesSaved?.(detailStore.id, notes);
+          }}
+          onTaxonomySaved={(prospect) => {
+            setDetailStore(prospect);
+            onProspectUpdated?.(prospect);
+          }}
+          onIdentitySaved={(prospect) => {
+            setDetailStore(prospect);
+            onProspectUpdated?.(prospect);
           }}
         />
       )}

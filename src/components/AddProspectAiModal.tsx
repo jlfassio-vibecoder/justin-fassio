@@ -109,8 +109,8 @@ export function AddProspectAiModal({
         </div>
 
         <p className="text-ink/65 m-0 text-sm">
-          Enter a company name (and optional website). We infer channel, BC region, city, and fit
-          notes, then add the row to your directory.
+          Enter a company name (and optional website). We research the store location, infer city,
+          region, store territory, channel, and fit notes, then add the row to your directory.
         </p>
 
         <Field>

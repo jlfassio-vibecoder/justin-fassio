@@ -646,6 +646,14 @@ export function ActiveAccountsTab({
           setDetailAccount({ ...detailAccount, notes });
           onNotesSaved?.(detailAccount.id, notes);
         }}
+        onTaxonomySaved={(prospect) => {
+          setDetailAccount(prospect);
+          onProspectUpdated?.(prospect);
+        }}
+        onIdentitySaved={(prospect) => {
+          setDetailAccount(prospect);
+          onProspectUpdated?.(prospect);
+        }}
         onDemoted={(prospect) => {
           onProspectUpdated?.(prospect);
           setDetailAccount(null);

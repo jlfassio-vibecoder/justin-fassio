@@ -304,7 +304,6 @@ export function ProspectsTab({
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onCreated={handleCreated}
-        enrichSeeds={{ territoryCode }}
       />
 
       <FindLookalikesModal
@@ -346,6 +345,14 @@ export function ProspectsTab({
           if (!detailProspect) return;
           setDetailProspect({ ...detailProspect, notes });
           onNotesSaved?.(detailProspect.id, notes);
+        }}
+        onTaxonomySaved={(prospect) => {
+          setDetailProspect(prospect);
+          onProspectUpdated?.(prospect);
+        }}
+        onIdentitySaved={(prospect) => {
+          setDetailProspect(prospect);
+          onProspectUpdated?.(prospect);
         }}
       />
     </>
