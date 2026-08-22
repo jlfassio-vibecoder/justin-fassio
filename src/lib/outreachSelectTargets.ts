@@ -13,7 +13,10 @@ import {
   type AccountContact,
 } from '@/lib/accountContacts';
 import type { PrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
-import { allocateChannelsForDay } from '@/lib/outreachChannelAllocation';
+import {
+  allocateChannelsForDay,
+  type AllocateChannelsForDayResult,
+} from '@/lib/outreachChannelAllocation';
 import {
   compareOutreachProspectRank,
   isRlaInOutreachPool,
@@ -24,6 +27,8 @@ import {
   type OutreachExclusionReason,
 } from '@/lib/outreachEligibility';
 import { loadOutreachProductPool, selectProductForProspect } from '@/lib/outreachProductSelection';
+import type { ProductWeightSource } from '@/lib/outreachProductWeights';
+import type { FitBandWeightSource } from '@/lib/outreachFitBandWeights';
 import {
   AGENT_OUTREACH_COOLDOWN_DAYS,
   AGENT_OUTREACH_PENDING_DRAFT_STATUSES,
@@ -59,6 +64,8 @@ export type SelectedOutreachTarget = {
     fitScore: number | null;
     channelMatch: boolean;
     productFit: 'channel_intersect' | 'global_fallback';
+    productWeightSource?: ProductWeightSource;
+    fitBandWeightSource?: FitBandWeightSource;
     exclusionsChecked: true;
   };
 };
@@ -66,7 +73,16 @@ export type SelectedOutreachTarget = {
 export type SelectOutreachTargetsInput = {
   preparationDate?: string;
   capacity: number;
+  /** Ignored when `channelAllocation` is provided (allocation is already computed). */
   weights?: Parameters<typeof allocateChannelsForDay>[0]['weights'];
+  /** When provided, skips internal allocateChannelsForDay (nightly prep uses one shared allocation). */
+  channelAllocation?: AllocateChannelsForDayResult;
+  productWeights?: Map<string, number>;
+  globalProductWeight?: number;
+  productWeightSource?: ProductWeightSource;
+  fitBandWeights?: Map<string, number>;
+  globalFitBandWeight?: number;
+  fitBandWeightSource?: FitBandWeightSource;
   /** Injectable clock for cooldown / prep-date derivation. */
   asOf?: Date;
 };
@@ -327,11 +343,13 @@ export async function selectOutreachTargets(
     return { ok: true, targets: [], excluded };
   }
 
-  const allocation = allocateChannelsForDay({
-    preparationDate,
-    capacity,
-    weights: input.weights,
-  });
+  const allocation =
+    input.channelAllocation ??
+    allocateChannelsForDay({
+      preparationDate,
+      capacity,
+      weights: input.weights,
+    });
   const allocatedWithSlots = new Set(
     allocation.channelOrder.filter((ch) => (allocation.slotsByChannel[ch] ?? 0) > 0),
   );
@@ -450,7 +468,12 @@ export async function selectOutreachTargets(
         secondaryChannels: b.secondaryChannels,
         lastSentAt: b.lastSentAt,
       },
-      { allocatedChannels: allocatedWithSlots },
+      {
+        allocatedChannels: allocatedWithSlots,
+        fitBandWeights: input.fitBandWeights,
+        globalFitBandWeight: input.globalFitBandWeight,
+        fitBandWeightSource: input.fitBandWeightSource,
+      },
     ),
   );
 
@@ -480,6 +503,9 @@ export async function selectOutreachTargets(
     const productPick = selectProductForProspect(poolResult.pool, {
       prospectChannels: candidate.allChannels,
       prospectLifestyleThemes: candidate.prospect.lifestyleThemes,
+      productWeights: input.productWeights,
+      globalProductWeight: input.globalProductWeight,
+      productWeightSource: input.productWeightSource,
     });
     if (!productPick) {
       excluded.push({ prospectId: candidate.prospect.id, reason: 'no_product_in_pool' });
@@ -510,6 +536,8 @@ export async function selectOutreachTargets(
         fitScore: candidate.prospect.fitScore,
         channelMatch,
         productFit: productPick.productFit,
+        productWeightSource: input.productWeightSource,
+        fitBandWeightSource: input.fitBandWeightSource,
         exclusionsChecked: true,
       },
     });

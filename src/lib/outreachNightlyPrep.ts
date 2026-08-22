@@ -9,8 +9,13 @@ import {
   allocateChannelsForDay,
   type AllocateChannelsForDayResult,
 } from '@/lib/outreachChannelAllocation';
+import { computeChannelAllocationWeights } from '@/lib/outreachChannelWeights';
+import { computeProductSelectionWeights } from '@/lib/outreachProductWeights';
+import { computeFitBandRankingWeights } from '@/lib/outreachFitBandWeights';
 import { generateOgrProductOutreachDrafts } from '@/lib/generateOgrProductOutreachDraft';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
+import type { OutreachGoalSettings } from '@/lib/outreachGoals';
+import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
 import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outreachSelectTargets';
 import { AGENT_OUTREACH_PENDING_DRAFT_STATUSES } from '@/lib/outreachSelectionConstants';
 import {
@@ -306,6 +311,8 @@ export async function runOutreachNightlyPrep(
         trigger: input.trigger,
         userId,
         timeZone,
+        performance: paceSnap.snapshot.performance,
+        settings: paceSnap.snapshot.settings,
       });
     }
   }
@@ -350,6 +357,8 @@ export async function runOutreachNightlyPrep(
     trigger: input.trigger,
     userId,
     timeZone,
+    performance: paceSnap.snapshot.performance,
+    settings: paceSnap.snapshot.settings,
   });
 }
 
@@ -361,8 +370,10 @@ async function continuePrep(params: {
   trigger: 'cron' | 'manual';
   userId: string | null;
   timeZone: string;
+  performance: OutreachPerformanceReport | null;
+  settings: OutreachGoalSettings;
 }): Promise<RunOutreachNightlyPrepResult> {
-  const { client, runId, runDate, capacity, userId } = params;
+  const { client, runId, runDate, capacity, userId, performance, settings } = params;
 
   const pending = await countPendingDraftsForPreparationDate(client, runDate);
   if (!pending.ok) {
@@ -376,10 +387,27 @@ async function continuePrep(params: {
 
   const pendingBefore = pending.count;
   const netCapacity = Math.max(0, capacity - pendingBefore);
-  const channelAllocation = allocateChannelsForDay({
-    preparationDate: runDate,
-    capacity: netCapacity,
+
+  const { weights, source: weightSource } = computeChannelAllocationWeights({
+    report: performance,
+    settings,
   });
+  const productWeightResult = computeProductSelectionWeights({
+    report: performance,
+    settings,
+  });
+  const fitBandWeightResult = computeFitBandRankingWeights({
+    report: performance,
+    settings,
+  });
+  const channelAllocation: AllocateChannelsForDayResult = {
+    ...allocateChannelsForDay({
+      preparationDate: runDate,
+      capacity: netCapacity,
+      weights,
+    }),
+    meta: { weightSource, weights },
+  };
 
   let reason: string | null = null;
   if (capacity === 0) {
@@ -422,6 +450,14 @@ async function continuePrep(params: {
   const selected = await selectOutreachTargets(client, {
     preparationDate: runDate,
     capacity: netCapacity,
+    weights,
+    channelAllocation,
+    productWeights: productWeightResult.weights,
+    globalProductWeight: productWeightResult.globalWeight,
+    productWeightSource: productWeightResult.source,
+    fitBandWeights: fitBandWeightResult.weights,
+    globalFitBandWeight: fitBandWeightResult.globalWeight,
+    fitBandWeightSource: fitBandWeightResult.source,
   });
   if (!selected.ok) {
     await updateRun(client, runId, {

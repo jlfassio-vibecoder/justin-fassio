@@ -1,4 +1,5 @@
 import { PRIMARY_RETAIL_CHANNELS, type PrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
+import type { ChannelWeightSource } from '@/lib/outreachChannelWeights';
 
 export type AllocateChannelsForDayInput = {
   /** YYYY-MM-DD local preparation date (used later for weighted rotation). */
@@ -10,6 +11,10 @@ export type AllocateChannelsForDayInput = {
 export type AllocateChannelsForDayResult = {
   channelOrder: PrimaryRetailChannel[];
   slotsByChannel: Record<string, number>;
+  meta?: {
+    weightSource: ChannelWeightSource;
+    weights?: Partial<Record<PrimaryRetailChannel, number>>;
+  };
 };
 
 const CHANNEL_VALUES = PRIMARY_RETAIL_CHANNELS.map((o) => o.value);

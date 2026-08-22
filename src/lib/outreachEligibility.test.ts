@@ -106,6 +106,111 @@ describe('compareOutreachProspectRank', () => {
     };
     expect(compareOutreachProspectRank(never, sent, { allocatedChannels: [] })).toBeLessThan(0);
   });
+
+  it('ranks higher fitScore before lower even when lower band has higher weight', () => {
+    const base = {
+      priority: 'Tier 1',
+      provisionalGrade: 'A (provisional)',
+      primaryChannel: 'golf_retail' as const,
+      secondaryChannels: [],
+      lastSentAt: null,
+    };
+    const topBand = { ...base, id: 3, fitScore: 9 };
+    const bottomBand = { ...base, id: 4, fitScore: 3 };
+    const bandWeights = new Map([
+      ['8-10', 0.05],
+      ['1-5', 0.01],
+    ]);
+    expect(
+      compareOutreachProspectRank(topBand, bottomBand, {
+        allocatedChannels: allocated,
+        fitBandWeights: bandWeights,
+        globalFitBandWeight: 0.015,
+        fitBandWeightSource: 'measured',
+      }),
+    ).toBeLessThan(0);
+  });
+
+  it('uses fitScore before fit-band weight when scores differ', () => {
+    const base = {
+      priority: 'Tier 1',
+      provisionalGrade: null,
+      primaryChannel: null,
+      secondaryChannels: [],
+      lastSentAt: null,
+    };
+    const higherFit = { ...base, id: 1, fitScore: 9 };
+    const lowerFitHighBandWeight = { ...base, id: 2, fitScore: 3 };
+    const bandWeights = new Map([
+      ['8-10', 0.01],
+      ['1-5', 0.1],
+    ]);
+    expect(
+      compareOutreachProspectRank(higherFit, lowerFitHighBandWeight, {
+        allocatedChannels: [],
+        fitBandWeights: bandWeights,
+        globalFitBandWeight: 0.015,
+        fitBandWeightSource: 'measured',
+      }),
+    ).toBeLessThan(0);
+  });
+
+  it('keeps Tier 1 ahead of Tier 2 regardless of fit-band weight', () => {
+    const tier1 = {
+      id: 1,
+      priority: 'Tier 1',
+      fitScore: 3,
+      provisionalGrade: null,
+      primaryChannel: null,
+      secondaryChannels: [],
+      lastSentAt: null,
+    };
+    const tier2 = {
+      id: 2,
+      priority: 'Tier 2',
+      fitScore: 9,
+      provisionalGrade: null,
+      primaryChannel: null,
+      secondaryChannels: [],
+      lastSentAt: null,
+    };
+    const weights = new Map([
+      ['8-10', 0.01],
+      ['1-5', 0.1],
+    ]);
+    expect(
+      compareOutreachProspectRank(tier1, tier2, {
+        allocatedChannels: [],
+        fitBandWeights: weights,
+        globalFitBandWeight: 0.015,
+        fitBandWeightSource: 'measured',
+      }),
+    ).toBeLessThan(0);
+  });
+
+  it('ignores measured fit-band weights when globalFitBandWeight is missing', () => {
+    const base = {
+      priority: 'Tier 1',
+      provisionalGrade: null,
+      primaryChannel: null,
+      secondaryChannels: [],
+      lastSentAt: null,
+      fitScore: 5,
+    };
+    const a = { ...base, id: 1 };
+    const b = { ...base, id: 2 };
+    const bandWeights = new Map([
+      ['1-5', 0.01],
+      ['6-7', 0.1],
+    ]);
+    expect(
+      compareOutreachProspectRank(a, b, {
+        allocatedChannels: [],
+        fitBandWeights: bandWeights,
+        fitBandWeightSource: 'measured',
+      }),
+    ).toBeLessThan(0);
+  });
 });
 
 describe('resolveProspectOutreachChannels', () => {
