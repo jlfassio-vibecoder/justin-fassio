@@ -347,7 +347,7 @@ describe('createEnrichedProspect web research', () => {
       }),
     });
 
-    let captured: Record<string, unknown> | null = null;
+    const insertPayloads: Record<string, unknown>[] = [];
     const base = mockSupabaseInsert({
       ...insertedRow,
       region: '',
@@ -363,7 +363,7 @@ describe('createEnrichedProspect web research', () => {
         return {
           ...chain,
           insert: (payload: Record<string, unknown>) => {
-            captured = payload;
+            insertPayloads.push(payload);
             return originalInsert(payload);
           },
         };
@@ -374,10 +374,10 @@ describe('createEnrichedProspect web research', () => {
 
     const result = await createEnrichedProspect(supabase, { companyName: 'Valley Shop' });
     expect(result.ok).toBe(true);
-    expect(captured?.territory_id).toBe('terr-bc');
-    expect(captured?.city).toBe('');
-    expect(captured?.region).toBe('');
-    expect(captured?.source_note).toMatch(/confirm city, region, and store territory/i);
+    expect(insertPayloads[0]?.territory_id).toBe('terr-bc');
+    expect(insertPayloads[0]?.city).toBe('');
+    expect(insertPayloads[0]?.region).toBe('');
+    expect(insertPayloads[0]?.source_note).toMatch(/confirm city, region, and store territory/i);
   });
 });
 
