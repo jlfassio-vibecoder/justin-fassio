@@ -3092,6 +3092,7 @@ declare
   v_ogr_status text;
   v_rla_id uuid;
   v_relationship text;
+  v_relationship_to_apply text;
   v_terr_code text;
   v_slt_id uuid;
   v_review_reason text;
@@ -3120,7 +3121,12 @@ begin
   if v_existing.id is not null then
     v_rla_id := v_existing.id;
 
-    if v_existing.relationship_status is distinct from v_relationship
+    v_relationship_to_apply := v_relationship;
+    if v_existing.relationship_status = 'opened' and p.account_status = 'prospect' then
+      v_relationship_to_apply := 'opened';
+    end if;
+
+    if v_existing.relationship_status is distinct from v_relationship_to_apply
       or v_existing.converted_at is distinct from p.converted_at
       or v_existing.initial_order_date is distinct from p.initial_order_date
       or v_existing.notes is distinct from p.notes
@@ -3147,7 +3153,7 @@ begin
     then
       update retailer_line_accounts rla
       set
-        relationship_status = v_relationship,
+        relationship_status = v_relationship_to_apply,
         converted_at = p.converted_at,
         initial_order_date = p.initial_order_date,
         notes = p.notes,

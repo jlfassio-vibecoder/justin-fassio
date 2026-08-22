@@ -30,6 +30,9 @@ type Props = {
   retailCapabilities: RetailCapability[];
   busy?: boolean;
   onSave: (patch: ProspectTaxonomyPatch) => Promise<void>;
+  /** When true, wrap fields in a toggle section (default closed). */
+  collapsible?: boolean;
+  defaultOpen?: boolean;
 };
 
 function CheckboxGroup<T extends string>({
@@ -75,7 +78,10 @@ export function ProspectTaxonomyEditor({
   retailCapabilities,
   busy = false,
   onSave,
+  collapsible = false,
+  defaultOpen = false,
 }: Props) {
+  const [open, setOpen] = useState(defaultOpen);
   const [primary, setPrimary] = useState(category);
   const [secondary, setSecondary] = useState(secondaryChannels);
   const [subs, setSubs] = useState(retailSubchannels);
@@ -107,7 +113,7 @@ export function ProspectTaxonomyEditor({
     }
   }
 
-  return (
+  const editor = (
     <div className="gap-3.1 flex flex-col">
       <Field>
         <FieldLabel>Primary Channel</FieldLabel>
@@ -213,5 +219,24 @@ export function ProspectTaxonomyEditor({
         <p className="text-ink/55 m-0 text-xs">Primary: {primaryRetailChannelLabel(primary)}</p>
       </div>
     </div>
+  );
+
+  if (!collapsible) {
+    return editor;
+  }
+
+  return (
+    <section className="border-ink/10 rounded-md border">
+      <button
+        type="button"
+        className="font-heading flex w-full items-center justify-between px-3 py-2 text-left text-base"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+      >
+        CRM Retail Taxonomy
+        <span className="text-ink/50 text-xs">{open ? 'Hide' : 'Show'}</span>
+      </button>
+      {open ? <div className="border-ink/10 border-t px-3 py-3">{editor}</div> : null}
+    </section>
   );
 }

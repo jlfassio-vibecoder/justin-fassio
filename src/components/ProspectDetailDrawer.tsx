@@ -100,23 +100,21 @@ export function ProspectDetailDrawer({
             onSaved={(next) => onIdentitySaved?.(next)}
           />
 
-          <section className="flex flex-col gap-2">
-            <h3 className="font-heading m-0 text-base">CRM Retail Taxonomy</h3>
-            <ProspectTaxonomyEditor
-              key={prospect.id}
-              category={prospect.category}
-              secondaryChannels={prospect.secondaryChannels}
-              retailSubchannels={prospect.retailSubchannels}
-              venueContexts={prospect.venueContexts}
-              lifestyleThemes={prospect.lifestyleThemes}
-              retailCapabilities={prospect.retailCapabilities}
-              onSave={async (patch) => {
-                const result = await updateProspectTaxonomy(prospect.id, patch, prospect);
-                if (result.error || !result.data) throw new Error(result.error ?? 'Save failed');
-                onTaxonomySaved?.(result.data);
-              }}
-            />
-          </section>
+          <ProspectTaxonomyEditor
+            key={prospect.id}
+            collapsible
+            category={prospect.category}
+            secondaryChannels={prospect.secondaryChannels}
+            retailSubchannels={prospect.retailSubchannels}
+            venueContexts={prospect.venueContexts}
+            lifestyleThemes={prospect.lifestyleThemes}
+            retailCapabilities={prospect.retailCapabilities}
+            onSave={async (patch) => {
+              const result = await updateProspectTaxonomy(prospect.id, patch, prospect);
+              if (result.error || !result.data) throw new Error(result.error ?? 'Save failed');
+              onTaxonomySaved?.(result.data);
+            }}
+          />
 
           <AccountNotesEditor
             key={`notes-${prospect.id}`}

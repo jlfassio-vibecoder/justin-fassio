@@ -34,10 +34,9 @@ const BASE_HEADERS = ['#', 'Store', 'Channel', 'City (Region)', 'Address', 'Phon
 
 const HEADER_CELL_CLASS =
   'sticky top-0 z-10 bg-surface border-ink/15 text-ink/60 border-b p-2 text-left text-[11px] tracking-wider uppercase';
-const ACTION_CELL_CLASS =
-  'sticky right-0 z-20 min-w-[7.5rem] w-[7.5rem] bg-surface border-l border-ink/15 shadow-[-4px_0_8px_rgba(0,0,0,0.06)]';
-const ACTION_HEADER_CLASS =
-  'sticky top-0 right-0 z-30 min-w-[7.5rem] w-[7.5rem] bg-surface border-l border-ink/15 shadow-[-4px_0_8px_rgba(0,0,0,0.06)]';
+const ACTION_COLUMN_WIDTH_DEFAULT = 'min-w-[7.5rem] w-[7.5rem]';
+const ACTION_CELL_BASE =
+  'sticky right-0 bg-surface border-l border-ink/15 shadow-[-4px_0_8px_rgba(0,0,0,0.06)]';
 
 export interface RetailerDirectoryProps {
   retailers: Prospect[];
@@ -63,6 +62,8 @@ export interface RetailerDirectoryProps {
   onTerritoryCodeChange?: (code: string) => void;
   /** Phase 2: when set, show empty-safe cross-line badge chips. */
   currentSalesLineId?: string | null;
+  /** Wider sticky action column when multiple inline buttons are shown. */
+  actionColumnWidthClass?: string;
 }
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
@@ -88,7 +89,10 @@ export function RetailerDirectory({
   territoryCode: territoryCodeProp,
   onTerritoryCodeChange,
   currentSalesLineId = null,
+  actionColumnWidthClass = ACTION_COLUMN_WIDTH_DEFAULT,
 }: RetailerDirectoryProps) {
+  const actionCellClass = `${ACTION_CELL_BASE} z-20 ${actionColumnWidthClass}`;
+  const actionHeaderClass = `${ACTION_CELL_BASE} top-0 z-30 ${actionColumnWidthClass}`;
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
@@ -212,7 +216,7 @@ export function RetailerDirectory({
                     </th>
                   ))}
                   <th
-                    className={`${ACTION_HEADER_CLASS} border-ink/15 text-ink/60 border-b p-2 text-right text-[11px] tracking-wider uppercase`}
+                    className={`${actionHeaderClass} border-ink/15 text-ink/60 border-b p-2 text-right text-[11px] tracking-wider uppercase`}
                   >
                     Action
                   </th>
@@ -276,7 +280,7 @@ export function RetailerDirectory({
                       </td>
                       {renderExtraCells ? renderExtraCells(p) : null}
                       <td
-                        className={`${ACTION_CELL_CLASS} border-ink/[0.08] border-b p-2 text-right`}
+                        className={`${actionCellClass} border-ink/[0.08] border-b p-2 text-right`}
                       >
                         <div className="flex flex-col items-end gap-1.5">{renderActions(p)}</div>
                       </td>
