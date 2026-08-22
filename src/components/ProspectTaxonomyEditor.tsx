@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Field, FieldLabel } from '@/components/ui/Input';
 import {
@@ -82,6 +82,7 @@ export function ProspectTaxonomyEditor({
   defaultOpen = false,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
+  const panelId = useId();
   const [primary, setPrimary] = useState(category);
   const [secondary, setSecondary] = useState(secondaryChannels);
   const [subs, setSubs] = useState(retailSubchannels);
@@ -232,11 +233,16 @@ export function ProspectTaxonomyEditor({
         className="font-heading flex w-full items-center justify-between px-3 py-2 text-left text-base"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
+        aria-controls={panelId}
       >
         CRM Retail Taxonomy
         <span className="text-ink/50 text-xs">{open ? 'Hide' : 'Show'}</span>
       </button>
-      {open ? <div className="border-ink/10 border-t px-3 py-3">{editor}</div> : null}
+      {open ? (
+        <div id={panelId} className="border-ink/10 border-t px-3 py-3">
+          {editor}
+        </div>
+      ) : null}
     </section>
   );
 }

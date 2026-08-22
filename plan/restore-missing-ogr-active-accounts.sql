@@ -5,12 +5,21 @@
 --   prospects 629 vs 631 — keep 629 (2 contacts, earlier created_at); delete 631 (0 contacts).
 --
 -- Requires approved owner session for commit_account_import_row (is_approved_owner()).
--- Service-role / postgres without auth.uid(): set owner JWT at top of transaction:
+-- Copilot suggestion ignored: source strings use hosted workbook filename "acounts.xlsx" (misspelled on disk).
+-- Service-role / postgres without auth.uid(): set approved owner JWT before begin:
 --   select set_config('request.jwt.claim.sub', '<approved-owner-uuid>', true);
 
 begin;
 
-select set_config('request.jwt.claim.sub', '1e8752d7-e5d3-4fbd-95df-b1168189ea4f', true);
+do $$
+begin
+  if coalesce(current_setting('request.jwt.claim.sub', true), '') = '' then
+    raise exception 'Set approved owner JWT before running: select set_config(''request.jwt.claim.sub'', ''<approved-owner-uuid>'', true);';
+  end if;
+  if not public.is_approved_owner() then
+    raise exception 'request.jwt.claim.sub must be an approved owner profile id';
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- Preflight

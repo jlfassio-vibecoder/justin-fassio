@@ -471,7 +471,7 @@ export function AccountDetailDrawer({
         aria-hidden="true"
       />
       <aside
-        className="border-ink/15 bg-surface fixed inset-y-0 right-0 z-50 flex w-2/3 flex-col border-l shadow-xl"
+        className="border-ink/15 bg-surface fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l shadow-xl md:w-2/3"
         role="dialog"
         aria-modal="true"
         aria-labelledby="account-detail-title"
