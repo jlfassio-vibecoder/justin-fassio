@@ -32,14 +32,20 @@ describe('suggestTerritoryCodeFromRegion', () => {
     expect(suggestTerritoryCodeFromRegion('British Columbia')).toBe('bc');
   });
 
-  it('returns null for empty, CRM regions, and garbage (never BC-default)', () => {
+  it('returns null for empty and garbage (never BC-default)', () => {
     expect(suggestTerritoryCodeFromRegion('')).toBeNull();
     expect(suggestTerritoryCodeFromRegion(null)).toBeNull();
-    expect(suggestTerritoryCodeFromRegion('Okanagan')).toBeNull();
-    expect(suggestTerritoryCodeFromRegion('Shuswap')).toBeNull();
     expect(suggestTerritoryCodeFromRegion('not-a-real-region')).toBeNull();
-    expect(territoryCodeFromProvince('Okanagan')).toBe(BC_TERRITORY_CODE);
-    expect(suggestTerritoryCodeFromRegion('Okanagan')).not.toBe(BC_TERRITORY_CODE);
+    expect(territoryCodeFromProvince('Unknown')).toBe(BC_TERRITORY_CODE);
+    expect(suggestTerritoryCodeFromRegion('Unknown')).toBeNull();
+  });
+
+  it('maps BC CRM subregions to store territory BC', () => {
+    expect(suggestTerritoryCodeFromRegion('Okanagan')).toBe('bc');
+    expect(suggestTerritoryCodeFromRegion('Shuswap')).toBe('bc');
+    expect(suggestTerritoryCodeFromRegion('Vancouver Island')).toBe('bc');
+    expect(suggestTerritoryCodeFromRegion('Sea-to-Sky')).toBe('bc');
+    expect(suggestTerritoryCodeFromRegion('Central Okanagan')).toBe('bc');
   });
 });
 
@@ -85,14 +91,24 @@ describe('resolveStoreTerritoryCodeFromEnrichment', () => {
     ).toBe('bc');
   });
 
-  it('returns null for Okanagan alone and never BC-defaults unknowns', async () => {
+  it('maps BC CRM subregions to store territory BC', async () => {
     const { resolveStoreTerritoryCodeFromEnrichment } = await import('@/lib/territories');
     expect(
       resolveStoreTerritoryCodeFromEnrichment({
         provinceOrState: null,
         region: 'Okanagan',
       }),
-    ).toBeNull();
+    ).toBe('bc');
+    expect(
+      resolveStoreTerritoryCodeFromEnrichment({
+        provinceOrState: null,
+        region: 'Central Okanagan',
+      }),
+    ).toBe('bc');
+  });
+
+  it('returns null for unknown regions and never BC-defaults garbage', async () => {
+    const { resolveStoreTerritoryCodeFromEnrichment } = await import('@/lib/territories');
     expect(
       resolveStoreTerritoryCodeFromEnrichment({
         provinceOrState: null,
@@ -107,14 +123,14 @@ describe('resolveStoreTerritoryCodeFromEnrichment', () => {
     expect(
       resolveStoreTerritoryCodeFromEnrichment({
         provinceOrState: null,
-        region: 'Okanagan',
+        region: 'not-a-place',
         seedTerritoryCode: 'bc',
       }),
     ).toBe('bc');
     expect(
       resolveStoreTerritoryCodeFromEnrichment({
         provinceOrState: null,
-        region: 'Okanagan',
+        region: 'not-a-place',
         seedTerritoryCode: 'norcal',
       }),
     ).toBeNull();

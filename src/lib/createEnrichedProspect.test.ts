@@ -299,12 +299,48 @@ describe('createEnrichedProspect web research', () => {
     }
   });
 
-  it('fails when geography cannot resolve to a store territory (no silent BC)', async () => {
+  it('inserts BC store territory when AI returns a BC subregion without province', async () => {
     researchCompanyMock.mockResolvedValue({ brief: 'Some store in the Okanagan', error: null });
     generateObjectMock.mockResolvedValue({
       object: aiFields({
         provinceOrState: null,
         region: 'Okanagan',
+        address: null,
+        phone: null,
+      }),
+    });
+
+    let capturedTerritoryId: string | null = null;
+    const base = mockSupabaseInsert(insertedRow);
+    const from = vi.fn((table: string) => {
+      const chain = (base as { from: (t: string) => unknown }).from(table) as {
+        insert?: (payload: Record<string, unknown>) => unknown;
+      };
+      if (table === 'prospects' && typeof chain.insert === 'function') {
+        const originalInsert = chain.insert.bind(chain);
+        return {
+          ...chain,
+          insert: (payload: Record<string, unknown>) => {
+            capturedTerritoryId = (payload.territory_id as string) ?? null;
+            return originalInsert(payload);
+          },
+        };
+      }
+      return chain;
+    });
+    const supabase = { from } as unknown as AgentSupabase;
+
+    const result = await createEnrichedProspect(supabase, { companyName: 'Valley Shop' });
+    expect(result.ok).toBe(true);
+    expect(capturedTerritoryId).toBe('terr-bc');
+  });
+
+  it('fails when geography cannot resolve to a store territory (no silent BC)', async () => {
+    researchCompanyMock.mockResolvedValue({ brief: 'Unknown location', error: null });
+    generateObjectMock.mockResolvedValue({
+      object: aiFields({
+        provinceOrState: null,
+        region: 'not-a-place',
         address: null,
         phone: null,
       }),
