@@ -187,6 +187,30 @@ describe('compareOutreachProspectRank', () => {
       }),
     ).toBeLessThan(0);
   });
+
+  it('ignores measured fit-band weights when globalFitBandWeight is missing', () => {
+    const base = {
+      priority: 'Tier 1',
+      provisionalGrade: null,
+      primaryChannel: null,
+      secondaryChannels: [],
+      lastSentAt: null,
+      fitScore: 5,
+    };
+    const a = { ...base, id: 1 };
+    const b = { ...base, id: 2 };
+    const bandWeights = new Map([
+      ['1-5', 0.01],
+      ['6-7', 0.1],
+    ]);
+    expect(
+      compareOutreachProspectRank(a, b, {
+        allocatedChannels: [],
+        fitBandWeights: bandWeights,
+        fitBandWeightSource: 'measured',
+      }),
+    ).toBeLessThan(0);
+  });
 });
 
 describe('resolveProspectOutreachChannels', () => {

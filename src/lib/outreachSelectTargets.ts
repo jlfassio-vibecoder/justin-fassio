@@ -73,6 +73,7 @@ export type SelectedOutreachTarget = {
 export type SelectOutreachTargetsInput = {
   preparationDate?: string;
   capacity: number;
+  /** Ignored when `channelAllocation` is provided (allocation is already computed). */
   weights?: Parameters<typeof allocateChannelsForDay>[0]['weights'];
   /** When provided, skips internal allocateChannelsForDay (nightly prep uses one shared allocation). */
   channelAllocation?: AllocateChannelsForDayResult;

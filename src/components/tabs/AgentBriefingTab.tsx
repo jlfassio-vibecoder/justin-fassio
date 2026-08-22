@@ -411,7 +411,9 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
               <CardMeta className="mb-2">
                 {briefing.channelAllocation?.meta?.weightSource === 'measured'
                   ? 'Channel allocation, product selection, and prospect ranking use blended conversion rates'
-                  : 'Insufficient attributed conversions — even channel rotation, rank-based product picks, and CRM fit-score ranking'}
+                  : briefing.channelAllocation?.meta?.weightSource === 'uniform'
+                    ? 'Insufficient attributed conversions — even channel rotation, rank-based product picks, and CRM fit-score ranking'
+                    : 'Performance data shown for review — run nightly prep to apply learning weights'}
                 {' · lookback '}
                 {briefing.performance.lookbackDays}d
               </CardMeta>

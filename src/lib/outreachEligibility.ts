@@ -168,8 +168,12 @@ export function compareOutreachProspectRank(
     fitA == null && fitB == null ? 0 : fitA == null ? 1 : fitB == null ? -1 : fitB - fitA;
 
   let bandCmp = 0;
-  if (options.fitBandWeightSource === 'measured' && options.fitBandWeights) {
-    const fallback = options.globalFitBandWeight ?? 0;
+  if (
+    options.fitBandWeightSource === 'measured' &&
+    options.fitBandWeights &&
+    options.globalFitBandWeight != null
+  ) {
+    const fallback = options.globalFitBandWeight;
     const wA = options.fitBandWeights.get(fitBandKey(a.fitScore)) ?? fallback;
     const wB = options.fitBandWeights.get(fitBandKey(b.fitScore)) ?? fallback;
     bandCmp = wB - wA;

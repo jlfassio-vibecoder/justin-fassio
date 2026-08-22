@@ -151,8 +151,12 @@ function compareWithProductWeights(
     productWeightSource?: ProductWeightSource;
   },
 ): number {
-  if (options.productWeightSource === 'measured' && options.productWeights) {
-    const fallback = options.globalWeight ?? 0;
+  if (
+    options.productWeightSource === 'measured' &&
+    options.productWeights &&
+    options.globalWeight != null
+  ) {
+    const fallback = options.globalWeight;
     const wA = options.productWeights.get(a.id) ?? fallback;
     const wB = options.productWeights.get(b.id) ?? fallback;
     if (wB !== wA) return wB - wA;

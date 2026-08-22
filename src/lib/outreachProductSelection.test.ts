@@ -200,4 +200,33 @@ describe('selectProductForProspect', () => {
     expect(picked?.product.id).toBe('golf-a');
     expect(picked?.productFit).toBe('channel_intersect');
   });
+
+  it('ignores measured weights when globalProductWeight is missing', () => {
+    const golfPool = buildOutreachProductPool([
+      row({
+        id: 'golf-a',
+        sku: 'GA',
+        name: 'Golf A',
+        public_sort_order: 1,
+        recommended_channels: ['golf_retail'],
+      }),
+      row({
+        id: 'golf-b',
+        sku: 'GB',
+        name: 'Golf B',
+        public_sort_order: 2,
+        recommended_channels: ['golf_retail'],
+      }),
+    ]);
+    const weights = new Map([
+      ['golf-a', 0.01],
+      ['golf-b', 0.05],
+    ]);
+    const picked = selectProductForProspect(golfPool, {
+      prospectChannels: ['golf_retail'],
+      productWeights: weights,
+      productWeightSource: 'measured',
+    });
+    expect(picked?.product.id).toBe('golf-a');
+  });
 });
