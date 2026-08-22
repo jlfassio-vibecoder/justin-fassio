@@ -10,6 +10,7 @@ import {
   type AllocateChannelsForDayResult,
 } from '@/lib/outreachChannelAllocation';
 import { computeChannelAllocationWeights } from '@/lib/outreachChannelWeights';
+import { computeProductSelectionWeights } from '@/lib/outreachProductWeights';
 import { generateOgrProductOutreachDrafts } from '@/lib/generateOgrProductOutreachDraft';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
 import type { OutreachGoalSettings } from '@/lib/outreachGoals';
@@ -390,6 +391,10 @@ async function continuePrep(params: {
     report: performance,
     settings,
   });
+  const productWeightResult = computeProductSelectionWeights({
+    report: performance,
+    settings,
+  });
   const channelAllocation: AllocateChannelsForDayResult = {
     ...allocateChannelsForDay({
       preparationDate: runDate,
@@ -442,6 +447,9 @@ async function continuePrep(params: {
     capacity: netCapacity,
     weights,
     channelAllocation,
+    productWeights: productWeightResult.weights,
+    globalProductWeight: productWeightResult.globalWeight,
+    productWeightSource: productWeightResult.source,
   });
   if (!selected.ok) {
     await updateRun(client, runId, {

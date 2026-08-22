@@ -13,6 +13,7 @@ import {
   AGENT_OUTREACH_SALES_RANK_FALLBACK_FLOOR,
   AGENT_OUTREACH_TOP_RANK_LIMIT,
 } from '@/lib/outreachSelectionConstants';
+import type { ProductWeightSource } from '@/lib/outreachProductWeights';
 import { salesVolumeRankByProductId } from '@/lib/wholesaleFilters';
 import type { Database } from '@/types/database';
 
@@ -140,6 +141,25 @@ function comparePoolCandidates(
   );
 }
 
+function compareWithProductWeights(
+  a: OutreachProductCandidate,
+  b: OutreachProductCandidate,
+  prospectThemes: string[],
+  options: {
+    productWeights?: ReadonlyMap<string, number>;
+    globalWeight?: number;
+    productWeightSource?: ProductWeightSource;
+  },
+): number {
+  if (options.productWeightSource === 'measured' && options.productWeights) {
+    const fallback = options.globalWeight ?? 0;
+    const wA = options.productWeights.get(a.id) ?? fallback;
+    const wB = options.productWeights.get(b.id) ?? fallback;
+    if (wB !== wA) return wB - wA;
+  }
+  return comparePoolCandidates(a, b, prospectThemes);
+}
+
 /**
  * Prefer channel-intersect products; else weak global (empty recommended channels);
  * else first remaining by rank / New / name.
@@ -149,6 +169,9 @@ export function selectProductForProspect(
   input: {
     prospectChannels: PrimaryRetailChannel[];
     prospectLifestyleThemes?: string[];
+    productWeights?: ReadonlyMap<string, number>;
+    globalProductWeight?: number;
+    productWeightSource?: ProductWeightSource;
   },
 ): { product: OutreachProductCandidate; productFit: ProductFitKind } | null {
   if (pool.length === 0) return null;
@@ -157,22 +180,27 @@ export function selectProductForProspect(
     input.prospectChannels.map((ch) => coercePrimaryRetailChannel(ch)),
   );
   const themes = input.prospectLifestyleThemes ?? [];
+  const weightOptions = {
+    productWeights: input.productWeights,
+    globalWeight: input.globalProductWeight,
+    productWeightSource: input.productWeightSource,
+  };
+  const compare = (a: OutreachProductCandidate, b: OutreachProductCandidate) =>
+    compareWithProductWeights(a, b, themes, weightOptions);
 
   const intersecting = pool
     .filter((p) => channelIntersect(p.recommendedChannels, prospectChannels))
-    .sort((a, b) => comparePoolCandidates(a, b, themes));
+    .sort(compare);
   if (intersecting[0]) {
     return { product: intersecting[0], productFit: 'channel_intersect' };
   }
 
-  const weakGlobal = pool
-    .filter((p) => p.recommendedChannels.length === 0)
-    .sort((a, b) => comparePoolCandidates(a, b, themes));
+  const weakGlobal = pool.filter((p) => p.recommendedChannels.length === 0).sort(compare);
   if (weakGlobal[0]) {
     return { product: weakGlobal[0], productFit: 'global_fallback' };
   }
 
-  const remaining = [...pool].sort((a, b) => comparePoolCandidates(a, b, themes));
+  const remaining = [...pool].sort(compare);
   return remaining[0] ? { product: remaining[0], productFit: 'global_fallback' } : null;
 }
 

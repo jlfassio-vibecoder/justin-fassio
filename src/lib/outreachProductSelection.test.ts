@@ -114,4 +114,90 @@ describe('selectProductForProspect', () => {
     expect(picked?.product.id).toBe('global');
     expect(picked?.productFit).toBe('global_fallback');
   });
+
+  it('preserves rank order when product weights are uniform', () => {
+    const golfPool = buildOutreachProductPool([
+      row({
+        id: 'golf-a',
+        sku: 'GA',
+        name: 'Golf A',
+        public_sort_order: 1,
+        recommended_channels: ['golf_retail'],
+      }),
+      row({
+        id: 'golf-b',
+        sku: 'GB',
+        name: 'Golf B',
+        public_sort_order: 2,
+        recommended_channels: ['golf_retail'],
+      }),
+    ]);
+    const picked = selectProductForProspect(golfPool, {
+      prospectChannels: ['golf_retail'],
+      productWeightSource: 'uniform',
+    });
+    expect(picked?.product.id).toBe('golf-a');
+  });
+
+  it('prefers higher-weight product within channel_intersect tier', () => {
+    const golfPool = buildOutreachProductPool([
+      row({
+        id: 'golf-a',
+        sku: 'GA',
+        name: 'Golf A',
+        public_sort_order: 1,
+        recommended_channels: ['golf_retail'],
+      }),
+      row({
+        id: 'golf-b',
+        sku: 'GB',
+        name: 'Golf B',
+        public_sort_order: 2,
+        recommended_channels: ['golf_retail'],
+      }),
+    ]);
+    const weights = new Map([
+      ['golf-a', 0.01],
+      ['golf-b', 0.05],
+    ]);
+    const picked = selectProductForProspect(golfPool, {
+      prospectChannels: ['golf_retail'],
+      productWeights: weights,
+      globalProductWeight: 0.015,
+      productWeightSource: 'measured',
+    });
+    expect(picked?.product.id).toBe('golf-b');
+    expect(picked?.productFit).toBe('channel_intersect');
+  });
+
+  it('keeps channel_intersect tier over higher-weight non-intersect product', () => {
+    const mixedPool = buildOutreachProductPool([
+      row({
+        id: 'golf-a',
+        sku: 'GA',
+        name: 'Golf A',
+        public_sort_order: 1,
+        recommended_channels: ['golf_retail'],
+      }),
+      row({
+        id: 'marine-a',
+        sku: 'MA',
+        name: 'Marine A',
+        public_sort_order: 2,
+        recommended_channels: ['marine_retail'],
+      }),
+    ]);
+    const weights = new Map([
+      ['golf-a', 0.01],
+      ['marine-a', 0.1],
+    ]);
+    const picked = selectProductForProspect(mixedPool, {
+      prospectChannels: ['golf_retail'],
+      productWeights: weights,
+      globalProductWeight: 0.015,
+      productWeightSource: 'measured',
+    });
+    expect(picked?.product.id).toBe('golf-a');
+    expect(picked?.productFit).toBe('channel_intersect');
+  });
 });

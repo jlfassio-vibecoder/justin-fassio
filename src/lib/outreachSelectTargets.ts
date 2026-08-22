@@ -27,6 +27,7 @@ import {
   type OutreachExclusionReason,
 } from '@/lib/outreachEligibility';
 import { loadOutreachProductPool, selectProductForProspect } from '@/lib/outreachProductSelection';
+import type { ProductWeightSource } from '@/lib/outreachProductWeights';
 import {
   AGENT_OUTREACH_COOLDOWN_DAYS,
   AGENT_OUTREACH_PENDING_DRAFT_STATUSES,
@@ -62,6 +63,7 @@ export type SelectedOutreachTarget = {
     fitScore: number | null;
     channelMatch: boolean;
     productFit: 'channel_intersect' | 'global_fallback';
+    productWeightSource?: ProductWeightSource;
     exclusionsChecked: true;
   };
 };
@@ -72,6 +74,9 @@ export type SelectOutreachTargetsInput = {
   weights?: Parameters<typeof allocateChannelsForDay>[0]['weights'];
   /** When provided, skips internal allocateChannelsForDay (nightly prep uses one shared allocation). */
   channelAllocation?: AllocateChannelsForDayResult;
+  productWeights?: Map<string, number>;
+  globalProductWeight?: number;
+  productWeightSource?: ProductWeightSource;
   /** Injectable clock for cooldown / prep-date derivation. */
   asOf?: Date;
 };
@@ -487,6 +492,9 @@ export async function selectOutreachTargets(
     const productPick = selectProductForProspect(poolResult.pool, {
       prospectChannels: candidate.allChannels,
       prospectLifestyleThemes: candidate.prospect.lifestyleThemes,
+      productWeights: input.productWeights,
+      globalProductWeight: input.globalProductWeight,
+      productWeightSource: input.productWeightSource,
     });
     if (!productPick) {
       excluded.push({ prospectId: candidate.prospect.id, reason: 'no_product_in_pool' });
@@ -517,6 +525,7 @@ export async function selectOutreachTargets(
         fitScore: candidate.prospect.fitScore,
         channelMatch,
         productFit: productPick.productFit,
+        productWeightSource: input.productWeightSource,
         exclusionsChecked: true,
       },
     });

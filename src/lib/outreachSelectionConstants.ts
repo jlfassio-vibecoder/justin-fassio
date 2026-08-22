@@ -20,3 +20,6 @@ export const AGENT_OUTREACH_SALES_RANK_FALLBACK_FLOOR = 9000;
 
 /** Minimum sends in lookback before a channel's own conversion rate is trusted for allocation weights. */
 export const MIN_CHANNEL_SENDS = 3;
+
+/** Minimum sends in lookback before a product's own conversion rate is trusted for selection weights. */
+export const MIN_PRODUCT_SENDS = 3;

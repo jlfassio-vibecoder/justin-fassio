@@ -216,6 +216,8 @@ describe('runOutreachNightlyPrep', () => {
       }),
     );
     expect(selectArg.weights).toBeUndefined();
+    expect(selectArg.productWeightSource).toBe('uniform');
+    expect(selectArg.productWeights).toBeUndefined();
   });
 
   it('passes measured weights when performance clears global gate', async () => {
@@ -245,7 +247,24 @@ describe('runOutreachNightlyPrep', () => {
               confidence: 'insufficient',
             },
           ],
-          byProduct: [],
+          byProduct: [
+            {
+              key: 'p-high',
+              label: 'High',
+              sends: 50,
+              attributedConversions: 5,
+              conversionRate: 0.1,
+              confidence: 'insufficient',
+            },
+            {
+              key: 'p-low',
+              label: 'Low',
+              sends: 50,
+              attributedConversions: 3,
+              conversionRate: 0.06,
+              confidence: 'insufficient',
+            },
+          ],
           byFitBand: [],
           byLeadState: [],
         },
@@ -274,6 +293,11 @@ describe('runOutreachNightlyPrep', () => {
       expect.objectContaining({ weightSource: 'measured' }),
     );
     expect(selectArg.weights.golf_retail).toBeGreaterThan(selectArg.weights.marine_retail);
+    expect(selectArg.productWeightSource).toBe('measured');
+    expect(selectArg.productWeights.get('p-high')).toBeGreaterThan(
+      selectArg.productWeights.get('p-low'),
+    );
+    expect(selectArg.globalProductWeight).toEqual(expect.any(Number));
   });
 
   it('returns existing succeeded run as noop (no duplicate drafts)', async () => {
