@@ -7,7 +7,8 @@
  *   node scripts/generate-zip-county-crosswalk.mjs /path/to/tab20_zcta520_county20_natl.txt
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const src = process.argv[2];
 if (!src) {
@@ -51,7 +52,7 @@ const artifact = {
   zips: rows,
 };
 
-const root = resolve(import.meta.dirname, '..');
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const outPath = resolve(root, 'docs/territories/zip-to-county.json');
 // Compact: one ZIP object per line keeps the file reviewable without a 20k-line pretty dump.
 const body = artifact.zips.map((row) => JSON.stringify(row)).join(',\n    ');
