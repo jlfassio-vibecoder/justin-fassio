@@ -12,6 +12,8 @@ import {
 const updateProspectAccountDetailsMock = vi.hoisted(() => vi.fn());
 const fetchOperationalLineAccountMock = vi.hoisted(() => vi.fn());
 const fetchStoreTerritoriesMock = vi.hoisted(() => vi.fn());
+const fetchOperationalTerritoriesMock = vi.hoisted(() => vi.fn());
+const suggestOpsMock = vi.hoisted(() => vi.fn());
 
 const STORE_TERRITORIES = [
   {
@@ -84,6 +86,23 @@ vi.mock('@/lib/territories', async () => {
   };
 });
 
+vi.mock('@/lib/operationalTerritories', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/operationalTerritories')>(
+    '@/lib/operationalTerritories',
+  );
+  return {
+    ...actual,
+    fetchOperationalTerritories: (...args: unknown[]) => fetchOperationalTerritoriesMock(...args),
+    suggestOperationalTerritoryForAccount: (...args: unknown[]) => suggestOpsMock(...args),
+  };
+});
+
+const OPS_TERRITORIES = [
+  { id: 'ops-pnw-west', code: 'pnw-west' as const, name: 'PNW West' },
+  { id: 'ops-pnw-east', code: 'pnw-east' as const, name: 'PNW East' },
+  { id: 'ops-norcal-coastal', code: 'norcal-coastal' as const, name: 'NorCal Coastal' },
+];
+
 function makeProspect(overrides: Partial<Prospect> = {}): Prospect {
   return {
     id: 7,
@@ -115,7 +134,24 @@ describe('AccountDetailsEditor', () => {
     });
     fetchOperationalLineAccountMock.mockResolvedValue({ data: null, error: null });
     fetchStoreTerritoriesMock.mockResolvedValue({ data: STORE_TERRITORIES, error: null });
+    fetchOperationalTerritoriesMock.mockResolvedValue({ data: OPS_TERRITORIES, error: null });
+    suggestOpsMock.mockReturnValue({ ok: false, reason: 'missing_zip_or_county' });
     window.confirm = vi.fn(() => true);
+  });
+
+  it('shows operational territory separately from store territory', () => {
+    render(
+      <AccountDetailsEditor
+        prospect={makeProspect({
+          operationalTerritoryId: 'ops-pnw-west',
+          operationalTerritoryName: 'PNW West',
+        })}
+        onSaved={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Store territory')).toBeInTheDocument();
+    expect(screen.getByText('Operational territory')).toBeInTheDocument();
+    expect(screen.getByText('PNW West')).toBeInTheDocument();
   });
 
   it('labels Region and Store territory; excludes Northern California', async () => {
@@ -252,5 +288,62 @@ describe('AccountDetailsEditor', () => {
       expect(screen.getByText(/change log could not be written/i)).toBeInTheDocument();
     });
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('hides ops assign/suggest on BC and allows clear of existing assignment', async () => {
+    const user = userEvent.setup();
+    render(
+      <AccountDetailsEditor
+        prospect={makeProspect({
+          operationalTerritoryId: 'ops-pnw-west',
+          operationalTerritoryCode: 'pnw-west',
+          operationalTerritoryName: 'PNW West',
+        })}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await waitFor(() => expect(fetchOperationalTerritoriesMock).toHaveBeenCalled());
+    expect(
+      screen.queryByRole('button', { name: 'Apply suggested operational territory' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear operational territory' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Operational territory')).not.toBeInstanceOf(HTMLSelectElement);
+  });
+
+  it('applies ops suggestion to draft only until Save', async () => {
+    const user = userEvent.setup();
+    suggestOpsMock.mockReturnValue({
+      ok: true,
+      territoryCode: 'pnw-west',
+      matchedBy: 'zip',
+    });
+    render(
+      <AccountDetailsEditor
+        prospect={makeProspect({
+          territoryId: '00000000-0000-4000-8000-0000000000wa',
+          territoryCode: 'wa',
+          territoryName: 'Washington',
+          postalCode: '98101',
+        })}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await waitFor(() => expect(fetchOperationalTerritoriesMock).toHaveBeenCalled());
+    expect(
+      await screen.findByRole('button', { name: 'Apply suggested operational territory' }),
+    ).toBeInTheDocument();
+    expect(updateProspectAccountDetailsMock).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Apply suggested operational territory' }));
+    expect(updateProspectAccountDetailsMock).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(updateProspectAccountDetailsMock).toHaveBeenCalled());
+    const draft = updateProspectAccountDetailsMock.mock.calls[0]?.[1] as {
+      operationalTerritoryId: string | null;
+    };
+    expect(draft.operationalTerritoryId).toBe('ops-pnw-west');
   });
 });

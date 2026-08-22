@@ -1,7 +1,14 @@
-import { useId, useState, type SubmitEvent } from 'react';
+import { useId, useMemo, useState, type SubmitEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { useOptionalLineContext } from '@/lib/lineContext';
+import {
+  allowedOpsCodesForStore,
+  fetchOperationalTerritories,
+  isCanadianStoreCode,
+  suggestOperationalTerritoryForAccount,
+  type OperationalTerritoryOption,
+} from '@/lib/operationalTerritories';
 import type { Prospect } from '@/lib/prospects';
 import { fetchOperationalLineAccount } from '@/lib/retailerLineAccounts';
 import {
@@ -51,16 +58,29 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
   const [error, setError] = useState<string | null>(null);
   const [auditWarning, setAuditWarning] = useState<string | null>(null);
   const [storeTerritories, setStoreTerritories] = useState<Territory[]>([]);
+  const [opsTerritories, setOpsTerritories] = useState<OperationalTerritoryOption[]>([]);
 
   const editing = draft != null;
 
   async function startEdit() {
     setDraft(draftFromProspect(prospect));
     setError(null);
+    const loads: Promise<void>[] = [];
     if (storeTerritories.length === 0) {
-      const result = await fetchStoreTerritories();
-      if (!result.error) setStoreTerritories(result.data);
+      loads.push(
+        fetchStoreTerritories().then((result) => {
+          if (!result.error) setStoreTerritories(result.data);
+        }),
+      );
     }
+    if (opsTerritories.length === 0) {
+      loads.push(
+        fetchOperationalTerritories().then((result) => {
+          if (!result.error) setOpsTerritories(result.data);
+        }),
+      );
+    }
+    await Promise.all(loads);
   }
 
   function handleCancel() {
@@ -94,6 +114,32 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
       ? (storeTerritories.find((t) => t.id === draft.territoryId)?.countryCode ?? null)
       : null;
 
+  const canadianStore = isCanadianStoreCode(draftTerritoryCode ?? prospect.territoryCode);
+  const allowedOpsCodes = allowedOpsCodesForStore(draftTerritoryCode ?? prospect.territoryCode);
+  const assignableOps = useMemo(
+    () => opsTerritories.filter((t) => (allowedOpsCodes as readonly string[]).includes(t.code)),
+    [opsTerritories, allowedOpsCodes],
+  );
+
+  const opsSuggestion = useMemo(() => {
+    if (!draft || canadianStore) return null;
+    return suggestOperationalTerritoryForAccount({
+      postalCode: draft.postalCode,
+      address: draft.address,
+      storeTerritoryCode: draftTerritoryCode,
+    });
+  }, [draft, canadianStore, draftTerritoryCode]);
+
+  const suggestedOpsOption =
+    opsSuggestion?.ok === true
+      ? assignableOps.find((t) => t.code === opsSuggestion.territoryCode)
+      : undefined;
+  const showOpsSuggestion =
+    editing &&
+    !canadianStore &&
+    suggestedOpsOption != null &&
+    suggestedOpsOption.id !== (draft?.operationalTerritoryId ?? null);
+
   const validationError = draft
     ? validateAccountDetailsDraft(draft, { countryCode: selectedCountry })
     : null;
@@ -107,6 +153,15 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
   function applySuggestedStoreTerritory() {
     if (!suggestedTerritory) return;
     updateField('territoryId', suggestedTerritory.id);
+  }
+
+  function applySuggestedOpsTerritory() {
+    if (!suggestedOpsOption) return;
+    updateField('operationalTerritoryId', suggestedOpsOption.id);
+  }
+
+  function clearOpsTerritory() {
+    updateField('operationalTerritoryId', null);
   }
 
   async function handleSave(e: SubmitEvent) {
@@ -142,6 +197,8 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
       salesLineId: line.salesLineId,
       retailerLineAccountId,
       countryCode: selectedCountry,
+      storeTerritoryCode: draftTerritoryCode,
+      operationalTerritories: opsTerritories,
     });
     setBusy(false);
 
@@ -194,6 +251,14 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
               Store territory
             </dt>
             <dd className="m-0 mt-0.5">{displayValue(prospect.territoryName)}</dd>
+          </div>
+          <div>
+            <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
+              Operational territory
+            </dt>
+            <dd className="m-0 mt-0.5">
+              {displayValue(prospect.operationalTerritoryName ?? null)}
+            </dd>
           </div>
           <div>
             <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Postal / ZIP</dt>
@@ -325,6 +390,77 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
             Apply suggested store territory
           </Button>
         </div>
+      ) : null}
+
+      <Field>
+        <FieldLabel>Operational territory</FieldLabel>
+        {canadianStore ? (
+          <div className="flex flex-col gap-2">
+            <p className="m-0 text-sm" aria-label="Operational territory">
+              {draft.operationalTerritoryId
+                ? (opsTerritories.find((t) => t.id === draft.operationalTerritoryId)?.name ??
+                  prospect.operationalTerritoryName ??
+                  'Assigned')
+                : 'Not assigned'}
+            </p>
+            {draft.operationalTerritoryId ? (
+              <Button type="button" variant="secondary" disabled={busy} onClick={clearOpsTerritory}>
+                Clear operational territory
+              </Button>
+            ) : (
+              <p className="text-ink/55 m-0 text-xs">
+                Operational territories apply to US West Coast store geos only.
+              </p>
+            )}
+          </div>
+        ) : (
+          <Select
+            value={draft.operationalTerritoryId ?? ''}
+            onChange={(e) =>
+              updateField('operationalTerritoryId', e.target.value ? e.target.value : null)
+            }
+            disabled={busy}
+            aria-label="Operational territory"
+          >
+            <option value="">Not assigned</option>
+            {assignableOps.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+            {draft.operationalTerritoryId &&
+            !assignableOps.some((t) => t.id === draft.operationalTerritoryId) ? (
+              <option value={draft.operationalTerritoryId}>
+                {opsTerritories.find((t) => t.id === draft.operationalTerritoryId)?.name ??
+                  prospect.operationalTerritoryName ??
+                  'Current assignment'}
+              </option>
+            ) : null}
+          </Select>
+        )}
+      </Field>
+
+      {showOpsSuggestion ? (
+        <div className="flex flex-col gap-2" role="status">
+          <p className="text-ink/70 m-0 text-xs">
+            ZIP/county suggests operational territory {suggestedOpsOption.name}. Store territory is
+            not changed automatically.
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={busy}
+            onClick={applySuggestedOpsTerritory}
+          >
+            Apply suggested operational territory
+          </Button>
+        </div>
+      ) : null}
+
+      {!canadianStore && opsSuggestion && !opsSuggestion.ok && draft.postalCode.trim() === '' ? (
+        <p className="text-ink/55 m-0 text-xs" role="status">
+          Add a ZIP to suggest an operational territory.
+        </p>
       ) : null}
 
       <Field>

@@ -5,12 +5,13 @@
 
 ## Artifacts
 
-| File                  | Contents                                                          |
-| --------------------- | ----------------------------------------------------------------- |
-| `provenance.json`     | Seed source + effective_date                                      |
-| `wa-or-counties.json` | Every WA (39) and OR (36) county → pnw-west or pnw-east           |
-| `ca-counties.json`    | Every CA county except LA → territories 3–7                       |
-| `la-zips.json`        | Exact LA County ZIPs → ca-central-la-north (5) or la-metro-oc (6) |
+| File                  | Contents                                                              |
+| --------------------- | --------------------------------------------------------------------- |
+| `provenance.json`     | Seed source + effective_date                                          |
+| `wa-or-counties.json` | Every WA (39) and OR (36) county → pnw-west or pnw-east               |
+| `ca-counties.json`    | Every CA county except LA → territories 3–7                           |
+| `la-zips.json`        | Exact LA County ZIPs → ca-central-la-north (5) or la-metro-oc (6)     |
+| `zip-to-county.json`  | Census ZCTA→all county FIPS for WA/OR/CA (canonical; imported by app) |
 
 ## Locked locks
 
@@ -23,4 +24,5 @@
 
 - WA/OR/CA (ex-LA) counties appear exactly once
 - Each approved LA ZIP appears exactly once
+- Multi-county ZIPs: suggest only when all counties map to the same ops territory
 - Unknown ZIPs resolve to review, never inferred
