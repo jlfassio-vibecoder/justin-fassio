@@ -455,7 +455,7 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
                     <tbody>
                       {briefing.performance.byProduct.length === 0 ? (
                         <tr>
-                          <td className="border-ink/[0.06] border-b p-2 text-ink/60" colSpan={4}>
+                          <td className="border-ink/[0.06] text-ink/60 border-b p-2" colSpan={4}>
                             No product outreach data yet.
                           </td>
                         </tr>
@@ -463,7 +463,8 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
                         [...briefing.performance.byProduct]
                           .sort(
                             (a, b) =>
-                              b.attributedConversions - a.attributedConversions || b.sends - a.sends,
+                              b.attributedConversions - a.attributedConversions ||
+                              b.sends - a.sends,
                           )
                           .slice(0, 6)
                           .map((s) => (
@@ -496,7 +497,7 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
                     <tbody>
                       {briefing.performance.byFitBand.length === 0 ? (
                         <tr>
-                          <td className="border-ink/[0.06] border-b p-2 text-ink/60" colSpan={4}>
+                          <td className="border-ink/[0.06] text-ink/60 border-b p-2" colSpan={4}>
                             No fit-band outreach data yet.
                           </td>
                         </tr>
@@ -504,7 +505,8 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
                         [...briefing.performance.byFitBand]
                           .sort(
                             (a, b) =>
-                              b.attributedConversions - a.attributedConversions || b.sends - a.sends,
+                              b.attributedConversions - a.attributedConversions ||
+                              b.sends - a.sends,
                           )
                           .map((s) => (
                             <tr key={s.key}>
