@@ -12,6 +12,8 @@ import {
 } from '@/lib/crmRetailTaxonomy';
 import { isValidOgrProductEmailRecipient } from '@/lib/ogrProductEmailLimits';
 import { AGENT_OUTREACH_COOLDOWN_DAYS } from '@/lib/outreachSelectionConstants';
+import type { FitBandWeightSource } from '@/lib/outreachFitBandWeights';
+import { fitBandKey } from '@/lib/outreachPerformance';
 import { crmChannelFromRetailCategory } from '@/lib/prospectEnrichment/crmChannelFromRetailCategory';
 import type { Prospect } from '@/lib/prospects';
 import { normalizeSystemMessageEmail } from '@/lib/systemMessages';
@@ -140,6 +142,9 @@ export function compareOutreachProspectRank(
   b: RankableOutreachProspect,
   options: {
     allocatedChannels: ReadonlySet<PrimaryRetailChannel> | readonly PrimaryRetailChannel[];
+    fitBandWeights?: ReadonlyMap<string, number>;
+    globalFitBandWeight?: number;
+    fitBandWeightSource?: FitBandWeightSource;
   },
 ): number {
   const channelA = channelMatchCost(
@@ -162,12 +167,21 @@ export function compareOutreachProspectRank(
   const fitCmp =
     fitA == null && fitB == null ? 0 : fitA == null ? 1 : fitB == null ? -1 : fitB - fitA;
 
+  let bandCmp = 0;
+  if (options.fitBandWeightSource === 'measured' && options.fitBandWeights) {
+    const fallback = options.globalFitBandWeight ?? 0;
+    const wA = options.fitBandWeights.get(fitBandKey(a.fitScore)) ?? fallback;
+    const wB = options.fitBandWeights.get(fitBandKey(b.fitScore)) ?? fallback;
+    bandCmp = wB - wA;
+  }
+
   const sentA = a.lastSentAt ? Date.parse(a.lastSentAt) : Number.NEGATIVE_INFINITY;
   const sentB = b.lastSentAt ? Date.parse(b.lastSentAt) : Number.NEGATIVE_INFINITY;
 
   return (
     priorityRank(a.priority) - priorityRank(b.priority) ||
     fitCmp ||
+    bandCmp ||
     provisionalGradeRank(a.provisionalGrade) - provisionalGradeRank(b.provisionalGrade) ||
     channelA - channelB ||
     sentA - sentB ||

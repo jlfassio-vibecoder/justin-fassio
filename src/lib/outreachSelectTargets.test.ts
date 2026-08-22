@@ -645,4 +645,55 @@ describe('selectOutreachTargets', () => {
     if (!result.ok) return;
     expect(result.targets[0].selectionReasons.productWeightSource).toBe('measured');
   });
+
+  it('records fitBandWeightSource on selectionReasons when provided', async () => {
+    const client = mockSelectClient({
+      prospects: [prospectRow(10, 'Golf Shop', { fit_score: 9 })],
+      contacts: [
+        {
+          id: 'c-1',
+          account_id: 10,
+          name: 'Sam',
+          email: 'sam@example.com',
+          phone: '',
+          role: 'buyer',
+          is_primary: true,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Golf Tee',
+          public_slug: 'golf-tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: false,
+          public_sort_order: 1,
+          recommended_channels: ['golf_retail'],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+      pendingProspectIds: [],
+      suppressed: [],
+      sendsByProspect: [],
+      sendsByEmail: [],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 1,
+      preparationDate: '2026-08-12',
+      asOf: new Date('2026-08-12T18:00:00Z'),
+      fitBandWeightSource: 'measured',
+      fitBandWeights: new Map([['8-10', 0.02]]),
+      globalFitBandWeight: 0.015,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets[0].selectionReasons.fitBandWeightSource).toBe('measured');
+  });
 });

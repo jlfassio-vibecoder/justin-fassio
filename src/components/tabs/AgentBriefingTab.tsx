@@ -410,12 +410,12 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
               <CardTitle className="text-[15px]">Learning slices</CardTitle>
               <CardMeta className="mb-2">
                 {briefing.channelAllocation?.meta?.weightSource === 'measured'
-                  ? 'Channel allocation and product selection use blended conversion rates'
-                  : 'Insufficient attributed conversions — even channel rotation and rank-based product picks'}
+                  ? 'Channel allocation, product selection, and prospect ranking use blended conversion rates'
+                  : 'Insufficient attributed conversions — even channel rotation, rank-based product picks, and CRM fit-score ranking'}
                 {' · lookback '}
                 {briefing.performance.lookbackDays}d
               </CardMeta>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div className="overflow-x-auto">
                   <p className="text-ink/50 m-0 mb-2 text-xs uppercase">By channel</p>
                   <table className="w-full border-collapse text-left text-sm">
@@ -466,6 +466,46 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
                               b.attributedConversions - a.attributedConversions || b.sends - a.sends,
                           )
                           .slice(0, 6)
+                          .map((s) => (
+                            <tr key={s.key}>
+                              <td className="border-ink/[0.06] border-b p-2">{s.label}</td>
+                              <td className="border-ink/[0.06] border-b p-2">{s.sends}</td>
+                              <td className="border-ink/[0.06] border-b p-2">
+                                {s.attributedConversions}
+                              </td>
+                              <td className="border-ink/[0.06] border-b p-2 text-xs">
+                                {s.confidence}
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="overflow-x-auto">
+                  <p className="text-ink/50 m-0 mb-2 text-xs uppercase">By fit band</p>
+                  <table className="w-full border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="text-ink/50 text-xs uppercase">
+                        <th className="border-ink/10 border-b p-2 font-medium">Fit band</th>
+                        <th className="border-ink/10 border-b p-2 font-medium">Sends</th>
+                        <th className="border-ink/10 border-b p-2 font-medium">Attributed</th>
+                        <th className="border-ink/10 border-b p-2 font-medium">Confidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {briefing.performance.byFitBand.length === 0 ? (
+                        <tr>
+                          <td className="border-ink/[0.06] border-b p-2 text-ink/60" colSpan={4}>
+                            No fit-band outreach data yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        [...briefing.performance.byFitBand]
+                          .sort(
+                            (a, b) =>
+                              b.attributedConversions - a.attributedConversions || b.sends - a.sends,
+                          )
                           .map((s) => (
                             <tr key={s.key}>
                               <td className="border-ink/[0.06] border-b p-2">{s.label}</td>

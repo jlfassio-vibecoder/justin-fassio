@@ -11,6 +11,7 @@ import {
 } from '@/lib/outreachChannelAllocation';
 import { computeChannelAllocationWeights } from '@/lib/outreachChannelWeights';
 import { computeProductSelectionWeights } from '@/lib/outreachProductWeights';
+import { computeFitBandRankingWeights } from '@/lib/outreachFitBandWeights';
 import { generateOgrProductOutreachDrafts } from '@/lib/generateOgrProductOutreachDraft';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
 import type { OutreachGoalSettings } from '@/lib/outreachGoals';
@@ -395,6 +396,10 @@ async function continuePrep(params: {
     report: performance,
     settings,
   });
+  const fitBandWeightResult = computeFitBandRankingWeights({
+    report: performance,
+    settings,
+  });
   const channelAllocation: AllocateChannelsForDayResult = {
     ...allocateChannelsForDay({
       preparationDate: runDate,
@@ -450,6 +455,9 @@ async function continuePrep(params: {
     productWeights: productWeightResult.weights,
     globalProductWeight: productWeightResult.globalWeight,
     productWeightSource: productWeightResult.source,
+    fitBandWeights: fitBandWeightResult.weights,
+    globalFitBandWeight: fitBandWeightResult.globalWeight,
+    fitBandWeightSource: fitBandWeightResult.source,
   });
   if (!selected.ok) {
     await updateRun(client, runId, {

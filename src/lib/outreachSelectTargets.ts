@@ -28,6 +28,7 @@ import {
 } from '@/lib/outreachEligibility';
 import { loadOutreachProductPool, selectProductForProspect } from '@/lib/outreachProductSelection';
 import type { ProductWeightSource } from '@/lib/outreachProductWeights';
+import type { FitBandWeightSource } from '@/lib/outreachFitBandWeights';
 import {
   AGENT_OUTREACH_COOLDOWN_DAYS,
   AGENT_OUTREACH_PENDING_DRAFT_STATUSES,
@@ -64,6 +65,7 @@ export type SelectedOutreachTarget = {
     channelMatch: boolean;
     productFit: 'channel_intersect' | 'global_fallback';
     productWeightSource?: ProductWeightSource;
+    fitBandWeightSource?: FitBandWeightSource;
     exclusionsChecked: true;
   };
 };
@@ -77,6 +79,9 @@ export type SelectOutreachTargetsInput = {
   productWeights?: Map<string, number>;
   globalProductWeight?: number;
   productWeightSource?: ProductWeightSource;
+  fitBandWeights?: Map<string, number>;
+  globalFitBandWeight?: number;
+  fitBandWeightSource?: FitBandWeightSource;
   /** Injectable clock for cooldown / prep-date derivation. */
   asOf?: Date;
 };
@@ -462,7 +467,12 @@ export async function selectOutreachTargets(
         secondaryChannels: b.secondaryChannels,
         lastSentAt: b.lastSentAt,
       },
-      { allocatedChannels: allocatedWithSlots },
+      {
+        allocatedChannels: allocatedWithSlots,
+        fitBandWeights: input.fitBandWeights,
+        globalFitBandWeight: input.globalFitBandWeight,
+        fitBandWeightSource: input.fitBandWeightSource,
+      },
     ),
   );
 
@@ -526,6 +536,7 @@ export async function selectOutreachTargets(
         channelMatch,
         productFit: productPick.productFit,
         productWeightSource: input.productWeightSource,
+        fitBandWeightSource: input.fitBandWeightSource,
         exclusionsChecked: true,
       },
     });

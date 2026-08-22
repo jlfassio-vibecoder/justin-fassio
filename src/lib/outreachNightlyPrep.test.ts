@@ -218,6 +218,8 @@ describe('runOutreachNightlyPrep', () => {
     expect(selectArg.weights).toBeUndefined();
     expect(selectArg.productWeightSource).toBe('uniform');
     expect(selectArg.productWeights).toBeUndefined();
+    expect(selectArg.fitBandWeightSource).toBe('uniform');
+    expect(selectArg.fitBandWeights).toBeUndefined();
   });
 
   it('passes measured weights when performance clears global gate', async () => {
@@ -265,7 +267,24 @@ describe('runOutreachNightlyPrep', () => {
               confidence: 'insufficient',
             },
           ],
-          byFitBand: [],
+          byFitBand: [
+            {
+              key: '8-10',
+              label: 'Fit 8-10',
+              sends: 50,
+              attributedConversions: 5,
+              conversionRate: 0.1,
+              confidence: 'insufficient',
+            },
+            {
+              key: '1-5',
+              label: 'Fit 1-5',
+              sends: 50,
+              attributedConversions: 3,
+              conversionRate: 0.06,
+              confidence: 'insufficient',
+            },
+          ],
           byLeadState: [],
         },
       },
@@ -298,6 +317,11 @@ describe('runOutreachNightlyPrep', () => {
       selectArg.productWeights.get('p-low'),
     );
     expect(selectArg.globalProductWeight).toEqual(expect.any(Number));
+    expect(selectArg.fitBandWeightSource).toBe('measured');
+    expect(selectArg.fitBandWeights.get('8-10')).toBeGreaterThan(
+      selectArg.fitBandWeights.get('1-5'),
+    );
+    expect(selectArg.globalFitBandWeight).toEqual(expect.any(Number));
   });
 
   it('returns existing succeeded run as noop (no duplicate drafts)', async () => {

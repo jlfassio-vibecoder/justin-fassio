@@ -23,3 +23,6 @@ export const MIN_CHANNEL_SENDS = 3;
 
 /** Minimum sends in lookback before a product's own conversion rate is trusted for selection weights. */
 export const MIN_PRODUCT_SENDS = 3;
+
+/** Minimum sends in lookback before a fit band's own conversion rate is trusted for ranking weights. */
+export const MIN_FIT_BAND_SENDS = 3;
