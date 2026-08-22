@@ -191,6 +191,22 @@ export function mapProspectRow(row: ProspectListRow): Prospect {
   };
 }
 
+/**
+ * After a prospects row update, keep line-scoped commercial fields from the
+ * in-memory directory prospect (RLA overlay). Never replace those from legacy
+ * account_status on the raw row alone.
+ */
+export function mergeProspectIdentity(existing: Prospect, saved: Prospect): Prospect {
+  return {
+    ...saved,
+    accountStatus: existing.accountStatus,
+    convertedAt: existing.convertedAt,
+    initialOrderDate: existing.initialOrderDate,
+    lineRelationshipStatus: existing.lineRelationshipStatus,
+    lineAccountMarkers: existing.lineAccountMarkers,
+  };
+}
+
 type RlaCommercial = {
   relationshipStatus: RelationshipStatus;
   convertedAt: string | null;
@@ -368,6 +384,7 @@ export type ProspectTaxonomyPatch = {
 export async function updateProspectTaxonomy(
   id: number,
   patch: ProspectTaxonomyPatch,
+  existing?: Prospect,
 ): Promise<{ data: Prospect | null; error: string | null }> {
   const secondary = clampSecondaryChannels(patch.category, patch.secondaryChannels);
   const subOpts = subchannelOptionsFor(patch.category, secondary);
@@ -389,7 +406,11 @@ export async function updateProspectTaxonomy(
     return { data: null, error: error.message };
   }
 
-  return { data: mapProspectRow(data as ProspectListRow), error: null };
+  const mapped = mapProspectRow(data as ProspectListRow);
+  return {
+    data: existing ? mergeProspectIdentity(existing, mapped) : mapped,
+    error: null,
+  };
 }
 
 export { primaryRetailChannelLabel, normalizePrimaryChannels };

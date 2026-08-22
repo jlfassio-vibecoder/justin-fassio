@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { AccountContactsSection } from '@/components/AccountContactsSection';
+import { AccountDetailsEditor } from '@/components/AccountDetailsEditor';
 import { AccountEmailProductPickerModal } from '@/components/AccountEmailProductPickerModal';
 import { AccountNotesEditor } from '@/components/AccountNotesEditor';
 import { AccountCalendarSection } from '@/components/calendar/AccountCalendarSection';
@@ -26,6 +27,7 @@ import { renderOgrProductEmailCard } from '@/lib/ogrProductEmailCard';
 import { buildOgrCollectionUrl, tryBuildOgrProductUrl } from '@/lib/productUrls';
 import { resolvePricingMarketFromRlaAssignment, type PublicMarket } from '@/lib/pricingMarket';
 import { primaryRetailChannelLabel, updateProspectTaxonomy, type Prospect } from '@/lib/prospects';
+import { formatAccountLocationLine } from '@/lib/accountImport/directoryPresentation';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
 import { OutreachLeadStateChip } from '@/components/OutreachLeadStateChip';
@@ -54,6 +56,7 @@ interface AccountDetailDrawerProps {
   onLogOrder: (account: Prospect) => void;
   onNotesSaved?: (notes: string | null) => void;
   onTaxonomySaved?: (prospect: Prospect) => void;
+  onIdentitySaved?: (prospect: Prospect) => void;
   onDemoted?: (prospect: Prospect) => void;
   /** Bump to refetch AccountContactsSection after Log Call creates a contact. */
   contactsReloadToken?: number;
@@ -281,6 +284,7 @@ export function AccountDetailDrawer({
   onLogOrder,
   onNotesSaved,
   onTaxonomySaved,
+  onIdentitySaved,
   onDemoted,
   contactsReloadToken = 0,
   onProductEmailSent,
@@ -468,8 +472,12 @@ export function AccountDetailDrawer({
           <div className="flex flex-wrap items-center gap-2">
             <Tag variant="accent-2">{primaryRetailChannelLabel(account.category)}</Tag>
             <span className="text-ink/70 text-sm">
-              {account.city} ({account.region})
-              {account.territoryName ? ` · ${account.territoryName}` : ''}
+              {formatAccountLocationLine({
+                city: account.city,
+                region: account.region,
+                territoryCode: account.territoryCode,
+                territoryName: account.territoryName,
+              })}
             </span>
           </div>
           <OutreachLeadStateChip prospectId={account.id} />
@@ -487,22 +495,20 @@ export function AccountDetailDrawer({
               lifestyleThemes={account.lifestyleThemes}
               retailCapabilities={account.retailCapabilities}
               onSave={async (patch) => {
-                const result = await updateProspectTaxonomy(account.id, patch);
+                const result = await updateProspectTaxonomy(account.id, patch, account);
                 if (result.error || !result.data) throw new Error(result.error ?? 'Save failed');
                 onTaxonomySaved?.(result.data);
               }}
             />
           </section>
 
+          <AccountDetailsEditor
+            key={`identity-${account.id}`}
+            prospect={account}
+            onSaved={(next) => onIdentitySaved?.(next)}
+          />
+
           <dl className="m-0 grid gap-3 text-sm">
-            <div>
-              <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Store phone</dt>
-              <dd className="m-0 mt-0.5">{account.phone || '—'}</dd>
-            </div>
-            <div>
-              <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Address</dt>
-              <dd className="m-0 mt-0.5">{account.address || '—'}</dd>
-            </div>
             <div>
               <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Converted</dt>
               <dd className="m-0 mt-0.5">{formatTimestamp(account.convertedAt)}</dd>

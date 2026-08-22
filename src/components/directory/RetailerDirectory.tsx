@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { hasMarker } from '@/lib/accountImport/classification';
-import { territoryDisplayLabel } from '@/lib/accountImport/directoryPresentation';
+import { formatAccountLocationLine } from '@/lib/accountImport/directoryPresentation';
 import { CHANNEL_OPTIONS, REGION_OPTIONS } from '@/lib/directoryOptions';
 import { filterProspects } from '@/lib/prospectFilters';
 import { primaryRetailChannelLabel } from '@/lib/crmRetailTaxonomy';
@@ -220,7 +220,6 @@ export function RetailerDirectory({
               </thead>
               <tbody>
                 {filtered.map((p, index) => {
-                  const territoryLabel = territoryDisplayLabel(p);
                   return (
                     <tr
                       key={p.id}
@@ -263,12 +262,12 @@ export function RetailerDirectory({
                         </Tag>
                       </td>
                       <td className="border-ink/[0.08] border-b p-2">
-                        <span className="inline-flex flex-wrap items-center gap-1.5">
-                          <span>
-                            {p.city} ({p.region})
-                          </span>
-                          {territoryLabel ? <Tag variant="outline">{territoryLabel}</Tag> : null}
-                        </span>
+                        {formatAccountLocationLine({
+                          city: p.city,
+                          region: p.region,
+                          territoryCode: p.territoryCode,
+                          territoryName: p.territoryName,
+                        })}
                       </td>
                       <td className="border-ink/[0.08] border-b p-2 opacity-75">{p.address}</td>
                       <td className="border-ink/[0.08] border-b p-2">{p.phone}</td>

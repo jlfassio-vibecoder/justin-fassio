@@ -14,13 +14,24 @@ vi.mock('@/lib/companyWebResearch', () => ({
 import { createEnrichedProspect } from '@/lib/createEnrichedProspect';
 import type { AgentSupabase } from '@/lib/agentAuth';
 
+const TERRITORY_IDS: Record<string, string> = {
+  bc: 'terr-bc',
+  ab: 'terr-ab',
+  ca: 'terr-ca',
+  or: 'terr-or',
+  wa: 'terr-wa',
+};
+
 function mockSupabaseInsert(row: unknown) {
   const from = vi.fn((table: string) => {
     if (table === 'territories') {
       return {
         select: () => ({
-          eq: () => ({
-            maybeSingle: async () => ({ data: { id: 'terr-bc' }, error: null }),
+          eq: (_col: string, code: string) => ({
+            maybeSingle: async () => ({
+              data: TERRITORY_IDS[code] ? { id: TERRITORY_IDS[code] } : null,
+              error: null,
+            }),
           }),
         }),
       };
@@ -76,6 +87,21 @@ function mockSupabaseInsert(row: unknown) {
   return { from } as unknown as AgentSupabase;
 }
 
+function aiFields(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    name: 'Kelowna Golf',
+    category: 'golf_retail',
+    region: 'Okanagan',
+    city: 'Kelowna',
+    provinceOrState: 'British Columbia',
+    fitScore: 8,
+    notes: 'Strong summer traffic. Good OGR fit.',
+    address: '1297 Glenmore Dr',
+    phone: '250-762-2531',
+    ...overrides,
+  };
+}
+
 const insertedRow = {
   id: 11,
   name: 'Kelowna Golf',
@@ -115,7 +141,6 @@ const insertedRow = {
   venue_contexts: [],
   lifestyle_themes: [],
   retail_capabilities: [],
-
   updated_at: '2026-08-01T00:00:00Z',
 };
 
@@ -129,18 +154,7 @@ describe('createEnrichedProspect web research', () => {
       brief: 'Kelowna Golf, 1297 Glenmore Dr, 250-762-2531',
       error: null,
     });
-    generateObjectMock.mockResolvedValue({
-      object: {
-        name: 'Kelowna Golf',
-        category: 'golf_retail',
-        region: 'Okanagan',
-        city: 'Kelowna',
-        fitScore: 8,
-        notes: 'Strong summer traffic. Good OGR fit.',
-        address: '1297 Glenmore Dr',
-        phone: '250-762-2531',
-      },
-    });
+    generateObjectMock.mockResolvedValue({ object: aiFields() });
 
     const supabase = mockSupabaseInsert(insertedRow);
     const result = await createEnrichedProspect(supabase, { companyName: 'Kelowna Golf' });
@@ -149,6 +163,18 @@ describe('createEnrichedProspect web research', () => {
     expect(generateObjectMock).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: expect.stringMatching(/Never map hunting[\s\S]*Web research brief/),
+      }),
+    );
+    expect(generateObjectMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining('provinceOrState'),
+      }),
+    );
+    expect(generateObjectMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining(
+          'Region must be exactly one of: Okanagan, Shuswap, Vancouver Island',
+        ),
       }),
     );
     if (result.ok) {
@@ -161,16 +187,12 @@ describe('createEnrichedProspect web research', () => {
   it('continues with hint-only enrichment when research fails', async () => {
     researchCompanyMock.mockResolvedValue({ brief: null, error: 'gateway down' });
     generateObjectMock.mockResolvedValue({
-      object: {
-        name: 'Kelowna Golf',
-        category: 'golf_retail',
-        region: 'Okanagan',
-        city: 'Kelowna',
+      object: aiFields({
         fitScore: 7,
         notes: 'Inferred from name. Solid golf channel.',
         address: null,
         phone: null,
-      },
+      }),
     });
 
     const supabase = mockSupabaseInsert({
@@ -191,16 +213,11 @@ describe('createEnrichedProspect web research', () => {
 
   it('skips research when researchBrief is provided', async () => {
     generateObjectMock.mockResolvedValue({
-      object: {
-        name: 'Kelowna Golf',
-        category: 'golf_retail',
-        region: 'Okanagan',
-        city: 'Kelowna',
-        fitScore: 8,
+      object: aiFields({
         notes: 'From shared brief. Good fit.',
         address: null,
         phone: null,
-      },
+      }),
     });
 
     const supabase = mockSupabaseInsert({
@@ -220,6 +237,85 @@ describe('createEnrichedProspect web research', () => {
         prompt: expect.stringContaining('Shared brief from contact enrich'),
       }),
     );
+  });
+
+  it('inserts Oregon store territory from researched province (no filter seed)', async () => {
+    researchCompanyMock.mockResolvedValue({
+      brief: 'Spirit Mountain Gaming, Grand Ronde, Oregon',
+      error: null,
+    });
+    generateObjectMock.mockResolvedValue({
+      object: aiFields({
+        name: 'Spirit Mountain Gaming Inc.',
+        category: 'apparel_specialty',
+        region: 'Oregon',
+        city: 'Grand Ronde',
+        provinceOrState: 'Oregon',
+        notes: 'Casino resort retail. Apparel mix.',
+        address: '1 Casino Rd',
+        phone: null,
+      }),
+    });
+
+    let capturedTerritoryId: string | null = null;
+    const base = mockSupabaseInsert({
+      ...insertedRow,
+      name: 'Spirit Mountain Gaming Inc.',
+      region: 'Oregon',
+      city: 'Grand Ronde',
+      territory_id: 'terr-or',
+      territories: { code: 'or', name: 'Oregon' },
+      address: '1 Casino Rd',
+      phone: '',
+      fit: '8/10 — Casino resort retail. Apparel mix.',
+    });
+    const from = vi.fn((table: string) => {
+      const chain = (base as { from: (t: string) => unknown }).from(table) as {
+        insert?: (payload: Record<string, unknown>) => unknown;
+      };
+      if (table === 'prospects' && typeof chain.insert === 'function') {
+        const originalInsert = chain.insert.bind(chain);
+        return {
+          ...chain,
+          insert: (payload: Record<string, unknown>) => {
+            capturedTerritoryId = (payload.territory_id as string) ?? null;
+            return originalInsert(payload);
+          },
+        };
+      }
+      return chain;
+    });
+    const supabase = { from } as unknown as AgentSupabase;
+
+    const result = await createEnrichedProspect(supabase, {
+      companyName: 'Spirit Mountain Gaming',
+    });
+    expect(result.ok).toBe(true);
+    expect(capturedTerritoryId).toBe('terr-or');
+    if (result.ok) {
+      expect(result.prospect.city).toBe('Grand Ronde');
+      expect(result.prospect.region).toBe('Oregon');
+      expect(result.prospect.territoryCode).toBe('or');
+    }
+  });
+
+  it('fails when geography cannot resolve to a store territory (no silent BC)', async () => {
+    researchCompanyMock.mockResolvedValue({ brief: 'Some store in the Okanagan', error: null });
+    generateObjectMock.mockResolvedValue({
+      object: aiFields({
+        provinceOrState: null,
+        region: 'Okanagan',
+        address: null,
+        phone: null,
+      }),
+    });
+
+    const supabase = mockSupabaseInsert(insertedRow);
+    const result = await createEnrichedProspect(supabase, { companyName: 'Valley Shop' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatch(/store territory/i);
+    }
   });
 });
 
@@ -241,6 +337,7 @@ describe('applyInboundSeedOverrides', () => {
         category: 'hardware_farm_rural',
         region: 'Okanagan',
         city: 'AI City',
+        provinceOrState: 'British Columbia',
         fitScore: 7,
         notes: 'A. B.',
         address: null,
@@ -260,6 +357,7 @@ describe('applyInboundSeedOverrides', () => {
         category: 'hardware_farm_rural',
         region: 'Okanagan',
         city: 'AI City',
+        provinceOrState: null,
         fitScore: 7,
         notes: 'A. B.',
         address: null,
@@ -283,16 +381,15 @@ describe('createEnrichedProspect inbound seeds', () => {
       error: null,
     });
     generateObjectMock.mockResolvedValue({
-      object: {
+      object: aiFields({
         name: 'Smoke Test Outfitters',
         category: 'hardware_farm_rural',
-        region: 'Okanagan',
         city: 'Wrong City',
         fitScore: 7,
         notes: 'Outdoor specialty. Apparel likely.',
         address: null,
         phone: null,
-      },
+      }),
     });
 
     const supabase = mockSupabaseInsert({
@@ -330,6 +427,44 @@ describe('createEnrichedProspect inbound seeds', () => {
       expect(result.prospect.city).toBe('Kelowna');
     }
   });
+
+  it('uses inbound territoryCode seed when research region is ambiguous', async () => {
+    researchCompanyMock.mockResolvedValue({ brief: 'Okanagan shop', error: null });
+    generateObjectMock.mockResolvedValue({
+      object: aiFields({
+        provinceOrState: null,
+        region: 'Okanagan',
+        address: null,
+        phone: null,
+      }),
+    });
+
+    let capturedTerritoryId: string | null = null;
+    const base = mockSupabaseInsert(insertedRow);
+    const from = vi.fn((table: string) => {
+      const chain = (base as { from: (t: string) => unknown }).from(table) as {
+        insert?: (payload: Record<string, unknown>) => unknown;
+      };
+      if (table === 'prospects' && typeof chain.insert === 'function') {
+        const originalInsert = chain.insert.bind(chain);
+        return {
+          ...chain,
+          insert: (payload: Record<string, unknown>) => {
+            capturedTerritoryId = (payload.territory_id as string) ?? null;
+            return originalInsert(payload);
+          },
+        };
+      }
+      return chain;
+    });
+
+    const result = await createEnrichedProspect({ from } as unknown as AgentSupabase, {
+      companyName: 'Valley Shop',
+      territoryCode: 'bc',
+    });
+    expect(result.ok).toBe(true);
+    expect(capturedTerritoryId).toBe('terr-bc');
+  });
 });
 
 describe('createEnrichedProspect buyer contact', () => {
@@ -337,16 +472,14 @@ describe('createEnrichedProspect buyer contact', () => {
     vi.clearAllMocks();
     researchCompanyMock.mockResolvedValue({ brief: 'Some outdoor store', error: null });
     generateObjectMock.mockResolvedValue({
-      object: {
+      object: aiFields({
         name: 'Smoke Test Outfitters',
         category: 'hardware_farm_rural',
-        region: 'Okanagan',
-        city: 'Kelowna',
         fitScore: 7,
         notes: 'Outdoor specialty. Apparel likely.',
         address: null,
         phone: null,
-      },
+      }),
     });
   });
 
@@ -356,8 +489,11 @@ describe('createEnrichedProspect buyer contact', () => {
       if (table === 'territories') {
         return {
           select: () => ({
-            eq: () => ({
-              maybeSingle: async () => ({ data: { id: 'terr-bc' }, error: null }),
+            eq: (_col: string, code: string) => ({
+              maybeSingle: async () => ({
+                data: TERRITORY_IDS[code] ? { id: TERRITORY_IDS[code] } : null,
+                error: null,
+              }),
             }),
           }),
         };

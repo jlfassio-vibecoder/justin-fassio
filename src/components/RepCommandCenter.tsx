@@ -551,6 +551,9 @@ export function RepCommandCenter({
                   onNotesSaved={(id, notes) => {
                     setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
                   }}
+                  onProspectUpdated={(prospect) => {
+                    setProspects((prev) => prev.map((p) => (p.id === prospect.id ? prospect : p)));
+                  }}
                   onReloadContacts={reloadContacts}
                   onProspectCreated={(prospect) => {
                     setProspects((prev) =>
@@ -570,6 +573,9 @@ export function RepCommandCenter({
                   onLogCall={(store) => openModal(store)}
                   onNotesSaved={(id, notes) => {
                     setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
+                  }}
+                  onProspectUpdated={(prospect) => {
+                    setProspects((prev) => prev.map((p) => (p.id === prospect.id ? prospect : p)));
                   }}
                 />
               )}

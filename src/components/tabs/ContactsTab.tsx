@@ -14,6 +14,7 @@ interface ContactsTabProps {
   prospects: Prospect[];
   onLogCall: (prospect: Prospect) => void;
   onNotesSaved?: (id: number, notes: string | null) => void;
+  onProspectUpdated?: (prospect: Prospect) => void;
   /** Reload directory contacts after drawer contact CRUD. */
   onReloadContacts?: () => void;
   onProspectCreated?: (prospect: Prospect) => void;
@@ -24,6 +25,7 @@ export function ContactsTab({
   prospects,
   onLogCall,
   onNotesSaved,
+  onProspectUpdated,
   onReloadContacts,
   onProspectCreated,
 }: ContactsTabProps) {
@@ -148,6 +150,14 @@ export function ContactsTab({
             setDetailStore({ ...detailStore, notes });
             onNotesSaved?.(detailStore.id, notes);
           }}
+          onTaxonomySaved={(prospect) => {
+            setDetailStore(prospect);
+            onProspectUpdated?.(prospect);
+          }}
+          onIdentitySaved={(prospect) => {
+            setDetailStore(prospect);
+            onProspectUpdated?.(prospect);
+          }}
         />
       ) : (
         <ProspectDetailDrawer
@@ -161,6 +171,14 @@ export function ContactsTab({
             if (!detailStore) return;
             setDetailStore({ ...detailStore, notes });
             onNotesSaved?.(detailStore.id, notes);
+          }}
+          onTaxonomySaved={(prospect) => {
+            setDetailStore(prospect);
+            onProspectUpdated?.(prospect);
+          }}
+          onIdentitySaved={(prospect) => {
+            setDetailStore(prospect);
+            onProspectUpdated?.(prospect);
           }}
         />
       )}

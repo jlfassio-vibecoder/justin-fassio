@@ -79,6 +79,9 @@ vi.mock('@/components/messages/AccountMessagesSection', () => ({
 vi.mock('@/components/ProspectTaxonomyEditor', () => ({
   ProspectTaxonomyEditor: () => null,
 }));
+vi.mock('@/components/AccountDetailsEditor', () => ({
+  AccountDetailsEditor: () => null,
+}));
 vi.mock('@/components/OutreachLeadStateChip', () => ({
   OutreachLeadStateChip: () => null,
 }));

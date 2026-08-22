@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { AccountContactsSection } from '@/components/AccountContactsSection';
+import { AccountDetailsEditor } from '@/components/AccountDetailsEditor';
 import { AccountNotesEditor } from '@/components/AccountNotesEditor';
 import { AccountCalendarSection } from '@/components/calendar/AccountCalendarSection';
 import { ScheduleMeetingModal } from '@/components/calendar/ScheduleMeetingModal';
@@ -11,6 +12,7 @@ import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
 import { OutreachLeadStateChip } from '@/components/OutreachLeadStateChip';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
+import { formatAccountLocationLine } from '@/lib/accountImport/directoryPresentation';
 import { primaryRetailChannelLabel, type Prospect, updateProspectTaxonomy } from '@/lib/prospects';
 
 interface ProspectDetailDrawerProps {
@@ -20,6 +22,7 @@ interface ProspectDetailDrawerProps {
   onConverted?: () => void;
   onNotesSaved?: (notes: string | null) => void;
   onTaxonomySaved?: (prospect: Prospect) => void;
+  onIdentitySaved?: (prospect: Prospect) => void;
   /** Bump to refetch AccountContactsSection after Log Call creates a contact. */
   contactsReloadToken?: number;
 }
@@ -37,6 +40,7 @@ export function ProspectDetailDrawer({
   onConverted,
   onNotesSaved,
   onTaxonomySaved,
+  onIdentitySaved,
   contactsReloadToken = 0,
 }: ProspectDetailDrawerProps) {
   const [convertOpen, setConvertOpen] = useState(false);
@@ -80,26 +84,21 @@ export function ProspectDetailDrawer({
           <div className="flex flex-wrap items-center gap-2">
             <Tag variant="accent-2">{primaryRetailChannelLabel(prospect.category)}</Tag>
             <span className="text-ink/70 text-sm">
-              {prospect.city} ({prospect.region})
-              {prospect.territoryName ? ` · ${prospect.territoryName}` : ''}
+              {formatAccountLocationLine({
+                city: prospect.city,
+                region: prospect.region,
+                territoryCode: prospect.territoryCode,
+                territoryName: prospect.territoryName,
+              })}
             </span>
           </div>
           <OutreachLeadStateChip prospectId={prospect.id} />
 
-          <dl className="m-0 grid gap-3 text-sm">
-            <div>
-              <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Phone</dt>
-              <dd className="m-0 mt-0.5">{prospect.phone || '—'}</dd>
-            </div>
-            <div>
-              <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Address</dt>
-              <dd className="m-0 mt-0.5">{prospect.address || '—'}</dd>
-            </div>
-            <div>
-              <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Fit reason</dt>
-              <dd className="text-ink/80 m-0 mt-0.5 leading-relaxed">{prospect.fit || '—'}</dd>
-            </div>
-          </dl>
+          <AccountDetailsEditor
+            key={`identity-${prospect.id}`}
+            prospect={prospect}
+            onSaved={(next) => onIdentitySaved?.(next)}
+          />
 
           <section className="flex flex-col gap-2">
             <h3 className="font-heading m-0 text-base">CRM Retail Taxonomy</h3>
@@ -112,7 +111,7 @@ export function ProspectDetailDrawer({
               lifestyleThemes={prospect.lifestyleThemes}
               retailCapabilities={prospect.retailCapabilities}
               onSave={async (patch) => {
-                const result = await updateProspectTaxonomy(prospect.id, patch);
+                const result = await updateProspectTaxonomy(prospect.id, patch, prospect);
                 if (result.error || !result.data) throw new Error(result.error ?? 'Save failed');
                 onTaxonomySaved?.(result.data);
               }}
