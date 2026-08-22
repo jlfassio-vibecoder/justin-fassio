@@ -26,18 +26,18 @@
     "email:preview-ogr-card": "WRITE_EMAIL_PREVIEW=1 vitest run src/lib/ogrProductEmailCard.preview.test.ts"
   },
   "dependencies": {
-    "@ai-sdk/react": "^4.0.67",
-    "@astrojs/react": "^6.0.2",
-    "@astrojs/vercel": "^11.0.5",
+    "@ai-sdk/react": "^4.0.72",
+    "@astrojs/react": "^6.0.4",
+    "@astrojs/vercel": "^11.0.7",
     "@supabase/supabase-js": "^2.112.3",
     "@tailwindcss/vite": "^4.3.3",
     "ai": "^7.0.58",
-    "astro": "^7.2.1",
+    "astro": "^7.2.4",
     "exceljs": "^4.4.0",
-    "lucide-react": "^1.31.0",
+    "lucide-react": "^1.33.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "resend": "^6.19.0",
+    "resend": "^6.20.0",
     "tailwindcss": "^4.3.3",
     "zod": "^4.4.3"
   },
@@ -68,11 +68,11 @@
   "optionalDependencies": {
     "@astrojs/compiler-binding-linux-x64-gnu": "0.4.0",
     "@astrojs/compiler-binding-wasm32-wasi": "0.4.0",
-    "@bruits/satteri-linux-x64-gnu": "0.9.5",
+    "@bruits/satteri-linux-x64-gnu": "0.10.4",
     "@emnapi/core": "^1.11.3",
     "@emnapi/runtime": "^1.11.3",
     "@emnapi/wasi-threads": "^2.0.1",
-    "@rolldown/binding-linux-x64-gnu": "1.2.4",
+    "@rolldown/binding-linux-x64-gnu": "1.2.5",
     "@tailwindcss/oxide-linux-x64-gnu": "4.3.3",
     "lightningcss-linux-x64-gnu": "1.33.0"
   }
