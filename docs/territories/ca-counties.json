@@ -1,0 +1,350 @@
+{
+  "source": "Staff-approved Cascades / CA sales corridors (Census county FIPS 2024; LA ZIP partition v1)",
+  "effective_date": "2026-08-22",
+  "description": "All CA counties except Los Angeles (06037). Monterey→norcal-coastal, Fresno→norcal-inland, Kern→ie-san-diego.",
+  "excluded_county_fips": ["06037"],
+  "counties": [
+    {
+      "state_code": "CA",
+      "county_fips": "06015",
+      "county_name": "Del Norte",
+      "territory_code": "norcal-coastal"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06023",
+      "county_name": "Humboldt",
+      "territory_code": "norcal-coastal"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06041",
+      "county_name": "Marin",
+      "territory_code": "norcal-coastal"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06045",
+      "county_name": "Mendocino",
+      "territory_code": "norcal-coastal"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06053",
+      "county_name": "Monterey",
+      "territory_code": "norcal-coastal"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06075",
+      "county_name": "San Francisco",
+      "territory_code": "norcal-coastal"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06081",
+      "county_name": "San Mateo",
+      "territory_code": "norcal-coastal"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06087",
+      "county_name": "Santa Cruz",
+      "territory_code": "norcal-coastal"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06097",
+      "county_name": "Sonoma",
+      "territory_code": "norcal-coastal"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06001",
+      "county_name": "Alameda",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06003",
+      "county_name": "Alpine",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06005",
+      "county_name": "Amador",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06007",
+      "county_name": "Butte",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06009",
+      "county_name": "Calaveras",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06011",
+      "county_name": "Colusa",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06013",
+      "county_name": "Contra Costa",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06017",
+      "county_name": "El Dorado",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06019",
+      "county_name": "Fresno",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06021",
+      "county_name": "Glenn",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06033",
+      "county_name": "Lake",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06035",
+      "county_name": "Lassen",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06039",
+      "county_name": "Madera",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06043",
+      "county_name": "Mariposa",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06047",
+      "county_name": "Merced",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06049",
+      "county_name": "Modoc",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06055",
+      "county_name": "Napa",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06057",
+      "county_name": "Nevada",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06061",
+      "county_name": "Placer",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06063",
+      "county_name": "Plumas",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06067",
+      "county_name": "Sacramento",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06077",
+      "county_name": "San Joaquin",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06089",
+      "county_name": "Shasta",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06091",
+      "county_name": "Sierra",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06093",
+      "county_name": "Siskiyou",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06095",
+      "county_name": "Solano",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06099",
+      "county_name": "Stanislaus",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06101",
+      "county_name": "Sutter",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06103",
+      "county_name": "Tehama",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06105",
+      "county_name": "Trinity",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06109",
+      "county_name": "Tuolumne",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06113",
+      "county_name": "Yolo",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06115",
+      "county_name": "Yuba",
+      "territory_code": "norcal-inland"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06069",
+      "county_name": "San Benito",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06079",
+      "county_name": "San Luis Obispo",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06083",
+      "county_name": "Santa Barbara",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06085",
+      "county_name": "Santa Clara",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06111",
+      "county_name": "Ventura",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06059",
+      "county_name": "Orange",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06025",
+      "county_name": "Imperial",
+      "territory_code": "ie-san-diego"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06027",
+      "county_name": "Inyo",
+      "territory_code": "ie-san-diego"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06029",
+      "county_name": "Kern",
+      "territory_code": "ie-san-diego"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06031",
+      "county_name": "Kings",
+      "territory_code": "ie-san-diego"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06051",
+      "county_name": "Mono",
+      "territory_code": "ie-san-diego"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06065",
+      "county_name": "Riverside",
+      "territory_code": "ie-san-diego"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06071",
+      "county_name": "San Bernardino",
+      "territory_code": "ie-san-diego"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06073",
+      "county_name": "San Diego",
+      "territory_code": "ie-san-diego"
+    },
+    {
+      "state_code": "CA",
+      "county_fips": "06107",
+      "county_name": "Tulare",
+      "territory_code": "ie-san-diego"
+    }
+  ]
+}

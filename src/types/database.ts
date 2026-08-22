@@ -230,6 +230,131 @@ export interface Database {
           },
         ];
       };
+      operational_territories: {
+        Row: {
+          territory_id: string;
+          created_at: string;
+        };
+        Insert: {
+          territory_id: string;
+          created_at?: string;
+        };
+        Update: {
+          territory_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'operational_territories_territory_id_fkey';
+            columns: ['territory_id'];
+            isOneToOne: true;
+            referencedRelation: 'territories';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      territory_geography_seed_batches: {
+        Row: {
+          id: string;
+          source: string;
+          effective_date: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          source: string;
+          effective_date: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          source?: string;
+          effective_date?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      territory_geography_memberships: {
+        Row: {
+          id: string;
+          territory_id: string;
+          kind: 'county' | 'zip';
+          state_code: 'WA' | 'OR' | 'CA';
+          county_fips: string | null;
+          zip: string | null;
+          note: string | null;
+          seed_batch_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          territory_id: string;
+          kind: 'county' | 'zip';
+          state_code: 'WA' | 'OR' | 'CA';
+          county_fips?: string | null;
+          zip?: string | null;
+          note?: string | null;
+          seed_batch_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          territory_id?: string;
+          kind?: 'county' | 'zip';
+          state_code?: 'WA' | 'OR' | 'CA';
+          county_fips?: string | null;
+          zip?: string | null;
+          note?: string | null;
+          seed_batch_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'territory_geography_memberships_territory_id_fkey';
+            columns: ['territory_id'];
+            isOneToOne: false;
+            referencedRelation: 'operational_territories';
+            referencedColumns: ['territory_id'];
+          },
+          {
+            foreignKeyName: 'territory_geography_memberships_seed_batch_id_fkey';
+            columns: ['seed_batch_id'];
+            isOneToOne: false;
+            referencedRelation: 'territory_geography_seed_batches';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      operational_territory_review_queue: {
+        Row: {
+          id: string;
+          entity_type: string;
+          entity_id: string;
+          reason: string;
+          payload: Record<string, unknown>;
+          resolved_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          entity_type: string;
+          entity_id: string;
+          reason: string;
+          payload?: Record<string, unknown>;
+          resolved_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          entity_type?: string;
+          entity_id?: string;
+          reason?: string;
+          payload?: Record<string, unknown>;
+          resolved_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       sales_line_territories: {
         Row: {
           id: string;
@@ -1301,6 +1426,7 @@ export interface Database {
           initial_order_date: string | null;
           notes: string | null;
           territory_id: string;
+          operational_territory_id: string | null;
           external_id: string | null;
           subterritory: string | null;
           primary_district: string | null;
@@ -1341,6 +1467,7 @@ export interface Database {
           initial_order_date?: string | null;
           notes?: string | null;
           territory_id: string;
+          operational_territory_id?: string | null;
           external_id?: string | null;
           subterritory?: string | null;
           primary_district?: string | null;
@@ -1381,6 +1508,7 @@ export interface Database {
           initial_order_date?: string | null;
           notes?: string | null;
           territory_id?: string;
+          operational_territory_id?: string | null;
           external_id?: string | null;
           subterritory?: string | null;
           primary_district?: string | null;
@@ -1414,6 +1542,13 @@ export interface Database {
             isOneToOne: false;
             referencedRelation: 'territories';
             referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'prospects_operational_territory_id_fkey';
+            columns: ['operational_territory_id'];
+            isOneToOne: false;
+            referencedRelation: 'operational_territories';
+            referencedColumns: ['territory_id'];
           },
         ];
       };

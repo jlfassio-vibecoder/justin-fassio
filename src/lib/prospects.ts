@@ -96,6 +96,7 @@ export const BC_PROSPECT_TERRITORY = {
   territoryId: '00000000-0000-4000-8000-0000000000bc',
   territoryCode: 'bc',
   territoryName: 'British Columbia',
+  operationalTerritoryId: null as string | null,
 };
 
 export interface Prospect extends ProspectPlanningFields, ProspectTaxonomyFields {
@@ -115,6 +116,8 @@ export interface Prospect extends ProspectPlanningFields, ProspectTaxonomyFields
   territoryId: string;
   territoryCode: string | null;
   territoryName: string | null;
+  /** Ops sales region (line-independent); null until staff confirms. */
+  operationalTerritoryId: string | null;
   /** Present when fetchProspects is scoped to a sales line (Phase 6 EP directory). */
   lineRelationshipStatus?: RelationshipStatus | null;
   lineAccountMarkers?: LineAccountMarker[];
@@ -136,7 +139,7 @@ function asStringArray(raw: unknown): string[] {
 }
 
 export const PROSPECT_SELECT =
-  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, territory_id, territories(code, name), external_id, subterritory, primary_district, retail_category, website, fit_score, ideal_opening_units, priority, provisional_grade, verification_status, buyer_verified, import_protected, apparel_capability, existing_ogr, qualification_status, next_action, source_note, postal_code, secondary_channels, retail_subchannels, venue_contexts, lifestyle_themes, retail_capabilities, created_at, updated_at' as const;
+  'id, name, category, region, city, address, phone, fit, account_status, converted_at, initial_order_date, notes, territory_id, operational_territory_id, territories(code, name), external_id, subterritory, primary_district, retail_category, website, fit_score, ideal_opening_units, priority, provisional_grade, verification_status, buyer_verified, import_protected, apparel_capability, existing_ogr, qualification_status, next_action, source_note, postal_code, secondary_channels, retail_subchannels, venue_contexts, lifestyle_themes, retail_capabilities, created_at, updated_at' as const;
 
 export type ProspectListRow = ProspectRow & {
   territories?: { code: string; name: string } | null;
@@ -185,6 +188,7 @@ export function mapProspectRow(row: ProspectListRow): Prospect {
     territoryId: row.territory_id,
     territoryCode: row.territories?.code ?? null,
     territoryName: row.territories?.name ?? null,
+    operationalTerritoryId: row.operational_territory_id ?? null,
     secondaryChannels,
     retailSubchannels: normalizeSubchannels(asStringArray(row.retail_subchannels), subOpts),
     venueContexts: normalizeVenueContexts(asStringArray(row.venue_contexts)),

@@ -48,6 +48,7 @@ function baseProspect(overrides: Partial<Prospect> = {}): Prospect {
     territoryId: 'terr-bc',
     territoryCode: 'bc',
     territoryName: 'British Columbia',
+    operationalTerritoryId: null,
     secondaryChannels: [],
     retailSubchannels: [],
     venueContexts: [],
@@ -92,6 +93,7 @@ function prospectRowFromExisting(existing: Prospect, patch: Record<string, unkno
     initial_order_date: null,
     notes: existing.notes,
     territory_id: (patch.territory_id as string | undefined) ?? existing.territoryId,
+    operational_territory_id: existing.operationalTerritoryId,
     territories: patch.territories
       ? (patch.territories as { code: string; name: string })
       : { code: existing.territoryCode, name: existing.territoryName },
