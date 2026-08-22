@@ -6,9 +6,9 @@ import { CATEGORY_MAPPING_GUIDANCE } from '@/lib/enrichGuidance';
 import {
   mapProspectRow,
   PROSPECT_SELECT,
+  type BcProspectRegion,
   type Prospect,
   type ProspectListRow,
-  type ProspectRegion,
 } from '@/lib/prospects';
 import { PRIMARY_RETAIL_CHANNELS, type PrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
 import {
@@ -29,7 +29,7 @@ export const PROSPECT_REGIONS = [
   'Sea-to-Sky',
   'Kootenays',
   'Fraser Valley',
-] as const satisfies readonly ProspectRegion[];
+] as const satisfies readonly BcProspectRegion[];
 
 export const enrichedProspectSchema = z.object({
   name: z.string().min(1).describe('Cleaned business / store name'),
@@ -132,7 +132,7 @@ export function proposedProspectFromFields(
     ...current,
     name: fields.name.trim(),
     category: fields.category,
-    region: fields.region.trim() as ProspectRegion,
+    region: fields.region.trim(),
     city: fields.city.trim(),
     address: fields.address?.trim() || '',
     phone: fields.phone?.trim() || '',

@@ -1,3 +1,4 @@
+import { isStoreTerritoryCode } from '@/lib/territories';
 import { hasMarker } from '@/lib/accountImport/classification';
 import type { AccountStatus, RelationshipStatus } from '@/types/database';
 
@@ -144,6 +145,7 @@ export function formatAccountLocationLine(input: {
 export function parseDirectoryTerritoryParam(raw: string | null): string | null {
   if (!raw) return null;
   const value = raw.trim();
-  if (value === 'ALL' || value === 'or' || value === 'wa' || value === 'bc') return value;
+  if (value === 'ALL') return value;
+  if (isStoreTerritoryCode(value)) return value.trim().toLowerCase();
   return null;
 }

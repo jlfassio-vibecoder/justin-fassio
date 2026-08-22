@@ -28,7 +28,9 @@ import {
 export type ProspectCategory = PrimaryRetailChannel;
 export type BcProspectRegion =
   'Okanagan' | 'Shuswap' | 'Vancouver Island' | 'Sea-to-Sky' | 'Kootenays' | 'Fraser Valley';
-export type ProspectRegion = BcProspectRegion | 'Oregon' | 'Washington';
+/** Known region labels; prospects.region is free text and may include other values. */
+export type ProspectRegion =
+  BcProspectRegion | 'Oregon' | 'Washington' | 'Alberta' | 'California' | 'British Columbia';
 
 /** Nullable planning fields from the BC named prospect list sheet. */
 export type ProspectPlanningFields = {
@@ -100,7 +102,8 @@ export interface Prospect extends ProspectPlanningFields, ProspectTaxonomyFields
   id: number;
   name: string;
   category: ProspectCategory;
-  region: ProspectRegion;
+  /** Free-text CRM region (known labels + custom values from AI/editor). */
+  region: string;
   city: string;
   address: string;
   phone: string;
@@ -170,7 +173,7 @@ export function mapProspectRow(row: ProspectListRow): Prospect {
     id: row.id,
     name: row.name,
     category,
-    region: row.region as ProspectRegion,
+    region: row.region,
     city: row.city,
     address: row.address,
     phone: row.phone,

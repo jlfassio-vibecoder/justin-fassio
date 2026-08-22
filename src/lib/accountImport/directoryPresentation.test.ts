@@ -160,6 +160,9 @@ describe('directory presentation', () => {
     );
     expect(parseDirectoryTerritoryParam('ALL')).toBe('ALL');
     expect(parseDirectoryTerritoryParam('or')).toBe('or');
+    expect(parseDirectoryTerritoryParam('ab')).toBe('ab');
+    expect(parseDirectoryTerritoryParam('ca')).toBe('ca');
+    expect(parseDirectoryTerritoryParam('AB')).toBe('ab');
     expect(parseDirectoryTerritoryParam('nope')).toBeNull();
   });
 
