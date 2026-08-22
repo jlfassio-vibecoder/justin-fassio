@@ -1,0 +1,1297 @@
+{
+  "source": "Staff-approved Cascades / CA sales corridors (Census county FIPS 2024; LA ZIP partition v1)",
+  "effective_date": "2026-08-22",
+  "description": "Exact five-digit LA County ZIPs only. Territory 5 = Central Coast South & LA North corridor; Territory 6 = LA Metro. No county row for LA.",
+  "zips": [
+    {
+      "state_code": "CA",
+      "zip": "90263",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90265",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90290",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91001",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91006",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91007",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91010",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91011",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91016",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91020",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91024",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91030",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91040",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91042",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91101",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91103",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91104",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91105",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91106",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91107",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91108",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91201",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91202",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91203",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91204",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91205",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91206",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91207",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91208",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91214",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91301",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91302",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91303",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91304",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91306",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91307",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91311",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91316",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91321",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91324",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91325",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91326",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91331",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91335",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91340",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91342",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91343",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91344",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91345",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91350",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91351",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91352",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91354",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91355",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91356",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91361",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91362",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91364",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91367",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91381",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91382",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91384",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91387",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91390",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91401",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91402",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91403",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91405",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91406",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91411",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91423",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91436",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91501",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91502",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91504",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91505",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91506",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91601",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91602",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91604",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91605",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91606",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91607",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91608",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "93510",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "93532",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "93534",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "93535",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "93536",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "93539",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "93543",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "93550",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "93551",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "93552",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "93553",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "93591",
+      "territory_code": "ca-central-la-north"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90001",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90002",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90003",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90004",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90005",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90006",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90007",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90008",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90010",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90011",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90012",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90013",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90014",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90015",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90016",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90017",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90018",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90019",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90020",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90021",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90022",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90023",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90024",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90025",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90026",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90027",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90028",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90029",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90031",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90032",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90033",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90034",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90035",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90036",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90037",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90038",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90039",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90041",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90042",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90043",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90044",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90045",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90046",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90047",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90048",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90049",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90056",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90057",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90058",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90059",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90061",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90062",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90063",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90064",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90065",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90066",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90067",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90068",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90069",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90071",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90077",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90089",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90094",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90095",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90230",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90232",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90245",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90247",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90248",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90249",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90250",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90254",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90260",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90266",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90274",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90275",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90277",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90278",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90291",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90292",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90293",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90301",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90302",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90303",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90304",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90305",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90401",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90402",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90403",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90404",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90405",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90501",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90502",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90503",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90504",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90505",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90601",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90602",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90603",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90604",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90605",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90606",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90638",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90640",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90650",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90660",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90670",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90701",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90703",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90706",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90710",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90712",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90713",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90715",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90716",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90717",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90723",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90731",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90732",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90744",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90745",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90746",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90755",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90802",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90803",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90804",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90805",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90806",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90807",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90808",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90810",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90813",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90814",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "90815",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91702",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91706",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91711",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91722",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91723",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91724",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91731",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91732",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91733",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91740",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91741",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91744",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91745",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91746",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91748",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91754",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91755",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91770",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91773",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91775",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91776",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91780",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91789",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91790",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91791",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91792",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91801",
+      "territory_code": "la-metro-oc"
+    },
+    {
+      "state_code": "CA",
+      "zip": "91803",
+      "territory_code": "la-metro-oc"
+    }
+  ]
+}

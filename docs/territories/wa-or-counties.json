@@ -1,0 +1,457 @@
+{
+  "source": "Staff-approved Cascades / CA sales corridors (Census county FIPS 2024; LA ZIP partition v1)",
+  "effective_date": "2026-08-22",
+  "description": "Cascades crest split: west = PNW West, east = PNW East. Every WA/OR county exactly once.",
+  "counties": [
+    {
+      "state_code": "WA",
+      "county_fips": "53009",
+      "county_name": "Clallam",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53011",
+      "county_name": "Clark",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53015",
+      "county_name": "Cowlitz",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53027",
+      "county_name": "Grays Harbor",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53029",
+      "county_name": "Island",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53031",
+      "county_name": "Jefferson",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53033",
+      "county_name": "King",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53035",
+      "county_name": "Kitsap",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53041",
+      "county_name": "Lewis",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53045",
+      "county_name": "Mason",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53049",
+      "county_name": "Pacific",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53053",
+      "county_name": "Pierce",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53055",
+      "county_name": "San Juan",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53057",
+      "county_name": "Skagit",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53059",
+      "county_name": "Skamania",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53061",
+      "county_name": "Snohomish",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53067",
+      "county_name": "Thurston",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53069",
+      "county_name": "Wahkiakum",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53073",
+      "county_name": "Whatcom",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53001",
+      "county_name": "Adams",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53003",
+      "county_name": "Asotin",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53005",
+      "county_name": "Benton",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53007",
+      "county_name": "Chelan",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53013",
+      "county_name": "Columbia",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53017",
+      "county_name": "Douglas",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53019",
+      "county_name": "Ferry",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53021",
+      "county_name": "Franklin",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53023",
+      "county_name": "Garfield",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53025",
+      "county_name": "Grant",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53037",
+      "county_name": "Kittitas",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53039",
+      "county_name": "Klickitat",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53043",
+      "county_name": "Lincoln",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53047",
+      "county_name": "Okanogan",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53051",
+      "county_name": "Pend Oreille",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53063",
+      "county_name": "Spokane",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53065",
+      "county_name": "Stevens",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53071",
+      "county_name": "Walla Walla",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53075",
+      "county_name": "Whitman",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "WA",
+      "county_fips": "53077",
+      "county_name": "Yakima",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41003",
+      "county_name": "Benton",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41005",
+      "county_name": "Clackamas",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41007",
+      "county_name": "Clatsop",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41009",
+      "county_name": "Columbia",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41011",
+      "county_name": "Coos",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41015",
+      "county_name": "Curry",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41019",
+      "county_name": "Douglas",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41029",
+      "county_name": "Jackson",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41033",
+      "county_name": "Josephine",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41039",
+      "county_name": "Lane",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41041",
+      "county_name": "Lincoln",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41043",
+      "county_name": "Linn",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41047",
+      "county_name": "Marion",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41051",
+      "county_name": "Multnomah",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41053",
+      "county_name": "Polk",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41057",
+      "county_name": "Tillamook",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41067",
+      "county_name": "Washington",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41071",
+      "county_name": "Yamhill",
+      "territory_code": "pnw-west"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41001",
+      "county_name": "Baker",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41013",
+      "county_name": "Crook",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41017",
+      "county_name": "Deschutes",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41021",
+      "county_name": "Gilliam",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41023",
+      "county_name": "Grant",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41025",
+      "county_name": "Harney",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41027",
+      "county_name": "Hood River",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41031",
+      "county_name": "Jefferson",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41035",
+      "county_name": "Klamath",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41037",
+      "county_name": "Lake",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41045",
+      "county_name": "Malheur",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41049",
+      "county_name": "Morrow",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41055",
+      "county_name": "Sherman",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41059",
+      "county_name": "Umatilla",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41061",
+      "county_name": "Union",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41063",
+      "county_name": "Wallowa",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41065",
+      "county_name": "Wasco",
+      "territory_code": "pnw-east"
+    },
+    {
+      "state_code": "OR",
+      "county_fips": "41069",
+      "county_name": "Wheeler",
+      "territory_code": "pnw-east"
+    }
+  ]
+}

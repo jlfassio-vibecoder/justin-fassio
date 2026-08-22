@@ -25,6 +25,7 @@ export function prospectFixture(
     territoryId: BC_PROSPECT_TERRITORY.territoryId,
     territoryCode: BC_PROSPECT_TERRITORY.territoryCode,
     territoryName: BC_PROSPECT_TERRITORY.territoryName,
+    operationalTerritoryId: BC_PROSPECT_TERRITORY.operationalTerritoryId,
     ...overrides,
   };
 }
