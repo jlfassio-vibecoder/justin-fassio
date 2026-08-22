@@ -4393,3 +4393,16 @@ create index if not exists prospects_operational_territory_id_idx
   on prospects (operational_territory_id);
 
 -- See also 20260822173157_operational_territory_memberships_seed.sql for membership seed.
+-- See also 20260822181446_activate_operational_territories.sql (status proposed → active).
+
+update territories
+set status = 'active', updated_at = now()
+where code in (
+  'pnw-west',
+  'pnw-east',
+  'norcal-coastal',
+  'norcal-inland',
+  'ca-central-la-north',
+  'la-metro-oc',
+  'ie-san-diego'
+);

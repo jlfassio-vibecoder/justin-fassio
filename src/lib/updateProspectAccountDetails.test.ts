@@ -6,9 +6,11 @@ import {
   shouldConfirmProtectedIdentityEdit,
   updateProspectAccountDetails,
   validateAccountDetailsDraft,
+  validateOperationalTerritoryAssignment,
 } from '@/lib/updateProspectAccountDetails';
 
 const insertRetailerFieldChangesMock = vi.hoisted(() => vi.fn());
+const resolveOpsReviewMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/retailerFieldChanges', async () => {
   const actual = await vi.importActual<typeof import('@/lib/retailerFieldChanges')>(
@@ -19,6 +21,11 @@ vi.mock('@/lib/retailerFieldChanges', async () => {
     insertRetailerFieldChanges: (...args: unknown[]) => insertRetailerFieldChangesMock(...args),
   };
 });
+
+vi.mock('@/lib/operationalTerritories/reviewQueue', () => ({
+  resolveOperationalTerritoryReviewForProspect: (...args: unknown[]) =>
+    resolveOpsReviewMock(...args),
+}));
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
@@ -49,6 +56,8 @@ function baseProspect(overrides: Partial<Prospect> = {}): Prospect {
     territoryCode: 'bc',
     territoryName: 'British Columbia',
     operationalTerritoryId: null,
+    operationalTerritoryCode: null,
+    operationalTerritoryName: null,
     secondaryChannels: [],
     retailSubchannels: [],
     venueContexts: [],
@@ -93,10 +102,25 @@ function prospectRowFromExisting(existing: Prospect, patch: Record<string, unkno
     initial_order_date: null,
     notes: existing.notes,
     territory_id: (patch.territory_id as string | undefined) ?? existing.territoryId,
-    operational_territory_id: existing.operationalTerritoryId,
+    operational_territory_id:
+      (patch.operational_territory_id as string | null | undefined) !== undefined
+        ? (patch.operational_territory_id as string | null)
+        : existing.operationalTerritoryId,
     territories: patch.territories
       ? (patch.territories as { code: string; name: string })
       : { code: existing.territoryCode, name: existing.territoryName },
+    operational_territories: patch.operational_territories
+      ? (patch.operational_territories as {
+          territories: { code: string; name: string } | null;
+        } | null)
+      : existing.operationalTerritoryId
+        ? {
+            territories: {
+              code: existing.operationalTerritoryCode ?? 'pnw-west',
+              name: existing.operationalTerritoryName ?? 'PNW West',
+            },
+          }
+        : null,
     external_id: existing.externalId,
     subterritory: existing.subterritory,
     primary_district: existing.primaryDistrict,
@@ -236,6 +260,7 @@ describe('updateProspectAccountDetails', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     insertRetailerFieldChangesMock.mockResolvedValue({ ok: true });
+    resolveOpsReviewMock.mockResolvedValue({ ok: true, resolved: 1 });
     vi.mocked(supabase.auth.getUser).mockResolvedValue({
       data: { user: { id: 'user-actor-1' } },
       error: null,
@@ -365,5 +390,193 @@ describe('updateProspectAccountDetails', () => {
     const result = await updateProspectAccountDetails(existing, draft);
     expect(result).toEqual({ ok: false, error: 'db error' });
     expect(insertRetailerFieldChangesMock).not.toHaveBeenCalled();
+  });
+});
+
+const OPS_OPTIONS = [
+  { id: 'ops-pnw-west', code: 'pnw-west' },
+  { id: 'ops-pnw-east', code: 'pnw-east' },
+  { id: 'ops-norcal-coastal', code: 'norcal-coastal' },
+  { id: 'ops-la-metro', code: 'la-metro-oc' },
+];
+
+describe('validateOperationalTerritoryAssignment', () => {
+  it('rejects CA ops territory on WA store', () => {
+    expect(
+      validateOperationalTerritoryAssignment({
+        storeTerritoryCode: 'wa',
+        nextOperationalTerritoryId: 'ops-norcal-coastal',
+        existingOperationalTerritoryId: null,
+        operationalTerritories: OPS_OPTIONS,
+      }),
+    ).toMatch(/not allowed/i);
+  });
+
+  it('allows PNW on WA store', () => {
+    expect(
+      validateOperationalTerritoryAssignment({
+        storeTerritoryCode: 'wa',
+        nextOperationalTerritoryId: 'ops-pnw-west',
+        existingOperationalTerritoryId: null,
+        operationalTerritories: OPS_OPTIONS,
+      }),
+    ).toBeNull();
+  });
+
+  it('rejects new assignment on BC but allows clear', () => {
+    expect(
+      validateOperationalTerritoryAssignment({
+        storeTerritoryCode: 'bc',
+        nextOperationalTerritoryId: 'ops-pnw-west',
+        existingOperationalTerritoryId: null,
+        operationalTerritories: OPS_OPTIONS,
+      }),
+    ).toMatch(/not allowed/i);
+    expect(
+      validateOperationalTerritoryAssignment({
+        storeTerritoryCode: 'bc',
+        nextOperationalTerritoryId: null,
+        existingOperationalTerritoryId: 'ops-pnw-west',
+        operationalTerritories: OPS_OPTIONS,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('operational territory save path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    insertRetailerFieldChangesMock.mockResolvedValue({ ok: true });
+    resolveOpsReviewMock.mockResolvedValue({ ok: true, resolved: 1 });
+    vi.mocked(supabase.auth.getUser).mockResolvedValue({
+      data: { user: { id: 'user-actor-1' } },
+      error: null,
+    } as never);
+  });
+
+  it('audits ops assignment and resolves review queue on non-null confirm', async () => {
+    const existing = baseProspect({
+      territoryCode: 'wa',
+      territoryId: 'terr-wa',
+      territoryName: 'Washington',
+    });
+    const draft = { ...draftFromProspect(existing), operationalTerritoryId: 'ops-pnw-west' };
+    let capturedUpdate: Record<string, unknown> | null = null;
+
+    vi.mocked(supabase.from).mockImplementation(() => {
+      const chain = {
+        update: (payload: Record<string, unknown>) => {
+          capturedUpdate = payload;
+          return chain;
+        },
+        eq: () => chain,
+        select: () => chain,
+        single: async () => ({
+          data: prospectRowFromExisting(existing, {
+            operational_territory_id: 'ops-pnw-west',
+            operational_territories: {
+              territories: { code: 'pnw-west', name: 'PNW West' },
+            },
+          }),
+          error: null,
+        }),
+      };
+      return chain as never;
+    });
+
+    const result = await updateProspectAccountDetails(existing, draft, {
+      storeTerritoryCode: 'wa',
+      operationalTerritories: OPS_OPTIONS,
+    });
+    expect(result.ok).toBe(true);
+    expect(capturedUpdate).toEqual({ operational_territory_id: 'ops-pnw-west' });
+    expect(capturedUpdate).not.toHaveProperty('territory_id');
+    expect(capturedUpdate).not.toHaveProperty('sales_line_territory_id');
+    expect(insertRetailerFieldChangesMock).toHaveBeenCalledWith(
+      supabase,
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'operational_territory_id',
+          oldValue: null,
+          newValue: 'ops-pnw-west',
+          source: 'user',
+          status: 'applied',
+        }),
+      ]),
+    );
+    expect(resolveOpsReviewMock).toHaveBeenCalledWith(existing.id, supabase);
+  });
+
+  it('clears ops assignment without resolving review queue', async () => {
+    const existing = baseProspect({
+      territoryCode: 'bc',
+      operationalTerritoryId: 'ops-pnw-west',
+      operationalTerritoryCode: 'pnw-west',
+      operationalTerritoryName: 'PNW West',
+    });
+    const draft = { ...draftFromProspect(existing), operationalTerritoryId: null };
+
+    vi.mocked(supabase.from).mockImplementation(() => {
+      const chain = {
+        update: () => chain,
+        eq: () => chain,
+        select: () => chain,
+        single: async () => ({
+          data: prospectRowFromExisting(existing, {
+            operational_territory_id: null,
+            operational_territories: null,
+          }),
+          error: null,
+        }),
+      };
+      return chain as never;
+    });
+
+    const result = await updateProspectAccountDetails(existing, draft, {
+      storeTerritoryCode: 'bc',
+      operationalTerritories: OPS_OPTIONS,
+    });
+    expect(result.ok).toBe(true);
+    expect(resolveOpsReviewMock).not.toHaveBeenCalled();
+    expect(insertRetailerFieldChangesMock).toHaveBeenCalledWith(
+      supabase,
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldPath: 'operational_territory_id',
+          oldValue: 'ops-pnw-west',
+          newValue: null,
+        }),
+      ]),
+    );
+  });
+
+  it('rejects BC new assignment before writing', async () => {
+    const existing = baseProspect();
+    const draft = { ...draftFromProspect(existing), operationalTerritoryId: 'ops-pnw-west' };
+    const result = await updateProspectAccountDetails(existing, draft, {
+      storeTerritoryCode: 'bc',
+      operationalTerritories: OPS_OPTIONS,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/not allowed/i);
+    expect(supabase.from).not.toHaveBeenCalled();
+    expect(resolveOpsReviewMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects cross-state CA ops on OR store', async () => {
+    const existing = baseProspect({
+      territoryCode: 'or',
+      territoryId: 'terr-or',
+      territoryName: 'Oregon',
+    });
+    const draft = { ...draftFromProspect(existing), operationalTerritoryId: 'ops-la-metro' };
+    const result = await updateProspectAccountDetails(existing, draft, {
+      storeTerritoryCode: 'or',
+      operationalTerritories: OPS_OPTIONS,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/not allowed/i);
   });
 });

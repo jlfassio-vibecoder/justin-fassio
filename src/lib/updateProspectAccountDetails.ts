@@ -1,3 +1,5 @@
+import { isOpsAssignmentAllowed } from '@/lib/operationalTerritories/allowedOperationalTerritories';
+import { resolveOperationalTerritoryReviewForProspect } from '@/lib/operationalTerritories/reviewQueue';
 import {
   insertRetailerFieldChanges,
   isVerifiedIdentityStatus,
@@ -27,6 +29,8 @@ export type AccountDetailsDraft = {
   fit: string;
   /** Store territory UUID (`prospects.territory_id`). Never an SLT id. */
   territoryId: string;
+  /** Ops territory UUID or null to clear. Never an SLT id. */
+  operationalTerritoryId: string | null;
 };
 
 export type UpdateProspectAccountDetailsOptions = {
@@ -34,6 +38,10 @@ export type UpdateProspectAccountDetailsOptions = {
   retailerLineAccountId?: string | null;
   /** When known (e.g. from territory), enables stricter postal checks. */
   countryCode?: string | null;
+  /** Draft store territory code (bc/ab/ca/or/wa) for ops allowlist checks. */
+  storeTerritoryCode?: string | null;
+  /** Active ops registry rows — used to resolve code for allowlist validation. */
+  operationalTerritories?: Array<{ id: string; code: string }>;
 };
 
 export type UpdateProspectAccountDetailsResult =
@@ -83,6 +91,7 @@ export function draftFromProspect(prospect: Prospect): AccountDetailsDraft {
     postalCode: prospect.postalCode ?? '',
     fit: prospect.fit ?? '',
     territoryId: prospect.territoryId,
+    operationalTerritoryId: prospect.operationalTerritoryId,
   };
 }
 
@@ -121,6 +130,38 @@ export function validateAccountDetailsDraft(
     return 'Postal code looks too short.';
   }
 
+  return null;
+}
+
+/**
+ * Reject cross-state ops assignments. Clear (null) is always allowed.
+ * BC/AB may only clear or keep existing — never set a new ops UUID.
+ */
+export function validateOperationalTerritoryAssignment(input: {
+  storeTerritoryCode: string | null | undefined;
+  nextOperationalTerritoryId: string | null;
+  existingOperationalTerritoryId: string | null;
+  operationalTerritories?: Array<{ id: string; code: string }>;
+}): string | null {
+  const nextId = input.nextOperationalTerritoryId;
+  if (nextId == null) return null;
+  if (nextId === input.existingOperationalTerritoryId) return null;
+
+  const options = input.operationalTerritories ?? [];
+  const match = options.find((t) => t.id === nextId);
+  if (!match) {
+    return 'Operational territory is not in the active registry.';
+  }
+
+  const allowed = isOpsAssignmentAllowed({
+    storeTerritoryCode: input.storeTerritoryCode,
+    nextOperationalTerritoryId: nextId,
+    nextOperationalTerritoryCode: match.code,
+    existingOperationalTerritoryId: input.existingOperationalTerritoryId,
+  });
+  if (!allowed) {
+    return 'Operational territory is not allowed for this store territory.';
+  }
   return null;
 }
 
@@ -169,7 +210,7 @@ function valuesEqual(a: string | null, b: string | null): boolean {
 }
 
 /**
- * Build sparse DB patch of only changed identity fields + optional territory_id.
+ * Build sparse DB patch of only changed identity fields + optional territory ids.
  * Never includes sales_line_territory_id or other RLA columns.
  */
 export function buildAccountDetailsPatch(
@@ -201,6 +242,17 @@ export function buildAccountDetailsPatch(
     });
   }
 
+  const nextOpsId = draft.operationalTerritoryId;
+  const prevOpsId = existing.operationalTerritoryId;
+  if (nextOpsId !== prevOpsId) {
+    patch.operational_territory_id = nextOpsId;
+    changes.push({
+      fieldPath: 'operational_territory_id',
+      oldValue: prevOpsId,
+      newValue: nextOpsId,
+    });
+  }
+
   return { patch, changes };
 }
 
@@ -225,9 +277,10 @@ export function shouldConfirmProtectedIdentityEdit(
 }
 
 /**
- * Patch only changed account identity fields (+ store territory) on prospects.
+ * Patch only changed account identity fields (+ store / ops territory) on prospects.
  * Merges RLA commercial fields from `existing`. Audit insert is best-effort.
  * Never writes sales_line_territory_id.
+ * Resolves ops review queue only when a non-null operational_territory_id is confirmed.
  */
 export async function updateProspectAccountDetails(
   existing: Prospect,
@@ -238,6 +291,15 @@ export async function updateProspectAccountDetails(
     countryCode: options?.countryCode,
   });
   if (validationError) return { ok: false, error: validationError };
+
+  const storeTerritoryCode = options?.storeTerritoryCode ?? existing.territoryCode;
+  const opsError = validateOperationalTerritoryAssignment({
+    storeTerritoryCode,
+    nextOperationalTerritoryId: draft.operationalTerritoryId,
+    existingOperationalTerritoryId: existing.operationalTerritoryId,
+    operationalTerritories: options?.operationalTerritories,
+  });
+  if (opsError) return { ok: false, error: opsError };
 
   const { patch, changes } = buildAccountDetailsPatch(existing, draft);
   if (changes.length === 0) {
@@ -277,13 +339,21 @@ export async function updateProspectAccountDetails(
     })),
   );
 
+  let auditWarning: string | null = null;
   if (!audit.ok) {
-    return {
-      ok: true,
-      data: merged,
-      auditWarning: `Account saved, but the change log could not be written: ${audit.error}`,
-    };
+    auditWarning = `Account saved, but the change log could not be written: ${audit.error}`;
   }
 
-  return { ok: true, data: merged, auditWarning: null };
+  const opsChanged = changes.some((c) => c.fieldPath === 'operational_territory_id');
+  const confirmedNonNull =
+    opsChanged && draft.operationalTerritoryId != null && draft.operationalTerritoryId !== '';
+  if (confirmedNonNull) {
+    const queue = await resolveOperationalTerritoryReviewForProspect(existing.id, supabase);
+    if (!queue.ok) {
+      const qWarn = `Account saved, but the review queue could not be updated: ${queue.error}`;
+      auditWarning = auditWarning ? `${auditWarning} ${qWarn}` : qWarn;
+    }
+  }
+
+  return { ok: true, data: merged, auditWarning };
 }

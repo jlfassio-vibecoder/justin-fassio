@@ -39,6 +39,8 @@ const oregonStore: Prospect = {
   territoryCode: 'or',
   territoryName: 'Oregon',
   operationalTerritoryId: null,
+  operationalTerritoryCode: null,
+  operationalTerritoryName: null,
   importProtected: true,
   existingOgr: 'yes',
   website: null,
