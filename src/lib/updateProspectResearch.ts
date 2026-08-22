@@ -15,6 +15,11 @@ import {
 } from '@/lib/fillBlankProspectFields';
 import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
 import {
+  locationChangedBetween,
+  locationFingerprintFromProspect,
+} from '@/lib/operationalTerritories/locationFingerprint';
+import { runOperationalTerritoryReviewSyncAfterWrite } from '@/lib/operationalTerritories/syncOperationalTerritoryReview';
+import {
   insertRetailerFieldChanges,
   isVerifiedIdentityField,
   isVerifiedIdentityStatus,
@@ -36,7 +41,7 @@ export type PreviewProspectResearchResult =
   { ok: true; preview: ProspectResearchPreview } | { ok: false; error: string };
 
 export type ApplyProspectResearchResult =
-  { ok: true; prospect: Prospect } | { ok: false; error: string };
+  { ok: true; prospect: Prospect; reviewWarning?: string | null } | { ok: false; error: string };
 
 export type ApplyProspectResearchAiAudit = {
   actorId: string;
@@ -239,7 +244,15 @@ export async function applyProspectResearchUpdate(
       });
       if (!audit.ok) return audit;
     }
-    return { ok: true, prospect: mapProspectRow(data as ProspectRow) };
+    const prospect = mapProspectRow(data as ProspectRow);
+    const locationChanged = locationChangedBetween(
+      locationFingerprintFromProspect(existing.data),
+      locationFingerprintFromProspect(prospect),
+    );
+    const reviewWarning = await runOperationalTerritoryReviewSyncAfterWrite(supabase, prospect, {
+      locationChanged,
+    });
+    return { ok: true, prospect, reviewWarning };
   }
 
   const parsed = enrichedProspectSchema.safeParse(input.fields);
@@ -299,7 +312,17 @@ export async function applyProspectResearchUpdate(
     if (!audit.ok) return audit;
   }
 
-  return { ok: true, prospect: mapProspectRow(data as ProspectRow) };
+  const prospect = mapProspectRow(data as ProspectRow);
+  const prior = currentForAudit ?? (await fetchProspectById(supabase, input.id)).data ?? prospect;
+  const locationChanged = locationChangedBetween(
+    locationFingerprintFromProspect(prior),
+    locationFingerprintFromProspect(prospect),
+  );
+  const reviewWarning = await runOperationalTerritoryReviewSyncAfterWrite(supabase, prospect, {
+    locationChanged,
+  });
+
+  return { ok: true, prospect, reviewWarning };
 }
 
 export {

@@ -1,0 +1,10 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { AuthGate } from '@/components/auth/AuthGate';
+
+export const prerender = false;
+---
+
+<Layout title="Ops territory review — Rep Command Center">
+  <AuthGate client:load page="opsTerritoryReview" />
+</Layout>

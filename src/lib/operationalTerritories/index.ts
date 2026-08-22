@@ -39,6 +39,18 @@ export {
 } from '@/lib/operationalTerritories/resolve';
 export { resolveOperationalTerritoryReviewForProspect } from '@/lib/operationalTerritories/reviewQueue';
 export {
+  syncOperationalTerritoryReview,
+  runOperationalTerritoryReviewSyncAfterWrite,
+  runOperationalTerritoryReviewSyncForProspectId,
+  prospectPatchTouchesLocation,
+} from '@/lib/operationalTerritories/syncOperationalTerritoryReview';
+export {
+  locationFingerprintFromProspect,
+  locationChangedBetween,
+  fingerprintsEqual,
+  type LocationFingerprint,
+} from '@/lib/operationalTerritories/locationFingerprint';
+export {
   suggestOperationalTerritoryForAccount,
   type SuggestOperationalTerritoryInput,
   type SuggestOperationalTerritoryResult,

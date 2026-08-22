@@ -1,5 +1,9 @@
 import type { AgentSupabase } from '@/lib/agentAuth';
 import {
+  prospectPatchTouchesLocation,
+  runOperationalTerritoryReviewSyncForProspectId,
+} from '@/lib/operationalTerritories/syncOperationalTerritoryReview';
+import {
   ACCOUNT_IMPORT_SOURCE_TYPES,
   assertZoominfoImportClassification,
   defaultsForImportSource,
@@ -946,6 +950,15 @@ export async function commitAccountImport(
       continue;
     }
     if (result.account_contact_id) contactsCreated += 1;
+    if (result.retailer_id != null) {
+      const locationChanged =
+        payload.action === 'create_retailer' ||
+        (payload.prospect_patch != null &&
+          prospectPatchTouchesLocation(payload.prospect_patch as Record<string, unknown>));
+      await runOperationalTerritoryReviewSyncForProspectId(supabase, result.retailer_id, {
+        locationChanged,
+      });
+    }
     committed.push({
       rowNumber: row.rowNumber,
       matchDecision: row.matchDecision,

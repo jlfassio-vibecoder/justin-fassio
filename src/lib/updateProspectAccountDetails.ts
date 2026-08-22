@@ -1,5 +1,10 @@
 import { isOpsAssignmentAllowed } from '@/lib/operationalTerritories/allowedOperationalTerritories';
+import {
+  locationChangedBetween,
+  locationFingerprintFromProspect,
+} from '@/lib/operationalTerritories/locationFingerprint';
 import { resolveOperationalTerritoryReviewForProspect } from '@/lib/operationalTerritories/reviewQueue';
+import { syncOperationalTerritoryReview } from '@/lib/operationalTerritories/syncOperationalTerritoryReview';
 import {
   insertRetailerFieldChanges,
   isVerifiedIdentityStatus,
@@ -14,6 +19,7 @@ import {
   type ProspectListRow,
 } from '@/lib/prospects';
 import { supabase } from '@/lib/supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 
 type ProspectsUpdate = Database['public']['Tables']['prospects']['Update'];
@@ -42,10 +48,15 @@ export type UpdateProspectAccountDetailsOptions = {
   storeTerritoryCode?: string | null;
   /** Active ops registry rows — used to resolve code for allowlist validation. */
   operationalTerritories?: Array<{ id: string; code: string }>;
+  /** Staff actor for audit + queue resolution (API path). */
+  actorId?: string | null;
+  /** User-scoped Supabase client (API path). Defaults to browser client. */
+  client?: SupabaseClient<Database>;
 };
 
 export type UpdateProspectAccountDetailsResult =
-  { ok: true; data: Prospect; auditWarning: string | null } | { ok: false; error: string };
+  | { ok: true; data: Prospect; auditWarning: string | null; reviewWarning: string | null }
+  | { ok: false; error: string };
 
 const IDENTITY_FIELD_PATHS = {
   name: 'name',
@@ -301,12 +312,16 @@ export async function updateProspectAccountDetails(
   });
   if (opsError) return { ok: false, error: opsError };
 
+  const db = options?.client ?? supabase;
+
   const { patch, changes } = buildAccountDetailsPatch(existing, draft);
   if (changes.length === 0) {
-    return { ok: true, data: existing, auditWarning: null };
+    return { ok: true, data: existing, auditWarning: null, reviewWarning: null };
   }
 
-  const { data, error } = await supabase
+  const fingerprintBefore = locationFingerprintFromProspect(existing);
+
+  const { data, error } = await db
     .from('prospects')
     .update(patch)
     .eq('id', existing.id)
@@ -318,14 +333,19 @@ export async function updateProspectAccountDetails(
   }
 
   const merged = mergeProspectIdentity(existing, mapProspectRow(data as ProspectListRow));
+  const fingerprintAfter = locationFingerprintFromProspect(merged);
+  const locationChanged = locationChangedBetween(fingerprintBefore, fingerprintAfter);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const actorId = user?.id ?? null;
+  let actorId = options?.actorId ?? null;
+  if (actorId == null && !options?.client) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    actorId = user?.id ?? null;
+  }
 
   const audit = await insertRetailerFieldChanges(
-    supabase,
+    db,
     changes.map((c) => ({
       retailerId: existing.id,
       fieldPath: c.fieldPath,
@@ -348,12 +368,27 @@ export async function updateProspectAccountDetails(
   const confirmedNonNull =
     opsChanged && draft.operationalTerritoryId != null && draft.operationalTerritoryId !== '';
   if (confirmedNonNull) {
-    const queue = await resolveOperationalTerritoryReviewForProspect(existing.id, supabase);
+    const queue = await resolveOperationalTerritoryReviewForProspect(
+      existing.id,
+      { resolution: 'assigned', resolvedBy: actorId },
+      db,
+    );
     if (!queue.ok) {
       const qWarn = `Account saved, but the review queue could not be updated: ${queue.error}`;
       auditWarning = auditWarning ? `${auditWarning} ${qWarn}` : qWarn;
     }
   }
 
-  return { ok: true, data: merged, auditWarning };
+  let reviewWarning: string | null = null;
+  const sync = await syncOperationalTerritoryReview({
+    prospect: merged,
+    locationChanged,
+    opsAssignedThisWrite: confirmedNonNull,
+    client: db,
+  });
+  if (!sync.ok) {
+    reviewWarning = `Account saved, but operational territory review could not be updated: ${sync.error}`;
+  }
+
+  return { ok: true, data: merged, auditWarning, reviewWarning };
 }

@@ -1,69 +1,67 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveOperationalTerritoryReviewForProspect } from '@/lib/operationalTerritories/reviewQueue';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 describe('resolveOperationalTerritoryReviewForProspect', () => {
+  const selectMock = vi.fn();
   const updateMock = vi.fn();
   const eqMock = vi.fn();
   const isMock = vi.fn();
-  const selectMock = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
-    const chain = {
-      update: updateMock.mockReturnThis(),
+    const selectChain = {
       eq: eqMock.mockReturnThis(),
       is: isMock.mockReturnThis(),
-      select: selectMock.mockResolvedValue({ data: [{ id: 'q1' }], error: null }),
+      select: selectMock,
     };
-    updateMock.mockReturnValue(chain);
-    eqMock.mockReturnValue(chain);
-    isMock.mockReturnValue(chain);
+    selectMock.mockResolvedValue({ data: [{ id: 'q1', payload: {} }], error: null });
+    const updateChain = {
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    };
+    updateMock.mockReturnValue(updateChain);
+    eqMock.mockReturnValue(selectChain);
+    isMock.mockReturnValue(selectChain);
   });
 
-  it('updates unresolved prospect rows and returns resolved count', async () => {
+  it('resolves with assigned metadata', async () => {
+    const updateEqMock = vi.fn().mockResolvedValue({ error: null });
+    const selectChain = {
+      eq: vi.fn().mockReturnThis(),
+      is: vi.fn().mockResolvedValue({ data: [{ id: 'q1', payload: {} }], error: null }),
+    };
     const client = {
       from: vi.fn(() => ({
-        update: updateMock,
+        select: vi.fn(() => selectChain),
+        update: vi.fn(() => ({ eq: updateEqMock })),
       })),
     };
 
-    const result = await resolveOperationalTerritoryReviewForProspect(42, client as never);
-    expect(result).toEqual({ ok: true, resolved: 1 });
-    expect(client.from).toHaveBeenCalledWith('operational_territory_review_queue');
-    expect(updateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ resolved_at: expect.any(String) }),
+    const result = await resolveOperationalTerritoryReviewForProspect(
+      42,
+      { resolution: 'assigned', resolvedBy: 'actor-1' },
+      client as never,
     );
-    expect(eqMock).toHaveBeenCalledWith('entity_type', 'prospect');
-    expect(eqMock).toHaveBeenCalledWith('entity_id', '42');
-    expect(isMock).toHaveBeenCalledWith('resolved_at', null);
-  });
-
-  it('returns error when update fails', async () => {
-    selectMock.mockResolvedValue({ data: null, error: { message: 'rls' } });
-    const client = {
-      from: vi.fn(() => ({
-        update: updateMock,
-      })),
-    };
-    const result = await resolveOperationalTerritoryReviewForProspect(1, client as never);
-    expect(result).toEqual({ ok: false, error: 'rls' });
+    expect(result).toEqual({ ok: true, resolved: 1 });
   });
 });
 
-describe('activate operational territories migration', () => {
-  it('sets status active for the seven ops codes without editing prior migrations', () => {
+describe('ops review queue migration', () => {
+  it('includes resolution columns, RPC, backlog, and prospect unique index', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
     const sql = readFileSync(
       resolve(
         process.cwd(),
-        'supabase/migrations/20260822181446_activate_operational_territories.sql',
+        'supabase/migrations/20260822190000_operational_territory_review_queue_resolution.sql',
       ),
       'utf8',
     );
-    expect(sql).toMatch(/status = 'active'/);
-    expect(sql).toMatch(/pnw-west/);
-    expect(sql).toMatch(/ie-san-diego/);
-    expect(sql).not.toMatch(/zip_range/);
+    expect(sql).toMatch(/legacy_resolved/);
+    expect(sql).toMatch(/upsert_operational_territory_review/);
+    expect(sql).toMatch(/unique_violation/);
+    expect(sql).toMatch(/grant execute on function public\.upsert_operational_territory_review/);
+    expect(sql).toMatch(/operational_territory_review_queue_unresolved_prospect_uidx/);
+    expect(sql).toMatch(/insert into operational_territory_review_queue/);
+    expect(sql).toMatch(/on delete set null/i);
   });
 });

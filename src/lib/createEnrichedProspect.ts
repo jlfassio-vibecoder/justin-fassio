@@ -10,6 +10,7 @@ import {
   type Prospect,
   type ProspectListRow,
 } from '@/lib/prospects';
+import { runOperationalTerritoryReviewSyncAfterWrite } from '@/lib/operationalTerritories/syncOperationalTerritoryReview';
 import { PRIMARY_RETAIL_CHANNELS, type PrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
 import {
   BC_TERRITORY_CODE,
@@ -108,7 +109,8 @@ export type CreateEnrichedProspectInput = {
 };
 
 export type CreateEnrichedProspectResult =
-  { ok: true; prospect: Prospect; researchBrief: string | null } | { ok: false; error: string };
+  | { ok: true; prospect: Prospect; researchBrief: string | null; reviewWarning?: string | null }
+  | { ok: false; error: string };
 
 export type InferEnrichedProspectFieldsResult =
   | { ok: true; fields: EnrichedProspectFields; researchBrief: string | null }
@@ -247,7 +249,11 @@ async function insertProspect(
   if (!data) {
     return { ok: false, error: 'Insert returned no row' };
   }
-  return { ok: true, prospect: mapProspectRow(data as ProspectListRow), researchBrief: null };
+  const prospect = mapProspectRow(data as ProspectListRow);
+  const reviewWarning = await runOperationalTerritoryReviewSyncAfterWrite(supabase, prospect, {
+    locationChanged: true,
+  });
+  return { ok: true, prospect, researchBrief: null, reviewWarning };
 }
 
 async function insertBuyerContact(

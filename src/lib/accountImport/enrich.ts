@@ -27,6 +27,10 @@ import {
   type ProspectListRow,
 } from '@/lib/prospects';
 import {
+  prospectPatchTouchesLocation,
+  runOperationalTerritoryReviewSyncAfterWrite,
+} from '@/lib/operationalTerritories/syncOperationalTerritoryReview';
+import {
   insertRetailerFieldChanges,
   isVerifiedIdentityField,
   type RetailerFieldChangeInsert,
@@ -657,6 +661,20 @@ async function runClaimedJob(
         error: updateError.message,
       });
       return {};
+    }
+    if (prospectPatchTouchesLocation(classified.applyPatch as Record<string, unknown>)) {
+      const { data: refreshed } = await supabase
+        .from('prospects')
+        .select(PROSPECT_SELECT)
+        .eq('id', input.job.retailer_id)
+        .maybeSingle();
+      if (refreshed) {
+        await runOperationalTerritoryReviewSyncAfterWrite(
+          supabase,
+          mapProspectRow(refreshed as ProspectListRow),
+          { locationChanged: true },
+        );
+      }
     }
   }
 
