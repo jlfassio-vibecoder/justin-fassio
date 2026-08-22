@@ -79,6 +79,23 @@ function formatTimestamp(iso: string | null): string {
 
 type AccountEmailFlow = 'closed' | 'pick' | 'compose';
 
+const ACCOUNT_DRAWER_SECTIONS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'taxonomy', label: 'Taxonomy' },
+  { id: 'details', label: 'Details' },
+  { id: 'notes', label: 'Notes' },
+  { id: 'contacts', label: 'Contacts' },
+  { id: 'messages', label: 'Messages' },
+  { id: 'email', label: 'Email' },
+  { id: 'calendar', label: 'Calendar' },
+] as const;
+
+type AccountDrawerSectionId = (typeof ACCOUNT_DRAWER_SECTIONS)[number]['id'];
+
+function accountSectionDomId(sectionId: AccountDrawerSectionId): string {
+  return `account-section-${sectionId}`;
+}
+
 function accountProductEmailCardHtml(item: CatalogItem, publicMarket: PublicMarket = 'ca'): string {
   if (typeof window === 'undefined') return '';
   const href = tryBuildOgrProductUrl(
@@ -311,6 +328,7 @@ export function AccountDetailDrawer({
     account?.id ?? null,
   );
   const composerSentRef = useRef(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status
@@ -434,6 +452,17 @@ export function AccountDetailDrawer({
     setEmailRecipientOptions([]);
   }
 
+  function scrollToSection(sectionId: AccountDrawerSectionId) {
+    const container = scrollContainerRef.current;
+    const target = container?.querySelector<HTMLElement>(`#${accountSectionDomId(sectionId)}`);
+    if (!container || !target) return;
+    const top =
+      target.getBoundingClientRect().top -
+      container.getBoundingClientRect().top +
+      container.scrollTop;
+    container.scrollTo({ top, behavior: 'smooth' });
+  }
+
   return (
     <>
       <div
@@ -442,7 +471,7 @@ export function AccountDetailDrawer({
         aria-hidden="true"
       />
       <aside
-        className="border-ink/15 bg-surface fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l shadow-xl"
+        className="border-ink/15 bg-surface fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l shadow-xl md:w-2/3"
         role="dialog"
         aria-modal="true"
         aria-labelledby="account-detail-title"
@@ -468,26 +497,98 @@ export function AccountDetailDrawer({
           </button>
         </div>
 
-        <div className="flex flex-1 flex-col gap-5 overflow-auto px-5 py-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Tag variant="accent-2">{primaryRetailChannelLabel(account.category)}</Tag>
-            <span className="text-ink/70 text-sm">
-              {formatAccountLocationLine({
-                city: account.city,
-                region: account.region,
-                territoryCode: account.territoryCode,
-                territoryName: account.territoryName,
-              })}
-            </span>
-          </div>
-          <OutreachLeadStateChip prospectId={account.id} />
+        <nav
+          aria-label="Account sections"
+          className="border-ink/10 flex shrink-0 gap-1 overflow-x-auto border-b px-5 py-2"
+        >
+          {ACCOUNT_DRAWER_SECTIONS.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              className="text-ink/65 hover:text-ink hover:bg-ink/[0.04] shrink-0 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors"
+              onClick={() => scrollToSection(section.id)}
+            >
+              {section.label}
+            </button>
+          ))}
+        </nav>
 
-          <LineRightsAssignField key={`line-rights-${account.id}`} account={account} />
+        <div
+          ref={scrollContainerRef}
+          className="flex flex-1 flex-col gap-5 overflow-auto px-5 py-4"
+        >
+          <section id={accountSectionDomId('overview')} className="flex scroll-mt-2 flex-col gap-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Tag variant="accent-2">{primaryRetailChannelLabel(account.category)}</Tag>
+              <span className="text-ink/70 text-sm">
+                {formatAccountLocationLine({
+                  city: account.city,
+                  region: account.region,
+                  territoryCode: account.territoryCode,
+                  territoryName: account.territoryName,
+                })}
+              </span>
+            </div>
+            <OutreachLeadStateChip prospectId={account.id} />
 
-          <section className="flex flex-col gap-2">
-            <h3 className="font-heading m-0 text-base">CRM Retail Taxonomy</h3>
+            <LineRightsAssignField key={`line-rights-${account.id}`} account={account} />
+
+            <dl className="m-0 grid gap-3 text-sm">
+              <div>
+                <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Converted</dt>
+                <dd className="m-0 mt-0.5">{formatTimestamp(account.convertedAt)}</dd>
+              </div>
+              <div>
+                <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
+                  Initial order date
+                </dt>
+                <dd className="m-0 mt-0.5">{formatTimestamp(account.initialOrderDate)}</dd>
+              </div>
+              {summary ? (
+                <>
+                  <div>
+                    <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">TLV</dt>
+                    <dd className="m-0 mt-0.5">{formatCad(summary.tlvCad)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
+                      Last order
+                    </dt>
+                    <dd className="m-0 mt-0.5">{summary.lastOrderDate || '—'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Season</dt>
+                    <dd className="m-0 mt-0.5">
+                      {summary.latestSeason ? apparelSeasonLabel(summary.latestSeason) : '—'}
+                    </dd>
+                  </div>
+                </>
+              ) : null}
+              {reorderSettings?.next_suggested_contact_date ? (
+                <div>
+                  <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
+                    Next suggested contact
+                  </dt>
+                  <dd className="m-0 mt-0.5">{reorderSettings.next_suggested_contact_date}</dd>
+                </div>
+              ) : null}
+              {reorderSettings?.ai_reorder_notes ? (
+                <div>
+                  <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
+                    AI reorder notes
+                  </dt>
+                  <dd className="text-ink/80 m-0 mt-0.5 leading-relaxed">
+                    {reorderSettings.ai_reorder_notes}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          </section>
+
+          <section id={accountSectionDomId('taxonomy')} className="scroll-mt-2">
             <ProspectTaxonomyEditor
               key={account.id}
+              collapsible
               category={account.category}
               secondaryChannels={account.secondaryChannels}
               retailSubchannels={account.retailSubchannels}
@@ -502,88 +603,49 @@ export function AccountDetailDrawer({
             />
           </section>
 
-          <AccountDetailsEditor
-            key={`identity-${account.id}`}
-            prospect={account}
-            onSaved={(next) => onIdentitySaved?.(next)}
-          />
+          <section id={accountSectionDomId('details')} className="scroll-mt-2">
+            <AccountDetailsEditor
+              key={`identity-${account.id}`}
+              prospect={account}
+              onSaved={(next) => onIdentitySaved?.(next)}
+            />
+          </section>
 
-          <dl className="m-0 grid gap-3 text-sm">
-            <div>
-              <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Converted</dt>
-              <dd className="m-0 mt-0.5">{formatTimestamp(account.convertedAt)}</dd>
-            </div>
-            <div>
-              <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
-                Initial order date
-              </dt>
-              <dd className="m-0 mt-0.5">{formatTimestamp(account.initialOrderDate)}</dd>
-            </div>
-            {summary ? (
-              <>
-                <div>
-                  <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">TLV</dt>
-                  <dd className="m-0 mt-0.5">{formatCad(summary.tlvCad)}</dd>
-                </div>
-                <div>
-                  <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
-                    Last order
-                  </dt>
-                  <dd className="m-0 mt-0.5">{summary.lastOrderDate || '—'}</dd>
-                </div>
-                <div>
-                  <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Season</dt>
-                  <dd className="m-0 mt-0.5">
-                    {summary.latestSeason ? apparelSeasonLabel(summary.latestSeason) : '—'}
-                  </dd>
-                </div>
-              </>
-            ) : null}
-            {reorderSettings?.next_suggested_contact_date ? (
-              <div>
-                <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
-                  Next suggested contact
-                </dt>
-                <dd className="m-0 mt-0.5">{reorderSettings.next_suggested_contact_date}</dd>
-              </div>
-            ) : null}
-            {reorderSettings?.ai_reorder_notes ? (
-              <div>
-                <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
-                  AI reorder notes
-                </dt>
-                <dd className="text-ink/80 m-0 mt-0.5 leading-relaxed">
-                  {reorderSettings.ai_reorder_notes}
-                </dd>
-              </div>
-            ) : null}
-          </dl>
+          <section id={accountSectionDomId('notes')} className="scroll-mt-2">
+            <AccountNotesEditor
+              key={account.id}
+              accountId={account.id}
+              initialNotes={account.notes}
+              onSaved={onNotesSaved}
+            />
+          </section>
 
-          <AccountNotesEditor
-            key={account.id}
-            accountId={account.id}
-            initialNotes={account.notes}
-            onSaved={onNotesSaved}
-          />
+          <section id={accountSectionDomId('contacts')} className="flex scroll-mt-2 flex-col gap-5">
+            <ContactNameSearch key={account.id} currentAccountId={account.id} />
 
-          <ContactNameSearch key={account.id} currentAccountId={account.id} />
+            <AccountContactsSection
+              key={account.id}
+              accountId={account.id}
+              reloadToken={contactsReloadToken}
+            />
+          </section>
 
-          <AccountContactsSection
-            key={account.id}
-            accountId={account.id}
-            reloadToken={contactsReloadToken}
-          />
+          <section id={accountSectionDomId('messages')} className="scroll-mt-2">
+            <AccountMessagesSection key={`messages-${account.id}`} prospectId={account.id} />
+          </section>
 
-          <AccountMessagesSection key={`messages-${account.id}`} prospectId={account.id} />
+          <section id={accountSectionDomId('email')} className="scroll-mt-2">
+            <AccountEmailSection key={`email-${account.id}`} prospectId={account.id} />
+          </section>
 
-          <AccountEmailSection key={`email-${account.id}`} prospectId={account.id} />
-
-          <AccountCalendarSection
-            key={`calendar-${account.id}`}
-            prospectId={account.id}
-            refreshKey={calendarRefreshKey}
-            onScheduleMeeting={() => setScheduleOpen(true)}
-          />
+          <section id={accountSectionDomId('calendar')} className="scroll-mt-2">
+            <AccountCalendarSection
+              key={`calendar-${account.id}`}
+              prospectId={account.id}
+              refreshKey={calendarRefreshKey}
+              onScheduleMeeting={() => setScheduleOpen(true)}
+            />
+          </section>
         </div>
 
         <div className="border-ink/10 flex flex-col gap-2 border-t px-5 py-4">

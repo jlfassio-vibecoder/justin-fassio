@@ -40,7 +40,7 @@ import { setOutreachEligibleClient } from '@/lib/outreachOptInClient';
 import { setReactivationUnresponsiveClient } from '@/lib/reactivationUnresponsiveClient';
 import { accountStatusFromRelationship } from '@/lib/ogrCommercial';
 import { useOptionalLineContext } from '@/lib/lineContext';
-import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
+import type { Territory } from '@/lib/territories';
 
 interface ActiveAccountsTabProps {
   accounts: Prospect[];
@@ -102,9 +102,7 @@ export function ActiveAccountsTab({
   const prefillLine = { multiLineAi: lineCtx.multiLineAi, lineName: lineCtx.name };
   const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const ogrSelected = !lineCtx.multiLineUi || lineCtx.lineSlug === 'ogr';
-  const [territoryCode, setTerritoryCode] = useState(
-    deepLinkTerritory ?? (deepLinkReactivation ? 'ALL' : BC_TERRITORY_CODE),
-  );
+  const [territoryCode, setTerritoryCode] = useState(deepLinkTerritory ?? 'ALL');
   const [reactivation, setReactivation] = useState(deepLinkReactivation);
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);
@@ -370,6 +368,7 @@ export function ActiveAccountsTab({
         territoryCode={territoryCode}
         onTerritoryCodeChange={setTerritoryCode}
         currentSalesLineId={salesLineId}
+        actionColumnWidthClass="min-w-[11rem] w-[11rem]"
         searchPlaceholder="Search active accounts by name, city, address, or fit…"
         emptyMessage={
           reactivation
@@ -580,6 +579,16 @@ export function ActiveAccountsTab({
             <>
               {renderAiReminder(account)}
               <div className="flex items-center justify-end gap-1.5">
+                <Button
+                  variant="secondary"
+                  className="px-3 py-1 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDetailAccount(account);
+                  }}
+                >
+                  Open
+                </Button>
                 <Button
                   variant="secondary"
                   className="px-3 py-1 text-xs"
