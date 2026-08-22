@@ -9,6 +9,33 @@ export const STORE_TERRITORY_CODES = ['bc', 'ab', 'ca', 'or', 'wa'] as const;
 
 export type TerritoryCode = (typeof STORE_TERRITORY_CODES)[number];
 
+/** BC CRM subregions (distinct from province/state labels) that imply store territory BC. */
+const BC_CRM_SUBREGION_LABELS = new Set([
+  'OKANAGAN',
+  'SHUSWAP',
+  'VANCOUVER ISLAND',
+  'SEA-TO-SKY',
+  'SEA TO SKY',
+  'KOOTENAYS',
+  'FRASER VALLEY',
+]);
+
+function normalizeRegionLabel(region: string): string {
+  return region.trim().toUpperCase().replace(/-/g, ' ').replace(/\s+/g, ' ');
+}
+
+function territoryFromBcCrmRegion(region: string): typeof BC_TERRITORY_CODE | null {
+  const normalized = normalizeRegionLabel(region);
+  if (BC_CRM_SUBREGION_LABELS.has(normalized)) return BC_TERRITORY_CODE;
+  if (normalized.includes('OKANAGAN')) return BC_TERRITORY_CODE;
+  if (normalized.includes('SHUSWAP')) return BC_TERRITORY_CODE;
+  if (normalized.includes('KOOTENAY')) return BC_TERRITORY_CODE;
+  if (normalized.includes('FRASER VALLEY')) return BC_TERRITORY_CODE;
+  if (normalized.includes('SEA TO SKY')) return BC_TERRITORY_CODE;
+  if (normalized.includes('VANCOUVER ISLAND')) return BC_TERRITORY_CODE;
+  return null;
+}
+
 export function isStoreTerritoryCode(code: string | null | undefined): code is TerritoryCode {
   return (STORE_TERRITORY_CODES as readonly string[]).includes((code ?? '').trim().toLowerCase());
 }
@@ -48,6 +75,8 @@ export function suggestTerritoryCodeFromRegion(region: string | null | undefined
   if (p === 'CA' || p === 'CALIFORNIA') return 'ca';
   if (p === 'OR' || p === 'OREGON') return 'or';
   if (p === 'WA' || p === 'WASHINGTON') return 'wa';
+  const fromBcSubregion = territoryFromBcCrmRegion(region ?? '');
+  if (fromBcSubregion) return fromBcSubregion;
   return null;
 }
 
