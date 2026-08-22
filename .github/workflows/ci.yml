@@ -35,8 +35,17 @@ jobs:
           # Loads Vite + nested lightningcss the same way astro check does.
           node -e "import('./astro.config.mjs')"
 
-      - name: Lint, typecheck, format, and test
-        run: npm run check
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Test
+        run: npm run test
 
       - name: Build
         run: npm run build

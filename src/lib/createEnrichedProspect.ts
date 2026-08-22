@@ -12,6 +12,7 @@ import {
 } from '@/lib/prospects';
 import { PRIMARY_RETAIL_CHANNELS, type PrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
 import {
+  BC_TERRITORY_CODE,
   resolveStoreTerritoryCodeFromEnrichment,
   resolveTerritoryIdByCode,
 } from '@/lib/territories';
@@ -40,17 +41,20 @@ export const enrichedProspectSchema = z.object({
     ),
   region: z
     .string()
-    .min(1)
+    .nullable()
     .describe(
-      'CRM region label from research: BC subregion (Okanagan, Shuswap, Vancouver Island, Sea-to-Sky, Kootenays, Fraser Valley) or province/state name (Oregon, Washington, Alberta, California, British Columbia) when that is the best regional label. Free text allowed; do not invent.',
+      'CRM region label from research: BC subregion (Okanagan, Shuswap, Vancouver Island, Sea-to-Sky, Kootenays, Fraser Valley) or province/state name (Oregon, Washington, Alberta, California, British Columbia) when that is the best regional label. Null when unknown — do not invent.',
     ),
   city: z
     .string()
-    .min(1)
-    .describe('Store city or town from research / official site when known; do not invent.'),
+    .nullable()
+    .describe(
+      'Store city or town from research / official site when known. Null when unknown — do not invent.',
+    ),
+  // OpenAI structured outputs require every property in `required`; use .nullable() not .nullish().
   provinceOrState: z
     .string()
-    .nullish()
+    .nullable()
     .describe(
       'Political province or state when known from address/research: British Columbia, Alberta, California, Oregon, or Washington. Null when unknown — do not guess.',
     ),
@@ -132,8 +136,8 @@ export function proposedProspectFromFields(
     ...current,
     name: fields.name.trim(),
     category: fields.category,
-    region: fields.region.trim(),
-    city: fields.city.trim(),
+    region: fields.region?.trim() || current.region,
+    city: fields.city?.trim() || current.city,
     address: fields.address?.trim() || '',
     phone: fields.phone?.trim() || '',
     fit: formatProspectFit(fields.fitScore, fields.notes),
@@ -205,24 +209,32 @@ async function insertProspect(
   supabase: AgentSupabase,
   id: number,
   fields: EnrichedProspectFields,
-  extras: { websiteUrl?: string; retailChannelHint?: string; territoryId: string },
+  extras: {
+    websiteUrl?: string;
+    retailChannelHint?: string;
+    territoryId: string;
+    geographyPending?: boolean;
+  },
 ): Promise<CreateEnrichedProspectResult> {
   const fit = formatProspectFit(fields.fitScore, fields.notes);
   const website = extras.websiteUrl?.trim() || null;
   const retailCategory = extras.retailChannelHint?.trim() || null;
+  const sourceNote = extras.geographyPending
+    ? 'Add via AI — confirm city, region, and store territory'
+    : 'Add via AI';
   const { data, error } = await supabase
     .from('prospects')
     .insert({
       id,
       name: fields.name.trim(),
       category: fields.category,
-      region: fields.region.trim(),
-      city: fields.city.trim(),
+      region: fields.region?.trim() || '',
+      city: fields.city?.trim() || '',
       address: fields.address?.trim() || '',
       phone: fields.phone?.trim() || '',
       fit,
       website,
-      source_note: 'Add via AI',
+      source_note: sourceNote,
       retail_category: retailCategory,
       territory_id: extras.territoryId,
     })
@@ -367,9 +379,9 @@ export async function inferEnrichedProspectFields(
         'Infer structured CRM fields from the company name, optional official website, and web research brief.',
         'Prefer known inbound form facts (city/phone/channel) over guesses when they conflict with thin research.',
         CATEGORY_MAPPING_GUIDANCE,
-        'Set city and address from the researched store location when known; do not invent geography.',
+        'Set city and address from the researched store location when known; otherwise null — do not invent geography.',
         'Set provinceOrState to British Columbia, Alberta, California, Oregon, or Washington when the address/research clearly identifies that province or state; otherwise null.',
-        'Set region to a useful CRM label: a BC subregion (Okanagan, Shuswap, Vancouver Island, Sea-to-Sky, Kootenays, Fraser Valley) when applicable, or the province/state name when that is the best regional label.',
+        'Set region to a useful CRM label when known: a BC subregion (Okanagan, Shuswap, Vancouver Island, Sea-to-Sky, Kootenays, Fraser Valley), or the province/state name; otherwise null — do not invent.',
         'fitScore is 1–10 for likely fit with casual lifestyle apparel wholesale (outdoor specialty that sells apparel can score mid–high).',
         'notes must be exactly two short sentences on positioning / customer vibe based on real merchandise.',
         'Clean up the business name; do not invent phone numbers or street addresses.',
@@ -393,6 +405,8 @@ export async function inferEnrichedProspectFields(
 /**
  * Infer CRM fields via AI Gateway (+ optional web research), then INSERT under JWT/RLS.
  * Store territory is derived from researched province/region (or an explicit inbound seed).
+ * When geography is unknown, still creates the row with a provisional BC territory so the
+ * rep can set city/region/store territory manually in account details.
  * Address/phone only when research cites them. Encodes fit score + notes into `fit`.
  */
 export async function createEnrichedProspect(
@@ -405,18 +419,13 @@ export async function createEnrichedProspect(
   }
 
   const { fields, researchBrief } = inferred;
-  const territoryCode = resolveStoreTerritoryCodeFromEnrichment({
+  const resolvedCode = resolveStoreTerritoryCodeFromEnrichment({
     provinceOrState: fields.provinceOrState,
     region: fields.region,
     seedTerritoryCode: input.territoryCode,
   });
-  if (!territoryCode) {
-    return {
-      ok: false,
-      error:
-        'Could not determine store territory from the researched location. Add a clearer website or address, or try again after confirming the province/state.',
-    };
-  }
+  const geographyPending = !resolvedCode;
+  const territoryCode = resolvedCode ?? BC_TERRITORY_CODE;
 
   const territory = await resolveTerritoryIdByCode(supabase, territoryCode);
   if ('error' in territory) {
@@ -427,6 +436,7 @@ export async function createEnrichedProspect(
     websiteUrl: input.websiteUrl?.trim() || undefined,
     retailChannelHint: input.retailChannelHint?.trim() || undefined,
     territoryId: territory.id,
+    geographyPending,
   };
 
   const firstId = await allocateNextId(supabase);

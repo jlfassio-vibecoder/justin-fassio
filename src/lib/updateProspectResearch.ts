@@ -253,8 +253,8 @@ export async function applyProspectResearchUpdate(
   const patch: Record<string, unknown> = {
     name: fields.name.trim(),
     category: fields.category,
-    region: fields.region,
-    city: fields.city.trim(),
+    region: fields.region?.trim() || '',
+    city: fields.city?.trim() || '',
     address: fields.address?.trim() || '',
     phone: fields.phone?.trim() || '',
     fit,

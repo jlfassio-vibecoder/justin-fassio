@@ -109,8 +109,9 @@ export function AddProspectAiModal({
         </div>
 
         <p className="text-ink/65 m-0 text-sm">
-          Enter a company name (and optional website). We research the store location, infer city,
-          region, store territory, channel, and fit notes, then add the row to your directory.
+          Enter a company name (and optional website). We research the store and infer channel and
+          fit notes. If city, region, or store territory cannot be confirmed, the account is still
+          created so you can set geography in account details.
         </p>
 
         <Field>

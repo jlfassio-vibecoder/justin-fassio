@@ -335,23 +335,49 @@ describe('createEnrichedProspect web research', () => {
     expect(capturedTerritoryId).toBe('terr-bc');
   });
 
-  it('fails when geography cannot resolve to a store territory (no silent BC)', async () => {
+  it('still creates when geography is unknown (provisional BC; edit manually)', async () => {
     researchCompanyMock.mockResolvedValue({ brief: 'Unknown location', error: null });
     generateObjectMock.mockResolvedValue({
       object: aiFields({
         provinceOrState: null,
-        region: 'not-a-place',
+        region: null,
+        city: null,
         address: null,
         phone: null,
       }),
     });
 
-    const supabase = mockSupabaseInsert(insertedRow);
+    const insertPayloads: Record<string, unknown>[] = [];
+    const base = mockSupabaseInsert({
+      ...insertedRow,
+      region: '',
+      city: '',
+      source_note: 'Add via AI — confirm city, region, and store territory',
+    });
+    const from = vi.fn((table: string) => {
+      const chain = (base as { from: (t: string) => unknown }).from(table) as {
+        insert?: (payload: Record<string, unknown>) => unknown;
+      };
+      if (table === 'prospects' && typeof chain.insert === 'function') {
+        const originalInsert = chain.insert.bind(chain);
+        return {
+          ...chain,
+          insert: (payload: Record<string, unknown>) => {
+            insertPayloads.push(payload);
+            return originalInsert(payload);
+          },
+        };
+      }
+      return chain;
+    });
+    const supabase = { from } as unknown as AgentSupabase;
+
     const result = await createEnrichedProspect(supabase, { companyName: 'Valley Shop' });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toMatch(/store territory/i);
-    }
+    expect(result.ok).toBe(true);
+    expect(insertPayloads[0]?.territory_id).toBe('terr-bc');
+    expect(insertPayloads[0]?.city).toBe('');
+    expect(insertPayloads[0]?.region).toBe('');
+    expect(insertPayloads[0]?.source_note).toMatch(/confirm city, region, and store territory/i);
   });
 });
 
