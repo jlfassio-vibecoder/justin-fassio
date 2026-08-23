@@ -227,6 +227,7 @@ export function AgentBriefingTab({
     };
   }, [reloadToken, briefingReloadToken, lineCtx.multiLineUi, lineCtx.salesLineId]);
 
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (pendingDraftId && pendingDeepLinkKey !== appliedDeepLinkKey && !loading && briefing) {
     setAppliedDeepLinkKey(pendingDeepLinkKey);
     const row = briefing.drafts.find((d) => d.draftId === pendingDraftId);
