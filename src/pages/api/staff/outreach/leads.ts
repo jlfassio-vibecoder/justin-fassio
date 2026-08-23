@@ -6,6 +6,7 @@ import {
   listWarmLeads,
   type OutreachLeadKind,
 } from '@/lib/outreachLeadLists';
+import { resolveOutreachLeadRules } from '@/lib/resolveOutreachLeadRules';
 import { resolveSalesLineQuery } from '@/lib/resolveSalesLineQuery';
 
 export const prerender = false;
@@ -51,12 +52,15 @@ export const GET: APIRoute = async ({ request, url }) => {
       });
     }
 
+    const resolvedRules = await resolveOutreachLeadRules({ client: gate.supabase });
+    const rules = resolvedRules.rules;
+
     const leads =
       kind === 'warm'
-        ? await listWarmLeads(gate.supabase)
+        ? await listWarmLeads(gate.supabase, undefined, rules)
         : kind === 'hot'
-          ? await listHotLeads(gate.supabase)
-          : await listCallToday(gate.supabase);
+          ? await listHotLeads(gate.supabase, undefined, rules)
+          : await listCallToday(gate.supabase, undefined, rules);
 
     return new Response(JSON.stringify({ ok: true, kind, leads }), {
       status: 200,

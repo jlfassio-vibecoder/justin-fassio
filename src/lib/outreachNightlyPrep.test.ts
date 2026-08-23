@@ -286,6 +286,7 @@ describe('runOutreachNightlyPrep', () => {
             },
           ],
           byLeadState: [],
+          attributionCohort: { rows: [] },
         },
       },
     });

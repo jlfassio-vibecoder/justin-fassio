@@ -6,6 +6,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import { getOutreachGoalSettings } from '@/lib/outreachGoals';
+import type { OutreachMessageRow } from '@/lib/outreachEngagementAggregate';
+import { leadStatesAtSendTime } from '@/lib/outreachLeadStateAtSend';
+import { OUTREACH_LEAD_RULES } from '@/lib/outreachLeadRules';
+import type { OutreachLeadState } from '@/lib/outreachLeadState';
 import { lookbackStartIso } from '@/lib/outreachSellingDays';
 import { primaryRetailChannelLabel } from '@/lib/crmRetailTaxonomy';
 import { supabase } from '@/lib/supabase';
@@ -21,6 +25,22 @@ export type PerformanceSlice = {
   confidence: 'insufficient' | 'measured';
 };
 
+export type LeadRuleCalibrationCohortRow = {
+  leadState: OutreachLeadState | null;
+  leadScore: number | null;
+  engagement: {
+    openCount: number;
+    clickCount: number;
+    replyAttributed: boolean;
+    emailsSent: number;
+  };
+  recencyDays: number | null;
+};
+
+export type LeadRuleCalibrationCohort = {
+  rows: LeadRuleCalibrationCohortRow[];
+};
+
 export type OutreachPerformanceReport = {
   lookbackDays: number;
   minAttributedConversions: number;
@@ -28,7 +48,11 @@ export type OutreachPerformanceReport = {
   byProduct: PerformanceSlice[];
   byFitBand: PerformanceSlice[];
   byLeadState: PerformanceSlice[];
+  attributionCohort: LeadRuleCalibrationCohort;
 };
+
+const MESSAGE_SELECT =
+  'id, prospect_id, to_email, catalog_item_id, sent_at, open_count, click_count, last_opened_at, last_clicked_at, bounced_at, complained_at, status, account_contact_id';
 
 export function fitBandKey(fitScore: number | null | undefined): string {
   if (fitScore == null || !Number.isFinite(fitScore)) return 'unknown';
@@ -72,6 +96,75 @@ function bump(
   map.set(key, cur);
 }
 
+function parseEngagementSnapshot(snapshot: unknown): LeadRuleCalibrationCohortRow['engagement'] {
+  const fallback = { openCount: 0, clickCount: 0, replyAttributed: false, emailsSent: 0 };
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return fallback;
+  const engagement = (snapshot as Record<string, unknown>).engagement;
+  if (!engagement || typeof engagement !== 'object' || Array.isArray(engagement)) return fallback;
+  const row = engagement as Record<string, unknown>;
+  return {
+    openCount: typeof row.openCount === 'number' ? row.openCount : 0,
+    clickCount: typeof row.clickCount === 'number' ? row.clickCount : 0,
+    replyAttributed: row.replyAttributed === true,
+    emailsSent: typeof row.emailsSent === 'number' ? row.emailsSent : 0,
+  };
+}
+
+function isLinkedAttribution(row: {
+  attribution_model: string;
+  attributed_system_message_id: string | null;
+}): boolean {
+  return (
+    (row.attribution_model === 'staff_confirmed' ||
+      row.attribution_model === 'last_touch_inferred') &&
+    row.attributed_system_message_id != null
+  );
+}
+
+function buildAttributionCohort(
+  attributedRows: Array<{
+    attribution_model: string;
+    attributed_system_message_id: string | null;
+    lead_state: string | null;
+    lead_score?: number | null;
+    converted_at?: string | null;
+    snapshot?: unknown;
+  }>,
+): LeadRuleCalibrationCohort {
+  const rows: LeadRuleCalibrationCohortRow[] = [];
+
+  for (const row of attributedRows) {
+    if (!isLinkedAttribution(row)) continue;
+
+    const engagement = parseEngagementSnapshot(row.snapshot);
+    let recencyDays: number | null = null;
+    if (row.converted_at) {
+      const convertedMs = Date.parse(row.converted_at);
+      const candidates = [
+        engagement.clickCount > 0 ? convertedMs - 2 * 24 * 60 * 60 * 1000 : null,
+        engagement.openCount > 0 ? convertedMs - 5 * 24 * 60 * 60 * 1000 : null,
+      ].filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+      if (candidates.length > 0 && Number.isFinite(convertedMs)) {
+        recencyDays = Math.max(0, (convertedMs - Math.max(...candidates)) / (24 * 60 * 60 * 1000));
+      }
+    }
+
+    const leadState =
+      row.lead_state === 'cold' || row.lead_state === 'warm' || row.lead_state === 'hot'
+        ? row.lead_state
+        : null;
+
+    rows.push({
+      leadState,
+      leadScore: row.lead_score != null ? Number(row.lead_score) : null,
+      engagement,
+      recencyDays,
+    });
+  }
+
+  return { rows };
+}
+
 /** Pure builder for tests — pass pre-loaded rows. */
 export function buildOutreachPerformanceReport(params: {
   lookbackDays: number;
@@ -83,12 +176,15 @@ export function buildOutreachPerformanceReport(params: {
     catalog_item_id: string | null;
     fit_score: number | null;
     lead_state: string | null;
+    lead_score?: number | null;
+    converted_at?: string | null;
     snapshot?: unknown;
   }>;
   sendRows: Array<{
     catalog_item_id: string | null;
     primary_channel: string | null;
     fit_score: number | null;
+    lead_state_at_send?: OutreachLeadState | null;
   }>;
 }): OutreachPerformanceReport {
   const byChannel = new Map<string, { sends: number; conversions: number }>();
@@ -100,14 +196,13 @@ export function buildOutreachPerformanceReport(params: {
     bump(byChannel, s.primary_channel ?? 'unknown', 'sends');
     bump(byProduct, s.catalog_item_id ?? 'unknown', 'sends');
     bump(byFitBand, fitBandKey(s.fit_score), 'sends');
+    if (s.lead_state_at_send) {
+      bump(byLeadState, s.lead_state_at_send, 'sends');
+    }
   }
 
   for (const row of params.attributedRows) {
-    const linked =
-      (row.attribution_model === 'staff_confirmed' ||
-        row.attribution_model === 'last_touch_inferred') &&
-      row.attributed_system_message_id != null;
-    if (!linked) continue;
+    if (!isLinkedAttribution(row)) continue;
 
     bump(byChannel, row.primary_channel ?? 'unknown', 'conversions');
     bump(byProduct, row.catalog_item_id ?? 'unknown', 'conversions');
@@ -115,8 +210,6 @@ export function buildOutreachPerformanceReport(params: {
     bump(byLeadState, row.lead_state ?? 'unknown', 'conversions');
   }
 
-  // Lead-state sends are not tracked at send time — only conversion numerators.
-  // Use conversion-only keys for lead state table (sends stay 0).
   const min = params.minAttributedConversions;
 
   return {
@@ -141,6 +234,7 @@ export function buildOutreachPerformanceReport(params: {
       (k) => (k === 'unknown' ? 'Unknown' : k.charAt(0).toUpperCase() + k.slice(1)),
       min,
     ),
+    attributionCohort: buildAttributionCohort(params.attributedRows),
   };
 }
 
@@ -163,7 +257,7 @@ export async function loadOutreachPerformanceReport(params?: {
   const { data: attrs, error: attrErr } = await client
     .from('account_conversion_attribution')
     .select(
-      'attribution_model, attributed_system_message_id, primary_channel, catalog_item_id, fit_score, lead_state, snapshot',
+      'attribution_model, attributed_system_message_id, primary_channel, catalog_item_id, fit_score, lead_state, lead_score, converted_at, snapshot',
     )
     .gte('converted_at', startIso)
     .lte('converted_at', asOfIso);
@@ -197,7 +291,36 @@ export async function loadOutreachPerformanceReport(params?: {
     }
   }
 
-  const sendRows = (sends ?? []).map((s) => {
+  const messagesByProspect = new Map<number, OutreachMessageRow[]>();
+  if (prospectIds.length > 0) {
+    const { data: history, error: historyErr } = await client
+      .from('system_messages')
+      .select(MESSAGE_SELECT)
+      .eq('message_type', 'product_outreach')
+      .in('prospect_id', prospectIds)
+      .not('sent_at', 'is', null)
+      .lte('sent_at', asOfIso);
+    if (historyErr) return { ok: false, error: historyErr.message };
+
+    for (const raw of history ?? []) {
+      const row = raw as OutreachMessageRow;
+      if (typeof row.prospect_id !== 'number' || !Number.isFinite(row.prospect_id)) continue;
+      const bucket = messagesByProspect.get(row.prospect_id) ?? [];
+      bucket.push(row);
+      messagesByProspect.set(row.prospect_id, bucket);
+    }
+  }
+
+  const sendEvents: Array<{ prospectId: number; sentAt: string }> = [];
+  const sendRowsBase: Array<{
+    catalog_item_id: string | null;
+    primary_channel: string | null;
+    fit_score: number | null;
+    prospectId: number | null;
+    sentAt: string | null;
+  }> = [];
+
+  for (const s of sends ?? []) {
     const payload =
       s.payload && typeof s.payload === 'object' && !Array.isArray(s.payload)
         ? (s.payload as Record<string, unknown>)
@@ -208,10 +331,35 @@ export async function loadOutreachPerformanceReport(params?: {
         : null;
     const primaryFromGen = typeof gen?.primaryChannel === 'string' ? gen.primaryChannel : null;
     const meta = typeof s.prospect_id === 'number' ? prospectMeta.get(s.prospect_id) : undefined;
-    return {
+    const sentAt = typeof s.sent_at === 'string' ? s.sent_at : null;
+    sendRowsBase.push({
       catalog_item_id: s.catalog_item_id,
       primary_channel: primaryFromGen ?? meta?.category ?? null,
       fit_score: meta?.fit_score ?? null,
+      prospectId: typeof s.prospect_id === 'number' ? s.prospect_id : null,
+      sentAt,
+    });
+    if (typeof s.prospect_id === 'number' && sentAt) {
+      sendEvents.push({ prospectId: s.prospect_id, sentAt });
+    }
+  }
+
+  const leadStateBySend = leadStatesAtSendTime({
+    sends: sendEvents,
+    messagesByProspect,
+    rules: OUTREACH_LEAD_RULES,
+  });
+
+  const sendRows = sendRowsBase.map((row) => {
+    const leadStateAtSend =
+      row.prospectId != null && row.sentAt
+        ? (leadStateBySend.get(`${row.prospectId}:${row.sentAt}`) ?? null)
+        : null;
+    return {
+      catalog_item_id: row.catalog_item_id,
+      primary_channel: row.primary_channel,
+      fit_score: row.fit_score,
+      lead_state_at_send: leadStateAtSend,
     };
   });
 

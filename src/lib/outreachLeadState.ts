@@ -6,8 +6,8 @@
 import type { ProspectOutreachEngagement } from '@/lib/outreachEngagementAggregate';
 import {
   OUTREACH_LEAD_RULES,
-  OUTREACH_LEAD_RULES_VERSION,
   type OutreachLeadRules,
+  type OutreachLeadRulesVersion,
 } from '@/lib/outreachLeadRules';
 
 export type OutreachLeadState = 'cold' | 'warm' | 'hot';
@@ -25,7 +25,7 @@ export type EvaluateLeadStateResult = {
   callToday: boolean;
   callTodayReasons: CallTodayReason[];
   score: number;
-  rulesVersion: typeof OUTREACH_LEAD_RULES_VERSION;
+  rulesVersion: OutreachLeadRulesVersion;
   agedOut: boolean;
 };
 

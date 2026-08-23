@@ -414,10 +414,17 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
                   : briefing.channelAllocation?.meta?.weightSource === 'uniform'
                     ? 'Insufficient attributed conversions — even channel rotation, rank-based product picks, and CRM fit-score ranking'
                     : 'Performance data shown for review — run nightly prep to apply learning weights'}
+                {' · '}
+                {briefing.leadRules.source === 'measured'
+                  ? 'Lead rules calibrated from attributed Warm/Hot performance'
+                  : 'Provisional lead rules — insufficient attributed conversions'}
+                {briefing.leadRules.adjustedFields.length > 0
+                  ? ` · tuned: ${briefing.leadRules.adjustedFields.slice(0, 4).join(', ')}`
+                  : ''}
                 {' · lookback '}
                 {briefing.performance.lookbackDays}d
               </CardMeta>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <div className="overflow-x-auto">
                   <p className="text-ink/50 m-0 mb-2 text-xs uppercase">By channel</p>
                   <table className="w-full border-collapse text-left text-sm">
@@ -505,6 +512,47 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
                         </tr>
                       ) : (
                         [...briefing.performance.byFitBand]
+                          .sort(
+                            (a, b) =>
+                              b.attributedConversions - a.attributedConversions ||
+                              b.sends - a.sends,
+                          )
+                          .map((s) => (
+                            <tr key={s.key}>
+                              <td className="border-ink/[0.06] border-b p-2">{s.label}</td>
+                              <td className="border-ink/[0.06] border-b p-2">{s.sends}</td>
+                              <td className="border-ink/[0.06] border-b p-2">
+                                {s.attributedConversions}
+                              </td>
+                              <td className="border-ink/[0.06] border-b p-2 text-xs">
+                                {s.confidence}
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="overflow-x-auto">
+                  <p className="text-ink/50 m-0 mb-2 text-xs uppercase">By lead state</p>
+                  <table className="w-full border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="text-ink/50 text-xs uppercase">
+                        <th className="border-ink/10 border-b p-2 font-medium">Lead state</th>
+                        <th className="border-ink/10 border-b p-2 font-medium">Sends</th>
+                        <th className="border-ink/10 border-b p-2 font-medium">Attributed</th>
+                        <th className="border-ink/10 border-b p-2 font-medium">Confidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {briefing.performance.byLeadState.length === 0 ? (
+                        <tr>
+                          <td className="border-ink/[0.06] text-ink/60 border-b p-2" colSpan={4}>
+                            No lead-state outreach data yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        [...briefing.performance.byLeadState]
                           .sort(
                             (a, b) =>
                               b.attributedConversions - a.attributedConversions ||

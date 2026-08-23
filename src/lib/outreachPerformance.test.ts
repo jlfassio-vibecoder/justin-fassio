@@ -31,17 +31,40 @@ describe('buildOutreachPerformanceReport', () => {
           catalog_item_id: 'p1',
           fit_score: 9,
           lead_state: 'hot',
+          lead_score: 12,
+          snapshot: {
+            engagement: { openCount: 1, clickCount: 2, replyAttributed: false, emailsSent: 2 },
+          },
         },
       ],
       sendRows: [
-        { catalog_item_id: 'p1', primary_channel: 'golf_retail', fit_score: 9 },
-        { catalog_item_id: 'p1', primary_channel: 'golf_retail', fit_score: 9 },
+        {
+          catalog_item_id: 'p1',
+          primary_channel: 'golf_retail',
+          fit_score: 9,
+          lead_state_at_send: 'warm',
+        },
+        {
+          catalog_item_id: 'p1',
+          primary_channel: 'golf_retail',
+          fit_score: 9,
+          lead_state_at_send: 'hot',
+        },
       ],
     });
 
     const golf = report.byChannel.find((s) => s.key === 'golf_retail');
     expect(golf?.attributedConversions).toBe(1);
     expect(golf?.sends).toBe(2);
-    expect(report.byLeadState.find((s) => s.key === 'hot')?.attributedConversions).toBe(1);
+
+    const hot = report.byLeadState.find((s) => s.key === 'hot');
+    expect(hot?.attributedConversions).toBe(1);
+    expect(hot?.sends).toBe(1);
+
+    const warm = report.byLeadState.find((s) => s.key === 'warm');
+    expect(warm?.sends).toBe(1);
+
+    expect(report.attributionCohort.rows).toHaveLength(1);
+    expect(report.attributionCohort.rows[0]?.leadScore).toBe(12);
   });
 });

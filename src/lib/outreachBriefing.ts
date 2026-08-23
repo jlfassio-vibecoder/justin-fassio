@@ -20,6 +20,9 @@ import {
 import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
 import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { AGENT_OUTREACH_PENDING_DRAFT_STATUSES } from '@/lib/outreachSelectionConstants';
+import type { LeadRuleSource } from '@/lib/outreachLeadRuleCalibration';
+import type { OutreachLeadRulesVersion } from '@/lib/outreachLeadRules';
+import { resolveOutreachLeadRules } from '@/lib/resolveOutreachLeadRules';
 import {
   listAgentProductOutreachDrafts,
   SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH,
@@ -93,6 +96,11 @@ export type OutreachBriefingDto = {
     convertedAt: string;
   }>;
   performance: OutreachPerformanceReport | null;
+  leadRules: {
+    source: LeadRuleSource;
+    version: OutreachLeadRulesVersion;
+    adjustedFields: string[];
+  };
 };
 
 function toPublicRun(run: OutreachAutomationRunRow): OutreachAutomationRunPublic {
@@ -287,6 +295,7 @@ export async function assembleOutreachBriefing(params: {
       recentEngagement: [],
       recentConversions: [],
       performance: null,
+      leadRules: { source: 'provisional', version: 'v1-provisional', adjustedFields: [] },
     };
     return { ok: true, briefing: empty };
   }
@@ -366,10 +375,16 @@ export async function assembleOutreachBriefing(params: {
 
   const since = new Date(asOf.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
+  const resolvedLeadRules = await resolveOutreachLeadRules({
+    client,
+    asOf,
+    performance: snap.snapshot.performance,
+  });
+
   const [callToday, hot, warm, recentEngagement, recentConversions] = await Promise.all([
-    listCallToday(client, asOf),
-    listHotLeads(client, asOf),
-    listWarmLeads(client, asOf),
+    listCallToday(client, asOf, resolvedLeadRules.rules),
+    listHotLeads(client, asOf, resolvedLeadRules.rules),
+    listWarmLeads(client, asOf, resolvedLeadRules.rules),
     loadRecentEngagement(client, since),
     loadRecentConversions(client, since),
   ]);
@@ -399,6 +414,11 @@ export async function assembleOutreachBriefing(params: {
     recentEngagement,
     recentConversions,
     performance: snap.snapshot.performance,
+    leadRules: {
+      source: resolvedLeadRules.source,
+      version: resolvedLeadRules.rules.version,
+      adjustedFields: resolvedLeadRules.meta.adjustedFields,
+    },
   };
 
   return { ok: true, briefing };

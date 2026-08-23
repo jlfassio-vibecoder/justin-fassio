@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import { evaluateLeadState } from '@/lib/outreachLeadState';
 import { aggregateProspectOutreachEngagement } from '@/lib/outreachEngagementAggregate';
+import { OUTREACH_LEAD_RULES } from '@/lib/outreachLeadRules';
 import { listOutreachLeads } from '@/lib/outreachLeadLists';
 
 type DbClient = SupabaseClient<Database>;
@@ -186,7 +187,7 @@ describe('listOutreachLeads integration (mocked client)', () => {
     });
 
     const client = { from } as unknown as DbClient;
-    const leads = await listOutreachLeads(client, { asOf });
+    const leads = await listOutreachLeads(client, { asOf, rules: OUTREACH_LEAD_RULES });
     const byId = new Map(leads.map((l) => [l.prospectId, l]));
 
     expect(byId.get(42)?.engagement.unlinkedManualIncluded).toBe(1);

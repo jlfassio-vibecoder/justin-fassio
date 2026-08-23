@@ -20,6 +20,7 @@ function makeReport(
     byProduct: [],
     byFitBand: [],
     byLeadState: [],
+    attributionCohort: { rows: [] },
   };
 }
 

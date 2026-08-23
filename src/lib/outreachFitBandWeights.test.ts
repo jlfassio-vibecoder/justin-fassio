@@ -20,6 +20,7 @@ function makeReport(
       confidence: 'insufficient' as const,
     })),
     byLeadState: [],
+    attributionCohort: { rows: [] },
   };
 }
 

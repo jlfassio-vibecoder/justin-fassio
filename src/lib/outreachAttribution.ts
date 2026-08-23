@@ -16,6 +16,7 @@ import {
   getOutreachLeadForProspect,
   loadUniqueContactEmailsForProspect,
 } from '@/lib/outreachLeadLists';
+import { resolveOutreachLeadRules } from '@/lib/resolveOutreachLeadRules';
 import {
   normalizeSystemMessageEmail,
   parseGenerationMeta,
@@ -258,10 +259,13 @@ export async function recordConversionAttribution(
   let rulesVersion: string | null = null;
   let engagementSnapshot: Record<string, unknown> = {};
   try {
+    const convertedAt = new Date(input.convertedAt);
+    const resolvedRules = await resolveOutreachLeadRules({ client, asOf: convertedAt });
     const lead = await getOutreachLeadForProspect({
       client,
       prospectId: input.prospectId,
-      asOf: new Date(input.convertedAt),
+      asOf: convertedAt,
+      rules: resolvedRules.rules,
     });
     if (lead) {
       leadState = lead.leadState;

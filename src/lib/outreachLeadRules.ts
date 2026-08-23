@@ -4,10 +4,14 @@
  * Documented ratio: click product = 5 × open-only product.
  */
 
-export const OUTREACH_LEAD_RULES_VERSION = 'v1-provisional' as const;
+export type OutreachLeadRulesVersion = 'v1-provisional' | 'v1-measured';
+
+export const OUTREACH_LEAD_RULES_VERSION: OutreachLeadRulesVersion = 'v1-provisional';
+
+export const OUTREACH_LEAD_RULES_MEASURED_VERSION: OutreachLeadRulesVersion = 'v1-measured';
 
 export type OutreachLeadRules = {
-  version: typeof OUTREACH_LEAD_RULES_VERSION;
+  version: OutreachLeadRulesVersion;
   /** Points per unique product with open only (no click on that product). */
   pointsOpenOnlyProduct: number;
   /** Cap on open-only product points (bot-open dampener). */
