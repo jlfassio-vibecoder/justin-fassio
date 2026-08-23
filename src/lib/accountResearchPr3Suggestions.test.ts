@@ -6,6 +6,12 @@ const migration = readFileSync(
   resolve('supabase/migrations/20260823160000_account_research_pr3_suggestions.sql'),
   'utf8',
 );
+const persistGuardMigration = readFileSync(
+  resolve(
+    'supabase/migrations/20260823170000_account_research_pr3_persist_invalid_citation_guard.sql',
+  ),
+  'utf8',
+);
 const schemaSql = readFileSync(resolve('supabase/schema.sql'), 'utf8');
 
 describe('account research PR3 suggestions migration', () => {
@@ -23,5 +29,12 @@ describe('account research PR3 suggestions migration', () => {
   it('supersedes pending suggestions when a run is superseded', () => {
     expect(migration).toMatch(/account_research_runs_supersede_suggestions/i);
     expect(schemaSql).toMatch(/account_research_runs_supersede_suggestions/i);
+  });
+
+  it('patches persist RPC invalid citation UUID handling in a forward migration', () => {
+    expect(migration).not.toMatch(/invalid_text_representation/i);
+    expect(persistGuardMigration).toMatch(/persist_account_research_profile_suggestions/i);
+    expect(persistGuardMigration).toMatch(/invalid_text_representation/i);
+    expect(schemaSql).toMatch(/invalid_text_representation/i);
   });
 });
