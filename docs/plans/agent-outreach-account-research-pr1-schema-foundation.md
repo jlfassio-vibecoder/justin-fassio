@@ -1,10 +1,10 @@
 # PR1 Plan: Account Research Schema Foundation
 
-**Status:** Planning only — ready for implementation PR after approval.  
+**Status:** Implemented (schema landed) — migration `20260823120000_account_research_schema_foundation.sql`, `schema.sql` mirror, `database.ts` types, Vitest foundation tests.  
 **Feature audit (source of truth):** [docs/epics/agentic-outreach/account-research-before-product-selection.md](../epics/agentic-outreach/account-research-before-product-selection.md)  
 **Epic:** [docs/epics/agentic-outreach/README.md](../epics/agentic-outreach/README.md)  
 **Branch inspected:** `update/enhance-agent-email-draft-and-research-workflow` at `2459a12`  
-**Date:** 2026-08-23  
+**Date:** 2026-08-23
 
 This document is the implementation-ready plan for **PR1 only**. It creates durable database structures, constraints, indexes, RLS, hand-written types, schema validation tests, and documentation. It does **not** run searches, call providers, add APIs/UI, generate suggestions/matches, or change outreach selection/send behavior.
 
@@ -30,21 +30,21 @@ Add an **additive** Account Research schema so later PRs can:
 
 ### Out of scope (hard NO)
 
-| Exclusion | Reason |
-| --------- | ------ |
-| Public-web / social / Shopify search execution | PR2+ |
-| Perplexity / AI Gateway calls | PR2+ |
-| Staff APIs or UI / platform buttons | PR2 / PR5 |
-| Profile suggestion generation | PR3 |
-| Product recommendations | PR4 |
-| Nightly / prep Mode B research | PR6 (deferred) |
-| Changes to account or product selection | Unrelated |
-| Draft generation or send / Resend / suppression / cooldown | Unrelated |
-| Social URL columns on `prospects` | Locked: citation-only v1 |
-| `last_account_research_at` / run pointers on `prospects` | Locked: out of PR1 |
-| Auto-apply research to canonical CRM fields | Later apply RPC only |
-| Overloading `system_messages` or `account_enrichment_jobs` | Wrong domain |
-| Empty unused application stubs | No PR1 function |
+| Exclusion                                                  | Reason                   |
+| ---------------------------------------------------------- | ------------------------ |
+| Public-web / social / Shopify search execution             | PR2+                     |
+| Perplexity / AI Gateway calls                              | PR2+                     |
+| Staff APIs or UI / platform buttons                        | PR2 / PR5                |
+| Profile suggestion generation                              | PR3                      |
+| Product recommendations                                    | PR4                      |
+| Nightly / prep Mode B research                             | PR6 (deferred)           |
+| Changes to account or product selection                    | Unrelated                |
+| Draft generation or send / Resend / suppression / cooldown | Unrelated                |
+| Social URL columns on `prospects`                          | Locked: citation-only v1 |
+| `last_account_research_at` / run pointers on `prospects`   | Locked: out of PR1       |
+| Auto-apply research to canonical CRM fields                | Later apply RPC only     |
+| Overloading `system_messages` or `account_enrichment_jobs` | Wrong domain             |
+| Empty unused application stubs                             | No PR1 function          |
 
 ---
 
@@ -54,65 +54,65 @@ Re-audited against the live repo (do not rely solely on the prior audit narrativ
 
 ### 2.1 Identity and FK types
 
-| Fact | Evidence |
-| ---- | -------- |
-| `prospects.id` is `integer primary key` | [supabase/schema.sql](../../supabase/schema.sql) (~L462) |
-| Sales line table is **`lines`**, PK `uuid` | schema.sql (~L45); never invent `sales_lines` |
-| `retailer_line_accounts.sales_line_id` → `lines(id)` (no ON DELETE) | schema.sql (~L747–748) |
-| `catalog_items.id` is `uuid` | schema.sql (~L205–207) |
-| `retailer_field_changes.retailer_id` → `prospects` **ON DELETE CASCADE**; `actor_id` → `auth.users` **ON DELETE SET NULL** | schema.sql (~L847–865) |
-| `field_path` is free `text` (app uses snake_case) | [src/lib/retailerFieldChanges.ts](../../src/lib/retailerFieldChanges.ts); [src/lib/updateProspectAccountDetails.ts](../../src/lib/updateProspectAccountDetails.ts) |
+| Fact                                                                                                                       | Evidence                                                                                                                                                           |
+| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `prospects.id` is `integer primary key`                                                                                    | [supabase/schema.sql](../../supabase/schema.sql) (~L462)                                                                                                           |
+| Sales line table is **`lines`**, PK `uuid`                                                                                 | schema.sql (~L45); never invent `sales_lines`                                                                                                                      |
+| `retailer_line_accounts.sales_line_id` → `lines(id)` (no ON DELETE)                                                        | schema.sql (~L747–748)                                                                                                                                             |
+| `catalog_items.id` is `uuid`                                                                                               | schema.sql (~L205–207)                                                                                                                                             |
+| `retailer_field_changes.retailer_id` → `prospects` **ON DELETE CASCADE**; `actor_id` → `auth.users` **ON DELETE SET NULL** | schema.sql (~L847–865)                                                                                                                                             |
+| `field_path` is free `text` (app uses snake_case)                                                                          | [src/lib/retailerFieldChanges.ts](../../src/lib/retailerFieldChanges.ts); [src/lib/updateProspectAccountDetails.ts](../../src/lib/updateProspectAccountDetails.ts) |
 
 ### 2.2 Constraints and indexes conventions
 
-| Fact | Evidence |
-| ---- | -------- |
-| Prefer `text` + `CHECK` / named `*_check`; **no** `CREATE TYPE … AS ENUM` | Entire migrations tree |
-| Partial unique indexes are established | e.g. `retailer_line_accounts_retailer_line_operational_uidx … WHERE relationship_status <> 'terminated'` (schema.sql ~L801–803); `account_enrichment_jobs_batch_retailer_mode_uidx … WHERE status <> 'cancelled'` (~L993–995) |
-| Child ownership often **CASCADE**; optional actors **SET NULL**; strong line refs often omit ON DELETE | Multi-line Phase 1 migrations |
+| Fact                                                                                                   | Evidence                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prefer `text` + `CHECK` / named `*_check`; **no** `CREATE TYPE … AS ENUM`                              | Entire migrations tree                                                                                                                                                                                                        |
+| Partial unique indexes are established                                                                 | e.g. `retailer_line_accounts_retailer_line_operational_uidx … WHERE relationship_status <> 'terminated'` (schema.sql ~L801–803); `account_enrichment_jobs_batch_retailer_mode_uidx … WHERE status <> 'cancelled'` (~L993–995) |
+| Child ownership often **CASCADE**; optional actors **SET NULL**; strong line refs often omit ON DELETE | Multi-line Phase 1 migrations                                                                                                                                                                                                 |
 
 ### 2.3 RLS and grants
 
-| Fact | Evidence |
-| ---- | -------- |
-| `public.is_approved_staff()` — approved `owner`/`rep` | schema.sql (~L1592–1608); grant EXECUTE to `authenticated` only |
-| Typical policy: `"approved staff full access"` FOR ALL TO authenticated USING/WITH CHECK `is_approved_staff()` | e.g. prospects, `retailer_field_changes` |
-| No `GRANT … ON TABLE` to `authenticated`/`anon` for CRM tables; access via RLS + default privileges | Migrations |
+| Fact                                                                                                           | Evidence                                                        |
+| -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `public.is_approved_staff()` — approved `owner`/`rep`                                                          | schema.sql (~L1592–1608); grant EXECUTE to `authenticated` only |
+| Typical policy: `"approved staff full access"` FOR ALL TO authenticated USING/WITH CHECK `is_approved_staff()` | e.g. prospects, `retailer_field_changes`                        |
+| No `GRANT … ON TABLE` to `authenticated`/`anon` for CRM tables; access via RLS + default privileges            | Migrations                                                      |
 
 ### 2.4 Types generation
 
-| Fact | Evidence |
-| ---- | -------- |
-| Types are **hand-written**, not CLI-generated | [src/types/database.ts](../../src/types/database.ts) L1–7 |
-| No `supabase gen types` script in `package.json` | package.json scripts |
+| Fact                                                | Evidence                                                                                        |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Types are **hand-written**, not CLI-generated       | [src/types/database.ts](../../src/types/database.ts) L1–7                                       |
+| No `supabase gen types` script in `package.json`    | package.json scripts                                                                            |
 | Prior foundation PR mirrored schema + types by hand | [docs/plans/multi-line-phase-1-schema-foundation.md](./multi-line-phase-1-schema-foundation.md) |
 
 **Material difference from early audit wording:** do **not** plan on `supabase gen types` for PR1. Hand-update `database.ts` + `schema.sql`.
 
 ### 2.5 Schema test pattern
 
-| Fact | Evidence |
-| ---- | -------- |
+| Fact                                                                          | Evidence                                                                                                                                                                       |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Vitest reads migration + `schema.sql` as strings and asserts CREATE/CHECK/RLS | [src/lib/multiLinePhase1aSchema.test.ts](../../src/lib/multiLinePhase1aSchema.test.ts), [src/lib/bulkImportPhase1Schema.test.ts](../../src/lib/bulkImportPhase1Schema.test.ts) |
-| Not live DB RLS integration tests | Same |
+| Not live DB RLS integration tests                                             | Same                                                                                                                                                                           |
 
 ### 2.6 Product outreach and fit vocabulary
 
-| Fact | Evidence |
-| ---- | -------- |
-| 90-day product dedup | `AGENT_OUTREACH_PRODUCT_DEDUP_DAYS = 90` in [src/lib/outreachSelectionConstants.ts](../../src/lib/outreachSelectionConstants.ts) |
-| Indexes for recent sends | `system_messages_prospect_sent_at_idx`, `system_messages_catalog_item_sent_at_idx` (schema.sql) |
-| `ProductFitKind` | `'channel_intersect' \| 'global_fallback'` in [src/lib/outreachProductSelection.ts](../../src/lib/outreachProductSelection.ts) |
-| Confidence | App uses `'high' \| 'medium' \| 'low'` with `retailer_field_changes.confidence` text |
+| Fact                     | Evidence                                                                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| 90-day product dedup     | `AGENT_OUTREACH_PRODUCT_DEDUP_DAYS = 90` in [src/lib/outreachSelectionConstants.ts](../../src/lib/outreachSelectionConstants.ts) |
+| Indexes for recent sends | `system_messages_prospect_sent_at_idx`, `system_messages_catalog_item_sent_at_idx` (schema.sql)                                  |
+| `ProductFitKind`         | `'channel_intersect' \| 'global_fallback'` in [src/lib/outreachProductSelection.ts](../../src/lib/outreachProductSelection.ts)   |
+| Confidence               | App uses `'high' \| 'medium' \| 'low'` with `retailer_field_changes.confidence` text                                             |
 
 ### 2.7 Existing research storage (do not overload)
 
-| Store | Path | Gap |
-| ----- | ---- | --- |
-| `account_enrichment_jobs` | schema.sql ~L976 | Job-scoped jsonb; import lifecycle |
-| `retailer_field_changes` | schema.sql ~L847 | Field audit; not citation rows |
-| `companyWebResearch` | [src/lib/companyWebResearch.ts](../../src/lib/companyWebResearch.ts) | Live search only; `facebook.com` is a **directory host to avoid**, not a research target |
-| Fill-blank evidence | [src/lib/fillBlankProspectFields.ts](../../src/lib/fillBlankProspectFields.ts) | Zod blob; not durable citations |
+| Store                     | Path                                                                           | Gap                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `account_enrichment_jobs` | schema.sql ~L976                                                               | Job-scoped jsonb; import lifecycle                                                       |
+| `retailer_field_changes`  | schema.sql ~L847                                                               | Field audit; not citation rows                                                           |
+| `companyWebResearch`      | [src/lib/companyWebResearch.ts](../../src/lib/companyWebResearch.ts)           | Live search only; `facebook.com` is a **directory host to avoid**, not a research target |
+| Fill-blank evidence       | [src/lib/fillBlankProspectFields.ts](../../src/lib/fillBlankProspectFields.ts) | Zod blob; not durable citations                                                          |
 
 ### 2.8 Migration sequence (latest)
 
@@ -127,23 +127,23 @@ Proposed PR1: `20260823120000_account_research_schema_foundation.sql` (after tha
 
 ## 3. Locked product and platform decisions
 
-| Decision | Lock |
-| -------- | ---- |
-| Operating mode | **Mode A** (on-demand staff research) only; Mode B deferred |
-| Search All | One parent run + **six** child source searches — never one combined provider query |
-| v1 sources | `website`, `shopify`, `instagram`, `facebook`, `tiktok`, `pinterest` |
-| Shopify | Storefront source (`search_mode = storefront`), not social; later logic supports `*.myshopify.com` + custom domains with cited evidence |
-| Future sources in CHECK | `linkedin`, `youtube`, `x`, `other` allowed in schema; **no** v1 buttons |
-| Single-platform refresh | New immutable run; `supersedes_run_id` chain; do not mutate completed evidence |
-| Product match | Requires explicit `sales_line_id` (NOT NULL); no silent OGR default |
-| Match ↔ research | Exactly one `research_run_id`; no silent merge across runs |
-| Draft approval (later) | Staff selection of a recommended SKU is sufficient to generate a draft |
-| Send | Existing staff composer Send remains mandatory |
-| Briefing | Call Today / Hot / Warm do **not** force Research before Log Call |
-| Social URLs | Citation-only in v1; no `prospects` social columns |
-| Prospect pointers | No `last_account_research_*` columns in PR1 |
-| Citation links | Junction tables only — **no** `uuid[]` |
-| `none_indexed` | Distinct from inactive / closed business |
+| Decision                | Lock                                                                                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Operating mode          | **Mode A** (on-demand staff research) only; Mode B deferred                                                                             |
+| Search All              | One parent run + **six** child source searches — never one combined provider query                                                      |
+| v1 sources              | `website`, `shopify`, `instagram`, `facebook`, `tiktok`, `pinterest`                                                                    |
+| Shopify                 | Storefront source (`search_mode = storefront`), not social; later logic supports `*.myshopify.com` + custom domains with cited evidence |
+| Future sources in CHECK | `linkedin`, `youtube`, `x`, `other` allowed in schema; **no** v1 buttons                                                                |
+| Single-platform refresh | New immutable run; `supersedes_run_id` chain; do not mutate completed evidence                                                          |
+| Product match           | Requires explicit `sales_line_id` (NOT NULL); no silent OGR default                                                                     |
+| Match ↔ research        | Exactly one `research_run_id`; no silent merge across runs                                                                              |
+| Draft approval (later)  | Staff selection of a recommended SKU is sufficient to generate a draft                                                                  |
+| Send                    | Existing staff composer Send remains mandatory                                                                                          |
+| Briefing                | Call Today / Hot / Warm do **not** force Research before Log Call                                                                       |
+| Social URLs             | Citation-only in v1; no `prospects` social columns                                                                                      |
+| Prospect pointers       | No `last_account_research_*` columns in PR1                                                                                             |
+| Citation links          | Junction tables only — **no** `uuid[]`                                                                                                  |
+| `none_indexed`          | Distinct from inactive / closed business                                                                                                |
 
 ---
 
@@ -175,50 +175,50 @@ erDiagram
 
 ### 5.1 `account_research_runs`
 
-| Column | Type | Null | Default | Notes |
-| ------ | ---- | ---- | ------- | ----- |
-| `id` | uuid | NO | `gen_random_uuid()` | PK |
-| `retailer_id` | integer | NO | — | FK → `prospects(id)` ON DELETE CASCADE |
-| `status` | text | NO | `'pending'` | CHECK (see §6) |
-| `trigger` | text | NO | `'manual'` | CHECK |
-| `requested_scope` | text | NO | — | CHECK; `all` or single source |
-| `identity_confidence` | text | NO | `'unresolved'` | CHECK |
-| `identity_review_status` | text | NO | `'not_required'` | CHECK |
-| `identity_reviewed_by` | uuid | YES | — | FK → `auth.users` ON DELETE SET NULL |
-| `identity_reviewed_at` | timestamptz | YES | — | |
-| `identity_resolution` | text | YES | — | Staff/system note |
-| `resolved_website` | text | YES | — | |
-| `research_brief` | text | YES | — | Non-canonical narrative |
-| `provider` | text | YES | — | e.g. `perplexity_via_gateway` |
-| `provider_metadata` | jsonb | NO | `'{}'` | Non-secret cost/step metadata |
-| `error` | text | YES | — | |
-| `requested_by` | uuid | YES | — | FK → `auth.users` ON DELETE SET NULL |
-| `started_at` | timestamptz | YES | — | |
-| `completed_at` | timestamptz | YES | — | Freshness = `completed_at` when succeeded/partial |
-| `created_at` | timestamptz | NO | `now()` | |
-| `supersedes_run_id` | uuid | YES | — | Self-FK → `account_research_runs(id)` ON DELETE SET NULL |
+| Column                   | Type        | Null | Default             | Notes                                                    |
+| ------------------------ | ----------- | ---- | ------------------- | -------------------------------------------------------- |
+| `id`                     | uuid        | NO   | `gen_random_uuid()` | PK                                                       |
+| `retailer_id`            | integer     | NO   | —                   | FK → `prospects(id)` ON DELETE CASCADE                   |
+| `status`                 | text        | NO   | `'pending'`         | CHECK (see §6)                                           |
+| `trigger`                | text        | NO   | `'manual'`          | CHECK                                                    |
+| `requested_scope`        | text        | NO   | —                   | CHECK; `all` or single source                            |
+| `identity_confidence`    | text        | NO   | `'unresolved'`      | CHECK                                                    |
+| `identity_review_status` | text        | NO   | `'not_required'`    | CHECK                                                    |
+| `identity_reviewed_by`   | uuid        | YES  | —                   | FK → `auth.users` ON DELETE SET NULL                     |
+| `identity_reviewed_at`   | timestamptz | YES  | —                   |                                                          |
+| `identity_resolution`    | text        | YES  | —                   | Staff/system note                                        |
+| `resolved_website`       | text        | YES  | —                   |                                                          |
+| `research_brief`         | text        | YES  | —                   | Non-canonical narrative                                  |
+| `provider`               | text        | YES  | —                   | e.g. `perplexity_via_gateway`                            |
+| `provider_metadata`      | jsonb       | NO   | `'{}'`              | Non-secret cost/step metadata                            |
+| `error`                  | text        | YES  | —                   |                                                          |
+| `requested_by`           | uuid        | YES  | —                   | FK → `auth.users` ON DELETE SET NULL                     |
+| `started_at`             | timestamptz | YES  | —                   |                                                          |
+| `completed_at`           | timestamptz | YES  | —                   | Freshness = `completed_at` when succeeded/partial        |
+| `created_at`             | timestamptz | NO   | `now()`             |                                                          |
+| `supersedes_run_id`      | uuid        | YES  | —                   | Self-FK → `account_research_runs(id)` ON DELETE SET NULL |
 
 **Do not store** aggregate `social_index_status`. Platform outcomes live only on `account_research_source_searches.status`. A later read model may derive a summary; PR1 does not add a drift-prone denormalized column.
 
 ### 5.2 `account_research_source_searches`
 
-| Column | Type | Null | Default | Notes |
-| ------ | ---- | ---- | ------- | ----- |
-| `id` | uuid | NO | `gen_random_uuid()` | PK |
-| `research_run_id` | uuid | NO | — | FK → runs ON DELETE CASCADE |
-| `source_type` | text | NO | — | CHECK |
-| `search_mode` | text | NO | — | CHECK: `identity` \| `recent_activity` \| `storefront` |
-| `status` | text | NO | `'pending'` | CHECK incl. `none_indexed`, `blocked` |
-| `resolved_public_url` | text | YES | — | Profile/storefront URL |
-| `query_text` | text | YES | — | Exact query |
-| `provider` | text | YES | — | |
-| `result_count` | integer | NO | `0` | CHECK `>= 0` |
-| `error` | text | YES | — | |
-| `requested_by` | uuid | YES | — | auth.users SET NULL |
-| `provider_metadata` | jsonb | NO | `'{}'` | |
-| `started_at` | timestamptz | YES | — | |
-| `completed_at` | timestamptz | YES | — | |
-| `created_at` | timestamptz | NO | `now()` | |
+| Column                | Type        | Null | Default             | Notes                                                  |
+| --------------------- | ----------- | ---- | ------------------- | ------------------------------------------------------ |
+| `id`                  | uuid        | NO   | `gen_random_uuid()` | PK                                                     |
+| `research_run_id`     | uuid        | NO   | —                   | FK → runs ON DELETE CASCADE                            |
+| `source_type`         | text        | NO   | —                   | CHECK                                                  |
+| `search_mode`         | text        | NO   | —                   | CHECK: `identity` \| `recent_activity` \| `storefront` |
+| `status`              | text        | NO   | `'pending'`         | CHECK incl. `none_indexed`, `blocked`                  |
+| `resolved_public_url` | text        | YES  | —                   | Profile/storefront URL                                 |
+| `query_text`          | text        | YES  | —                   | Exact query                                            |
+| `provider`            | text        | YES  | —                   |                                                        |
+| `result_count`        | integer     | NO   | `0`                 | CHECK `>= 0`                                           |
+| `error`               | text        | YES  | —                   |                                                        |
+| `requested_by`        | uuid        | YES  | —                   | auth.users SET NULL                                    |
+| `provider_metadata`   | jsonb       | NO   | `'{}'`              |                                                        |
+| `started_at`          | timestamptz | YES  | —                   |                                                        |
+| `completed_at`        | timestamptz | YES  | —                   |                                                        |
+| `created_at`          | timestamptz | NO   | `now()`             |                                                        |
 
 **Uniqueness:** `UNIQUE (research_run_id, source_type, search_mode)`.
 
@@ -226,27 +226,27 @@ erDiagram
 
 ### 5.3 `account_research_citations`
 
-| Column | Type | Null | Default | Notes |
-| ------ | ---- | ---- | ------- | ----- |
-| `id` | uuid | NO | `gen_random_uuid()` | PK |
-| `source_search_id` | uuid | NO | — | FK → source_searches ON DELETE CASCADE |
-| `research_run_id` | uuid | NO | — | Denormalized; must match parent search’s run (trigger) |
-| `retailer_id` | integer | NO | — | Denormalized for query/RLS locality |
-| `source_url` | text | NO | — | As observed |
-| `source_url_normalized` | text | NO | — | Dedupe key; app-normalized in PR2+ |
-| `title` | text | YES | — | |
-| `platform` | text | NO | — | CHECK (source types + `directory`) |
-| `published_at` | timestamptz | YES | — | When known |
-| `observed_at` | timestamptz | NO | — | Required |
-| `excerpt` | text | YES | — | Short; never private/full page |
-| `confidence` | text | NO | — | `high` \| `medium` \| `low` |
-| `identity_confidence` | text | NO | — | Same enum as run-level |
-| `acceptance_status` | text | NO | `'pending'` | CHECK |
-| `acceptance_basis` | text | YES | — | `identity_gate` \| `staff` when set |
-| `accepted_or_rejected_by` | uuid | YES | — | auth.users SET NULL |
-| `accepted_or_rejected_at` | timestamptz | YES | — | |
-| `provider_metadata` | jsonb | NO | `'{}'` | |
-| `created_at` | timestamptz | NO | `now()` | |
+| Column                    | Type        | Null | Default             | Notes                                                  |
+| ------------------------- | ----------- | ---- | ------------------- | ------------------------------------------------------ |
+| `id`                      | uuid        | NO   | `gen_random_uuid()` | PK                                                     |
+| `source_search_id`        | uuid        | NO   | —                   | FK → source_searches ON DELETE CASCADE                 |
+| `research_run_id`         | uuid        | NO   | —                   | Denormalized; must match parent search’s run (trigger) |
+| `retailer_id`             | integer     | NO   | —                   | Denormalized for query/RLS locality                    |
+| `source_url`              | text        | NO   | —                   | As observed                                            |
+| `source_url_normalized`   | text        | NO   | —                   | Dedupe key; app-normalized in PR2+                     |
+| `title`                   | text        | YES  | —                   |                                                        |
+| `platform`                | text        | NO   | —                   | CHECK (source types + `directory`)                     |
+| `published_at`            | timestamptz | YES  | —                   | When known                                             |
+| `observed_at`             | timestamptz | NO   | —                   | Required                                               |
+| `excerpt`                 | text        | YES  | —                   | Short; never private/full page                         |
+| `confidence`              | text        | NO   | —                   | `high` \| `medium` \| `low`                            |
+| `identity_confidence`     | text        | NO   | —                   | Same enum as run-level                                 |
+| `acceptance_status`       | text        | NO   | `'pending'`         | CHECK                                                  |
+| `acceptance_basis`        | text        | YES  | —                   | `identity_gate` \| `staff` when set                    |
+| `accepted_or_rejected_by` | uuid        | YES  | —                   | auth.users SET NULL                                    |
+| `accepted_or_rejected_at` | timestamptz | YES  | —                   |                                                        |
+| `provider_metadata`       | jsonb       | NO   | `'{}'`              |                                                        |
+| `created_at`              | timestamptz | NO   | `now()`             |                                                        |
 
 **Uniqueness:** `UNIQUE (source_search_id, source_url_normalized)`.
 
@@ -254,74 +254,74 @@ erDiagram
 
 ### 5.4 `account_research_profile_suggestions`
 
-| Column | Type | Null | Default | Notes |
-| ------ | ---- | ---- | ------- | ----- |
-| `id` | uuid | NO | `gen_random_uuid()` | PK |
-| `research_run_id` | uuid | NO | — | FK → runs ON DELETE CASCADE |
-| `retailer_id` | integer | NO | — | FK → prospects CASCADE; must match run (trigger) |
-| `field_path` | text | NO | — | Align with `retailer_field_changes.field_path` |
-| `suggested_value` | jsonb | NO | — | |
-| `rationale` | text | YES | — | |
-| `confidence` | text | NO | — | `high` \| `medium` \| `low` |
-| `status` | text | NO | `'pending'` | CHECK |
-| `reviewed_by` | uuid | YES | — | auth.users SET NULL |
-| `reviewed_at` | timestamptz | YES | — | |
-| `created_at` | timestamptz | NO | `now()` | |
+| Column            | Type        | Null | Default             | Notes                                            |
+| ----------------- | ----------- | ---- | ------------------- | ------------------------------------------------ |
+| `id`              | uuid        | NO   | `gen_random_uuid()` | PK                                               |
+| `research_run_id` | uuid        | NO   | —                   | FK → runs ON DELETE CASCADE                      |
+| `retailer_id`     | integer     | NO   | —                   | FK → prospects CASCADE; must match run (trigger) |
+| `field_path`      | text        | NO   | —                   | Align with `retailer_field_changes.field_path`   |
+| `suggested_value` | jsonb       | NO   | —                   |                                                  |
+| `rationale`       | text        | YES  | —                   |                                                  |
+| `confidence`      | text        | NO   | —                   | `high` \| `medium` \| `low`                      |
+| `status`          | text        | NO   | `'pending'`         | CHECK                                            |
+| `reviewed_by`     | uuid        | YES  | —                   | auth.users SET NULL                              |
+| `reviewed_at`     | timestamptz | YES  | —                   |                                                  |
+| `created_at`      | timestamptz | NO   | `now()`             |                                                  |
 
 **No `citation_ids uuid[]`.**
 
 ### 5.5 `account_research_suggestion_citations`
 
-| Column | Type | Null | Notes |
-| ------ | ---- | ---- | ----- |
-| `suggestion_id` | uuid | NO | FK → suggestions ON DELETE CASCADE |
-| `citation_id` | uuid | NO | FK → citations ON DELETE CASCADE |
-| `research_run_id` | uuid | NO | Denormalized for same-run enforcement |
-| `created_at` | timestamptz | NO | default `now()` |
+| Column            | Type        | Null | Notes                                 |
+| ----------------- | ----------- | ---- | ------------------------------------- |
+| `suggestion_id`   | uuid        | NO   | FK → suggestions ON DELETE CASCADE    |
+| `citation_id`     | uuid        | NO   | FK → citations ON DELETE CASCADE      |
+| `research_run_id` | uuid        | NO   | Denormalized for same-run enforcement |
+| `created_at`      | timestamptz | NO   | default `now()`                       |
 
 **PK:** composite `(suggestion_id, citation_id)` (unique pair).  
 **Same-run integrity:** BEFORE INSERT/UPDATE trigger verifies suggestion.`research_run_id` = citation.`research_run_id` = row.`research_run_id`.
 
 ### 5.6 `account_product_match_runs`
 
-| Column | Type | Null | Default | Notes |
-| ------ | ---- | ---- | ------- | ----- |
-| `id` | uuid | NO | `gen_random_uuid()` | PK |
-| `retailer_id` | integer | NO | — | FK → prospects CASCADE |
-| `sales_line_id` | uuid | NO | — | FK → `lines(id)` **no ON DELETE**; **NOT NULL**; no default |
-| `research_run_id` | uuid | NO | — | FK → research runs; prefer **RESTRICT** so match history is not silently orphaned by accidental run delete (or CASCADE if product prefers wipe — **choose RESTRICT** for PR1) |
-| `status` | text | NO | `'pending'` | CHECK |
-| `empty_reason` | text | YES | — | CHECK when set; required by service when status=`empty` |
-| `requested_by` | uuid | YES | — | auth.users SET NULL |
-| `provider_metadata` | jsonb | NO | `'{}'` | Model/provider non-secret |
-| `error` | text | YES | — | |
-| `started_at` | timestamptz | YES | — | |
-| `completed_at` | timestamptz | YES | — | |
-| `created_at` | timestamptz | NO | `now()` | |
+| Column              | Type        | Null | Default             | Notes                                                                                                                                                                         |
+| ------------------- | ----------- | ---- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                | uuid        | NO   | `gen_random_uuid()` | PK                                                                                                                                                                            |
+| `retailer_id`       | integer     | NO   | —                   | FK → prospects CASCADE                                                                                                                                                        |
+| `sales_line_id`     | uuid        | NO   | —                   | FK → `lines(id)` **no ON DELETE**; **NOT NULL**; no default                                                                                                                   |
+| `research_run_id`   | uuid        | NO   | —                   | FK → research runs; prefer **RESTRICT** so match history is not silently orphaned by accidental run delete (or CASCADE if product prefers wipe — **choose RESTRICT** for PR1) |
+| `status`            | text        | NO   | `'pending'`         | CHECK                                                                                                                                                                         |
+| `empty_reason`      | text        | YES  | —                   | CHECK when set; required by service when status=`empty`                                                                                                                       |
+| `requested_by`      | uuid        | YES  | —                   | auth.users SET NULL                                                                                                                                                           |
+| `provider_metadata` | jsonb       | NO   | `'{}'`              | Model/provider non-secret                                                                                                                                                     |
+| `error`             | text        | YES  | —                   |                                                                                                                                                                               |
+| `started_at`        | timestamptz | YES  | —                   |                                                                                                                                                                               |
+| `completed_at`      | timestamptz | YES  | —                   |                                                                                                                                                                               |
+| `created_at`        | timestamptz | NO   | `now()`             |                                                                                                                                                                               |
 
 ### 5.7 `account_product_match_items`
 
-| Column | Type | Null | Default | Notes |
-| ------ | ---- | ---- | ------- | ----- |
-| `id` | uuid | NO | `gen_random_uuid()` | PK |
-| `match_run_id` | uuid | NO | — | FK → match_runs ON DELETE CASCADE |
-| `catalog_item_id` | uuid | NO | — | FK → catalog_items (no ON DELETE / RESTRICT) |
-| `rank` | smallint | NO | — | CHECK `BETWEEN 1 AND 3` |
-| `rationale` | text | NO | — | Short |
-| `product_fit` | text | NO | — | CHECK `channel_intersect` \| `global_fallback` |
-| `created_at` | timestamptz | NO | `now()` | |
+| Column            | Type        | Null | Default             | Notes                                          |
+| ----------------- | ----------- | ---- | ------------------- | ---------------------------------------------- |
+| `id`              | uuid        | NO   | `gen_random_uuid()` | PK                                             |
+| `match_run_id`    | uuid        | NO   | —                   | FK → match_runs ON DELETE CASCADE              |
+| `catalog_item_id` | uuid        | NO   | —                   | FK → catalog_items (no ON DELETE / RESTRICT)   |
+| `rank`            | smallint    | NO   | —                   | CHECK `BETWEEN 1 AND 3`                        |
+| `rationale`       | text        | NO   | —                   | Short                                          |
+| `product_fit`     | text        | NO   | —                   | CHECK `channel_intersect` \| `global_fallback` |
+| `created_at`      | timestamptz | NO   | `now()`             |                                                |
 
 **Constraints:** `UNIQUE (match_run_id, rank)`; `UNIQUE (match_run_id, catalog_item_id)`.  
 **No** `excluded_recent_send`. Products filtered by 90-day rule **before insert** in PR4. Empty outcomes use match run `status = 'empty'` + `empty_reason`.
 
 ### 5.8 `account_product_match_item_citations`
 
-| Column | Type | Null | Notes |
-| ------ | ---- | ---- | ----- |
-| `match_item_id` | uuid | NO | FK → items ON DELETE CASCADE |
-| `citation_id` | uuid | NO | FK → citations ON DELETE CASCADE |
-| `research_run_id` | uuid | NO | Must equal parent match run’s research_run_id |
-| `created_at` | timestamptz | NO | default `now()` |
+| Column            | Type        | Null | Notes                                         |
+| ----------------- | ----------- | ---- | --------------------------------------------- |
+| `match_item_id`   | uuid        | NO   | FK → items ON DELETE CASCADE                  |
+| `citation_id`     | uuid        | NO   | FK → citations ON DELETE CASCADE              |
+| `research_run_id` | uuid        | NO   | Must equal parent match run’s research_run_id |
+| `created_at`      | timestamptz | NO   | default `now()`                               |
 
 **PK:** `(match_item_id, citation_id)`.  
 **Same-run integrity:** trigger: citation.`research_run_id` = match_run.`research_run_id` via item → run join (or denormalized `research_run_id` on item row — prefer denormalize onto junction only + validate against match_runs).
@@ -382,21 +382,21 @@ Citation `platform` also allows `directory`.
 
 ### Deletion matrix
 
-| Edge | ON DELETE |
-| ---- | --------- |
-| runs → prospects | CASCADE |
-| source_searches → runs | CASCADE |
-| citations → source_searches | CASCADE |
-| suggestions → runs | CASCADE |
-| suggestion_citations → suggestion / citation | CASCADE |
-| match_runs → prospects | CASCADE |
-| match_runs → lines | _(omit / NO ACTION)_ |
-| match_runs → research_runs | **RESTRICT** |
-| match_items → match_runs | CASCADE |
-| match_items → catalog_items | _(omit / NO ACTION)_ |
-| match_item_citations → item / citation | CASCADE |
-| actor columns → auth.users | SET NULL |
-| supersedes_run_id → runs | SET NULL |
+| Edge                                         | ON DELETE            |
+| -------------------------------------------- | -------------------- |
+| runs → prospects                             | CASCADE              |
+| source_searches → runs                       | CASCADE              |
+| citations → source_searches                  | CASCADE              |
+| suggestions → runs                           | CASCADE              |
+| suggestion_citations → suggestion / citation | CASCADE              |
+| match_runs → prospects                       | CASCADE              |
+| match_runs → lines                           | _(omit / NO ACTION)_ |
+| match_runs → research_runs                   | **RESTRICT**         |
+| match_items → match_runs                     | CASCADE              |
+| match_items → catalog_items                  | _(omit / NO ACTION)_ |
+| match_item_citations → item / citation       | CASCADE              |
+| actor columns → auth.users                   | SET NULL             |
+| supersedes_run_id → runs                     | SET NULL             |
 
 ### Critical constraints
 
@@ -412,20 +412,20 @@ Citation `platform` also allows `directory`.
 
 ### Indexes (named queries)
 
-| Index name (proposed) | Definition | Query |
-| --------------------- | ---------- | ----- |
-| `…_one_active_per_retailer_uidx` | partial unique `(retailer_id) WHERE status IN ('pending','running')` | Concurrent guard |
-| `account_research_runs_retailer_completed_idx` | `(retailer_id, completed_at DESC) WHERE status IN ('succeeded','partial')` | Latest successful / 7-day freshness |
-| `account_research_source_searches_run_source_status_idx` | `(research_run_id, source_type, status)` | Source rows by run |
-| `account_research_citations_search_observed_idx` | `(source_search_id, observed_at DESC)` | Evidence timeline |
-| `account_research_citations_run_acceptance_idx` | `(research_run_id, acceptance_status)` | Accepted evidence for matching |
-| `account_research_profile_suggestions_run_pending_idx` | `(research_run_id) WHERE status = 'pending'` | Pending review |
-| `account_research_profile_suggestions_retailer_status_idx` | `(retailer_id, status)` | Retailer queue |
-| `account_product_match_runs_retailer_line_created_idx` | `(retailer_id, sales_line_id, created_at DESC)` | Match history |
-| `account_product_match_items_run_rank_uidx` | unique `(match_run_id, rank)` | Ordered recs |
-| `account_product_match_items_run_catalog_uidx` | unique `(match_run_id, catalog_item_id)` | No dup SKUs |
-| `account_research_suggestion_citations_citation_idx` | `(citation_id)` | Reverse lookup |
-| `account_product_match_item_citations_citation_idx` | `(citation_id)` | Reverse lookup |
+| Index name (proposed)                                      | Definition                                                                 | Query                               |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------- |
+| `…_one_active_per_retailer_uidx`                           | partial unique `(retailer_id) WHERE status IN ('pending','running')`       | Concurrent guard                    |
+| `account_research_runs_retailer_completed_idx`             | `(retailer_id, completed_at DESC) WHERE status IN ('succeeded','partial')` | Latest successful / 7-day freshness |
+| `account_research_source_searches_run_source_status_idx`   | `(research_run_id, source_type, status)`                                   | Source rows by run                  |
+| `account_research_citations_search_observed_idx`           | `(source_search_id, observed_at DESC)`                                     | Evidence timeline                   |
+| `account_research_citations_run_acceptance_idx`            | `(research_run_id, acceptance_status)`                                     | Accepted evidence for matching      |
+| `account_research_profile_suggestions_run_pending_idx`     | `(research_run_id) WHERE status = 'pending'`                               | Pending review                      |
+| `account_research_profile_suggestions_retailer_status_idx` | `(retailer_id, status)`                                                    | Retailer queue                      |
+| `account_product_match_runs_retailer_line_created_idx`     | `(retailer_id, sales_line_id, created_at DESC)`                            | Match history                       |
+| `account_product_match_items_run_rank_uidx`                | unique `(match_run_id, rank)`                                              | Ordered recs                        |
+| `account_product_match_items_run_catalog_uidx`             | unique `(match_run_id, catalog_item_id)`                                   | No dup SKUs                         |
+| `account_research_suggestion_citations_citation_idx`       | `(citation_id)`                                                            | Reverse lookup                      |
+| `account_product_match_item_citations_citation_idx`        | `(citation_id)`                                                            | Reverse lookup                      |
 
 Avoid speculative indexes beyond the above.
 
@@ -433,13 +433,13 @@ Avoid speculative indexes beyond the above.
 
 ## 8. Platform-specific search representation
 
-| UI / product concept | Schema representation |
-| -------------------- | --------------------- |
-| Search all sources | `requested_scope = 'all'` + six `account_research_source_searches` rows |
-| Website only | `requested_scope = 'website'` + one search (`source_type=website`, typically `search_mode=identity`) |
-| Shopify only | `requested_scope = 'shopify'` + one search (`storefront`) |
-| Instagram / Facebook / TikTok / Pinterest | Single-source scope + `recent_activity` mode |
-| Refresh a source | New run with `supersedes_run_id` pointing at prior relevant run; new search row(s); history immutable |
+| UI / product concept                      | Schema representation                                                                                 |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Search all sources                        | `requested_scope = 'all'` + six `account_research_source_searches` rows                               |
+| Website only                              | `requested_scope = 'website'` + one search (`source_type=website`, typically `search_mode=identity`)  |
+| Shopify only                              | `requested_scope = 'shopify'` + one search (`storefront`)                                             |
+| Instagram / Facebook / TikTok / Pinterest | Single-source scope + `recent_activity` mode                                                          |
+| Refresh a source                          | New run with `supersedes_run_id` pointing at prior relevant run; new search row(s); history immutable |
 
 **Shopify later (PR2+ logic, not PR1 columns):** require cited evidence before labeling a store Shopify; support both `*.myshopify.com` and custom domains.
 
@@ -500,13 +500,13 @@ create policy "approved staff full access" on <t>
 
 ## 13. Migration sequence
 
-| Step | Artifact |
-| ---- | -------- |
-| 1 | `supabase/migrations/20260823120000_account_research_schema_foundation.sql` |
-| 2 | Mirror definitions into `supabase/schema.sql` |
-| 3 | Hand-update `src/types/database.ts` |
-| 4 | Add `src/lib/accountResearchSchemaFoundation.test.ts` |
-| 5 | Link from epic/audit as implemented when PR merges |
+| Step | Artifact                                                                    |
+| ---- | --------------------------------------------------------------------------- |
+| 1    | `supabase/migrations/20260823120000_account_research_schema_foundation.sql` |
+| 2    | Mirror definitions into `supabase/schema.sql`                               |
+| 3    | Hand-update `src/types/database.ts`                                         |
+| 4    | Add `src/lib/accountResearchSchemaFoundation.test.ts`                       |
+| 5    | Link from epic/audit as implemented when PR merges                          |
 
 Migration contents order:
 
@@ -584,25 +584,25 @@ After production data exists, rollback requires a dedicated data-migration plan 
 
 Add [`src/lib/accountResearchSchemaFoundation.test.ts`](../../src/lib/accountResearchSchemaFoundation.test.ts) patterned on Phase 1A:
 
-| Assertion | Method |
-| --------- | ------ |
-| All eight `create table` present in migration + schema.sql | regex |
-| Controlled status/source CHECK literals present | `toContain` |
-| Partial unique active-run index present | regex |
-| Source unique `(research_run_id, source_type, search_mode)` | regex |
-| Citation URL unique per search | regex |
-| `none_indexed` in source status CHECK | contain |
-| No `social_index_status` column on runs | `not.toMatch` |
-| No `uuid[]` citation columns | `not.toMatch(/citation_ids/)` |
-| No prospect research pointer columns in migration | `not.toMatch(/last_account_research/)` |
-| Match `sales_line_id` not null / references `lines` | regex |
-| Rank CHECK + unique indexes | regex |
-| `product_fit` includes `channel_intersect` / `global_fallback` | contain |
-| Same-run trigger function names present | contain |
-| RLS policy `"approved staff full access"` on each table | loop |
-| No INSERT seed into research tables | `not.toMatch(/insert into account_research/i)` |
-| No DROP/ALTER of prospects, system_messages, selection tables | negative matches |
-| `database.ts` includes all eight table keys | readFileSync assert |
+| Assertion                                                      | Method                                         |
+| -------------------------------------------------------------- | ---------------------------------------------- |
+| All eight `create table` present in migration + schema.sql     | regex                                          |
+| Controlled status/source CHECK literals present                | `toContain`                                    |
+| Partial unique active-run index present                        | regex                                          |
+| Source unique `(research_run_id, source_type, search_mode)`    | regex                                          |
+| Citation URL unique per search                                 | regex                                          |
+| `none_indexed` in source status CHECK                          | contain                                        |
+| No `social_index_status` column on runs                        | `not.toMatch`                                  |
+| No `uuid[]` citation columns                                   | `not.toMatch(/citation_ids/)`                  |
+| No prospect research pointer columns in migration              | `not.toMatch(/last_account_research/)`         |
+| Match `sales_line_id` not null / references `lines`            | regex                                          |
+| Rank CHECK + unique indexes                                    | regex                                          |
+| `product_fit` includes `channel_intersect` / `global_fallback` | contain                                        |
+| Same-run trigger function names present                        | contain                                        |
+| RLS policy `"approved staff full access"` on each table        | loop                                           |
+| No INSERT seed into research tables                            | `not.toMatch(/insert into account_research/i)` |
+| No DROP/ALTER of prospects, system_messages, selection tables  | negative matches                               |
+| `database.ts` includes all eight table keys                    | readFileSync assert                            |
 
 **Fixtures:** none required (no live DB). Do not claim integration search/match behavior.
 
@@ -610,14 +610,14 @@ Add [`src/lib/accountResearchSchemaFoundation.test.ts`](../../src/lib/accountRes
 
 ## 18. Exact files expected to change in implementation
 
-| File | Change |
-| ---- | ------ |
-| `supabase/migrations/20260823120000_account_research_schema_foundation.sql` | **New** |
-| `supabase/schema.sql` | Append mirrored DDL |
-| `src/types/database.ts` | Hand-written Row/Insert/Update |
-| `src/lib/accountResearchSchemaFoundation.test.ts` | **New** Vitest |
-| `docs/epics/agentic-outreach/account-research-before-product-selection.md` | Already reconciled for locks; mark PR1 shipped when merged |
-| `docs/plans/agent-outreach-account-research-pr1-schema-foundation.md` | This file (status → implemented later) |
+| File                                                                        | Change                                                     |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `supabase/migrations/20260823120000_account_research_schema_foundation.sql` | **New**                                                    |
+| `supabase/schema.sql`                                                       | Append mirrored DDL                                        |
+| `src/types/database.ts`                                                     | Hand-written Row/Insert/Update                             |
+| `src/lib/accountResearchSchemaFoundation.test.ts`                           | **New** Vitest                                             |
+| `docs/epics/agentic-outreach/account-research-before-product-selection.md`  | Already reconciled for locks; mark PR1 shipped when merged |
+| `docs/plans/agent-outreach-account-research-pr1-schema-foundation.md`       | This file (status → implemented later)                     |
 
 **Do not change in PR1:** outreach selection/prep/draft/send libs, UI, APIs, enrich jobs, `system_messages`.
 
@@ -625,15 +625,15 @@ Add [`src/lib/accountResearchSchemaFoundation.test.ts`](../../src/lib/accountRes
 
 ## 19. Risks and failure triggers
 
-| Risk | Mitigation / failure trigger |
-| ---- | ---------------------------- |
-| Drift between migration and `schema.sql` / types | Foundation test asserts both files; PR checklist |
-| Same-run trigger buggy → blocks legitimate inserts | Unit-test SQL presence; PR2 integration tests with real inserts |
-| Active-run unique blocks legitimate refresh | Service must terminalize prior run before insert; document API contract |
-| Over-eager CASCADE deletes match history | Match → research_run uses RESTRICT |
-| Implementers add prospect columns “for convenience” | Explicit NO in acceptance; test forbids |
-| Implementers use `uuid[]` “temporarily” | Test forbids `citation_ids` |
-| Mode B sneaks into migration (`trigger='prep'` defaults) | `trigger` allows `prep` for future but no cron in PR1; OK |
+| Risk                                                     | Mitigation / failure trigger                                            |
+| -------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Drift between migration and `schema.sql` / types         | Foundation test asserts both files; PR checklist                        |
+| Same-run trigger buggy → blocks legitimate inserts       | Unit-test SQL presence; PR2 integration tests with real inserts         |
+| Active-run unique blocks legitimate refresh              | Service must terminalize prior run before insert; document API contract |
+| Over-eager CASCADE deletes match history                 | Match → research_run uses RESTRICT                                      |
+| Implementers add prospect columns “for convenience”      | Explicit NO in acceptance; test forbids                                 |
+| Implementers use `uuid[]` “temporarily”                  | Test forbids `citation_ids`                                             |
+| Mode B sneaks into migration (`trigger='prep'` defaults) | `trigger` allows `prep` for future but no cron in PR1; OK               |
 
 ---
 
@@ -660,13 +660,13 @@ PR1 is complete when:
 
 ## 21. Work explicitly deferred to PR2–PR6
 
-| PR | Scope |
-| -- | ----- |
+| PR      | Scope                                                                                                                                                     |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **PR2** | Research run API; Perplexity/website/social/Shopify searches; identity gate; citation write; freshness; transactional create of six source rows for `all` |
-| **PR3** | Suggestion generation; staff apply/reject RPC using `retailer_field_changes` |
-| **PR4** | Product match 1–3; 90-day dedup filter; citation-backed rationales |
-| **PR5** | Account drawer / Briefing UI; platform buttons; refresh UX |
-| **PR6** | Optional Mode B prep integration (budgeted) |
+| **PR3** | Suggestion generation; staff apply/reject RPC using `retailer_field_changes`                                                                              |
+| **PR4** | Product match 1–3; 90-day dedup filter; citation-backed rationales                                                                                        |
+| **PR5** | Account drawer / Briefing UI; platform buttons; refresh UX                                                                                                |
+| **PR6** | Optional Mode B prep integration (budgeted)                                                                                                               |
 
 ### Future apply-path transactional boundary (PR3)
 

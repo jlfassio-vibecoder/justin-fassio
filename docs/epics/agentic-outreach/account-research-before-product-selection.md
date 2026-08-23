@@ -29,20 +29,20 @@ Insert an **on-demand public-web Account Research** step **before** catalog prod
 
 These supersede earlier shorthand in §3–4 where they conflict:
 
-| Topic | Lock |
-| ----- | ---- |
-| Table shape | Original “four domain tables” expand into **normalized tables + citation junctions** (8 tables in PR1). |
-| Platform searches | **Independent** source-search rows — never one combined provider query. |
-| Search All | One parent research run + **six** child searches: Website, Shopify, Instagram, Facebook, TikTok, Pinterest. |
-| Website vs Shopify | **Separate** source types; Shopify is storefront/ecommerce, not social. |
-| Social URLs | **Citation-only** in v1; no social columns on `prospects`. |
-| Product matching | Requires explicit `sales_line_id` (no silent OGR default). |
-| Draft approval (later) | Selecting a recommended SKU is sufficient approval for draft generation; staff Send remains mandatory. |
-| Briefing cards | Do **not** force Research before Log Call. |
-| Prospect pointers | **No** `last_account_research_*` columns in PR1. |
-| Citation relationships | **No** `uuid[]` — junction tables only. |
-| Mode | **Mode A only**; Mode B deferred. |
-| Types | Hand-update `src/types/database.ts` (no CLI gen script in this repo). |
+| Topic                  | Lock                                                                                                        |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Table shape            | Original “four domain tables” expand into **normalized tables + citation junctions** (8 tables in PR1).     |
+| Platform searches      | **Independent** source-search rows — never one combined provider query.                                     |
+| Search All             | One parent research run + **six** child searches: Website, Shopify, Instagram, Facebook, TikTok, Pinterest. |
+| Website vs Shopify     | **Separate** source types; Shopify is storefront/ecommerce, not social.                                     |
+| Social URLs            | **Citation-only** in v1; no social columns on `prospects`.                                                  |
+| Product matching       | Requires explicit `sales_line_id` (no silent OGR default).                                                  |
+| Draft approval (later) | Selecting a recommended SKU is sufficient approval for draft generation; staff Send remains mandatory.      |
+| Briefing cards         | Do **not** force Research before Log Call.                                                                  |
+| Prospect pointers      | **No** `last_account_research_*` columns in PR1.                                                            |
+| Citation relationships | **No** `uuid[]` — junction tables only.                                                                     |
+| Mode                   | **Mode A only**; Mode B deferred.                                                                           |
+| Types                  | Hand-update `src/types/database.ts` (no CLI gen script in this repo).                                       |
 
 ---
 
@@ -248,12 +248,12 @@ Before accepting any evidence as belonging to this account:
 
 ### 3.4 Web + social search rules
 
-| Source | Allowed | Forbidden |
-| ------ | ------- | --------- |
-| Official website | Public pages via dedicated website source search | Login walls, inventing pages |
-| Shopify | Public storefront evidence (`*.myshopify.com` or custom domain) with citations | Labeling Shopify without cited evidence |
-| Social (IG / FB / TikTok / Pinterest) | Publicly **indexed** activity via **per-platform** source searches | Private accounts, authenticated scrapes, ToS bypass, one combined “social” query |
-| Directories | Lead-only (existing directory host list in `companyWebResearch`) | Treat as operational proof |
+| Source                                | Allowed                                                                        | Forbidden                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Official website                      | Public pages via dedicated website source search                               | Login walls, inventing pages                                                     |
+| Shopify                               | Public storefront evidence (`*.myshopify.com` or custom domain) with citations | Labeling Shopify without cited evidence                                          |
+| Social (IG / FB / TikTok / Pinterest) | Publicly **indexed** activity via **per-platform** source searches             | Private accounts, authenticated scrapes, ToS bypass, one combined “social” query |
+| Directories                           | Lead-only (existing directory host list in `companyWebResearch`)               | Treat as operational proof                                                       |
 
 **Search All** means six separate child source searches under one run — never one broad provider query.
 
@@ -332,11 +332,11 @@ Product match runs should record `research_run_id` used. If research goes stale,
 
 ### 4.2 What not to reuse as primary store
 
-| Avoid | Why |
-| ----- | --- |
-| Stuffing citations into `system_messages.payload` | Wrong domain; pollutes outreach ledger |
-| Overloading `account_enrichment_jobs` | Different lifecycle (import/enrich); mode enum is fill-blanks/update |
-| Writing suggestions straight to `prospects` | Violates no-auto-overwrite |
+| Avoid                                             | Why                                                                  |
+| ------------------------------------------------- | -------------------------------------------------------------------- |
+| Stuffing citations into `system_messages.payload` | Wrong domain; pollutes outreach ledger                               |
+| Overloading `account_enrichment_jobs`             | Different lifecycle (import/enrich); mode enum is fill-blanks/update |
+| Writing suggestions straight to `prospects`       | Violates no-auto-overwrite                                           |
 
 ### 4.3 RLS
 
@@ -453,7 +453,7 @@ Prefer pure unit tests for identity/match ranking; mock Gateway/Perplexity like 
 ### PR1 — Schema + types + RLS
 
 - See [PR1 plan](../../plans/agent-outreach-account-research-pr1-schema-foundation.md).
-- Eight tables + junctions, CHECKs, partial unique active run, staff RLS, same-run triggers.
+- Migration `supabase/migrations/20260823120000_account_research_schema_foundation.sql` landed (eight tables + junctions, CHECKs, partial unique active run, staff RLS, same-run triggers).
 - Hand-update `database.ts` + Vitest SQL-content foundation tests.
 - **No** prospect pointer columns, APIs, UI, searches, or empty app stubs.
 

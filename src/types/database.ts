@@ -67,6 +67,56 @@ export type AccountEnrichmentMode = 'fill-blanks' | 'update';
 export type AccountEnrichmentJobStatus =
   'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
+/** Account Research PR1 */
+export type AccountResearchRunStatus =
+  | 'pending'
+  | 'running'
+  | 'succeeded'
+  | 'partial'
+  | 'failed'
+  | 'needs_identity_review'
+  | 'cancelled';
+export type AccountResearchTrigger = 'manual' | 'prep' | 'api';
+export type AccountResearchRequestedScope =
+  | 'all'
+  | 'website'
+  | 'shopify'
+  | 'instagram'
+  | 'facebook'
+  | 'tiktok'
+  | 'pinterest'
+  | 'linkedin'
+  | 'youtube'
+  | 'x'
+  | 'other';
+export type AccountResearchIdentityConfidence = 'high' | 'medium' | 'low' | 'unresolved';
+export type AccountResearchIdentityReviewStatus =
+  'pending' | 'auto_accepted' | 'staff_confirmed' | 'rejected' | 'not_required';
+export type AccountResearchSourceType =
+  | 'website'
+  | 'shopify'
+  | 'instagram'
+  | 'facebook'
+  | 'tiktok'
+  | 'pinterest'
+  | 'linkedin'
+  | 'youtube'
+  | 'x'
+  | 'other';
+export type AccountResearchSearchMode = 'identity' | 'recent_activity' | 'storefront';
+export type AccountResearchSourceSearchStatus =
+  'pending' | 'running' | 'succeeded' | 'none_indexed' | 'blocked' | 'failed' | 'cancelled';
+export type AccountResearchCitationPlatform = AccountResearchSourceType | 'directory';
+export type AccountResearchConfidence = 'high' | 'medium' | 'low';
+export type AccountResearchAcceptanceStatus = 'pending' | 'accepted' | 'rejected';
+export type AccountResearchAcceptanceBasis = 'identity_gate' | 'staff';
+export type AccountResearchSuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'superseded';
+export type AccountProductMatchRunStatus =
+  'pending' | 'running' | 'succeeded' | 'empty' | 'failed' | 'stale_research' | 'cancelled';
+export type AccountProductMatchEmptyReason =
+  'all_recently_emailed' | 'no_eligible_products' | 'no_accepted_evidence' | 'identity_unresolved';
+export type AccountProductMatchProductFit = 'channel_intersect' | 'global_fallback';
+
 export interface Database {
   public: {
     Tables: {
@@ -2674,6 +2724,354 @@ export interface Database {
           },
         ];
       };
+      account_research_runs: {
+        Row: {
+          id: string;
+          retailer_id: number;
+          status: AccountResearchRunStatus;
+          trigger: AccountResearchTrigger;
+          requested_scope: AccountResearchRequestedScope;
+          identity_confidence: AccountResearchIdentityConfidence;
+          identity_review_status: AccountResearchIdentityReviewStatus;
+          identity_reviewed_by: string | null;
+          identity_reviewed_at: string | null;
+          identity_resolution: string | null;
+          resolved_website: string | null;
+          research_brief: string | null;
+          provider: string | null;
+          provider_metadata: Record<string, unknown>;
+          error: string | null;
+          requested_by: string | null;
+          started_at: string | null;
+          completed_at: string | null;
+          created_at: string;
+          supersedes_run_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          retailer_id: number;
+          status?: AccountResearchRunStatus;
+          trigger?: AccountResearchTrigger;
+          requested_scope: AccountResearchRequestedScope;
+          identity_confidence?: AccountResearchIdentityConfidence;
+          identity_review_status?: AccountResearchIdentityReviewStatus;
+          identity_reviewed_by?: string | null;
+          identity_reviewed_at?: string | null;
+          identity_resolution?: string | null;
+          resolved_website?: string | null;
+          research_brief?: string | null;
+          provider?: string | null;
+          provider_metadata?: Record<string, unknown>;
+          error?: string | null;
+          requested_by?: string | null;
+          started_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          supersedes_run_id?: string | null;
+        };
+        Update: {
+          id?: string;
+          retailer_id?: number;
+          status?: AccountResearchRunStatus;
+          trigger?: AccountResearchTrigger;
+          requested_scope?: AccountResearchRequestedScope;
+          identity_confidence?: AccountResearchIdentityConfidence;
+          identity_review_status?: AccountResearchIdentityReviewStatus;
+          identity_reviewed_by?: string | null;
+          identity_reviewed_at?: string | null;
+          identity_resolution?: string | null;
+          resolved_website?: string | null;
+          research_brief?: string | null;
+          provider?: string | null;
+          provider_metadata?: Record<string, unknown>;
+          error?: string | null;
+          requested_by?: string | null;
+          started_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          supersedes_run_id?: string | null;
+        };
+        Relationships: [];
+      };
+      account_research_source_searches: {
+        Row: {
+          id: string;
+          research_run_id: string;
+          source_type: AccountResearchSourceType;
+          search_mode: AccountResearchSearchMode;
+          status: AccountResearchSourceSearchStatus;
+          resolved_public_url: string | null;
+          query_text: string | null;
+          provider: string | null;
+          result_count: number;
+          error: string | null;
+          requested_by: string | null;
+          provider_metadata: Record<string, unknown>;
+          started_at: string | null;
+          completed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          research_run_id: string;
+          source_type: AccountResearchSourceType;
+          search_mode: AccountResearchSearchMode;
+          status?: AccountResearchSourceSearchStatus;
+          resolved_public_url?: string | null;
+          query_text?: string | null;
+          provider?: string | null;
+          result_count?: number;
+          error?: string | null;
+          requested_by?: string | null;
+          provider_metadata?: Record<string, unknown>;
+          started_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          research_run_id?: string;
+          source_type?: AccountResearchSourceType;
+          search_mode?: AccountResearchSearchMode;
+          status?: AccountResearchSourceSearchStatus;
+          resolved_public_url?: string | null;
+          query_text?: string | null;
+          provider?: string | null;
+          result_count?: number;
+          error?: string | null;
+          requested_by?: string | null;
+          provider_metadata?: Record<string, unknown>;
+          started_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      account_research_citations: {
+        Row: {
+          id: string;
+          source_search_id: string;
+          research_run_id: string;
+          retailer_id: number;
+          source_url: string;
+          source_url_normalized: string;
+          title: string | null;
+          platform: AccountResearchCitationPlatform;
+          published_at: string | null;
+          observed_at: string;
+          excerpt: string | null;
+          confidence: AccountResearchConfidence;
+          identity_confidence: AccountResearchIdentityConfidence;
+          acceptance_status: AccountResearchAcceptanceStatus;
+          acceptance_basis: AccountResearchAcceptanceBasis | null;
+          accepted_or_rejected_by: string | null;
+          accepted_or_rejected_at: string | null;
+          provider_metadata: Record<string, unknown>;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          source_search_id: string;
+          research_run_id: string;
+          retailer_id: number;
+          source_url: string;
+          source_url_normalized: string;
+          title?: string | null;
+          platform: AccountResearchCitationPlatform;
+          published_at?: string | null;
+          observed_at: string;
+          excerpt?: string | null;
+          confidence: AccountResearchConfidence;
+          identity_confidence: AccountResearchIdentityConfidence;
+          acceptance_status?: AccountResearchAcceptanceStatus;
+          acceptance_basis?: AccountResearchAcceptanceBasis | null;
+          accepted_or_rejected_by?: string | null;
+          accepted_or_rejected_at?: string | null;
+          provider_metadata?: Record<string, unknown>;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          source_search_id?: string;
+          research_run_id?: string;
+          retailer_id?: number;
+          source_url?: string;
+          source_url_normalized?: string;
+          title?: string | null;
+          platform?: AccountResearchCitationPlatform;
+          published_at?: string | null;
+          observed_at?: string;
+          excerpt?: string | null;
+          confidence?: AccountResearchConfidence;
+          identity_confidence?: AccountResearchIdentityConfidence;
+          acceptance_status?: AccountResearchAcceptanceStatus;
+          acceptance_basis?: AccountResearchAcceptanceBasis | null;
+          accepted_or_rejected_by?: string | null;
+          accepted_or_rejected_at?: string | null;
+          provider_metadata?: Record<string, unknown>;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      account_research_profile_suggestions: {
+        Row: {
+          id: string;
+          research_run_id: string;
+          retailer_id: number;
+          field_path: string;
+          suggested_value: unknown;
+          rationale: string | null;
+          confidence: AccountResearchConfidence;
+          status: AccountResearchSuggestionStatus;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          research_run_id: string;
+          retailer_id: number;
+          field_path: string;
+          suggested_value: unknown;
+          rationale?: string | null;
+          confidence: AccountResearchConfidence;
+          status?: AccountResearchSuggestionStatus;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          research_run_id?: string;
+          retailer_id?: number;
+          field_path?: string;
+          suggested_value?: unknown;
+          rationale?: string | null;
+          confidence?: AccountResearchConfidence;
+          status?: AccountResearchSuggestionStatus;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      account_research_suggestion_citations: {
+        Row: {
+          suggestion_id: string;
+          citation_id: string;
+          research_run_id: string;
+          created_at: string;
+        };
+        Insert: {
+          suggestion_id: string;
+          citation_id: string;
+          research_run_id: string;
+          created_at?: string;
+        };
+        Update: {
+          suggestion_id?: string;
+          citation_id?: string;
+          research_run_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      account_product_match_runs: {
+        Row: {
+          id: string;
+          retailer_id: number;
+          sales_line_id: string;
+          research_run_id: string;
+          status: AccountProductMatchRunStatus;
+          empty_reason: AccountProductMatchEmptyReason | null;
+          requested_by: string | null;
+          provider_metadata: Record<string, unknown>;
+          error: string | null;
+          started_at: string | null;
+          completed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          retailer_id: number;
+          sales_line_id: string;
+          research_run_id: string;
+          status?: AccountProductMatchRunStatus;
+          empty_reason?: AccountProductMatchEmptyReason | null;
+          requested_by?: string | null;
+          provider_metadata?: Record<string, unknown>;
+          error?: string | null;
+          started_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          retailer_id?: number;
+          sales_line_id?: string;
+          research_run_id?: string;
+          status?: AccountProductMatchRunStatus;
+          empty_reason?: AccountProductMatchEmptyReason | null;
+          requested_by?: string | null;
+          provider_metadata?: Record<string, unknown>;
+          error?: string | null;
+          started_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      account_product_match_items: {
+        Row: {
+          id: string;
+          match_run_id: string;
+          catalog_item_id: string;
+          rank: number;
+          rationale: string;
+          product_fit: AccountProductMatchProductFit;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          match_run_id: string;
+          catalog_item_id: string;
+          rank: number;
+          rationale: string;
+          product_fit: AccountProductMatchProductFit;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          match_run_id?: string;
+          catalog_item_id?: string;
+          rank?: number;
+          rationale?: string;
+          product_fit?: AccountProductMatchProductFit;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      account_product_match_item_citations: {
+        Row: {
+          match_item_id: string;
+          citation_id: string;
+          research_run_id: string;
+          created_at: string;
+        };
+        Insert: {
+          match_item_id: string;
+          citation_id: string;
+          research_run_id: string;
+          created_at?: string;
+        };
+        Update: {
+          match_item_id?: string;
+          citation_id?: string;
+          research_run_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       buyer_cart_items: {
         Row: {
           id: string;
@@ -2970,6 +3368,21 @@ export type RetailerFieldChange = Database['public']['Tables']['retailer_field_c
 export type AccountImportBatch = Database['public']['Tables']['account_import_batches']['Row'];
 export type AccountImportRow = Database['public']['Tables']['account_import_rows']['Row'];
 export type AccountEnrichmentJob = Database['public']['Tables']['account_enrichment_jobs']['Row'];
+export type AccountResearchRun = Database['public']['Tables']['account_research_runs']['Row'];
+export type AccountResearchSourceSearch =
+  Database['public']['Tables']['account_research_source_searches']['Row'];
+export type AccountResearchCitation =
+  Database['public']['Tables']['account_research_citations']['Row'];
+export type AccountResearchProfileSuggestion =
+  Database['public']['Tables']['account_research_profile_suggestions']['Row'];
+export type AccountResearchSuggestionCitation =
+  Database['public']['Tables']['account_research_suggestion_citations']['Row'];
+export type AccountProductMatchRun =
+  Database['public']['Tables']['account_product_match_runs']['Row'];
+export type AccountProductMatchItem =
+  Database['public']['Tables']['account_product_match_items']['Row'];
+export type AccountProductMatchItemCitation =
+  Database['public']['Tables']['account_product_match_item_citations']['Row'];
 export type MigrationReviewQueueRow = Database['public']['Tables']['migration_review_queue']['Row'];
 export type OperationalTerritoryReviewQueueRow =
   Database['public']['Tables']['operational_territory_review_queue']['Row'];
