@@ -49,6 +49,7 @@ interface ActiveAccountsTabProps {
   onNotesSaved?: (id: number, notes: string | null) => void;
   onProspectUpdated?: (prospect: Prospect) => void;
   deepLinkAccountId?: number | null;
+  deepLinkOpenResearch?: boolean;
   onDeepLinkConsumed?: () => void;
   deepLinkImport?: boolean;
   onImportDeepLinkConsumed?: () => void;
@@ -86,6 +87,7 @@ export function ActiveAccountsTab({
   onNotesSaved,
   onProspectUpdated,
   deepLinkAccountId = null,
+  deepLinkOpenResearch = false,
   onDeepLinkConsumed,
   deepLinkImport = false,
   onImportDeepLinkConsumed,
@@ -123,6 +125,7 @@ export function ActiveAccountsTab({
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [appliedDeepLinkAccountId, setAppliedDeepLinkAccountId] = useState<number | null>(null);
+  const [openResearchAccountId, setOpenResearchAccountId] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [lookalikeOpen, setLookalikeOpen] = useState(false);
@@ -136,7 +139,10 @@ export function ActiveAccountsTab({
   if (deepLinkAccountId != null && deepLinkAccountId !== appliedDeepLinkAccountId) {
     const match = accounts.find((a) => a.id === deepLinkAccountId);
     setAppliedDeepLinkAccountId(deepLinkAccountId);
-    if (match) setDetailAccount(match);
+    if (match) {
+      setDetailAccount(match);
+      if (deepLinkOpenResearch) setOpenResearchAccountId(match.id);
+    }
     queueMicrotask(() => onDeepLinkConsumed?.());
   }
 
@@ -635,6 +641,9 @@ export function ActiveAccountsTab({
 
       <AccountDetailDrawer
         account={detailAccount}
+        initialSection={
+          detailAccount && openResearchAccountId === detailAccount.id ? 'research' : undefined
+        }
         contactsReloadToken={contactsReloadToken}
         onProductEmailSent={onProductEmailSent}
         summary={

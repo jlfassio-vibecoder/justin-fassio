@@ -30,7 +30,11 @@ type AgentBriefingTabProps = {
   onProductEmailSent?: () => void;
   onLogCallForLead: (prospectId: number) => void;
   briefingReloadToken?: number;
-  onOpenProspect: (args: { prospectId: number; accountStatus?: string }) => void;
+  onOpenProspect: (args: {
+    prospectId: number;
+    accountStatus?: string;
+    openResearch?: boolean;
+  }) => void;
 };
 
 async function staffGet(
@@ -387,18 +391,33 @@ export function AgentBriefingTab({
                     {briefing.drafts.map((d) => (
                       <tr key={d.draftId} className="hover:bg-bg/80">
                         <td className="border-ink/[0.06] border-b p-2">
-                          <button
-                            type="button"
-                            className="text-accent-800 font-medium hover:underline"
-                            onClick={() =>
-                              onOpenProspect({
-                                prospectId: d.prospectId,
-                                accountStatus: 'prospect',
-                              })
-                            }
-                          >
-                            {d.prospectName}
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              className="text-accent-800 font-medium hover:underline"
+                              onClick={() =>
+                                onOpenProspect({
+                                  prospectId: d.prospectId,
+                                  accountStatus: 'prospect',
+                                })
+                              }
+                            >
+                              {d.prospectName}
+                            </button>
+                            <button
+                              type="button"
+                              className="text-ink/55 hover:text-accent-800 text-xs hover:underline"
+                              onClick={() =>
+                                onOpenProspect({
+                                  prospectId: d.prospectId,
+                                  accountStatus: 'prospect',
+                                  openResearch: true,
+                                })
+                              }
+                            >
+                              Research
+                            </button>
+                          </div>
                         </td>
                         <td className="border-ink/[0.06] border-b p-2">
                           <button

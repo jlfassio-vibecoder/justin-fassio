@@ -64,6 +64,7 @@ interface ProspectsTabProps {
   onNotesSaved?: (id: number, notes: string | null) => void;
   onImported?: () => void;
   deepLinkProspectId?: number | null;
+  deepLinkOpenResearch?: boolean;
   onDeepLinkConsumed?: () => void;
   deepLinkImport?: boolean;
   onImportDeepLinkConsumed?: () => void;
@@ -80,6 +81,7 @@ export function ProspectsTab({
   onNotesSaved,
   onImported,
   deepLinkProspectId = null,
+  deepLinkOpenResearch = false,
   onDeepLinkConsumed,
   deepLinkImport = false,
   onImportDeepLinkConsumed,
@@ -103,6 +105,9 @@ export function ProspectsTab({
     mode: ProspectResearchMode;
   } | null>(null);
   const [appliedDeepLinkProspectId, setAppliedDeepLinkProspectId] = useState<number | null>(null);
+  const [scrollResearchForProspectId, setScrollResearchForProspectId] = useState<number | null>(
+    null,
+  );
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (deepLinkProspectId != null && deepLinkProspectId !== appliedDeepLinkProspectId) {
@@ -111,6 +116,7 @@ export function ProspectsTab({
     if (match) {
       setDetailProspect(match);
       setHighlightedProspectId(match.id);
+      if (deepLinkOpenResearch) setScrollResearchForProspectId(match.id);
     }
     queueMicrotask(() => onDeepLinkConsumed?.());
   }
@@ -337,6 +343,9 @@ export function ProspectsTab({
 
       <ProspectDetailDrawer
         prospect={detailProspect}
+        initialScrollToResearch={
+          detailProspect != null && scrollResearchForProspectId === detailProspect.id
+        }
         onClose={() => setDetailProspect(null)}
         onLogCall={onLogCall}
         onConverted={onConverted}

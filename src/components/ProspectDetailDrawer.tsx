@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { AccountContactsSection } from '@/components/AccountContactsSection';
 import { AccountDetailsEditor } from '@/components/AccountDetailsEditor';
@@ -8,11 +8,22 @@ import { ScheduleMeetingModal } from '@/components/calendar/ScheduleMeetingModal
 import { ConvertAccountModal } from '@/components/ConvertAccountModal';
 import { AccountEmailSection } from '@/components/messages/AccountEmailSection';
 import { AccountMessagesSection } from '@/components/messages/AccountMessagesSection';
+import { AccountResearchPanel } from '@/components/accountResearch/AccountResearchPanel';
+import {
+  OgrProductEmailComposerModal,
+  type OgrProductEmailComposerDraft,
+} from '@/components/OgrProductEmailComposerModal';
 import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
 import { OutreachLeadStateChip } from '@/components/OutreachLeadStateChip';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
 import { formatAccountLocationLine } from '@/lib/accountImport/directoryPresentation';
+import { buildCatalogItemEmailCardHtml } from '@/lib/catalogItemEmailCardHtml';
+import type { CatalogItem } from '@/lib/catalog';
+import { useOptionalLineContext } from '@/lib/lineContext';
+import { resolvePricingMarketFromRlaAssignment, type PublicMarket } from '@/lib/pricingMarket';
+import { fetchOperationalLineAccount } from '@/lib/retailerLineAccounts';
+import { fetchSalesLineTerritoriesClient } from '@/lib/salesLineTerritories';
 import { primaryRetailChannelLabel, type Prospect, updateProspectTaxonomy } from '@/lib/prospects';
 
 interface ProspectDetailDrawerProps {
@@ -25,6 +36,8 @@ interface ProspectDetailDrawerProps {
   onIdentitySaved?: (prospect: Prospect) => void;
   /** Bump to refetch AccountContactsSection after Log Call creates a contact. */
   contactsReloadToken?: number;
+  /** Scroll to research section when opened from Briefing. */
+  initialScrollToResearch?: boolean;
 }
 
 const STATUS_LABEL: Record<Prospect['accountStatus'], string> = {
@@ -32,6 +45,8 @@ const STATUS_LABEL: Record<Prospect['accountStatus'], string> = {
   active_account: 'Active account',
   inactive: 'Inactive',
 };
+
+const PROSPECT_RESEARCH_SECTION_ID = 'prospect-section-research';
 
 export function ProspectDetailDrawer({
   prospect,
@@ -42,15 +57,80 @@ export function ProspectDetailDrawer({
   onTaxonomySaved,
   onIdentitySaved,
   contactsReloadToken = 0,
+  initialScrollToResearch = false,
 }: ProspectDetailDrawerProps) {
+  const line = useOptionalLineContext();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const appliedResearchScrollRef = useRef<string | null>(null);
   const [convertOpen, setConvertOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+  const [researchDraft, setResearchDraft] = useState<OgrProductEmailComposerDraft | null>(null);
+  const [researchDraftProduct, setResearchDraftProduct] = useState<CatalogItem | null>(null);
+  const [retailerLineAccountId, setRetailerLineAccountId] = useState<string | null>(null);
+  const [emailMarket, setEmailMarket] = useState<PublicMarket>('ca');
+
+  useEffect(() => {
+    if (!prospect || !line.salesLineId) return;
+    let active = true;
+    void (async () => {
+      const rla = await fetchOperationalLineAccount({
+        retailerId: prospect.id,
+        salesLineId: line.salesLineId ?? '',
+      });
+      if (!active) return;
+      setRetailerLineAccountId(rla.data?.id ?? null);
+      if (!rla.data?.salesLineTerritoryId || !line.lineSlug) {
+        setEmailMarket(resolvePricingMarketFromRlaAssignment(null).publicMarket);
+        return;
+      }
+      const list = await fetchSalesLineTerritoriesClient(line.lineSlug);
+      if (!active || !list.ok) {
+        setEmailMarket(resolvePricingMarketFromRlaAssignment(null).publicMarket);
+        return;
+      }
+      const assignment = list.assignments.find((row) => row.id === rla.data?.salesLineTerritoryId);
+      setEmailMarket(
+        resolvePricingMarketFromRlaAssignment(
+          assignment
+            ? {
+                status: assignment.status,
+                countryCode: assignment.countryCode,
+                territoryId: assignment.territoryId,
+                territoryCode: assignment.territoryCode,
+              }
+            : null,
+        ).publicMarket,
+      );
+    })();
+    return () => {
+      active = false;
+    };
+  }, [line.lineSlug, line.salesLineId, prospect]);
+
+  useEffect(() => {
+    if (!prospect || !initialScrollToResearch) return;
+    const key = String(prospect.id);
+    if (appliedResearchScrollRef.current === key) return;
+    appliedResearchScrollRef.current = key;
+    const container = scrollContainerRef.current;
+    const target = container?.querySelector<HTMLElement>(`#${PROSPECT_RESEARCH_SECTION_ID}`);
+    if (!container || !target) return;
+    const timer = window.setTimeout(() => {
+      const top =
+        target.getBoundingClientRect().top -
+        container.getBoundingClientRect().top +
+        container.scrollTop;
+      container.scrollTo({ top, behavior: 'smooth' });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [initialScrollToResearch, prospect]);
 
   if (!prospect) return null;
 
   const canConvert =
     prospect.accountStatus !== 'active_account' && prospect.accountStatus !== 'inactive';
+  const overlayOpen = researchDraft != null;
 
   return (
     <>
@@ -60,6 +140,8 @@ export function ProspectDetailDrawer({
         role="dialog"
         aria-modal="true"
         aria-labelledby="prospect-detail-title"
+        inert={overlayOpen ? true : undefined}
+        aria-hidden={overlayOpen || undefined}
       >
         <div className="border-ink/10 flex items-start justify-between gap-3 border-b px-5 py-4">
           <div className="min-w-0">
@@ -80,7 +162,10 @@ export function ProspectDetailDrawer({
           </button>
         </div>
 
-        <div className="flex flex-1 flex-col gap-4 overflow-auto px-5 py-4">
+        <div
+          ref={scrollContainerRef}
+          className="flex flex-1 flex-col gap-4 overflow-auto px-5 py-4"
+        >
           <div className="flex flex-wrap items-center gap-2">
             <Tag variant="accent-2">{primaryRetailChannelLabel(prospect.category)}</Tag>
             <span className="text-ink/70 text-sm">
@@ -93,6 +178,22 @@ export function ProspectDetailDrawer({
             </span>
           </div>
           <OutreachLeadStateChip prospectId={prospect.id} />
+
+          <section id={PROSPECT_RESEARCH_SECTION_ID} className="scroll-mt-2">
+            <AccountResearchPanel
+              key={`research-${prospect.id}`}
+              prospect={prospect}
+              retailerLineAccountId={retailerLineAccountId}
+              onProspectUpdated={(next) => {
+                onTaxonomySaved?.(next);
+                onIdentitySaved?.(next);
+              }}
+              onOpenDraftComposer={({ draft, catalogItem }) => {
+                setResearchDraftProduct(catalogItem);
+                setResearchDraft(draft);
+              }}
+            />
+          </section>
 
           <AccountDetailsEditor
             key={`identity-${prospect.id}`}
@@ -153,6 +254,28 @@ export function ProspectDetailDrawer({
           </Button>
         </div>
       </aside>
+
+      {researchDraft && researchDraftProduct ? (
+        <OgrProductEmailComposerModal
+          open
+          overlayClassName="z-[60]"
+          productId={researchDraftProduct.id}
+          productName={researchDraftProduct.name}
+          cardHtml={buildCatalogItemEmailCardHtml(researchDraftProduct, emailMarket)}
+          draft={researchDraft}
+          prospectId={prospect.id}
+          salesLineId={line.salesLineId}
+          retailerLineAccountId={retailerLineAccountId}
+          onClose={() => {
+            setResearchDraft(null);
+            setResearchDraftProduct(null);
+          }}
+          onSent={() => {
+            setResearchDraft(null);
+            setResearchDraftProduct(null);
+          }}
+        />
+      ) : null}
 
       <ConvertAccountModal
         open={convertOpen}

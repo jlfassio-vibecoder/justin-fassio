@@ -1,0 +1,596 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button } from '@/components/ui/Button';
+import { Tag } from '@/components/ui/Tag';
+import { AccountResearchContactPickModal } from '@/components/accountResearch/AccountResearchContactPickModal';
+import type { OgrProductEmailComposerDraft } from '@/components/OgrProductEmailComposerModal';
+import type { SuggestionWithCitations } from '@/lib/accountResearch/suggestions';
+import { isUsableFreshRun } from '@/lib/accountResearch/freshness';
+import {
+  applyAccountResearchSuggestion,
+  createAccountProductMatchClient,
+  fetchLatestAccountResearch,
+  generateAccountResearchSuggestions,
+  listAccountResearchSuggestions,
+  loadLatestProductMatch,
+  rejectAccountResearchSuggestion,
+  runAccountResearchUntilDone,
+  startAccountResearch,
+  type AccountResearchSnapshotDto,
+  type LoadedProductMatch,
+} from '@/lib/accountResearchClient';
+import { generateDraftFromResearchMatch } from '@/lib/accountResearchDraftHandoff';
+import type { MatchItemResponse } from '@/lib/accountProductMatch';
+import type { CatalogItem } from '@/lib/catalog';
+import { useOptionalLineContext } from '@/lib/lineContext';
+import type { Prospect } from '@/lib/prospects';
+import type {
+  AccountProductMatchEmptyReason,
+  AccountResearchCitation,
+  AccountResearchSourceSearch,
+} from '@/types/database';
+
+export type AccountResearchPanelProps = {
+  prospect: Prospect;
+  retailerLineAccountId?: string | null;
+  onProspectUpdated?: (prospect: Prospect) => void;
+  onOpenDraftComposer?: (input: {
+    draft: OgrProductEmailComposerDraft;
+    catalogItem: CatalogItem;
+  }) => void;
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  website: 'Website',
+  shopify: 'Shopify',
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  tiktok: 'TikTok',
+  pinterest: 'Pinterest',
+};
+
+const EMPTY_REASON_LABELS: Record<AccountProductMatchEmptyReason, string> = {
+  no_eligible_products: 'No published products in the outreach pool for this line.',
+  all_recently_emailed: 'All pool products were emailed to this account in the last 90 days.',
+  no_accepted_evidence: 'No accepted research citations to support matching.',
+  identity_unresolved: 'Identity confidence must be high before product match.',
+};
+
+function formatFieldPath(path: string): string {
+  return path.replace(/_/g, ' ');
+}
+
+function formatJsonValue(value: unknown): string {
+  if (value == null) return '—';
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.join(', ');
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function sourceStatusLabel(source: AccountResearchSourceSearch): string {
+  if (source.status === 'none_indexed') {
+    return 'No recent public indexed activity found';
+  }
+  return source.status.replace(/_/g, ' ');
+}
+
+function identityBlocksResearch(snapshot: AccountResearchSnapshotDto | null): boolean {
+  if (!snapshot) return true;
+  if (snapshot.run.status === 'needs_identity_review') return true;
+  return snapshot.run.identity_confidence !== 'high';
+}
+
+export function AccountResearchPanel({
+  prospect,
+  retailerLineAccountId = null,
+  onProspectUpdated,
+  onOpenDraftComposer,
+}: AccountResearchPanelProps) {
+  const line = useOptionalLineContext();
+  const abortRef = useRef<AbortController | null>(null);
+
+  const [snapshot, setSnapshot] = useState<AccountResearchSnapshotDto | null>(null);
+  const [suggestions, setSuggestions] = useState<SuggestionWithCitations[]>([]);
+  const [matchResult, setMatchResult] = useState<LoadedProductMatch | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [ignoreDedup, setIgnoreDedup] = useState(false);
+  const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
+  const [contactPickItem, setContactPickItem] = useState<MatchItemResponse | null>(null);
+
+  const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
+  const bigFishOutreachBlocked = line.lineSlug === 'big-fish' && !line.bigFishOutreach;
+  const outreachBlocked = eaglePeakOutreachBlocked || bigFishOutreachBlocked;
+
+  const fresh = snapshot ? isUsableFreshRun(snapshot.run) : false;
+  const identityBlocked = identityBlocksResearch(snapshot);
+  const running =
+    snapshot?.run.status === 'pending' ||
+    snapshot?.run.status === 'running' ||
+    busyAction === 'run' ||
+    busyAction === 'refresh' ||
+    busyAction === 'process';
+
+  const citationsFlat = useMemo(() => {
+    if (!snapshot) return [] as AccountResearchCitation[];
+    return Object.values(snapshot.citationsBySourceId).flat();
+  }, [snapshot]);
+
+  const hydrateSuggestions = useCallback(async (runId: string) => {
+    const listed = await listAccountResearchSuggestions(runId);
+    if (listed.ok) setSuggestions(listed.suggestions);
+  }, []);
+
+  const hydrateMatch = useCallback(
+    async (runId: string) => {
+      if (!line.salesLineId) return;
+      const loaded = await loadLatestProductMatch({
+        retailerId: prospect.id,
+        salesLineId: line.salesLineId,
+        researchRunId: runId,
+      });
+      setMatchResult(loaded);
+    },
+    [line.salesLineId, prospect.id],
+  );
+
+  const hydrateAll = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const latest = await fetchLatestAccountResearch(prospect.id, 'all');
+    if (!latest.ok) {
+      setError(latest.error);
+      setSnapshot(null);
+      setSuggestions([]);
+      setMatchResult(null);
+      setLoading(false);
+      return;
+    }
+    if (latest.outcome === 'none') {
+      setSnapshot(null);
+      setSuggestions([]);
+      setMatchResult(null);
+      setLoading(false);
+      return;
+    }
+    setSnapshot({
+      run: latest.run,
+      sources: latest.sources,
+      citationsBySourceId: latest.citationsBySourceId,
+      sourceFreshness: latest.sourceFreshness,
+    });
+    await Promise.all([hydrateSuggestions(latest.run.id), hydrateMatch(latest.run.id)]);
+    setLoading(false);
+  }, [hydrateMatch, hydrateSuggestions, prospect.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      await hydrateAll();
+      if (cancelled) return;
+    })();
+    return () => {
+      cancelled = true;
+      abortRef.current?.abort();
+    };
+  }, [hydrateAll]);
+
+  async function runResearch(forceRefresh: boolean) {
+    setBusyAction(forceRefresh ? 'refresh' : 'run');
+    setError(null);
+    setProgress(forceRefresh ? 'Starting refresh…' : 'Starting research…');
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const started = await startAccountResearch({
+      retailerId: prospect.id,
+      scope: 'all',
+      forceRefresh,
+    });
+    if (!started.ok) {
+      setError(started.error);
+      setBusyAction(null);
+      setProgress(null);
+      return;
+    }
+
+    setSnapshot({
+      run: started.run,
+      sources: started.sources,
+      citationsBySourceId: started.citationsBySourceId,
+      sourceFreshness: started.sourceFreshness,
+    });
+
+    if (started.run.status === 'pending' || started.run.status === 'running') {
+      const done = await runAccountResearchUntilDone(started.run.id, {
+        signal: controller.signal,
+        onProgress: (snap) => {
+          setSnapshot(snap);
+          const completed = snap.sources.filter(
+            (s) => s.status !== 'pending' && s.status !== 'running',
+          ).length;
+          setProgress(`Processing sources (${completed}/${snap.sources.length})…`);
+        },
+      });
+      if (!done.ok) {
+        if (done.error !== 'Aborted') setError(done.error);
+        setBusyAction(null);
+        setProgress(null);
+        return;
+      }
+      setSnapshot(done);
+    }
+
+    setProgress(null);
+    setBusyAction(null);
+    await Promise.all([hydrateSuggestions(started.run.id), hydrateMatch(started.run.id)]);
+  }
+
+  async function handleGenerateSuggestions() {
+    if (!snapshot) return;
+    setBusyAction('suggestions');
+    setError(null);
+    const result = await generateAccountResearchSuggestions(snapshot.run.id);
+    setBusyAction(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setSuggestions(result.suggestions);
+  }
+
+  async function handleApplySuggestion(suggestionId: string) {
+    setBusyAction(`apply-${suggestionId}`);
+    setError(null);
+    const result = await applyAccountResearchSuggestion(suggestionId);
+    setBusyAction(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    onProspectUpdated?.(result.prospect);
+    if (snapshot) await hydrateSuggestions(snapshot.run.id);
+  }
+
+  async function handleRejectSuggestion(suggestionId: string) {
+    setBusyAction(`reject-${suggestionId}`);
+    setError(null);
+    const result = await rejectAccountResearchSuggestion(suggestionId);
+    setBusyAction(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    if (snapshot) await hydrateSuggestions(snapshot.run.id);
+  }
+
+  async function handleRunMatch() {
+    if (!snapshot || !line.salesLineId) return;
+    setBusyAction('match');
+    setError(null);
+    const result = await createAccountProductMatchClient({
+      retailerId: prospect.id,
+      salesLineId: line.salesLineId,
+      researchRunId: snapshot.run.id,
+      ignoreRecentSendDedup: ignoreDedup,
+    });
+    setBusyAction(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setMatchResult({ run: result.run, items: result.items });
+    if (result.outcome === 'empty' && result.empty_reason) {
+      setError(EMPTY_REASON_LABELS[result.empty_reason] ?? result.empty_reason);
+    }
+  }
+
+  async function handleContactPicked(contact: {
+    accountContactId: string;
+    toEmail: string;
+    toName: string;
+  }) {
+    const item = contactPickItem;
+    setContactPickItem(null);
+    if (!item || !onOpenDraftComposer) return;
+
+    setBusyAction('draft');
+    setError(null);
+    const generated = await generateDraftFromResearchMatch({
+      prospect,
+      matchItem: item,
+      contact,
+      salesLineId: line.salesLineId ?? undefined,
+      retailerLineAccountId: retailerLineAccountId ?? undefined,
+    });
+    setBusyAction(null);
+    if (!generated.ok) {
+      setError(generated.error);
+      return;
+    }
+    onOpenDraftComposer({
+      draft: generated.draft,
+      catalogItem: generated.catalogItem,
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="font-heading m-0 text-base">Account research</h3>
+        {snapshot ? (
+          <>
+            <Tag variant={fresh ? 'accent-2' : 'neutral'}>{fresh ? 'Fresh' : 'Stale'}</Tag>
+            <Tag variant="neutral">Identity: {snapshot.run.identity_confidence}</Tag>
+            <Tag variant="neutral">{snapshot.run.status.replace(/_/g, ' ')}</Tag>
+          </>
+        ) : (
+          <Tag variant="neutral">No run yet</Tag>
+        )}
+      </div>
+
+      {snapshot?.run.completed_at ? (
+        <p className="text-ink/55 m-0 text-xs">
+          Completed {snapshot.run.completed_at.slice(0, 10)}
+        </p>
+      ) : null}
+
+      {identityBlocked ? (
+        <p className="text-ink/70 m-0 rounded-md border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-sm">
+          Identity must be high confidence before suggestions or product match. Refresh research or
+          review citations when identity is unresolved.
+        </p>
+      ) : null}
+
+      <div className="flex flex-wrap gap-2">
+        <Button variant="primary" disabled={running} onClick={() => void runResearch(false)}>
+          {busyAction === 'run' ? 'Running…' : 'Run Search All'}
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={running || !snapshot}
+          onClick={() => void runResearch(true)}
+        >
+          {busyAction === 'refresh' ? 'Refreshing…' : 'Refresh'}
+        </Button>
+      </div>
+
+      {progress ? <p className="text-ink/60 m-0 text-sm">{progress}</p> : null}
+      {loading ? <p className="text-ink/60 m-0 text-sm">Loading research…</p> : null}
+      {error ? <p className="text-error m-0 text-sm">{error}</p> : null}
+
+      {snapshot ? (
+        <>
+          <section>
+            <h4 className="text-ink/70 m-0 mb-2 text-xs font-semibold tracking-wider uppercase">
+              Sources
+            </h4>
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {snapshot.sources.map((source) => (
+                <li key={source.id} className="border-ink/10 rounded-md border px-3 py-2 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">
+                      {SOURCE_LABELS[source.source_type] ?? source.source_type}
+                    </span>
+                    <span className="text-ink/55 text-xs">
+                      {sourceStatusLabel(source)}
+                      {snapshot.sourceFreshness[source.id] ? ' · fresh' : ''}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section>
+            <h4 className="text-ink/70 m-0 mb-2 text-xs font-semibold tracking-wider uppercase">
+              Citations ({citationsFlat.length})
+            </h4>
+            {snapshot.sources.length === 0 ? (
+              <p className="text-ink/50 m-0 text-sm">No sources yet.</p>
+            ) : (
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {snapshot.sources.map((source) => {
+                  const citations = snapshot.citationsBySourceId[source.id] ?? [];
+                  const expanded = expandedSources[source.id] ?? false;
+                  return (
+                    <li key={source.id} className="border-ink/10 rounded-md border">
+                      <button
+                        type="button"
+                        className="hover:bg-ink/[0.03] flex w-full items-center justify-between px-3 py-2 text-left text-sm"
+                        onClick={() =>
+                          setExpandedSources((prev) => ({
+                            ...prev,
+                            [source.id]: !expanded,
+                          }))
+                        }
+                      >
+                        <span>
+                          {SOURCE_LABELS[source.source_type] ?? source.source_type} (
+                          {citations.length})
+                        </span>
+                        <span className="text-ink/45 text-xs">{expanded ? 'Hide' : 'Show'}</span>
+                      </button>
+                      {expanded ? (
+                        <ul className="border-ink/10 m-0 flex list-none flex-col gap-2 border-t p-3">
+                          {citations.length === 0 ? (
+                            <li className="text-ink/50 text-xs">No citations.</li>
+                          ) : (
+                            citations.map((citation) => (
+                              <li key={citation.id} className="text-sm">
+                                <p className="m-0 font-medium">
+                                  {citation.title ?? citation.source_url}
+                                </p>
+                                <p className="text-ink/55 m-0 mt-0.5 text-xs">
+                                  {citation.acceptance_status} · {citation.platform}
+                                  {citation.observed_at
+                                    ? ` · ${citation.observed_at.slice(0, 10)}`
+                                    : ''}
+                                </p>
+                                {citation.excerpt ? (
+                                  <p className="text-ink/70 m-0 mt-1 text-xs leading-relaxed">
+                                    {citation.excerpt}
+                                  </p>
+                                ) : null}
+                                <a
+                                  href={citation.source_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-accent-800 mt-1 inline-block text-xs hover:underline"
+                                >
+                                  Open source
+                                </a>
+                              </li>
+                            ))
+                          )}
+                        </ul>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+          <section>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-ink/70 m-0 text-xs font-semibold tracking-wider uppercase">
+                Profile suggestions
+              </h4>
+              <Button
+                variant="secondary"
+                disabled={identityBlocked || !fresh || busyAction != null}
+                onClick={() => void handleGenerateSuggestions()}
+              >
+                {busyAction === 'suggestions' ? 'Generating…' : 'Generate suggestions'}
+              </Button>
+            </div>
+            {suggestions.length === 0 ? (
+              <p className="text-ink/50 m-0 text-sm">No pending suggestions.</p>
+            ) : (
+              <ul className="m-0 flex list-none flex-col gap-3 p-0">
+                {suggestions.map((suggestion) => (
+                  <li
+                    key={suggestion.id}
+                    className="border-ink/10 rounded-md border px-3 py-2 text-sm"
+                  >
+                    <p className="m-0 font-medium">{formatFieldPath(suggestion.field_path)}</p>
+                    <p className="text-ink/60 m-0 mt-1 text-xs">
+                      Current: {formatJsonValue(suggestion.currentValue)}
+                    </p>
+                    <p className="m-0 mt-1">
+                      Suggested: {formatJsonValue(suggestion.suggested_value)}
+                    </p>
+                    {suggestion.rationale ? (
+                      <p className="text-ink/70 m-0 mt-1 text-xs">{suggestion.rationale}</p>
+                    ) : null}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button
+                        variant="primary"
+                        disabled={busyAction != null}
+                        onClick={() => void handleApplySuggestion(suggestion.id)}
+                      >
+                        Apply
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        disabled={busyAction != null}
+                        onClick={() => void handleRejectSuggestion(suggestion.id)}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-ink/70 m-0 text-xs font-semibold tracking-wider uppercase">
+                Product match
+              </h4>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-ink/60 flex items-center gap-1.5 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={ignoreDedup}
+                    onChange={(e) => setIgnoreDedup(e.target.checked)}
+                  />
+                  Ignore 90-day dedup
+                </label>
+                <Button
+                  variant="secondary"
+                  disabled={identityBlocked || !fresh || !line.salesLineId || busyAction != null}
+                  onClick={() => void handleRunMatch()}
+                >
+                  {busyAction === 'match' ? 'Matching…' : 'Run match'}
+                </Button>
+              </div>
+            </div>
+            {!line.salesLineId ? (
+              <p className="text-ink/50 m-0 text-sm">
+                Select a represented sales line to run match.
+              </p>
+            ) : matchResult && matchResult.items.length > 0 ? (
+              <ul className="m-0 flex list-none flex-col gap-3 p-0">
+                {matchResult.items.map((item) => (
+                  <li key={item.id} className="border-ink/10 rounded-md border px-3 py-2 text-sm">
+                    <p className="m-0 font-medium">
+                      #{item.rank} {item.name}{' '}
+                      <span className="text-ink/45 text-xs">({item.sku})</span>
+                    </p>
+                    <p className="text-ink/55 m-0 mt-0.5 text-xs">Fit: {item.product_fit}</p>
+                    <p className="text-ink/70 m-0 mt-1 text-xs leading-relaxed">{item.rationale}</p>
+                    <p className="text-ink/45 m-0 mt-1 text-xs">
+                      {item.citation_ids.length} citation
+                      {item.citation_ids.length === 1 ? '' : 's'}
+                    </p>
+                    <Button
+                      variant="primary"
+                      className="mt-2"
+                      disabled={outreachBlocked || busyAction != null || !onOpenDraftComposer}
+                      onClick={() => setContactPickItem(item)}
+                    >
+                      Use for draft
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : matchResult?.run.status === 'empty' && matchResult.run.empty_reason ? (
+              <p className="text-ink/50 m-0 text-sm">
+                {EMPTY_REASON_LABELS[matchResult.run.empty_reason] ?? matchResult.run.empty_reason}
+              </p>
+            ) : (
+              <p className="text-ink/50 m-0 text-sm">No match run yet for this research.</p>
+            )}
+            {outreachBlocked ? (
+              <p className="text-ink/55 m-0 mt-2 text-xs">
+                Outreach draft generation is not enabled for this line.
+              </p>
+            ) : null}
+          </section>
+        </>
+      ) : (
+        <p className="text-ink/50 m-0 text-sm">
+          Run Search All to gather website and social evidence before product match.
+        </p>
+      )}
+
+      <AccountResearchContactPickModal
+        open={contactPickItem != null}
+        accountId={prospect.id}
+        onClose={() => setContactPickItem(null)}
+        onPick={(contact) => void handleContactPicked(contact)}
+      />
+    </div>
+  );
+}

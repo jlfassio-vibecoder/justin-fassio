@@ -8,7 +8,11 @@ import { AccountCalendarSection } from '@/components/calendar/AccountCalendarSec
 import { ScheduleMeetingModal } from '@/components/calendar/ScheduleMeetingModal';
 import { AccountEmailSection } from '@/components/messages/AccountEmailSection';
 import { AccountMessagesSection } from '@/components/messages/AccountMessagesSection';
-import { OgrProductEmailComposerModal } from '@/components/OgrProductEmailComposerModal';
+import {
+  OgrProductEmailComposerModal,
+  type OgrProductEmailComposerDraft,
+} from '@/components/OgrProductEmailComposerModal';
+import { AccountResearchPanel } from '@/components/accountResearch/AccountResearchPanel';
 import { Button } from '@/components/ui/Button';
 import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
@@ -45,6 +49,22 @@ export interface AccountDetailSummary {
   latestSeason: ApparelSeason | null;
 }
 
+type AccountEmailFlow = 'closed' | 'pick' | 'compose';
+
+const ACCOUNT_DRAWER_SECTIONS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'research', label: 'Research' },
+  { id: 'taxonomy', label: 'Taxonomy' },
+  { id: 'details', label: 'Details' },
+  { id: 'notes', label: 'Notes' },
+  { id: 'contacts', label: 'Contacts' },
+  { id: 'messages', label: 'Messages' },
+  { id: 'email', label: 'Email' },
+  { id: 'calendar', label: 'Calendar' },
+] as const;
+
+export type AccountDrawerSectionId = (typeof ACCOUNT_DRAWER_SECTIONS)[number]['id'];
+
 interface AccountDetailDrawerProps {
   account: Prospect | null;
   summary?: AccountDetailSummary | null;
@@ -60,6 +80,8 @@ interface AccountDetailDrawerProps {
   contactsReloadToken?: number;
   /** Fired after a successful product email send from this drawer. */
   onProductEmailSent?: () => void;
+  /** Scroll to this section when the drawer opens (e.g. Briefing research deep link). */
+  initialSection?: AccountDrawerSectionId;
 }
 
 function formatCad(amount: number): string {
@@ -74,21 +96,6 @@ function formatTimestamp(iso: string | null): string {
   if (!iso) return '—';
   return iso.slice(0, 10);
 }
-
-type AccountEmailFlow = 'closed' | 'pick' | 'compose';
-
-const ACCOUNT_DRAWER_SECTIONS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'taxonomy', label: 'Taxonomy' },
-  { id: 'details', label: 'Details' },
-  { id: 'notes', label: 'Notes' },
-  { id: 'contacts', label: 'Contacts' },
-  { id: 'messages', label: 'Messages' },
-  { id: 'email', label: 'Email' },
-  { id: 'calendar', label: 'Calendar' },
-] as const;
-
-type AccountDrawerSectionId = (typeof ACCOUNT_DRAWER_SECTIONS)[number]['id'];
 
 function accountSectionDomId(sectionId: AccountDrawerSectionId): string {
   return `account-section-${sectionId}`;
@@ -288,6 +295,7 @@ export function AccountDetailDrawer({
   onDemoted,
   contactsReloadToken = 0,
   onProductEmailSent,
+  initialSection,
 }: AccountDetailDrawerProps) {
   const [demoteBusy, setDemoteBusy] = useState(false);
   const [demoteError, setDemoteError] = useState<string | null>(null);
@@ -312,6 +320,9 @@ export function AccountDetailDrawer({
   );
   const composerSentRef = useRef(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const appliedInitialSectionRef = useRef<string | null>(null);
+  const [researchDraft, setResearchDraft] = useState<OgrProductEmailComposerDraft | null>(null);
+  const [researchDraftProduct, setResearchDraftProduct] = useState<CatalogItem | null>(null);
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status
@@ -327,7 +338,7 @@ export function AccountDetailDrawer({
   const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
   const bigFishOutreachBlocked = line.lineSlug === 'big-fish' && !line.bigFishOutreach;
   const emailProductBlocked = eaglePeakOutreachBlocked || bigFishOutreachBlocked;
-  const emailOverlayOpen = emailFlow !== 'closed';
+  const emailOverlayOpen = emailFlow !== 'closed' || researchDraft != null;
   const rlaScope = account && line.salesLineId ? `${account.id}:${line.salesLineId}` : null;
   const retailerLineAccountId =
     rlaScope && retailerLineAccountRecord?.scope === rlaScope ? retailerLineAccountRecord.id : null;
@@ -388,6 +399,26 @@ export function AccountDetailDrawer({
       active = false;
     };
   }, [account, line.lineSlug, line.salesLineId]);
+
+  useEffect(() => {
+    if (!account || !initialSection) return;
+    const key = `${account.id}:${initialSection}`;
+    if (appliedInitialSectionRef.current === key) return;
+    appliedInitialSectionRef.current = key;
+    const timer = window.setTimeout(() => {
+      const container = scrollContainerRef.current;
+      const target = container?.querySelector<HTMLElement>(
+        `#${accountSectionDomId(initialSection)}`,
+      );
+      if (!container || !target) return;
+      const top =
+        target.getBoundingClientRect().top -
+        container.getBoundingClientRect().top +
+        container.scrollTop;
+      container.scrollTo({ top, behavior: 'smooth' });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [account, initialSection]);
 
   if (!account) return null;
   const current = account;
@@ -568,6 +599,22 @@ export function AccountDetailDrawer({
             </dl>
           </section>
 
+          <section id={accountSectionDomId('research')} className="scroll-mt-2">
+            <AccountResearchPanel
+              key={`research-${account.id}`}
+              prospect={account}
+              retailerLineAccountId={retailerLineAccountId}
+              onProspectUpdated={(next) => {
+                onTaxonomySaved?.(next);
+                onIdentitySaved?.(next);
+              }}
+              onOpenDraftComposer={({ draft, catalogItem }) => {
+                setResearchDraftProduct(catalogItem);
+                setResearchDraft(draft);
+              }}
+            />
+          </section>
+
           <section id={accountSectionDomId('taxonomy')} className="scroll-mt-2">
             <ProspectTaxonomyEditor
               key={account.id}
@@ -688,6 +735,34 @@ export function AccountDetailDrawer({
         onClose={() => setScheduleOpen(false)}
         onCreated={() => setCalendarRefreshKey((n) => n + 1)}
       />
+
+      {researchDraft && researchDraftProduct ? (
+        <OgrProductEmailComposerModal
+          open
+          overlayClassName="z-[60]"
+          productId={researchDraftProduct.id}
+          productName={researchDraftProduct.name}
+          cardHtml={buildCatalogItemEmailCardHtml(researchDraftProduct, accountEmailMarket)}
+          draft={researchDraft}
+          prospectId={account.id}
+          salesLineId={line.salesLineId}
+          retailerLineAccountId={retailerLineAccountId}
+          onClose={() => {
+            if (composerSentRef.current) {
+              composerSentRef.current = false;
+              return;
+            }
+            setResearchDraft(null);
+            setResearchDraftProduct(null);
+          }}
+          onSent={() => {
+            composerSentRef.current = true;
+            setResearchDraft(null);
+            setResearchDraftProduct(null);
+            onProductEmailSent?.();
+          }}
+        />
+      ) : null}
 
       {emailFlow === 'pick' ? (
         <AccountEmailProductPickerModal
