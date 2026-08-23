@@ -2872,8 +2872,8 @@ export interface Database {
         Insert: {
           id?: string;
           source_search_id: string;
-          research_run_id: string;
-          retailer_id: number;
+          research_run_id?: string;
+          retailer_id?: number;
           source_url: string;
           source_url_normalized: string;
           title?: string | null;
@@ -2930,7 +2930,7 @@ export interface Database {
         Insert: {
           id?: string;
           research_run_id: string;
-          retailer_id: number;
+          retailer_id?: number;
           field_path: string;
           suggested_value: unknown;
           rationale?: string | null;
@@ -2965,7 +2965,7 @@ export interface Database {
         Insert: {
           suggestion_id: string;
           citation_id: string;
-          research_run_id: string;
+          research_run_id?: string;
           created_at?: string;
         };
         Update: {
@@ -3061,7 +3061,7 @@ export interface Database {
         Insert: {
           match_item_id: string;
           citation_id: string;
-          research_run_id: string;
+          research_run_id?: string;
           created_at?: string;
         };
         Update: {

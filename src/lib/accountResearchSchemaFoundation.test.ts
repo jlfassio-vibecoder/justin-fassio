@@ -59,6 +59,7 @@ describe('Account Research PR1 schema foundation', () => {
       'other',
     ]) {
       expect(migration).toContain(`'${scope}'`);
+      expect(schemaSql).toContain(`'${scope}'`);
     }
   });
 
@@ -79,7 +80,23 @@ describe('Account Research PR1 schema foundation', () => {
       /sales_line_id\s+uuid\s+not\s+null\s+references\s+lines\s*\(\s*id\s*\)/i,
     );
     expect(migration).toMatch(
-      /research_run_id\s+uuid\s+not\s+null\s+references\s+account_research_runs\s*\(\s*id\s*\)\s+on\s+delete\s+restrict/i,
+      /account_product_match_runs_research_run_retailer_fkey[\s\S]*foreign key\s*\(\s*research_run_id,\s*retailer_id\s*\)[\s\S]*references\s+account_research_runs\s*\(\s*id,\s*retailer_id\s*\)[\s\S]*on\s+delete\s+restrict/i,
+    );
+    expect(migration).toMatch(/account_research_runs_id_retailer_uidx/i);
+  });
+
+  it('fires denormalized sync / same-run triggers on all UPDATEs', () => {
+    expect(migration).toMatch(
+      /create trigger account_research_citations_sync_parent\s+before insert or update on account_research_citations/i,
+    );
+    expect(migration).toMatch(
+      /create trigger account_research_profile_suggestions_sync_retailer\s+before insert or update on account_research_profile_suggestions/i,
+    );
+    expect(migration).toMatch(
+      /create trigger account_research_suggestion_citations_same_run\s+before insert or update on account_research_suggestion_citations/i,
+    );
+    expect(migration).toMatch(
+      /create trigger account_product_match_item_citations_same_run\s+before insert or update on account_product_match_item_citations/i,
     );
   });
 

@@ -60,6 +60,10 @@ create table if not exists account_research_runs (
   supersedes_run_id uuid references account_research_runs (id) on delete set null
 );
 
+-- Supports composite FKs that must bind research_run_id + retailer_id together
+alter table account_research_runs
+  add constraint account_research_runs_id_retailer_uidx unique (id, retailer_id);
+
 create unique index if not exists account_research_runs_one_active_per_retailer_uidx
   on account_research_runs (retailer_id)
   where status in ('pending', 'running');
@@ -221,7 +225,7 @@ $$;
 
 drop trigger if exists account_research_citations_sync_parent on account_research_citations;
 create trigger account_research_citations_sync_parent
-  before insert or update of source_search_id on account_research_citations
+  before insert or update on account_research_citations
   for each row execute function public.account_research_citations_sync_parent();
 
 -- ─────────────────────────────────────────────────────────────────────────
@@ -282,7 +286,7 @@ $$;
 drop trigger if exists account_research_profile_suggestions_sync_retailer
   on account_research_profile_suggestions;
 create trigger account_research_profile_suggestions_sync_retailer
-  before insert or update of research_run_id on account_research_profile_suggestions
+  before insert or update on account_research_profile_suggestions
   for each row execute function public.account_research_profile_suggestions_sync_retailer();
 
 -- ─────────────────────────────────────────────────────────────────────────
@@ -345,7 +349,7 @@ $$;
 drop trigger if exists account_research_suggestion_citations_same_run
   on account_research_suggestion_citations;
 create trigger account_research_suggestion_citations_same_run
-  before insert or update of suggestion_id, citation_id on account_research_suggestion_citations
+  before insert or update on account_research_suggestion_citations
   for each row execute function public.account_research_suggestion_citations_same_run();
 
 -- ─────────────────────────────────────────────────────────────────────────
@@ -356,7 +360,7 @@ create table if not exists account_product_match_runs (
   id uuid primary key default gen_random_uuid(),
   retailer_id integer not null references prospects (id) on delete cascade,
   sales_line_id uuid not null references lines (id),
-  research_run_id uuid not null references account_research_runs (id) on delete restrict,
+  research_run_id uuid not null,
   status text not null default 'pending'
     check (status in (
       'pending',
@@ -382,7 +386,11 @@ create table if not exists account_product_match_runs (
   error text,
   started_at timestamptz,
   completed_at timestamptz,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint account_product_match_runs_research_run_retailer_fkey
+    foreign key (research_run_id, retailer_id)
+    references account_research_runs (id, retailer_id)
+    on delete restrict
 );
 
 create index if not exists account_product_match_runs_retailer_line_created_idx
@@ -487,5 +495,5 @@ $$;
 drop trigger if exists account_product_match_item_citations_same_run
   on account_product_match_item_citations;
 create trigger account_product_match_item_citations_same_run
-  before insert or update of match_item_id, citation_id on account_product_match_item_citations
+  before insert or update on account_product_match_item_citations
   for each row execute function public.account_product_match_item_citations_same_run();
