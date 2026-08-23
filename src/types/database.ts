@@ -3315,6 +3315,29 @@ export interface Database {
         Args: { p_import_row_id: string; p_payload: unknown };
         Returns: unknown;
       };
+      start_account_research_run: {
+        Args: {
+          p_retailer_id: number;
+          p_scope: string;
+          p_trigger: string;
+          p_supersedes_run_id?: string | null;
+        };
+        Returns: unknown;
+      };
+      complete_account_research_source_search: {
+        Args: {
+          p_source_search_id: string;
+          p_status: string;
+          p_query_text?: string | null;
+          p_resolved_public_url?: string | null;
+          p_error?: string | null;
+          p_provider?: string | null;
+          p_provider_metadata?: Record<string, unknown>;
+          p_citations?: unknown;
+          p_research_brief?: string | null;
+        };
+        Returns: unknown;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
