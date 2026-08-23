@@ -164,11 +164,23 @@ async function inferModelSuggestions(args: {
     prompt,
   });
 
+  const citationsById = new Map(args.citations.map((citation) => [citation.id, citation]));
   const out: GeneratedSuggestionPayload[] = [];
   for (const item of result.object.suggestions) {
     if (!isSuggestionFieldPath(item.field_path) || item.field_path === 'website') continue;
     const fieldPath = item.field_path;
-    if (!item.citation_ids.every((id) => args.acceptedIds.has(id))) continue;
+    if (
+      !item.citation_ids.every((id) => {
+        const citation = citationsById.get(id);
+        return (
+          citation != null &&
+          args.acceptedIds.has(id) &&
+          citationMatchesFieldPlatforms(citation.platform, fieldPath)
+        );
+      })
+    ) {
+      continue;
+    }
 
     const def = SUGGESTION_FIELD_DEFS[fieldPath];
     let suggested: unknown;
@@ -383,6 +395,7 @@ export async function loadRunSuggestions(
     .from('account_research_profile_suggestions')
     .select('*')
     .eq('research_run_id', runId)
+    .eq('status', 'pending')
     .order('created_at', { ascending: true });
   if (error) return { ok: false, error: error.message };
 

@@ -244,6 +244,7 @@ export function normalizeScalarSuggestion(
   raw: unknown,
 ): string | null {
   if (raw == null) return null;
+  if (Array.isArray(raw)) return null;
   const text = typeof raw === 'string' ? raw.trim() : String(raw).trim();
   if (!text) return null;
 

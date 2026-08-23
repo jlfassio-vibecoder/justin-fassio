@@ -5397,27 +5397,32 @@ begin
         continue;
     end;
 
-    for v_citation_id in
-      select (jsonb_array_elements_text(v_citation_ids))::uuid
-    loop
-      if not exists (
-        select 1 from account_research_citations c
-        where c.id = v_citation_id
-          and c.research_run_id = p_run_id
-          and c.retailer_id = v_run.retailer_id
-          and c.acceptance_status = 'accepted'
-          and c.source_url is not null
-          and length(trim(c.source_url)) > 0
-      ) then
-        raise exception 'INVALID_CITATIONS';
-      end if;
+    begin
+      for v_citation_id in
+        select (jsonb_array_elements_text(v_citation_ids))::uuid
+      loop
+        if not exists (
+          select 1 from account_research_citations c
+          where c.id = v_citation_id
+            and c.research_run_id = p_run_id
+            and c.retailer_id = v_run.retailer_id
+            and c.acceptance_status = 'accepted'
+            and c.source_url is not null
+            and length(trim(c.source_url)) > 0
+        ) then
+          raise exception 'INVALID_CITATIONS';
+        end if;
 
-      insert into account_research_suggestion_citations (
-        suggestion_id, citation_id, research_run_id
-      )
-      values (v_suggestion_id, v_citation_id, p_run_id)
-      on conflict do nothing;
-    end loop;
+        insert into account_research_suggestion_citations (
+          suggestion_id, citation_id, research_run_id
+        )
+        values (v_suggestion_id, v_citation_id, p_run_id)
+        on conflict do nothing;
+      end loop;
+    exception
+      when invalid_text_representation then
+        raise exception 'INVALID_CITATIONS';
+    end;
 
     v_inserted := v_inserted + 1;
   end loop;

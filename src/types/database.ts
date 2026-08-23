@@ -2925,7 +2925,7 @@ export interface Database {
           status: AccountResearchSuggestionStatus;
           reviewed_by: string | null;
           reviewed_at: string | null;
-          baseline_value: unknown;
+          baseline_value: unknown | null;
           created_at: string;
         };
         Insert: {

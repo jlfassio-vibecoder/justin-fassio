@@ -80,6 +80,10 @@ describe('suggestionFields', () => {
     );
   });
 
+  it('rejects array values for scalar fields', () => {
+    expect(normalizeScalarSuggestion('city', ['Portland', 'OR'])).toBeNull();
+  });
+
   it('merges lifestyle themes without duplicates', () => {
     const prospect = baseProspect({ lifestyleThemes: ['fishing'] });
     const merged = mergeJsonArraySuggestion('lifestyle_themes', prospect, ['fishing', 'camping']);
