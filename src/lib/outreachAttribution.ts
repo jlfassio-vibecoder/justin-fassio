@@ -16,6 +16,8 @@ import {
   getOutreachLeadForProspect,
   loadUniqueContactEmailsForProspect,
 } from '@/lib/outreachLeadLists';
+import { resolveOutreachLeadRules } from '@/lib/resolveOutreachLeadRules';
+import { refreshPersistedLeadRules } from '@/lib/refreshPersistedLeadRules';
 import {
   normalizeSystemMessageEmail,
   parseGenerationMeta,
@@ -258,10 +260,13 @@ export async function recordConversionAttribution(
   let rulesVersion: string | null = null;
   let engagementSnapshot: Record<string, unknown> = {};
   try {
+    const convertedAt = new Date(input.convertedAt);
+    const resolvedRules = await resolveOutreachLeadRules({ client, asOf: convertedAt });
     const lead = await getOutreachLeadForProspect({
       client,
       prospectId: input.prospectId,
-      asOf: new Date(input.convertedAt),
+      asOf: convertedAt,
+      rules: resolvedRules.rules,
     });
     if (lead) {
       leadState = lead.leadState;
@@ -315,6 +320,11 @@ export async function recordConversionAttribution(
 
   if (error) return { ok: false, error: error.message };
   if (!data) return { ok: false, error: 'Failed to insert attribution' };
+
+  void refreshPersistedLeadRules({ client, asOf: new Date(input.convertedAt) }).catch(() => {
+    // Best-effort cache refresh; convert must not fail.
+  });
+
   return { ok: true, id: data.id };
 }
 

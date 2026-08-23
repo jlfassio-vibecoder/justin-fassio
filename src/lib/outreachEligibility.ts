@@ -26,7 +26,8 @@ export type OutreachExclusionReason =
   | 'pending_agent_draft'
   | 'email_already_selected'
   | 'prospect_already_selected'
-  | 'no_product_in_pool';
+  | 'no_product_in_pool'
+  | 'no_product_after_dedup';
 
 export type RankableOutreachProspect = {
   id: number;

@@ -229,4 +229,29 @@ describe('selectProductForProspect', () => {
     });
     expect(picked?.product.id).toBe('golf-a');
   });
+
+  it('skips excluded catalog items and picks next-best', () => {
+    const golfPool = buildOutreachProductPool([
+      row({
+        id: 'golf-a',
+        sku: 'GA',
+        name: 'Golf A',
+        public_sort_order: 1,
+        recommended_channels: ['golf_retail'],
+      }),
+      row({
+        id: 'golf-b',
+        sku: 'GB',
+        name: 'Golf B',
+        public_sort_order: 2,
+        recommended_channels: ['golf_retail'],
+      }),
+    ]);
+    const picked = selectProductForProspect(golfPool, {
+      prospectChannels: ['golf_retail'],
+      excludeCatalogItemIds: new Set(['golf-a']),
+    });
+    expect(picked?.product.id).toBe('golf-b');
+    expect(picked?.productFit).toBe('channel_intersect');
+  });
 });

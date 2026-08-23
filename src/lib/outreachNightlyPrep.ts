@@ -16,6 +16,7 @@ import { generateOgrProductOutreachDrafts } from '@/lib/generateOgrProductOutrea
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
 import type { OutreachGoalSettings } from '@/lib/outreachGoals';
 import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
+import { refreshPersistedLeadRules } from '@/lib/refreshPersistedLeadRules';
 import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outreachSelectTargets';
 import { AGENT_OUTREACH_PENDING_DRAFT_STATUSES } from '@/lib/outreachSelectionConstants';
 import {
@@ -374,6 +375,16 @@ async function continuePrep(params: {
   settings: OutreachGoalSettings;
 }): Promise<RunOutreachNightlyPrepResult> {
   const { client, runId, runDate, capacity, userId, performance, settings } = params;
+
+  const leadRulesRefresh = await refreshPersistedLeadRules({ client, performance });
+  if (!leadRulesRefresh.ok) {
+    await updateRun(client, runId, {
+      status: 'failed',
+      error: leadRulesRefresh.error,
+      finished_at: new Date().toISOString(),
+    });
+    return { ok: false, error: leadRulesRefresh.error };
+  }
 
   const pending = await countPendingDraftsForPreparationDate(client, runDate);
   if (!pending.ok) {

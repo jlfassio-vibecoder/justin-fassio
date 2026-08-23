@@ -1772,6 +1772,11 @@ export interface Database {
           pace_cap: number;
           business_timezone: string;
           selling_day_mode: SellingDayMode;
+          lead_rules: unknown | null;
+          lead_rules_source: string | null;
+          lead_rules_meta: unknown | null;
+          lead_rules_computed_at: string | null;
+          adaptive_weights_enabled: boolean;
           updated_at: string;
           updated_by: string | null;
         };
@@ -1790,6 +1795,11 @@ export interface Database {
           pace_cap?: number;
           business_timezone?: string;
           selling_day_mode?: SellingDayMode;
+          lead_rules?: unknown | null;
+          lead_rules_source?: string | null;
+          lead_rules_meta?: unknown | null;
+          lead_rules_computed_at?: string | null;
+          adaptive_weights_enabled?: boolean;
           updated_at?: string;
           updated_by?: string | null;
         };
@@ -1808,6 +1818,11 @@ export interface Database {
           pace_cap?: number;
           business_timezone?: string;
           selling_day_mode?: SellingDayMode;
+          lead_rules?: unknown | null;
+          lead_rules_source?: string | null;
+          lead_rules_meta?: unknown | null;
+          lead_rules_computed_at?: string | null;
+          adaptive_weights_enabled?: boolean;
           updated_at?: string;
           updated_by?: string | null;
         };

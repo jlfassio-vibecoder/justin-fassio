@@ -71,7 +71,11 @@ export function computeEffectiveConversionRate(input: EffectiveRateInput): Effec
   const attributed = Math.max(0, Math.floor(input.attributedConversions));
   const prospects = Math.max(0, Math.floor(input.outreachProspects));
 
-  if (attributed < settings.minAttributedConversions || prospects <= 0) {
+  if (
+    !settings.adaptiveWeightsEnabled ||
+    attributed < settings.minAttributedConversions ||
+    prospects <= 0
+  ) {
     return {
       effectiveRate: settings.planningConversionRate,
       measuredRate: prospects > 0 ? attributed / prospects : null,

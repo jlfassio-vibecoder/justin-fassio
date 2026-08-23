@@ -17,12 +17,13 @@ import {
   listConfirmedLinksForProspect,
   type GmailThreadLinkRow,
 } from '@/lib/google/gmailThreadLinks';
-import { OUTREACH_LEAD_RULES_VERSION } from '@/lib/outreachLeadRules';
+import type { OutreachLeadRules, OutreachLeadRulesVersion } from '@/lib/outreachLeadRules';
 import {
   evaluateLeadState,
   type CallTodayReason,
   type OutreachLeadState,
 } from '@/lib/outreachLeadState';
+import { resolveOutreachLeadRules } from '@/lib/resolveOutreachLeadRules';
 import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { AGENT_OUTREACH_PREP_TZ } from '@/lib/outreachSelectionConstants';
 import { normalizeSystemMessageEmail } from '@/lib/systemMessages';
@@ -38,7 +39,7 @@ export type OutreachLeadRow = {
   callToday: boolean;
   callTodayReasons: CallTodayReason[];
   score: number;
-  rulesVersion: typeof OUTREACH_LEAD_RULES_VERSION;
+  rulesVersion: OutreachLeadRulesVersion;
   engagement: ProspectOutreachEngagement;
 };
 
@@ -175,8 +176,11 @@ export async function getOutreachLeadForProspect(params: {
   client: Client;
   prospectId: number;
   asOf?: Date;
+  rules?: OutreachLeadRules;
 }): Promise<OutreachLeadRow | null> {
   const asOf = params.asOf ?? new Date();
+  const rules =
+    params.rules ?? (await resolveOutreachLeadRules({ client: params.client, asOf })).rules;
   const uniqueEmails = await loadUniqueContactEmailsForProspect({
     client: params.client,
     prospectId: params.prospectId,
@@ -222,6 +226,7 @@ export async function getOutreachLeadForProspect(params: {
       engagement,
       followUpDue: followUps.has(params.prospectId),
       asOf,
+      rules,
     });
     return {
       prospectId: params.prospectId,
@@ -266,6 +271,7 @@ export async function getOutreachLeadForProspect(params: {
     engagement,
     followUpDue: followUps.has(params.prospectId),
     asOf,
+    rules,
   });
 
   const meta = await loadProspectMeta(params.client, [params.prospectId]);
@@ -290,10 +296,12 @@ export async function listOutreachLeads(
   options?: {
     kinds?: OutreachLeadKind[];
     asOf?: Date;
+    rules?: OutreachLeadRules;
   },
 ): Promise<OutreachLeadRow[]> {
   const asOf = options?.asOf ?? new Date();
   const kinds = options?.kinds;
+  const rules = options?.rules ?? (await resolveOutreachLeadRules({ client, asOf })).rules;
 
   const { data: sentRows, error: sentErr } = await client
     .from('system_messages')
@@ -364,6 +372,7 @@ export async function listOutreachLeads(
       engagement,
       followUpDue: dueFollowUps.has(prospectId),
       asOf,
+      rules,
     });
 
     const row: OutreachLeadRow = {
@@ -393,16 +402,28 @@ export async function listOutreachLeads(
   return rows;
 }
 
-export async function listWarmLeads(client: Client, asOf?: Date): Promise<OutreachLeadRow[]> {
-  return listOutreachLeads(client, { kinds: ['warm'], asOf });
+export async function listWarmLeads(
+  client: Client,
+  asOf?: Date,
+  rules?: OutreachLeadRules,
+): Promise<OutreachLeadRow[]> {
+  return listOutreachLeads(client, { kinds: ['warm'], asOf, rules });
 }
 
-export async function listHotLeads(client: Client, asOf?: Date): Promise<OutreachLeadRow[]> {
-  return listOutreachLeads(client, { kinds: ['hot'], asOf });
+export async function listHotLeads(
+  client: Client,
+  asOf?: Date,
+  rules?: OutreachLeadRules,
+): Promise<OutreachLeadRow[]> {
+  return listOutreachLeads(client, { kinds: ['hot'], asOf, rules });
 }
 
-export async function listCallToday(client: Client, asOf?: Date): Promise<OutreachLeadRow[]> {
-  return listOutreachLeads(client, { kinds: ['call_today'], asOf });
+export async function listCallToday(
+  client: Client,
+  asOf?: Date,
+  rules?: OutreachLeadRules,
+): Promise<OutreachLeadRow[]> {
+  return listOutreachLeads(client, { kinds: ['call_today'], asOf, rules });
 }
 
 /** YYYY-MM-DD today in outreach prep TZ (for follow-up comparisons). */

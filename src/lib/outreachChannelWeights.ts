@@ -34,7 +34,7 @@ export function computeChannelAllocationWeights(input: {
   settings: OutreachGoalSettings;
 }): ChannelAllocationWeightsResult {
   const report = input.report;
-  if (!report) {
+  if (!report || !input.settings.adaptiveWeightsEnabled) {
     return { weights: undefined, source: 'uniform' };
   }
 

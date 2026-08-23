@@ -12,6 +12,8 @@ import type {
   OutreachGoalSettingsUpdate,
   SellingDayMode,
 } from '@/types/database';
+import type { LeadRuleCalibrationMeta, LeadRuleSource } from '@/lib/outreachLeadRuleCalibration';
+import { parseOutreachLeadRules, type OutreachLeadRules } from '@/lib/outreachLeadRules';
 import { isMultiLineWritesEnabled } from '@/lib/staffFeatures';
 import { supabase } from '@/lib/supabase';
 
@@ -30,6 +32,7 @@ export const OUTREACH_GOAL_DEFAULTS = {
   paceCap: 25,
   businessTimezone: 'America/Vancouver',
   sellingDayMode: 'weekdays' as SellingDayMode,
+  adaptiveWeightsEnabled: true,
 } as const;
 
 export type OutreachGoalSettings = {
@@ -46,11 +49,34 @@ export type OutreachGoalSettings = {
   paceCap: number;
   businessTimezone: string;
   sellingDayMode: SellingDayMode;
+  leadRules: OutreachLeadRules | null;
+  leadRulesSource: LeadRuleSource | null;
+  leadRulesMeta: LeadRuleCalibrationMeta | null;
+  leadRulesComputedAt: string | null;
+  adaptiveWeightsEnabled: boolean;
   updatedAt: string;
   updatedBy: string | null;
 };
 
+function parseLeadRulesMeta(value: unknown): LeadRuleCalibrationMeta | null {
+  if (!value || typeof value !== 'object') return null;
+  const o = value as Record<string, unknown>;
+  if (typeof o.globalRate !== 'number' || !Number.isFinite(o.globalRate)) return null;
+  if (!o.byState || typeof o.byState !== 'object') return null;
+  if (!Array.isArray(o.adjustedFields)) return null;
+  return {
+    globalRate: o.globalRate,
+    byState: o.byState as LeadRuleCalibrationMeta['byState'],
+    adjustedFields: o.adjustedFields.filter((f): f is string => typeof f === 'string'),
+  };
+}
+
 export function mapOutreachGoalSettingsRow(row: OutreachGoalSettingsRow): OutreachGoalSettings {
+  const leadRulesSource =
+    row.lead_rules_source === 'provisional' || row.lead_rules_source === 'measured'
+      ? row.lead_rules_source
+      : null;
+
   return {
     id: row.id,
     monthlyTarget: row.monthly_target,
@@ -65,6 +91,11 @@ export function mapOutreachGoalSettingsRow(row: OutreachGoalSettingsRow): Outrea
     paceCap: row.pace_cap,
     businessTimezone: row.business_timezone,
     sellingDayMode: row.selling_day_mode,
+    leadRules: parseOutreachLeadRules(row.lead_rules),
+    leadRulesSource,
+    leadRulesMeta: parseLeadRulesMeta(row.lead_rules_meta),
+    leadRulesComputedAt: row.lead_rules_computed_at,
+    adaptiveWeightsEnabled: row.adaptive_weights_enabled,
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,
   };
@@ -89,6 +120,11 @@ export function defaultOutreachGoalSettings(): OutreachGoalSettings {
     paceCap: OUTREACH_GOAL_DEFAULTS.paceCap,
     businessTimezone: OUTREACH_GOAL_DEFAULTS.businessTimezone,
     sellingDayMode: OUTREACH_GOAL_DEFAULTS.sellingDayMode,
+    leadRules: null,
+    leadRulesSource: null,
+    leadRulesMeta: null,
+    leadRulesComputedAt: null,
+    adaptiveWeightsEnabled: OUTREACH_GOAL_DEFAULTS.adaptiveWeightsEnabled,
     updatedAt: new Date(0).toISOString(),
     updatedBy: null,
   };
@@ -186,6 +222,7 @@ export type UpdateOutreachGoalSettingsInput = {
   monthlyTarget?: number;
   planningConversionRate?: number;
   businessTimezone?: string;
+  adaptiveWeightsEnabled?: boolean;
   updatedBy?: string | null;
   writesEnabled?: boolean;
   salesLineId?: string | null;
@@ -224,6 +261,9 @@ export async function updateOutreachGoalSettings(
       return { ok: false, error: 'businessTimezone is required' };
     }
     patch.business_timezone = input.businessTimezone.trim();
+  }
+  if (input.adaptiveWeightsEnabled != null) {
+    patch.adaptive_weights_enabled = input.adaptiveWeightsEnabled;
   }
   if (input.updatedBy !== undefined) {
     patch.updated_by = input.updatedBy;

@@ -9,6 +9,9 @@ export const AGENT_OUTREACH_TOP_RANK_LIMIT = 30;
 /** Calendar days since last successful product_outreach sent_at before re-contact. */
 export const AGENT_OUTREACH_COOLDOWN_DAYS = 14;
 
+/** Calendar days to avoid re-sending the same catalog item to a prospect. */
+export const AGENT_OUTREACH_PRODUCT_DEDUP_DAYS = 90;
+
 /** Prep-day identity for one-target-per-prospect-per-day. */
 export const AGENT_OUTREACH_PREP_TZ = 'America/Vancouver';
 
@@ -26,3 +29,6 @@ export const MIN_PRODUCT_SENDS = 3;
 
 /** Minimum sends in lookback before a fit band's own conversion rate is trusted for ranking weights. */
 export const MIN_FIT_BAND_SENDS = 3;
+
+/** Minimum sends in lookback before a lead state's own conversion rate is trusted for calibration. */
+export const MIN_LEAD_STATE_SENDS = 3;

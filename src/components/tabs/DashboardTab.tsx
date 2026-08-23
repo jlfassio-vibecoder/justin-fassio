@@ -93,6 +93,7 @@ export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: Dashboar
   const pace = goalSnapshot?.pace;
   const rate = goalSnapshot?.rate;
   const performance = goalSnapshot?.performance;
+  const adaptiveWeightsEnabled = goalSnapshot?.settings.adaptiveWeightsEnabled ?? true;
 
   return (
     <section className="flex flex-col gap-5" data-screen-label="dashboard">
@@ -159,8 +160,10 @@ export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: Dashboar
         <Card>
           <CardTitle className="text-base">Learning inputs (attributed only)</CardTitle>
           <p className="text-ink/60 m-0 mt-1 text-xs">
-            Channel and Warm/Hot conversion from attributed outreach — not wired into autonomous
-            targeting yet.
+            {adaptiveWeightsEnabled
+              ? 'Channel allocation and product/fit targeting use measured weights when data suffices.'
+              : 'Adaptive weights are off in goals settings — channel rotation and product/fit selection use rank-only defaults.'}{' '}
+            Warm/Hot lead rules calibrate from attributed lead-state performance.
           </p>
           <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
@@ -192,7 +195,12 @@ export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: Dashboar
                   {performance.byLeadState.map((row) => (
                     <li key={row.key} className="flex justify-between gap-2">
                       <span>{row.label}</span>
-                      <span className="opacity-70">{row.attributedConversions} converts</span>
+                      <span className="opacity-70">
+                        {row.attributedConversions}/{row.sends}
+                        {row.conversionRate != null
+                          ? ` · ${(row.conversionRate * 100).toFixed(1)}%`
+                          : ''}
+                      </span>
                     </li>
                   ))}
                 </ul>

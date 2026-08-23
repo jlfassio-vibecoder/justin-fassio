@@ -3823,6 +3823,16 @@ drop index if exists outreach_goal_settings_singleton_uidx;
 create unique index if not exists outreach_goal_settings_sales_line_uidx
   on outreach_goal_settings (sales_line_id);
 
+alter table outreach_goal_settings
+  add column if not exists lead_rules jsonb,
+  add column if not exists lead_rules_source text
+    check (lead_rules_source is null or lead_rules_source in ('provisional', 'measured')),
+  add column if not exists lead_rules_meta jsonb,
+  add column if not exists lead_rules_computed_at timestamptz;
+
+alter table outreach_goal_settings
+  add column if not exists adaptive_weights_enabled boolean not null default true;
+
 create or replace function public.assert_line_allows_operational_write(p_line_id uuid)
 returns void
 language plpgsql

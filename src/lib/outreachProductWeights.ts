@@ -25,7 +25,7 @@ export function computeProductSelectionWeights(input: {
   settings: OutreachGoalSettings;
 }): ProductSelectionWeightsResult {
   const report = input.report;
-  if (!report) {
+  if (!report || !input.settings.adaptiveWeightsEnabled) {
     return { weights: undefined, globalWeight: undefined, source: 'uniform' };
   }
 

@@ -33,6 +33,7 @@ export function OutreachGoalsSettingsCard() {
   const [monthlyTarget, setMonthlyTarget] = useState('5');
   const [planningPct, setPlanningPct] = useState('1.5');
   const [timezone, setTimezone] = useState('America/Vancouver');
+  const [adaptiveWeightsEnabled, setAdaptiveWeightsEnabled] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SectionState>(idle);
   const [backfillState, setBackfillState] = useState<SectionState>(idle);
@@ -53,6 +54,7 @@ export function OutreachGoalsSettingsCard() {
       setMonthlyTarget(String(result.settings.monthlyTarget));
       setPlanningPct(String(result.settings.planningConversionRate * 100));
       setTimezone(result.settings.businessTimezone);
+      setAdaptiveWeightsEnabled(result.settings.adaptiveWeightsEnabled);
     })();
     return () => {
       cancelled = true;
@@ -85,6 +87,7 @@ export function OutreachGoalsSettingsCard() {
       monthlyTarget: target,
       planningConversionRate: pct / 100,
       businessTimezone: timezone,
+      adaptiveWeightsEnabled,
       updatedBy: user?.id ?? null,
       writesEnabled,
       salesLineId,
@@ -169,6 +172,25 @@ export function OutreachGoalsSettingsCard() {
                 <option value={timezone}>{timezone}</option>
               )}
             </Select>
+          </Field>
+          <Field>
+            <label className="text-ink/80 flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={adaptiveWeightsEnabled}
+                onChange={(e) => setAdaptiveWeightsEnabled(e.target.checked)}
+                disabled={saveState.busy}
+              />
+              <span>
+                Use measured conversion weights for channel, product, and fit targeting
+                <span className="text-ink/55 mt-1 block text-xs">
+                  When enabled, measured weights apply after{' '}
+                  {settings?.minAttributedConversions ?? 8} attributed conversions. When off,
+                  nightly prep uses even channel rotation and rank-only product/fit selection.
+                </span>
+              </span>
+            </label>
           </Field>
           {saveState.error ? (
             <p className="text-accent-800 m-0 text-sm" role="alert">

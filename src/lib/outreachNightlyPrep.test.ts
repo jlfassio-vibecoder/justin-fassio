@@ -7,6 +7,11 @@ const loadOutreachGoalDashboardSnapshotMock = vi.fn();
 const selectOutreachTargetsMock = vi.fn();
 const generateOgrProductOutreachDraftsMock = vi.fn();
 const allocateChannelsForDayMock = vi.fn();
+const refreshPersistedLeadRulesMock = vi.fn();
+
+vi.mock('@/lib/refreshPersistedLeadRules', () => ({
+  refreshPersistedLeadRules: (...args: unknown[]) => refreshPersistedLeadRulesMock(...args),
+}));
 
 vi.mock('@/lib/outreachGoalDashboard', () => ({
   loadOutreachGoalDashboardSnapshot: (...args: unknown[]) =>
@@ -153,6 +158,15 @@ describe('runOutreachNightlyPrep', () => {
         performance: null,
       },
     });
+    refreshPersistedLeadRulesMock.mockResolvedValue({
+      ok: true,
+      result: {
+        rules: { version: 'v1-provisional' },
+        source: 'provisional',
+        meta: { globalRate: 0.015, byState: {}, adjustedFields: [] },
+        persisted: false,
+      },
+    });
     allocateChannelsForDayMock.mockReturnValue({
       channelOrder: ['grocery'],
       slotsByChannel: { grocery: 3 },
@@ -286,6 +300,7 @@ describe('runOutreachNightlyPrep', () => {
             },
           ],
           byLeadState: [],
+          attributionCohort: { rows: [] },
         },
       },
     });

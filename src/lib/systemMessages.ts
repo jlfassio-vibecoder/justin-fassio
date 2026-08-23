@@ -712,6 +712,57 @@ export async function isProductOutreachRecipientSuppressed(
   return { ok: true, suppressed: data != null };
 }
 
+const RECENT_PRODUCT_OUTREACH_SELECT = 'prospect_id, catalog_item_id' as const;
+
+/**
+ * Catalog item ids recently sent to each prospect within windowDays.
+ * Used by Phase 1 product dedup (excludes null catalog_item_id).
+ */
+export async function fetchRecentProductOutreachCatalogIdsByProspect(
+  client: DbClient,
+  prospectIds: number[],
+  windowDays: number,
+  asOf: Date = new Date(),
+): Promise<{ ok: true; byProspectId: Map<number, Set<string>> } | { ok: false; error: string }> {
+  const byProspectId = new Map<number, Set<string>>();
+  const ids = [...new Set(prospectIds.filter((id) => Number.isFinite(id)))];
+  if (ids.length === 0) {
+    return { ok: true, byProspectId };
+  }
+
+  const windowMs = Math.max(0, windowDays) * 24 * 60 * 60 * 1000;
+  const since = new Date(asOf.getTime() - windowMs).toISOString();
+
+  const { data, error } = await client
+    .from('system_messages')
+    .select(RECENT_PRODUCT_OUTREACH_SELECT)
+    .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
+    .not('sent_at', 'is', null)
+    .gte('sent_at', since)
+    .in('prospect_id', ids)
+    .not('catalog_item_id', 'is', null);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  for (const row of data ?? []) {
+    if (
+      typeof row.prospect_id !== 'number' ||
+      !Number.isFinite(row.prospect_id) ||
+      typeof row.catalog_item_id !== 'string' ||
+      !row.catalog_item_id.trim()
+    ) {
+      continue;
+    }
+    const set = byProspectId.get(row.prospect_id) ?? new Set<string>();
+    set.add(row.catalog_item_id);
+    byProspectId.set(row.prospect_id, set);
+  }
+
+  return { ok: true, byProspectId };
+}
+
 /**
  * Prospect ids that already have a non-terminal agent product_outreach draft.
  * Used by Phase 1 selection to exclude pending work without N+1 draft fetches.

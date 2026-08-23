@@ -100,7 +100,8 @@ Intersect with `loadPublishedOgrProductForEmail` gates.
 ### Prospect ↔ product fit
 
 Prefer products whose `recommended_channels` intersect prospect `category` / `secondary_channels` / themes.  
-Fallback: best Top/New item for primary channel, then global Top/New.
+Fallback: best Top/New item for primary channel, then global Top/New.  
+Exclude catalog items sent to the same prospect within `AGENT_OUTREACH_PRODUCT_DEDUP_DAYS` (default 90); exclusion reason `no_product_after_dedup` when the pool is exhausted.
 
 ### Pipeline order
 
@@ -127,12 +128,12 @@ v1 may implement suppression as **queries against `system_messages`** without ne
 
 ## Server / API changes
 
-| Module                          | Responsibility                                |
-| ------------------------------- | --------------------------------------------- |
-| `selectEligibleProspects(...)`  | Hard filters + rank                           |
-| `selectProductForProspect(...)` | Top/New pool + channel fit                    |
-| `allocateChannelsForDay(...)`   | Strategy + optional Phase 4 weights (stub OK) |
-| Staff preview API               | Dry-run selection for debugging (optional)    |
+| Module                          | Responsibility                                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `selectEligibleProspects(...)`  | Hard filters + rank                                                                                     |
+| `selectProductForProspect(...)` | Top/New pool + channel fit                                                                              |
+| `allocateChannelsForDay(...)`   | Strategy + Phase 4 **measured channel weights** when global gate passes; even rotation when provisional |
+| Staff preview API               | Dry-run selection for debugging (optional)                                                              |
 
 Nightly job (Phase 5) calls these modules; Phase 2 draft generation consumes their output.
 

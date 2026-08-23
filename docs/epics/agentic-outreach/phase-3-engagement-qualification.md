@@ -93,11 +93,11 @@ Phase 5 consumes:
 
 ## Proposed data / schema changes
 
-| Option                                         | Notes                                                                                      |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| A. On-read aggregation                         | Query `system_messages` by `prospect_id`; no new table — fine for v1                       |
-| B. Materialized `prospect_outreach_engagement` | Cached rollup + `lead_state` + `lead_state_updated_at` for Briefing performance            |
-| Config                                         | `outreach_lead_rules` JSON (weights, windows, version) — prefer with Phase 4 settings home |
+| Option                                         | Notes                                                                                                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A. On-read aggregation                         | Query `system_messages` by `prospect_id`; no new table — fine for v1                                                                                                            |
+| B. Materialized `prospect_outreach_engagement` | Cached rollup + `lead_state` + `lead_state_updated_at` for Briefing performance                                                                                                 |
+| Config                                         | `outreach_lead_rules` JSON on `outreach_goal_settings` (`lead_rules`, `lead_rules_source`, `lead_rules_meta`, `lead_rules_computed_at`) — refreshed on nightly prep and convert |
 
 Do not change webhook RPC semantics for counters.
 
@@ -137,7 +137,7 @@ No Resend calls.
 - Bounce/complaint ≠ Hot; suppress call priority for suppressed emails.
 - Replies count only when attribution confidence is high.
 - Call Today can include `calls.follow_up_date <= today` for linked prospects as an additional signal — document blend rule.
-- Thresholds tunable after Phase 4 conversion data; do not claim final calibration in this phase.
+- Thresholds tunable after Phase 4 conversion data; **measured calibration shipped** (`v1-measured` via `outreachLeadRuleCalibration.ts` when `minAttributedConversions` gate passes).
 
 ---
 
@@ -175,12 +175,12 @@ No Resend calls.
 
 ## Acceptance criteria
 
-- [ ] Prospect-level engagement aggregate from System Messages
-- [ ] Configurable Cold/Warm/Hot/Call Today evaluation with click &gt; open weighting
-- [ ] Call Today and Warm lists available to Briefing consumers
-- [ ] Line Sheet Opened/Clicked behavior unchanged
-- [ ] Counters never cleared to implement lead UI
-- [ ] Initial thresholds labeled provisional / configurable
+- [x] Prospect-level engagement aggregate from System Messages
+- [x] Configurable Cold/Warm/Hot/Call Today evaluation with click &gt; open weighting
+- [x] Call Today and Warm lists available to Briefing consumers
+- [x] Line Sheet Opened/Clicked behavior unchanged
+- [x] Counters never cleared to implement lead UI
+- [x] Initial thresholds labeled provisional / configurable; measured pack when Phase 4 gate passes
 
 ---
 
@@ -220,9 +220,10 @@ No Resend calls.
 
 ## Completion checklist
 
-- [ ] Aggregate + evaluate libraries
-- [ ] Default provisional rules documented
-- [ ] Call Today / Warm APIs or lib exports
-- [ ] UI chips or Briefing-ready DTOs
-- [ ] Tests for weighting and non-destruction of counters
-- [ ] Phase 5 can bind “who to call”
+- [x] Aggregate + evaluate libraries
+- [x] Default provisional rules documented (`v1-provisional` in `outreachLeadRules.ts`)
+- [x] Call Today / Warm APIs or lib exports
+- [x] UI chips or Briefing-ready DTOs
+- [x] Tests for weighting and non-destruction of counters
+- [x] Phase 5 can bind “who to call”
+- [x] Phase 4 lead-rule calibration consumes `byLeadState` performance (`resolveOutreachLeadRules.ts`)

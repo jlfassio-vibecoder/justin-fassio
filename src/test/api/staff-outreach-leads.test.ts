@@ -4,9 +4,14 @@ const requireApprovedStaffClientMock = vi.fn();
 const listWarmLeadsMock = vi.fn();
 const listHotLeadsMock = vi.fn();
 const listCallTodayMock = vi.fn();
+const resolveOutreachLeadRulesMock = vi.fn();
 
 vi.mock('@/lib/agentAuth', () => ({
   requireApprovedStaffClient: (...args: unknown[]) => requireApprovedStaffClientMock(...args),
+}));
+
+vi.mock('@/lib/resolveOutreachLeadRules', () => ({
+  resolveOutreachLeadRules: (...args: unknown[]) => resolveOutreachLeadRulesMock(...args),
 }));
 
 vi.mock('@/lib/outreachLeadLists', () => ({
@@ -16,6 +21,7 @@ vi.mock('@/lib/outreachLeadLists', () => ({
 }));
 
 import { GET } from '@/pages/api/staff/outreach/leads';
+import { OUTREACH_LEAD_RULES } from '@/lib/outreachLeadRules';
 
 describe('GET /api/staff/outreach/leads', () => {
   beforeEach(() => {
@@ -28,6 +34,11 @@ describe('GET /api/staff/outreach/leads', () => {
     listWarmLeadsMock.mockResolvedValue([{ prospectId: 1, leadState: 'warm' }]);
     listHotLeadsMock.mockResolvedValue([{ prospectId: 2, leadState: 'hot' }]);
     listCallTodayMock.mockResolvedValue([{ prospectId: 3, callToday: true }]);
+    resolveOutreachLeadRulesMock.mockResolvedValue({
+      rules: OUTREACH_LEAD_RULES,
+      source: 'provisional',
+      meta: { globalRate: 0, byState: {}, adjustedFields: [] },
+    });
   });
 
   it('returns 401 when staff gate fails', async () => {

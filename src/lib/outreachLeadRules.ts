@@ -4,10 +4,14 @@
  * Documented ratio: click product = 5 × open-only product.
  */
 
-export const OUTREACH_LEAD_RULES_VERSION = 'v1-provisional' as const;
+export type OutreachLeadRulesVersion = 'v1-provisional' | 'v1-measured';
+
+export const OUTREACH_LEAD_RULES_VERSION: OutreachLeadRulesVersion = 'v1-provisional';
+
+export const OUTREACH_LEAD_RULES_MEASURED_VERSION: OutreachLeadRulesVersion = 'v1-measured';
 
 export type OutreachLeadRules = {
-  version: typeof OUTREACH_LEAD_RULES_VERSION;
+  version: OutreachLeadRulesVersion;
   /** Points per unique product with open only (no click on that product). */
   pointsOpenOnlyProduct: number;
   /** Cap on open-only product points (bot-open dampener). */
@@ -56,3 +60,32 @@ export const OUTREACH_LEAD_RULES: OutreachLeadRules = {
   hotScoreMin: 10,
   replyCallTodayDays: 3,
 };
+
+const LEAD_RULE_NUMBER_KEYS = [
+  'pointsOpenOnlyProduct',
+  'openOnlyProductCap',
+  'pointsClickedProduct',
+  'pointsRepeatClick',
+  'pointsHeavyRepeatClick',
+  'pointsMultiProductClick',
+  'pointsAttributedReply',
+  'hotWindowDays',
+  'warmWindowDays',
+  'agedOutDays',
+  'warmScoreMin',
+  'hotScoreMin',
+  'replyCallTodayDays',
+] as const satisfies ReadonlyArray<keyof OutreachLeadRules>;
+
+export function isOutreachLeadRules(value: unknown): value is OutreachLeadRules {
+  if (!value || typeof value !== 'object') return false;
+  const o = value as Record<string, unknown>;
+  if (o.version !== 'v1-provisional' && o.version !== 'v1-measured') return false;
+  return LEAD_RULE_NUMBER_KEYS.every(
+    (key) => typeof o[key] === 'number' && Number.isFinite(o[key]),
+  );
+}
+
+export function parseOutreachLeadRules(value: unknown): OutreachLeadRules | null {
+  return isOutreachLeadRules(value) ? value : null;
+}

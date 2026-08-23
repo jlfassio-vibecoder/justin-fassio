@@ -20,6 +20,7 @@ function makeReport(
     byProduct: [],
     byFitBand: [],
     byLeadState: [],
+    attributionCohort: { rows: [] },
   };
 }
 
@@ -48,6 +49,19 @@ describe('computeChannelAllocationWeights', () => {
     const result = computeChannelAllocationWeights({
       report: makeReport([{ key: 'golf_retail', sends: 0, conversions: 10 }]),
       settings,
+    });
+    expect(result.source).toBe('uniform');
+    expect(result.weights).toBeUndefined();
+  });
+
+  it('returns uniform when adaptive weights are disabled', () => {
+    const report = makeReport([
+      { key: 'golf_retail', sends: 20, conversions: 2 },
+      { key: 'marine_retail', sends: 20, conversions: 1 },
+    ]);
+    const result = computeChannelAllocationWeights({
+      report,
+      settings: { ...settings, adaptiveWeightsEnabled: false },
     });
     expect(result.source).toBe('uniform');
     expect(result.weights).toBeUndefined();
