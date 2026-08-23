@@ -1,0 +1,273 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
+import { catalogItemStub } from '@/lib/catalog';
+import { aggregateProspectOutreachEngagement } from '@/lib/outreachEngagementAggregate';
+import type { OutreachBriefingDto } from '@/lib/outreachBriefing';
+import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
+
+const getAgentProductOutreachDraftClientMock = vi.fn();
+
+vi.mock('@/lib/agentProductOutreachDraftClient', () => ({
+  getAgentProductOutreachDraftClient: (...args: unknown[]) =>
+    getAgentProductOutreachDraftClientMock(...args),
+}));
+
+vi.mock('@/components/OgrProductEmailComposerModal', () => ({
+  OgrProductEmailComposerModal: ({
+    open,
+    draft,
+  }: {
+    open: boolean;
+    draft?: { id: string } | null;
+  }) => (open && draft ? <div data-testid="composer-modal">Draft {draft.id}</div> : null),
+}));
+
+vi.mock('@/lib/lineContext', () => ({
+  useOptionalLineContext: () => ({
+    multiLineUi: false,
+    salesLineId: null,
+  }),
+}));
+
+vi.mock('@/lib/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({
+        data: { session: { access_token: 'token' } },
+      }),
+    },
+  },
+}));
+
+const PRODUCT_ID = 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
+const DRAFT_ID = 'draft-abc-123';
+const catalogItem = catalogItemStub({
+  id: PRODUCT_ID,
+  sku: 'OGR-101',
+  name: 'American Revival',
+  publicSlug: 'american-revival',
+});
+
+const briefingPayload: { briefing: OutreachBriefingDto } = {
+  briefing: {
+    asOfDate: '2026-08-22',
+    sellingDate: '2026-08-25',
+    prep: { run: null, status: 'missing', message: 'No prep' },
+    goal: {
+      monthlyTarget: 5,
+      mtdAccounts: 1,
+      remainingGoal: 4,
+      projectedAttainment: 4,
+      recommendedDailySends: 3,
+      rateSource: 'planning',
+      goalMet: false,
+    },
+    drafts: [
+      {
+        draftId: DRAFT_ID,
+        prospectId: 12,
+        prospectName: 'Coastal Golf',
+        catalogItemId: PRODUCT_ID,
+        productName: 'American Revival',
+        productSku: 'OGR-101',
+        productSlug: 'american-revival',
+        toEmail: 'buyer@coastalgolf.com',
+        primaryChannel: 'golf',
+        createdAt: '2026-08-22T12:00:00Z',
+      },
+    ],
+    channelAllocation: null,
+    callToday: [],
+    hot: [],
+    warm: [],
+    recentEngagement: [],
+    recentConversions: [],
+    performance: null,
+    leadRules: { source: 'provisional', version: 'v1-provisional', adjustedFields: [] },
+    adaptiveWeightsEnabled: true,
+  },
+};
+
+const leadRowStub: OutreachLeadRow = {
+  prospectId: 42,
+  prospectName: 'BuddyBubble',
+  accountStatus: 'prospect' as const,
+  leadState: 'hot' as const,
+  callToday: true,
+  callTodayReasons: ['follow_up_due' as const],
+  score: 10,
+  rulesVersion: 'v1-provisional' as const,
+  engagement: aggregateProspectOutreachEngagement({
+    prospectId: 42,
+    messages: [
+      {
+        id: 'msg-1',
+        prospect_id: 42,
+        to_email: 'buyer@buddybubble.com',
+        catalog_item_id: PRODUCT_ID,
+        sent_at: '2026-08-20T12:00:00Z',
+        open_count: 2,
+        click_count: 1,
+        last_opened_at: '2026-08-21T12:00:00Z',
+        last_clicked_at: '2026-08-21T13:00:00Z',
+        bounced_at: null,
+        complained_at: null,
+        status: 'sent',
+      },
+    ],
+  }),
+};
+
+function briefingProps(overrides: Record<string, unknown> = {}) {
+  return {
+    catalog: [catalogItem],
+    onLogCallForLead: vi.fn(),
+    onOpenProspect: vi.fn(),
+    ...overrides,
+  };
+}
+
+function mockBriefingFetch(payload: { briefing: OutreachBriefingDto } = briefingPayload) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => payload,
+    }),
+  );
+}
+
+describe('AgentBriefingTab draft review', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockBriefingFetch();
+    getAgentProductOutreachDraftClientMock.mockResolvedValue({
+      ok: true,
+      draft: {
+        id: DRAFT_ID,
+        toEmail: 'buyer@coastalgolf.com',
+        toName: 'Sam',
+        subject: 'Old Guys Rule — American Revival',
+        introText: 'Custom intro',
+        closingText: 'Custom close',
+        prospectId: 12,
+        accountContactId: 'contact-1',
+        catalogItemId: PRODUCT_ID,
+        payload: { sku: 'OGR-101', slug: 'american-revival' },
+      },
+    });
+  });
+
+  it('opens composer modal in Briefing when product is clicked', async () => {
+    const user = userEvent.setup();
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Coastal Golf')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /American Revival/i }));
+
+    await waitFor(() => {
+      expect(getAgentProductOutreachDraftClientMock).toHaveBeenCalledWith(DRAFT_ID);
+      expect(screen.getByTestId('composer-modal')).toHaveTextContent(DRAFT_ID);
+    });
+  });
+
+  it('opens composer from deep-link props and consumes the link', async () => {
+    const onDeepLinkConsumed = vi.fn();
+    render(
+      <AgentBriefingTab
+        {...briefingProps({
+          deepLinkSku: 'OGR-101',
+          deepLinkDraftId: DRAFT_ID,
+          onDeepLinkConsumed,
+        })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('composer-modal')).toBeInTheDocument();
+      expect(onDeepLinkConsumed).toHaveBeenCalled();
+    });
+  });
+
+  it('shows error when catalog item is missing', async () => {
+    const user = userEvent.setup();
+    render(<AgentBriefingTab {...briefingProps({ catalog: [] })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Coastal Golf')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /American Revival/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Product not found in catalog/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('composer-modal')).not.toBeInTheDocument();
+    expect(getAgentProductOutreachDraftClientMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('AgentBriefingTab log call', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        callToday: [{ ...leadRowStub, prospectName: 'Call Today Store' }],
+        hot: [{ ...leadRowStub, prospectId: 43, prospectName: 'Hot Lead Shop' }],
+        warm: [
+          { ...leadRowStub, prospectId: 44, prospectName: 'Warm Lead Shop', leadState: 'warm' },
+        ],
+        recentEngagement: [
+          {
+            prospectId: 55,
+            prospectName: 'Clicked Prospect',
+            lastClickedAt: '2026-08-21T12:00:00Z',
+            clickCount: 2,
+          },
+        ],
+      },
+    });
+  });
+
+  it.each([
+    ['Call Today', 'Call Today Store', 42],
+    ['Hot', 'Hot Lead Shop', 43],
+    ['Warm', 'Warm Lead Shop', 44],
+  ] as const)('opens log call for %s lead without navigating', async (_label, name, prospectId) => {
+    const user = userEvent.setup();
+    const onLogCallForLead = vi.fn();
+    const onOpenProspect = vi.fn();
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead, onOpenProspect })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(name)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: new RegExp(name) }));
+
+    expect(onLogCallForLead).toHaveBeenCalledWith(prospectId);
+    expect(onOpenProspect).not.toHaveBeenCalled();
+  });
+
+  it('still navigates for recent engagement clicks', async () => {
+    const user = userEvent.setup();
+    const onLogCallForLead = vi.fn();
+    const onOpenProspect = vi.fn();
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead, onOpenProspect })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Clicked Prospect')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Clicked Prospect' }));
+
+    expect(onOpenProspect).toHaveBeenCalledWith({ prospectId: 55 });
+    expect(onLogCallForLead).not.toHaveBeenCalled();
+  });
+});

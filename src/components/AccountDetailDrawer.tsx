@@ -21,14 +21,12 @@ import type { AccountProductEmailRecipientOption } from '@/lib/accountProductEma
 import { apparelSeasonLabel } from '@/lib/apparelSeasons';
 import type { AccountReorderSettingsRow } from '@/lib/accountReorderSettings';
 import { demoteToProspect } from '@/lib/convertToActiveAccount';
-import { catalogItemToPublicOgrProduct, type CatalogItem } from '@/lib/catalog';
+import type { CatalogItem } from '@/lib/catalog';
+import { buildCatalogItemEmailCardHtml } from '@/lib/catalogItemEmailCardHtml';
 import { useOptionalLineContext } from '@/lib/lineContext';
-import { renderOgrProductEmailCard } from '@/lib/ogrProductEmailCard';
-import { buildOgrCollectionUrl, tryBuildOgrProductUrl } from '@/lib/productUrls';
 import { resolvePricingMarketFromRlaAssignment, type PublicMarket } from '@/lib/pricingMarket';
 import { primaryRetailChannelLabel, updateProspectTaxonomy, type Prospect } from '@/lib/prospects';
 import { formatAccountLocationLine } from '@/lib/accountImport/directoryPresentation';
-import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
 import { OutreachLeadStateChip } from '@/components/OutreachLeadStateChip';
 import { fetchOperationalLineAccount, isStaffSellingUiBlocked } from '@/lib/retailerLineAccounts';
@@ -94,21 +92,6 @@ type AccountDrawerSectionId = (typeof ACCOUNT_DRAWER_SECTIONS)[number]['id'];
 
 function accountSectionDomId(sectionId: AccountDrawerSectionId): string {
   return `account-section-${sectionId}`;
-}
-
-function accountProductEmailCardHtml(item: CatalogItem, publicMarket: PublicMarket = 'ca'): string {
-  if (typeof window === 'undefined') return '';
-  const href = tryBuildOgrProductUrl(
-    (item.publicSlug ?? '').trim(),
-    window.location.origin,
-    publicMarket,
-  );
-  if (!href) return '';
-  const catalogHref = buildOgrCollectionUrl(window.location.origin, publicMarket);
-  const presentation = buildPublicProductPresentation(catalogItemToPublicOgrProduct(item), {
-    publicMarket,
-  });
-  return renderOgrProductEmailCard(presentation, { href, catalogHref });
 }
 
 function LineRightsAssignField({ account }: { account: Prospect }) {
@@ -734,7 +717,7 @@ export function AccountDetailDrawer({
           overlayClassName="z-[60]"
           productId={emailProduct.id}
           productName={emailProduct.name}
-          cardHtml={accountProductEmailCardHtml(emailProduct, accountEmailMarket)}
+          cardHtml={buildCatalogItemEmailCardHtml(emailProduct, accountEmailMarket)}
           defaultTo={emailTo}
           defaultRecipientName={emailRecipientName}
           recipientHint={emailRecipientHint}
