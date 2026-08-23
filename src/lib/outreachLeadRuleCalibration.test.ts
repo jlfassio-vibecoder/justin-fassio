@@ -115,4 +115,17 @@ describe('computeCalibratedLeadRules', () => {
       result.rules.pointsOpenOnlyProduct * 3,
     );
   });
+
+  it('ignores unknown lead-state conversions for the global calibration gate', () => {
+    const result = computeCalibratedLeadRules({
+      report: makeReport([
+        { key: 'hot', sends: 20, conversions: 3 },
+        { key: 'warm', sends: 20, conversions: 2 },
+        { key: 'unknown', sends: 0, conversions: 5 },
+      ]),
+      cohort: { rows: [] },
+      settings,
+    });
+    expect(result.source).toBe('provisional');
+  });
 });

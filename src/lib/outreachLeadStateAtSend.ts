@@ -26,7 +26,7 @@ export function leadStateAtSendTime(params: {
   const priorMessages = params.messages.filter((message) => {
     if (!message.sent_at) return false;
     const messageMs = Date.parse(message.sent_at);
-    return Number.isFinite(messageMs) && Number.isFinite(sentMs) && messageMs <= sentMs;
+    return Number.isFinite(messageMs) && Number.isFinite(sentMs) && messageMs < sentMs;
   });
 
   const engagement = aggregateProspectOutreachEngagement({

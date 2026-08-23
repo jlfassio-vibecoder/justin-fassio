@@ -297,6 +297,22 @@ function provisionalResult(base: OutreachLeadRules): LeadRuleCalibrationResult {
   };
 }
 
+const CALIBRATED_LEAD_STATE_KEYS = new Set(['cold', 'warm', 'hot']);
+
+function canonicalLeadStateTotals(report: OutreachPerformanceReport): {
+  totalAttributed: number;
+  totalSends: number;
+} {
+  let totalAttributed = 0;
+  let totalSends = 0;
+  for (const row of report.byLeadState) {
+    if (!CALIBRATED_LEAD_STATE_KEYS.has(row.key)) continue;
+    totalAttributed += row.attributedConversions;
+    totalSends += row.sends;
+  }
+  return { totalAttributed, totalSends };
+}
+
 /**
  * Compute calibrated lead rules when attribution data is sufficient.
  */
@@ -310,11 +326,7 @@ export function computeCalibratedLeadRules(input: {
   const report = input.report;
   if (!report) return provisionalResult(base);
 
-  const totalAttributed = report.byLeadState.reduce(
-    (sum, row) => sum + row.attributedConversions,
-    0,
-  );
-  const totalSends = report.byLeadState.reduce((sum, row) => sum + row.sends, 0);
+  const { totalAttributed, totalSends } = canonicalLeadStateTotals(report);
 
   if (totalAttributed < input.settings.minAttributedConversions || totalSends <= 0) {
     return provisionalResult(base);

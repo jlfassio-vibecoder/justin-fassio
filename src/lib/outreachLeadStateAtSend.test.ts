@@ -51,4 +51,22 @@ describe('leadStateAtSendTime', () => {
     });
     expect(['warm', 'hot']).toContain(state);
   });
+
+  it('excludes the send being evaluated from prior-message aggregates', () => {
+    const state = leadStateAtSendTime({
+      prospectId: 1,
+      sentAt: '2026-08-02T12:00:00Z',
+      messages: [
+        msg({
+          id: '1',
+          sent_at: '2026-08-02T12:00:00Z',
+          open_count: 3,
+          click_count: 2,
+          last_opened_at: '2026-08-02T12:05:00Z',
+          last_clicked_at: '2026-08-02T12:06:00Z',
+        }),
+      ],
+    });
+    expect(state).toBe('cold');
+  });
 });

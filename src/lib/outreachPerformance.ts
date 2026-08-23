@@ -137,17 +137,6 @@ function buildAttributionCohort(
     if (!isLinkedAttribution(row)) continue;
 
     const engagement = parseEngagementSnapshot(row.snapshot);
-    let recencyDays: number | null = null;
-    if (row.converted_at) {
-      const convertedMs = Date.parse(row.converted_at);
-      const candidates = [
-        engagement.clickCount > 0 ? convertedMs - 2 * 24 * 60 * 60 * 1000 : null,
-        engagement.openCount > 0 ? convertedMs - 5 * 24 * 60 * 60 * 1000 : null,
-      ].filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
-      if (candidates.length > 0 && Number.isFinite(convertedMs)) {
-        recencyDays = Math.max(0, (convertedMs - Math.max(...candidates)) / (24 * 60 * 60 * 1000));
-      }
-    }
 
     const leadState =
       row.lead_state === 'cold' || row.lead_state === 'warm' || row.lead_state === 'hot'
@@ -158,7 +147,7 @@ function buildAttributionCohort(
       leadState,
       leadScore: row.lead_score != null ? Number(row.lead_score) : null,
       engagement,
-      recencyDays,
+      recencyDays: null,
     });
   }
 
@@ -293,12 +282,18 @@ export async function loadOutreachPerformanceReport(params?: {
 
   const messagesByProspect = new Map<number, OutreachMessageRow[]>();
   if (prospectIds.length > 0) {
+    const historyStartIso = lookbackStartIso(
+      new Date(startIso),
+      OUTREACH_LEAD_RULES.agedOutDays,
+      goals.settings.businessTimezone,
+    );
     const { data: history, error: historyErr } = await client
       .from('system_messages')
       .select(MESSAGE_SELECT)
       .eq('message_type', 'product_outreach')
       .in('prospect_id', prospectIds)
       .not('sent_at', 'is', null)
+      .gte('sent_at', historyStartIso)
       .lte('sent_at', asOfIso);
     if (historyErr) return { ok: false, error: historyErr.message };
 
