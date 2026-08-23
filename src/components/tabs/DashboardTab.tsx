@@ -93,6 +93,7 @@ export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: Dashboar
   const pace = goalSnapshot?.pace;
   const rate = goalSnapshot?.rate;
   const performance = goalSnapshot?.performance;
+  const adaptiveWeightsEnabled = goalSnapshot?.settings.adaptiveWeightsEnabled ?? true;
 
   return (
     <section className="flex flex-col gap-5" data-screen-label="dashboard">
@@ -159,7 +160,9 @@ export function DashboardTab({ prospects, onLogCall, reloadToken = 0 }: Dashboar
         <Card>
           <CardTitle className="text-base">Learning inputs (attributed only)</CardTitle>
           <p className="text-ink/60 m-0 mt-1 text-xs">
-            Channel allocation and product/fit targeting use measured weights when data suffices.
+            {adaptiveWeightsEnabled
+              ? 'Channel allocation and product/fit targeting use measured weights when data suffices.'
+              : 'Adaptive weights are off in goals settings — channel rotation and product/fit selection use rank-only defaults.'}{' '}
             Warm/Hot lead rules calibrate from attributed lead-state performance.
           </p>
           <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">

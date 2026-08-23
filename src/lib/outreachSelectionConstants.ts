@@ -9,6 +9,9 @@ export const AGENT_OUTREACH_TOP_RANK_LIMIT = 30;
 /** Calendar days since last successful product_outreach sent_at before re-contact. */
 export const AGENT_OUTREACH_COOLDOWN_DAYS = 14;
 
+/** Calendar days to avoid re-sending the same catalog item to a prospect. */
+export const AGENT_OUTREACH_PRODUCT_DEDUP_DAYS = 90;
+
 /** Prep-day identity for one-target-per-prospect-per-day. */
 export const AGENT_OUTREACH_PREP_TZ = 'America/Vancouver';
 

@@ -33,10 +33,12 @@ import {
   AGENT_OUTREACH_COOLDOWN_DAYS,
   AGENT_OUTREACH_PENDING_DRAFT_STATUSES,
   AGENT_OUTREACH_PREP_TZ,
+  AGENT_OUTREACH_PRODUCT_DEDUP_DAYS,
 } from '@/lib/outreachSelectionConstants';
 import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
 import {
   fetchPendingAgentProductOutreachProspectIds,
+  fetchRecentProductOutreachCatalogIdsByProspect,
   normalizeSystemMessageEmail,
   SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH,
 } from '@/lib/systemMessages';
@@ -448,6 +450,14 @@ export async function selectOutreachTargets(
     });
   }
 
+  const dedupResult = await fetchRecentProductOutreachCatalogIdsByProspect(
+    client,
+    eligible.map((row) => row.prospect.id),
+    AGENT_OUTREACH_PRODUCT_DEDUP_DAYS,
+    asOf,
+  );
+  if (!dedupResult.ok) return { ok: false, error: dedupResult.error };
+
   eligible.sort((a, b) =>
     compareOutreachProspectRank(
       {
@@ -500,15 +510,22 @@ export async function selectOutreachTargets(
       remainingSlots[matching] = (remainingSlots[matching] ?? 0) - 1;
     }
 
+    const excludeCatalogItemIds =
+      dedupResult.byProspectId.get(candidate.prospect.id) ?? new Set<string>();
     const productPick = selectProductForProspect(poolResult.pool, {
       prospectChannels: candidate.allChannels,
       prospectLifestyleThemes: candidate.prospect.lifestyleThemes,
+      excludeCatalogItemIds,
       productWeights: input.productWeights,
       globalProductWeight: input.globalProductWeight,
       productWeightSource: input.productWeightSource,
     });
     if (!productPick) {
-      excluded.push({ prospectId: candidate.prospect.id, reason: 'no_product_in_pool' });
+      const reason =
+        excludeCatalogItemIds.size > 0 && poolResult.pool.length > 0
+          ? 'no_product_after_dedup'
+          : 'no_product_in_pool';
+      excluded.push({ prospectId: candidate.prospect.id, reason });
       return false;
     }
 

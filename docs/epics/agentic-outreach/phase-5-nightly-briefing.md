@@ -69,18 +69,18 @@ Secure scheduled job (Vercel Cron → protected API, or equivalent on current ho
 
 ### Daily Agent Briefing contents
 
-| Block                        | Source                                          |
-| ---------------------------- | ----------------------------------------------- |
-| Monthly account goal         | Phase 4                                         |
-| Accounts opened MTD          | `converted_at`                                  |
-| Projected attainment         | Phase 4                                         |
-| Recommended outreach pace    | Phase 4                                         |
-| Drafts ready today           | Agent-origin drafts in draft/queued for the day |
-| Retail-channel allocation    | Phase 1/5 plan                                  |
-| Hot / Call Today             | Phase 3                                         |
-| Warm leads                   | Phase 3                                         |
-| Recent meaningful engagement | Aggregates / recent clicks                      |
-| Recent account conversions   | `converted_at` list                             |
+| Block                        | Source                                                         |
+| ---------------------------- | -------------------------------------------------------------- |
+| Monthly account goal         | Phase 4                                                        |
+| Accounts opened MTD          | `converted_at`                                                 |
+| Projected attainment         | Phase 4                                                        |
+| Recommended outreach pace    | Phase 4                                                        |
+| Drafts ready today           | Agent-origin drafts in draft/queued for the day                |
+| Retail-channel allocation    | Phase 1/5 plan                                                 |
+| Hot / Call Today             | Phase 3                                                        |
+| Warm leads                   | Phase 3                                                        |
+| Recent meaningful engagement | Aggregates / recent clicks                                     |
+| Recent account conversions   | `converted_at` list                                            |
 | Learning slices (optional)   | Phase 4 — channel/product/fit-band/lead-state when data exists |
 
 **Navigation:** each row links to prospect/account, product drawer, and draft review/send.

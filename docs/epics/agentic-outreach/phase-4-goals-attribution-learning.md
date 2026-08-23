@@ -22,20 +22,20 @@ Phase 4 closes the **learning loop**: attributed conversions drive adaptive pace
 
 ## Current live-code foundation
 
-| Artifact        | Location                                                                                     |
-| --------------- | -------------------------------------------------------------------------------------------- |
-| Goals           | `outreach_goal_settings` — `src/lib/outreachGoals.ts` (default target **5**, planning rate **1.5%**) |
-| Pace / progress | `src/lib/outreachPace.ts`, `src/lib/outreachGoalDashboard.ts`                                |
-| Convert         | `src/lib/convertToActiveAccount.ts` — sets `account_status = active_account`, `converted_at` |
-| Attribution     | `account_conversion_attribution` — `src/lib/outreachAttribution.ts` (staff-confirmed + last-touch) |
-| Performance     | `src/lib/outreachPerformance.ts` — slices + `attributionCohort` for lead-rule calibration    |
-| Channel weights | `src/lib/outreachChannelWeights.ts` → `outreachNightlyPrep` → `allocateChannelsForDay`       |
-| Product weights | `src/lib/outreachProductWeights.ts` → `selectProductForProspect`                             |
-| Fit-band weights| `src/lib/outreachFitBandWeights.ts` → `compareOutreachProspectRank`                          |
-| Lead rules      | `src/lib/outreachLeadRuleCalibration.ts`, `resolveOutreachLeadRules.ts` → lead lists + convert snapshot |
-| UI              | `OutreachGoalsSettingsCard`, `DashboardTab`, `AgentBriefingTab` learning slices              |
-| Outreach ledger | `system_messages` with `prospect_id`, `catalog_item_id`, engagement                          |
-| Lead states     | Phase 3 — `outreachLeadState.ts`, provisional + measured rules                               |
+| Artifact         | Location                                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------------------- |
+| Goals            | `outreach_goal_settings` — `src/lib/outreachGoals.ts` (default target **5**, planning rate **1.5%**)    |
+| Pace / progress  | `src/lib/outreachPace.ts`, `src/lib/outreachGoalDashboard.ts`                                           |
+| Convert          | `src/lib/convertToActiveAccount.ts` — sets `account_status = active_account`, `converted_at`            |
+| Attribution      | `account_conversion_attribution` — `src/lib/outreachAttribution.ts` (staff-confirmed + last-touch)      |
+| Performance      | `src/lib/outreachPerformance.ts` — slices + `attributionCohort` for lead-rule calibration               |
+| Channel weights  | `src/lib/outreachChannelWeights.ts` → `outreachNightlyPrep` → `allocateChannelsForDay`                  |
+| Product weights  | `src/lib/outreachProductWeights.ts` → `selectProductForProspect`                                        |
+| Fit-band weights | `src/lib/outreachFitBandWeights.ts` → `compareOutreachProspectRank`                                     |
+| Lead rules       | `src/lib/outreachLeadRuleCalibration.ts`, `resolveOutreachLeadRules.ts` → lead lists + convert snapshot |
+| UI               | `OutreachGoalsSettingsCard`, `DashboardTab`, `AgentBriefingTab` learning slices                         |
+| Outreach ledger  | `system_messages` with `prospect_id`, `catalog_item_id`, engagement                                     |
+| Lead states      | Phase 3 — `outreachLeadState.ts`, provisional + measured rules                                          |
 
 ---
 
@@ -89,13 +89,13 @@ Slices feed **reporting** (Dashboard, Briefing) and **weight computation** (chan
 
 ### Learning loop wiring
 
-| Input | When measured | Consumer |
-| ----- | ------------- | -------- |
-| Pace / volume | `totalAttributed >= minAttributedConversions` | `outreachNightlyPrep` capacity |
-| Channel weights | Same global gate + `MIN_CHANNEL_SENDS` per slice | `allocateChannelsForDay` |
-| Product weights | Same + `MIN_PRODUCT_SENDS` | `selectProductForProspect` (within tier) |
-| Fit-band weights | Same + `MIN_FIT_BAND_SENDS` | `compareOutreachProspectRank` (after `fitScore`) |
-| Lead rules | Same + `MIN_LEAD_STATE_SENDS`; cohort from attribution rows | `resolveOutreachLeadRules` → lead lists + convert snapshot |
+| Input            | When measured                                               | Consumer                                                   |
+| ---------------- | ----------------------------------------------------------- | ---------------------------------------------------------- |
+| Pace / volume    | `totalAttributed >= minAttributedConversions`               | `outreachNightlyPrep` capacity                             |
+| Channel weights  | Same global gate + `MIN_CHANNEL_SENDS` per slice            | `allocateChannelsForDay`                                   |
+| Product weights  | Same + `MIN_PRODUCT_SENDS`                                  | `selectProductForProspect` (within tier)                   |
+| Fit-band weights | Same + `MIN_FIT_BAND_SENDS`                                 | `compareOutreachProspectRank` (after `fitScore`)           |
+| Lead rules       | Same + `MIN_LEAD_STATE_SENDS`; cohort from attribution rows | `resolveOutreachLeadRules` → lead lists + convert snapshot |
 
 Below the gate: planning conversion assumption (pace), even channel rotation, rank-only product/fit selection, provisional lead rules (`v1-provisional`).
 
@@ -145,10 +145,10 @@ Extend `convertToActiveAccount` (or post-convert staff API) to record attributio
 
 ## UI changes
 
-| Surface                            | Change                                       |
-| ---------------------------------- | -------------------------------------------- |
-| Convert modal                      | Staff-confirmed attribution + last-touch fallback (`ConvertAccountModal.tsx`) |
-| Dashboard and Briefing             | Goal MTD, projection, pace, learning slices (channel, product, fit band, lead state) |
+| Surface                | Change                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| Convert modal          | Staff-confirmed attribution + last-touch fallback (`ConvertAccountModal.tsx`)        |
+| Dashboard and Briefing | Goal MTD, projection, pace, learning slices (channel, product, fit band, lead state) |
 
 ---
 
@@ -229,7 +229,7 @@ Extend `convertToActiveAccount` (or post-convert staff API) to record attributio
 
 - Seed default goal row = 5 (migration `20260812120000_outreach_goals_and_attribution.sql`)
 - Backfill attribution optionally for recent converts (best-effort last-touch) — `backfillRecentConversionAttribution`
-- Measured weights are **always-on** behind `minAttributedConversions` global gate (epic originally suggested a feature flag; conservative gate used instead)
+- Measured weights are **always-on** behind `minAttributedConversions` global gate when `adaptive_weights_enabled` is true (staff toggle on `outreach_goal_settings`; default on)
 
 ---
 

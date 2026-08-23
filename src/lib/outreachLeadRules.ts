@@ -60,3 +60,32 @@ export const OUTREACH_LEAD_RULES: OutreachLeadRules = {
   hotScoreMin: 10,
   replyCallTodayDays: 3,
 };
+
+const LEAD_RULE_NUMBER_KEYS = [
+  'pointsOpenOnlyProduct',
+  'openOnlyProductCap',
+  'pointsClickedProduct',
+  'pointsRepeatClick',
+  'pointsHeavyRepeatClick',
+  'pointsMultiProductClick',
+  'pointsAttributedReply',
+  'hotWindowDays',
+  'warmWindowDays',
+  'agedOutDays',
+  'warmScoreMin',
+  'hotScoreMin',
+  'replyCallTodayDays',
+] as const satisfies ReadonlyArray<keyof OutreachLeadRules>;
+
+export function isOutreachLeadRules(value: unknown): value is OutreachLeadRules {
+  if (!value || typeof value !== 'object') return false;
+  const o = value as Record<string, unknown>;
+  if (o.version !== 'v1-provisional' && o.version !== 'v1-measured') return false;
+  return LEAD_RULE_NUMBER_KEYS.every(
+    (key) => typeof o[key] === 'number' && Number.isFinite(o[key]),
+  );
+}
+
+export function parseOutreachLeadRules(value: unknown): OutreachLeadRules | null {
+  return isOutreachLeadRules(value) ? value : null;
+}

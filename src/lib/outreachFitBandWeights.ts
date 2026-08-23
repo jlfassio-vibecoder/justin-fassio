@@ -25,7 +25,7 @@ export function computeFitBandRankingWeights(input: {
   settings: OutreachGoalSettings;
 }): FitBandRankingWeightsResult {
   const report = input.report;
-  if (!report) {
+  if (!report || !input.settings.adaptiveWeightsEnabled) {
     return { weights: undefined, globalWeight: undefined, source: 'uniform' };
   }
 

@@ -10,6 +10,7 @@ import {
   type LeadRuleCalibrationMeta,
   type LeadRuleSource,
 } from '@/lib/outreachLeadRuleCalibration';
+import { refreshPersistedLeadRules } from '@/lib/refreshPersistedLeadRules';
 import type { OutreachLeadRules } from '@/lib/outreachLeadRules';
 import {
   loadOutreachPerformanceReport,
@@ -24,6 +25,27 @@ export type ResolvedOutreachLeadRules = {
   source: LeadRuleSource;
   meta: LeadRuleCalibrationMeta;
 };
+
+function cachedLeadRulesFromSettings(settings: {
+  leadRules: OutreachLeadRules | null;
+  leadRulesSource: LeadRuleSource | null;
+  leadRulesMeta: LeadRuleCalibrationMeta | null;
+  leadRulesComputedAt: string | null;
+}): ResolvedOutreachLeadRules | null {
+  if (
+    !settings.leadRules ||
+    !settings.leadRulesSource ||
+    !settings.leadRulesMeta ||
+    !settings.leadRulesComputedAt
+  ) {
+    return null;
+  }
+  return {
+    rules: settings.leadRules,
+    source: settings.leadRulesSource,
+    meta: settings.leadRulesMeta,
+  };
+}
 
 export async function resolveOutreachLeadRules(params: {
   client?: Client;
@@ -42,6 +64,11 @@ export async function resolveOutreachLeadRules(params: {
     });
   }
 
+  const cached = cachedLeadRulesFromSettings(goals.settings);
+  if (cached) {
+    return cached;
+  }
+
   let report = params.performance ?? null;
   if (report == null) {
     const loaded = await loadOutreachPerformanceReport({ client, asOf });
@@ -53,6 +80,11 @@ export async function resolveOutreachLeadRules(params: {
       });
     }
     report = loaded.report;
+  }
+
+  const refreshed = await refreshPersistedLeadRules({ client, asOf, performance: report });
+  if (refreshed.ok) {
+    return refreshed.result;
   }
 
   return computeCalibratedLeadRules({

@@ -315,7 +315,9 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
                 {briefing.channelAllocation.meta?.weightSource === 'measured'
                   ? ' · measured conversion weights'
                   : briefing.channelAllocation.meta?.weightSource === 'uniform'
-                    ? ' · even rotation (insufficient data)'
+                    ? briefing.adaptiveWeightsEnabled
+                      ? ' · even rotation (insufficient data)'
+                      : ' · even rotation (adaptive weights off)'
                     : ' (informational)'}
               </CardMeta>
               <ul className="m-0 flex list-none flex-wrap gap-2 p-0 text-sm">
@@ -412,7 +414,9 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
                 {briefing.channelAllocation?.meta?.weightSource === 'measured'
                   ? 'Channel allocation, product selection, and prospect ranking use blended conversion rates'
                   : briefing.channelAllocation?.meta?.weightSource === 'uniform'
-                    ? 'Insufficient attributed conversions — even channel rotation, rank-based product picks, and CRM fit-score ranking'
+                    ? briefing.adaptiveWeightsEnabled
+                      ? 'Insufficient attributed conversions — even channel rotation, rank-based product picks, and CRM fit-score ranking'
+                      : 'Adaptive weights disabled in goals settings — even channel rotation, rank-based product picks, and CRM fit-score ranking'
                     : 'Performance data shown for review — run nightly prep to apply learning weights'}
                 {' · '}
                 {briefing.leadRules.source === 'measured'

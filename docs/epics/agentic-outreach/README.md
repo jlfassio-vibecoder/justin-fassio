@@ -187,7 +187,7 @@ Eligible pool:
 - **New:** `catalog_items.is_new`.
 - Must remain publicly emailable: same gates as `loadPublishedOgrProductForEmail` (OGR line, active, published, non-empty `public_slug`).
 
-Fit signals: product `recommended_channels` ∩ prospect channels/themes; lifestyle themes; **product→prospect dedup when history exists is documented but not yet enforced in selection** (optional follow-up).
+Fit signals: product `recommended_channels` ∩ prospect channels/themes; lifestyle themes; **recent product→prospect dedup** (`AGENT_OUTREACH_PRODUCT_DEDUP_DAYS`, default 90) excludes catalog items already sent within the window.
 
 Deterministic filter first; AI only chooses among the filtered pool.
 
@@ -382,12 +382,12 @@ convert → account_conversion_attribution
        → nightly prep (pace + selectOutreachTargets) + lead qualification
 ```
 
-| Learning dimension | Library | Wired into |
-| ------------------ | ------- | ---------- |
-| Daily pace | `outreachPace.ts`, `outreachGoalDashboard.ts` | Nightly prep capacity; Dashboard + Briefing KPIs |
-| Channel allocation | `outreachChannelWeights.ts` | `allocateChannelsForDay` (nightly prep) |
-| Product selection | `outreachProductWeights.ts` | `selectProductForProspect` within channel-fit tiers |
-| Prospect fit band | `outreachFitBandWeights.ts` | `compareOutreachProspectRank` soft boost after `fitScore` |
+| Learning dimension    | Library                                                         | Wired into                                                                                |
+| --------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Daily pace            | `outreachPace.ts`, `outreachGoalDashboard.ts`                   | Nightly prep capacity; Dashboard + Briefing KPIs                                          |
+| Channel allocation    | `outreachChannelWeights.ts`                                     | `allocateChannelsForDay` (nightly prep)                                                   |
+| Product selection     | `outreachProductWeights.ts`                                     | `selectProductForProspect` within channel-fit tiers                                       |
+| Prospect fit band     | `outreachFitBandWeights.ts`                                     | `compareOutreachProspectRank` soft boost after `fitScore`                                 |
 | Lead rules (Warm/Hot) | `outreachLeadRuleCalibration.ts`, `resolveOutreachLeadRules.ts` | Lead lists, attribution snapshot, Briefing/Dashboard copy — **not** nightly prospect rank |
 
 Staff see measured vs provisional state on **Daily Briefing** (channel allocation meta, learning-slices tables, lead-rule source). Dashboard shows attributed channel and lead-state performance.
@@ -396,6 +396,6 @@ Staff see measured vs provisional state on **Daily Briefing** (channel allocatio
 
 **Optional follow-ups (not blocking the loop):**
 
-- Enforce recent product→prospect dedup in selection (§8)
-- Persist calibrated `lead_rules` JSON on `outreach_goal_settings` (today: compute on-read)
-- Epic doc-only feature-flag note — weights are always-on behind the global gate instead
+- ~~Enforce recent product→prospect dedup in selection (§8)~~ — shipped (PR5)
+- ~~Persist calibrated `lead_rules` JSON on `outreach_goal_settings`~~ — shipped (PR6)
+- ~~Epic doc-only feature-flag note~~ — staff `adaptive_weights_enabled` toggle shipped (PR7)

@@ -54,6 +54,19 @@ describe('computeChannelAllocationWeights', () => {
     expect(result.weights).toBeUndefined();
   });
 
+  it('returns uniform when adaptive weights are disabled', () => {
+    const report = makeReport([
+      { key: 'golf_retail', sends: 20, conversions: 2 },
+      { key: 'marine_retail', sends: 20, conversions: 1 },
+    ]);
+    const result = computeChannelAllocationWeights({
+      report,
+      settings: { ...settings, adaptiveWeightsEnabled: false },
+    });
+    expect(result.source).toBe('uniform');
+    expect(result.weights).toBeUndefined();
+  });
+
   it('returns measured weights favoring higher-conversion channels', () => {
     const result = computeChannelAllocationWeights({
       report: makeReport([

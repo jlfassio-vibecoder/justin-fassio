@@ -20,7 +20,7 @@ function thenable<T extends Record<string, unknown>>(
 function chain(result: { data: unknown; error: unknown }) {
   const api: Record<string, unknown> = {};
   const self = () => thenable(api, result);
-  for (const key of ['select', 'eq', 'in', 'not', 'neq', 'or', 'order', 'limit']) {
+  for (const key of ['select', 'eq', 'in', 'not', 'neq', 'or', 'order', 'limit', 'gte']) {
     api[key] = vi.fn(self);
   }
   api.maybeSingle = vi.fn(async () => result);
@@ -81,6 +81,7 @@ function mockSelectClient(opts: {
   suppressed?: unknown[];
   sendsByProspect?: unknown[];
   sendsByEmail?: unknown[];
+  recentProductSends?: unknown[];
 }): DbClient {
   const lineId = 'line-ogr';
   let sendQueryCount = 0;
@@ -121,6 +122,9 @@ function mockSelectClient(opts: {
           }
           if (cols.includes('bounced_at')) {
             return chain({ data: opts.suppressed ?? [], error: null });
+          }
+          if (cols.includes('catalog_item_id')) {
+            return chain({ data: opts.recentProductSends ?? [], error: null });
           }
           // sent_at queries
           sendQueryCount += 1;
@@ -695,5 +699,126 @@ describe('selectOutreachTargets', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.targets[0].selectionReasons.fitBandWeightSource).toBe('measured');
+  });
+
+  it('picks alternate product when top pick was recently sent to prospect', async () => {
+    const client = mockSelectClient({
+      prospects: [prospectRow(10, 'Golf Shop')],
+      contacts: [
+        {
+          id: 'c-1',
+          account_id: 10,
+          role: 'buyer',
+          full_name: 'Sam Buyer',
+          title: null,
+          phone: null,
+          email: 'sam@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Golf Tee A',
+          public_slug: 'golf-tee-a',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: false,
+          public_sort_order: 1,
+          recommended_channels: ['golf_retail'],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+        {
+          id: 'p-2',
+          sku: 'OG2',
+          name: 'Golf Tee B',
+          public_slug: 'golf-tee-b',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: false,
+          public_sort_order: 2,
+          recommended_channels: ['golf_retail'],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+      pendingProspectIds: [],
+      suppressed: [],
+      sendsByProspect: [],
+      sendsByEmail: [],
+      recentProductSends: [{ prospect_id: 10, catalog_item_id: 'p-1' }],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 1,
+      preparationDate: '2026-08-12',
+      asOf: new Date('2026-08-12T18:00:00Z'),
+      weights: { golf_retail: 1 },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets).toHaveLength(1);
+    expect(result.targets[0].catalogItemId).toBe('p-2');
+  });
+
+  it('excludes prospect when all pool products were recently sent', async () => {
+    const client = mockSelectClient({
+      prospects: [prospectRow(10, 'Golf Shop')],
+      contacts: [
+        {
+          id: 'c-1',
+          account_id: 10,
+          role: 'buyer',
+          full_name: 'Sam Buyer',
+          title: null,
+          phone: null,
+          email: 'sam@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Golf Tee',
+          public_slug: 'golf-tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: false,
+          public_sort_order: 1,
+          recommended_channels: ['golf_retail'],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+      pendingProspectIds: [],
+      suppressed: [],
+      sendsByProspect: [],
+      sendsByEmail: [],
+      recentProductSends: [{ prospect_id: 10, catalog_item_id: 'p-1' }],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 1,
+      preparationDate: '2026-08-12',
+      asOf: new Date('2026-08-12T18:00:00Z'),
+      weights: { golf_retail: 1 },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets).toHaveLength(0);
+    expect(result.excluded).toEqual(
+      expect.arrayContaining([{ prospectId: 10, reason: 'no_product_after_dedup' }]),
+    );
   });
 });

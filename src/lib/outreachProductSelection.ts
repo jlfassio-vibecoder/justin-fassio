@@ -141,6 +141,14 @@ function comparePoolCandidates(
   );
 }
 
+function filterExcludedProducts(
+  pool: OutreachProductCandidate[],
+  excludeCatalogItemIds?: ReadonlySet<string>,
+): OutreachProductCandidate[] {
+  if (!excludeCatalogItemIds || excludeCatalogItemIds.size === 0) return pool;
+  return pool.filter((p) => !excludeCatalogItemIds.has(p.id));
+}
+
 function compareWithProductWeights(
   a: OutreachProductCandidate,
   b: OutreachProductCandidate,
@@ -173,12 +181,14 @@ export function selectProductForProspect(
   input: {
     prospectChannels: PrimaryRetailChannel[];
     prospectLifestyleThemes?: string[];
+    excludeCatalogItemIds?: ReadonlySet<string>;
     productWeights?: ReadonlyMap<string, number>;
     globalProductWeight?: number;
     productWeightSource?: ProductWeightSource;
   },
 ): { product: OutreachProductCandidate; productFit: ProductFitKind } | null {
-  if (pool.length === 0) return null;
+  const eligiblePool = filterExcludedProducts(pool, input.excludeCatalogItemIds);
+  if (eligiblePool.length === 0) return null;
 
   const prospectChannels = normalizePrimaryChannels(
     input.prospectChannels.map((ch) => coercePrimaryRetailChannel(ch)),
@@ -192,19 +202,19 @@ export function selectProductForProspect(
   const compare = (a: OutreachProductCandidate, b: OutreachProductCandidate) =>
     compareWithProductWeights(a, b, themes, weightOptions);
 
-  const intersecting = pool
+  const intersecting = eligiblePool
     .filter((p) => channelIntersect(p.recommendedChannels, prospectChannels))
     .sort(compare);
   if (intersecting[0]) {
     return { product: intersecting[0], productFit: 'channel_intersect' };
   }
 
-  const weakGlobal = pool.filter((p) => p.recommendedChannels.length === 0).sort(compare);
+  const weakGlobal = eligiblePool.filter((p) => p.recommendedChannels.length === 0).sort(compare);
   if (weakGlobal[0]) {
     return { product: weakGlobal[0], productFit: 'global_fallback' };
   }
 
-  const remaining = [...pool].sort(compare);
+  const remaining = [...eligiblePool].sort(compare);
   return remaining[0] ? { product: remaining[0], productFit: 'global_fallback' } : null;
 }
 

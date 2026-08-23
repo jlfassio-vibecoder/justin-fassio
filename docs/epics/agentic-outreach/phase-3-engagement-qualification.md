@@ -93,11 +93,11 @@ Phase 5 consumes:
 
 ## Proposed data / schema changes
 
-| Option                                         | Notes                                                                                      |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| A. On-read aggregation                         | Query `system_messages` by `prospect_id`; no new table — fine for v1                       |
-| B. Materialized `prospect_outreach_engagement` | Cached rollup + `lead_state` + `lead_state_updated_at` for Briefing performance            |
-| Config                                         | `outreach_lead_rules` JSON (weights, windows, version) — prefer with Phase 4 settings home |
+| Option                                         | Notes                                                                                                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A. On-read aggregation                         | Query `system_messages` by `prospect_id`; no new table — fine for v1                                                                                                            |
+| B. Materialized `prospect_outreach_engagement` | Cached rollup + `lead_state` + `lead_state_updated_at` for Briefing performance                                                                                                 |
+| Config                                         | `outreach_lead_rules` JSON on `outreach_goal_settings` (`lead_rules`, `lead_rules_source`, `lead_rules_meta`, `lead_rules_computed_at`) — refreshed on nightly prep and convert |
 
 Do not change webhook RPC semantics for counters.
 

@@ -101,6 +101,7 @@ export type OutreachBriefingDto = {
     version: OutreachLeadRulesVersion;
     adjustedFields: string[];
   };
+  adaptiveWeightsEnabled: boolean;
 };
 
 function toPublicRun(run: OutreachAutomationRunRow): OutreachAutomationRunPublic {
@@ -296,6 +297,7 @@ export async function assembleOutreachBriefing(params: {
       recentConversions: [],
       performance: null,
       leadRules: { source: 'provisional', version: 'v1-provisional', adjustedFields: [] },
+      adaptiveWeightsEnabled: true,
     };
     return { ok: true, briefing: empty };
   }
@@ -419,6 +421,7 @@ export async function assembleOutreachBriefing(params: {
       version: resolvedLeadRules.rules.version,
       adjustedFields: resolvedLeadRules.meta.adjustedFields,
     },
+    adaptiveWeightsEnabled: snap.snapshot.settings.adaptiveWeightsEnabled,
   };
 
   return { ok: true, briefing };

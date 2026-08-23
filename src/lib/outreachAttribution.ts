@@ -17,6 +17,7 @@ import {
   loadUniqueContactEmailsForProspect,
 } from '@/lib/outreachLeadLists';
 import { resolveOutreachLeadRules } from '@/lib/resolveOutreachLeadRules';
+import { refreshPersistedLeadRules } from '@/lib/refreshPersistedLeadRules';
 import {
   normalizeSystemMessageEmail,
   parseGenerationMeta,
@@ -319,6 +320,11 @@ export async function recordConversionAttribution(
 
   if (error) return { ok: false, error: error.message };
   if (!data) return { ok: false, error: 'Failed to insert attribution' };
+
+  void refreshPersistedLeadRules({ client, asOf: new Date(input.convertedAt) }).catch(() => {
+    // Best-effort cache refresh; convert must not fail.
+  });
+
   return { ok: true, id: data.id };
 }
 
