@@ -2925,6 +2925,7 @@ export interface Database {
           status: AccountResearchSuggestionStatus;
           reviewed_by: string | null;
           reviewed_at: string | null;
+          baseline_value: unknown | null;
           created_at: string;
         };
         Insert: {
@@ -2938,6 +2939,7 @@ export interface Database {
           status?: AccountResearchSuggestionStatus;
           reviewed_by?: string | null;
           reviewed_at?: string | null;
+          baseline_value?: unknown;
           created_at?: string;
         };
         Update: {
@@ -2951,6 +2953,7 @@ export interface Database {
           status?: AccountResearchSuggestionStatus;
           reviewed_by?: string | null;
           reviewed_at?: string | null;
+          baseline_value?: unknown;
           created_at?: string;
         };
         Relationships: [];
@@ -3336,6 +3339,25 @@ export interface Database {
           p_citations?: unknown;
           p_research_brief?: string | null;
         };
+        Returns: unknown;
+      };
+      persist_account_research_profile_suggestions: {
+        Args: {
+          p_run_id: string;
+          p_force_regenerate?: boolean;
+          p_suggestions?: unknown;
+        };
+        Returns: unknown;
+      };
+      apply_account_research_profile_suggestion: {
+        Args: {
+          p_suggestion_id: string;
+          p_confirm_verified_overwrite?: boolean;
+        };
+        Returns: unknown;
+      };
+      reject_account_research_profile_suggestion: {
+        Args: { p_suggestion_id: string };
         Returns: unknown;
       };
     };

@@ -23,8 +23,9 @@ Insert an **on-demand public-web Account Research** step **before** catalog prod
 
 **Hard separation:** retailer-level research ≠ line-specific product matching.
 
-**PR1 implementation plan:** [docs/plans/agent-outreach-account-research-pr1-schema-foundation.md](../../plans/agent-outreach-account-research-pr1-schema-foundation.md) (merged to `main` via PR #114)  
-**PR2 implementation plan:** [docs/plans/agent-outreach-account-research-pr2-research-service.md](../../plans/agent-outreach-account-research-pr2-research-service.md)
+**PR1 implementation plan:** [docs/plans/agent-outreach-account-research-pr1-schema-foundation.md](../../plans/agent-outreach-account-research-pr1-schema-foundation.md) (merged to `main` via PR #114; migration applied)  
+**PR2 implementation plan:** [docs/plans/agent-outreach-account-research-pr2-research-service.md](../../plans/agent-outreach-account-research-pr2-research-service.md) (merged to `main` via PR #115; migration `20260823140000_account_research_run_rpcs.sql` applied)  
+**PR3 implementation plan:** [docs/plans/account-research-pr3-profile-suggestions.md](../../plans/account-research-pr3-profile-suggestions.md)
 
 ### Locked clarifications (2026-08-23)
 
@@ -473,9 +474,11 @@ Prefer pure unit tests for identity/match ranking; mock Gateway/Perplexity like 
 
 ### PR3 — Profile suggestions + apply
 
-- Suggestion rows from research.
-- Staff apply/reject → `retailer_field_changes` + allowlisted prospect updates.
-- Explicit: no auto-apply.
+- See [PR3 plan](../../plans/account-research-pr3-profile-suggestions.md).
+- Suggestion rows from stored PR2 evidence (no new searches).
+- Staff apply/reject → atomic RPC + `retailer_field_changes` + allowlisted prospect updates.
+- Pending suggestions on superseded runs marked `superseded` (PR3 migration trigger).
+- Explicit: no auto-apply; no UI.
 
 ### PR4 — Product match (line-specific)
 
