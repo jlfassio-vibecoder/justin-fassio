@@ -3360,6 +3360,17 @@ export interface Database {
         Args: { p_suggestion_id: string };
         Returns: unknown;
       };
+      persist_account_product_match_run: {
+        Args: {
+          p_retailer_id: number;
+          p_sales_line_id: string;
+          p_research_run_id: string;
+          p_status: string;
+          p_empty_reason?: string | null;
+          p_items?: unknown;
+        };
+        Returns: unknown;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
