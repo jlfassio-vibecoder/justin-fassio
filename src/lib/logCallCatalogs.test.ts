@@ -30,20 +30,41 @@ describe('logCallCatalogs', () => {
 });
 
 describe('formatCallContactName', () => {
+  const baseContact: AccountContact = {
+    id: 'c1',
+    accountId: 1,
+    role: 'buyer',
+    fullName: 'Dave Miller',
+    title: 'Owner',
+    phone: null,
+    email: null,
+    isPrimary: true,
+    notes: null,
+    createdAt: '',
+    updatedAt: '',
+  };
+
   it('prefers title over role', () => {
-    const contact: AccountContact = {
-      id: 'c1',
-      accountId: 1,
-      role: 'buyer',
-      fullName: 'Dave Miller',
-      title: 'Owner',
-      phone: null,
-      email: null,
-      isPrimary: true,
-      notes: null,
-      createdAt: '',
-      updatedAt: '',
-    };
-    expect(formatCallContactName(contact)).toBe('Dave Miller (Owner)');
+    expect(formatCallContactName(baseContact)).toBe('Dave Miller (Owner)');
+  });
+
+  it('appends phone when present', () => {
+    expect(
+      formatCallContactName({
+        ...baseContact,
+        title: null,
+        phone: '250-555-1234',
+      }),
+    ).toBe('Dave Miller (Buyer) · 250-555-1234');
+  });
+
+  it('omits phone suffix when phone is empty', () => {
+    expect(
+      formatCallContactName({
+        ...baseContact,
+        title: null,
+        phone: '   ',
+      }),
+    ).toBe('Dave Miller (Buyer)');
   });
 });

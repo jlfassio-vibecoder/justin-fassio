@@ -78,7 +78,7 @@ function parseAppDeepLinks(): {
 }
 
 export function RepCommandCenter({
-  defaultTab = 'catalog',
+  defaultTab = 'briefing',
   multiLineUi = false,
   lineAccountId,
 }: RepCommandCenterProps) {
@@ -106,6 +106,7 @@ export function RepCommandCenter({
   const [directoryReloadToken, setDirectoryReloadToken] = useState(0);
   const [contactsReloadToken, setContactsReloadToken] = useState(0);
   const [activityHistoryReloadToken, setActivityHistoryReloadToken] = useState(0);
+  const [briefingReloadToken, setBriefingReloadToken] = useState(0);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [supplierTerms, setSupplierTerms] = useState<CatalogSupplierTerms | null>(null);
   const [prospects, setProspects] = useState<Prospect[]>([]);
@@ -161,12 +162,6 @@ export function RepCommandCenter({
   const clearDirectoryDeepLink = useCallback(() => {
     setDeepLinkReactivation(false);
     setDeepLinkTerritory(null);
-  }, []);
-
-  const openDraftDeepLink = useCallback((args: { sku: string; draftId: string }) => {
-    setDeepLinkSku(args.sku);
-    setDeepLinkDraftId(args.draftId);
-    setActiveTab('catalog');
   }, []);
 
   const openProspectDeepLink = useCallback(
@@ -374,6 +369,21 @@ export function RepCommandCenter({
     setModalOpen(true);
   }
 
+  const openLogCallForProspectId = useCallback(
+    (prospectId: number) => {
+      const match = prospects.find((p) => p.id === prospectId);
+      if (!match) return;
+      setModalStoreId(prospectId);
+      setModalOpen(true);
+    },
+    [prospects],
+  );
+
+  function refreshAfterCallLog() {
+    setCallsReloadToken((n) => n + 1);
+    setBriefingReloadToken((n) => n + 1);
+  }
+
   if (multiLineUi && lineAccountId && lineAccountError) {
     return (
       <div className="bg-bg font-body text-ink mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-3 px-7">
@@ -448,7 +458,13 @@ export function RepCommandCenter({
             <>
               {activeTab === 'briefing' && (
                 <AgentBriefingTab
-                  onOpenDraft={openDraftDeepLink}
+                  catalog={catalog}
+                  deepLinkSku={deepLinkSku}
+                  deepLinkDraftId={deepLinkDraftId}
+                  onDeepLinkConsumed={clearCatalogDeepLink}
+                  onProductEmailSent={() => setActivityHistoryReloadToken((n) => n + 1)}
+                  onLogCallForLead={openLogCallForProspectId}
+                  briefingReloadToken={briefingReloadToken}
                   onOpenProspect={openProspectDeepLink}
                 />
               )}
@@ -597,8 +613,11 @@ export function RepCommandCenter({
         catalog={catalog}
         onClose={() => setModalOpen(false)}
         onStoreChange={(id) => setModalStoreId(id)}
-        onSaved={() => setCallsReloadToken((n) => n + 1)}
-        onConverted={reloadDirectory}
+        onSaved={refreshAfterCallLog}
+        onConverted={() => {
+          reloadDirectory();
+          setBriefingReloadToken((n) => n + 1);
+        }}
         onRetailerUpdated={reloadDirectory}
         onContactCreated={() => setContactsReloadToken((n) => n + 1)}
         activityHistoryReloadToken={activityHistoryReloadToken}

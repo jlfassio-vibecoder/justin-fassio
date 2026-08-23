@@ -46,10 +46,12 @@ export function mapPreviousCallRow(row: CallHistoryRow): PreviousCallForLog {
   };
 }
 
-/** Format contact for `calls.contact_name` (title preferred, else role). */
+/** Format contact for `calls.contact_name` (title preferred, else role; phone appended when set). */
 export function formatCallContactName(contact: AccountContact): string {
   const label = contact.title?.trim() || accountContactRoleLabel(contact.role);
-  return label ? `${contact.fullName} (${label})` : contact.fullName;
+  const base = label ? `${contact.fullName} (${label})` : contact.fullName;
+  const phone = contact.phone?.trim();
+  return phone ? `${base} · ${phone}` : base;
 }
 
 /**

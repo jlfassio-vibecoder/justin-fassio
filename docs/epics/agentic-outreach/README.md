@@ -348,15 +348,16 @@ Until that Epic ships, every agent-created Product Outreach email requires expli
 
 ## 17. Document index
 
-| File                                                                             | Purpose                          |
-| -------------------------------------------------------------------------------- | -------------------------------- |
-| [README.md](./README.md)                                                         | Master Epic contract (this file) |
-| [phase-0-foundations.md](./phase-0-foundations.md)                               | Drafts, origin, approve/send     |
-| [phase-1-eligibility-selection.md](./phase-1-eligibility-selection.md)           | Who/what to outreach             |
-| [phase-2-draft-generation.md](./phase-2-draft-generation.md)                     | AI drafts + human review         |
-| [phase-3-engagement-qualification.md](./phase-3-engagement-qualification.md)     | Warm/Hot/Call Today              |
-| [phase-4-goals-attribution-learning.md](./phase-4-goals-attribution-learning.md) | Goals, pace, learning            |
-| [phase-5-nightly-briefing.md](./phase-5-nightly-briefing.md)                     | Cron + morning briefing          |
+| File                                                                                           | Purpose                                                                                                        |
+| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [README.md](./README.md)                                                                       | Master Epic contract (this file)                                                                               |
+| [phase-0-foundations.md](./phase-0-foundations.md)                                             | Drafts, origin, approve/send                                                                                   |
+| [phase-1-eligibility-selection.md](./phase-1-eligibility-selection.md)                         | Who/what to outreach                                                                                           |
+| [phase-2-draft-generation.md](./phase-2-draft-generation.md)                                   | AI drafts + human review                                                                                       |
+| [phase-3-engagement-qualification.md](./phase-3-engagement-qualification.md)                   | Warm/Hot/Call Today                                                                                            |
+| [phase-4-goals-attribution-learning.md](./phase-4-goals-attribution-learning.md)               | Goals, pace, learning                                                                                          |
+| [phase-5-nightly-briefing.md](./phase-5-nightly-briefing.md)                                   | Cron + morning briefing                                                                                        |
+| [account-research-before-product-selection.md](./account-research-before-product-selection.md) | **Planned:** public-web account research → profile suggestions → 1–3 product matches (before draft); GO Mode A |
 
 ---
 

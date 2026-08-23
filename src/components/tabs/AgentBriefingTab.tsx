@@ -1,16 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardList, RefreshCw } from 'lucide-react';
+import {
+  OgrProductEmailComposerModal,
+  type OgrProductEmailComposerDraft,
+} from '@/components/OgrProductEmailComposerModal';
 import { Button } from '@/components/ui/Button';
 import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
+import { getAgentProductOutreachDraftClient } from '@/lib/agentProductOutreachDraftClient';
+import type { CatalogItem } from '@/lib/catalog';
+import { buildCatalogItemEmailCardHtml } from '@/lib/catalogItemEmailCardHtml';
 import { useOptionalLineContext } from '@/lib/lineContext';
-import { supabase } from '@/lib/supabase';
 import type { OutreachBriefingDto } from '@/lib/outreachBriefing';
 import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
+import { supabase } from '@/lib/supabase';
 
 const ICON_STROKE = 2.75;
 
+type DraftReviewTarget = {
+  draftId: string;
+  catalogItemId: string;
+  productName: string;
+};
+
 type AgentBriefingTabProps = {
-  onOpenDraft: (args: { sku: string; draftId: string }) => void;
+  catalog: CatalogItem[];
+  deepLinkSku?: string | null;
+  deepLinkDraftId?: string | null;
+  onDeepLinkConsumed?: () => void;
+  onProductEmailSent?: () => void;
+  onLogCallForLead: (prospectId: number) => void;
+  briefingReloadToken?: number;
   onOpenProspect: (args: { prospectId: number; accountStatus?: string }) => void;
 };
 
@@ -105,7 +124,16 @@ function LeadList({
   );
 }
 
-export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingTabProps) {
+export function AgentBriefingTab({
+  catalog,
+  deepLinkSku = null,
+  deepLinkDraftId = null,
+  onDeepLinkConsumed,
+  onProductEmailSent,
+  onLogCallForLead,
+  briefingReloadToken = 0,
+  onOpenProspect,
+}: AgentBriefingTabProps) {
   const lineCtx = useOptionalLineContext();
   const [briefing, setBriefing] = useState<OutreachBriefingDto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,6 +141,64 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
   const [prepBusy, setPrepBusy] = useState(false);
   const [prepMessage, setPrepMessage] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [composerDraft, setComposerDraft] = useState<OgrProductEmailComposerDraft | null>(null);
+  const [composerProduct, setComposerProduct] = useState<CatalogItem | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerError, setComposerError] = useState<string | null>(null);
+  const [appliedDeepLinkKey, setAppliedDeepLinkKey] = useState('');
+
+  const pendingSku = deepLinkSku?.trim() || null;
+  const pendingDraftId = deepLinkDraftId?.trim() || null;
+  const pendingDeepLinkKey = `${pendingSku ?? ''}:${pendingDraftId ?? ''}`;
+
+  const catalogById = useMemo(() => new Map(catalog.map((item) => [item.id, item])), [catalog]);
+
+  const closeComposer = useCallback(() => {
+    setComposerOpen(false);
+    setComposerDraft(null);
+    setComposerProduct(null);
+    setComposerError(null);
+  }, []);
+
+  const openDraftReview = useCallback(
+    async (target: DraftReviewTarget) => {
+      setComposerError(null);
+      setComposerDraft(null);
+      setComposerProduct(null);
+      setComposerOpen(false);
+
+      const catalogItem = catalogById.get(target.catalogItemId);
+      if (!catalogItem) {
+        setComposerError(`Product not found in catalog (${target.productName}).`);
+        return;
+      }
+
+      const loaded = await getAgentProductOutreachDraftClient(target.draftId);
+      if (!loaded.ok) {
+        setComposerError(loaded.error);
+        return;
+      }
+
+      const d = loaded.draft;
+      setComposerProduct(catalogItem);
+      setComposerDraft({
+        id: d.id,
+        to: d.toEmail,
+        toName: d.toName,
+        subject: d.subject,
+        introText: d.introText,
+        closingText: d.closingText,
+        prospectId: d.prospectId,
+        accountContactId: d.accountContactId,
+        catalogItemId: d.catalogItemId,
+        prospectName: undefined,
+        productSku: d.payload.sku,
+        productSlug: d.payload.slug,
+      });
+      setComposerOpen(true);
+    },
+    [catalogById],
+  );
 
   useEffect(() => {
     let active = true;
@@ -139,7 +225,33 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
     return () => {
       active = false;
     };
-  }, [reloadToken, lineCtx.multiLineUi, lineCtx.salesLineId]);
+  }, [reloadToken, briefingReloadToken, lineCtx.multiLineUi, lineCtx.salesLineId]);
+
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
+  if (pendingDraftId && pendingDeepLinkKey !== appliedDeepLinkKey && !loading && briefing) {
+    setAppliedDeepLinkKey(pendingDeepLinkKey);
+    const row = briefing.drafts.find((d) => d.draftId === pendingDraftId);
+    const catalogItemId =
+      row?.catalogItemId ??
+      (pendingSku ? catalog.find((item) => item.sku === pendingSku)?.id : undefined);
+
+    if (!catalogItemId) {
+      queueMicrotask(() => {
+        setComposerError('Could not resolve product for draft deep link.');
+        onDeepLinkConsumed?.();
+      });
+    } else {
+      queueMicrotask(() => {
+        void openDraftReview({
+          draftId: pendingDraftId,
+          catalogItemId,
+          productName: row?.productName ?? pendingSku ?? 'Product',
+        }).finally(() => {
+          onDeepLinkConsumed?.();
+        });
+      });
+    }
+  }
 
   async function runPrepNow() {
     setPrepBusy(true);
@@ -170,6 +282,8 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
 
   const goal = briefing?.goal;
   const prep = briefing?.prep;
+  const composerCardHtml =
+    composerOpen && composerProduct ? buildCatalogItemEmailCardHtml(composerProduct, 'ca') : '';
 
   return (
     <section className="flex flex-col gap-5" data-screen-label="briefing">
@@ -201,6 +315,7 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
       {loading && <p className="text-ink/60 m-0 text-sm">Loading briefing…</p>}
       {error && <p className="text-accent-800 m-0 text-sm">Could not load briefing: {error}</p>}
       {prepMessage && <p className="text-ink/70 m-0 text-sm">{prepMessage}</p>}
+      {composerError && <p className="text-accent-800 m-0 text-sm">{composerError}</p>}
 
       {briefing && (
         <>
@@ -289,7 +404,13 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
                           <button
                             type="button"
                             className="text-accent-800 hover:underline"
-                            onClick={() => onOpenDraft({ sku: d.productSku, draftId: d.draftId })}
+                            onClick={() =>
+                              void openDraftReview({
+                                draftId: d.draftId,
+                                catalogItemId: d.catalogItemId,
+                                productName: d.productName,
+                              })
+                            }
                           >
                             {d.productName}{' '}
                             <span className="text-ink/45 text-xs">({d.productSku})</span>
@@ -336,23 +457,17 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
             <LeadList
               title="Call Today"
               rows={briefing.callToday}
-              onOpen={(row) =>
-                onOpenProspect({ prospectId: row.prospectId, accountStatus: row.accountStatus })
-              }
+              onOpen={(row) => onLogCallForLead(row.prospectId)}
             />
             <LeadList
               title="Hot"
               rows={briefing.hot}
-              onOpen={(row) =>
-                onOpenProspect({ prospectId: row.prospectId, accountStatus: row.accountStatus })
-              }
+              onOpen={(row) => onLogCallForLead(row.prospectId)}
             />
             <LeadList
               title="Warm"
               rows={briefing.warm}
-              onOpen={(row) =>
-                onOpenProspect({ prospectId: row.prospectId, accountStatus: row.accountStatus })
-              }
+              onOpen={(row) => onLogCallForLead(row.prospectId)}
             />
           </div>
 
@@ -583,6 +698,27 @@ export function AgentBriefingTab({ onOpenDraft, onOpenProspect }: AgentBriefingT
           )}
         </>
       )}
+
+      {composerProduct && composerDraft ? (
+        <OgrProductEmailComposerModal
+          open={composerOpen}
+          onClose={closeComposer}
+          onSent={() => {
+            closeComposer();
+            setReloadToken((n) => n + 1);
+            onProductEmailSent?.();
+          }}
+          onDraftCancelled={() => {
+            closeComposer();
+            setReloadToken((n) => n + 1);
+          }}
+          productId={composerProduct.id}
+          productName={composerProduct.name.trim()}
+          cardHtml={composerCardHtml}
+          draft={composerDraft}
+          publicMarket="ca"
+        />
+      ) : null}
     </section>
   );
 }
