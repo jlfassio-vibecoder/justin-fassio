@@ -23,6 +23,27 @@ Insert an **on-demand public-web Account Research** step **before** catalog prod
 
 **Hard separation:** retailer-level research ≠ line-specific product matching.
 
+**PR1 implementation plan:** [docs/plans/agent-outreach-account-research-pr1-schema-foundation.md](../../plans/agent-outreach-account-research-pr1-schema-foundation.md)
+
+### Locked clarifications (2026-08-23)
+
+These supersede earlier shorthand in §3–4 where they conflict:
+
+| Topic | Lock |
+| ----- | ---- |
+| Table shape | Original “four domain tables” expand into **normalized tables + citation junctions** (8 tables in PR1). |
+| Platform searches | **Independent** source-search rows — never one combined provider query. |
+| Search All | One parent research run + **six** child searches: Website, Shopify, Instagram, Facebook, TikTok, Pinterest. |
+| Website vs Shopify | **Separate** source types; Shopify is storefront/ecommerce, not social. |
+| Social URLs | **Citation-only** in v1; no social columns on `prospects`. |
+| Product matching | Requires explicit `sales_line_id` (no silent OGR default). |
+| Draft approval (later) | Selecting a recommended SKU is sufficient approval for draft generation; staff Send remains mandatory. |
+| Briefing cards | Do **not** force Research before Log Call. |
+| Prospect pointers | **No** `last_account_research_*` columns in PR1. |
+| Citation relationships | **No** `uuid[]` — junction tables only. |
+| Mode | **Mode A only**; Mode B deferred. |
+| Types | Hand-update `src/types/database.ts` (no CLI gen script in this repo). |
+
 ---
 
 ## 2. Current-state evidence (live code audit)
@@ -206,11 +227,13 @@ flowchart TD
 ```
 prospects (retailer)
   └── account_research_runs (retailer-level)
-        └── account_research_citations (evidence rows)
-        └── account_research_profile_suggestions (optional normalized suggestions)
-  └── retailer_line_accounts (line)
-        └── account_product_match_runs (line-specific)
-              └── account_product_match_items (1–3 SKUs + rationale + citation ids)
+        └── account_research_source_searches (per platform)
+              └── account_research_citations
+        └── account_research_profile_suggestions
+              └── account_research_suggestion_citations (junction)
+  └── account_product_match_runs (line-specific; explicit sales_line_id + one research_run_id)
+        └── account_product_match_items (ranks 1–3 only)
+              └── account_product_match_item_citations (junction)
 ```
 
 ### 3.3 Identity resolution gate
@@ -225,16 +248,16 @@ Before accepting any evidence as belonging to this account:
 
 ### 3.4 Web + social search rules
 
-| Source           | Allowed                                                         | Forbidden                                                                                |
-| ---------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Official website | Public pages via search provider / domain filter                | Login walls, inventing pages                                                             |
-| Social           | Publicly **indexed** posts/profiles returned by search provider | Private accounts, authenticated scrapes, ToS bypass, unofficial mirrors as sole identity |
-| Directories      | Lead-only (existing directory host list)                        | Treat as operational proof                                                               |
+| Source | Allowed | Forbidden |
+| ------ | ------- | --------- |
+| Official website | Public pages via dedicated website source search | Login walls, inventing pages |
+| Shopify | Public storefront evidence (`*.myshopify.com` or custom domain) with citations | Labeling Shopify without cited evidence |
+| Social (IG / FB / TikTok / Pinterest) | Publicly **indexed** activity via **per-platform** source searches | Private accounts, authenticated scrapes, ToS bypass, one combined “social” query |
+| Directories | Lead-only (existing directory host list in `companyWebResearch`) | Treat as operational proof |
 
-**Missing indexed social activity ≠ inactive business.** Persist explicit finding:
+**Search All** means six separate child source searches under one run — never one broad provider query.
 
-- `social_index_status`: `found` | `none_indexed` | `not_searched` | `blocked`
-- Profile suggestion / briefing copy must say “no recent public indexed activity found,” never “store appears inactive.”
+**Missing indexed activity ≠ inactive business.** Persist per-source status such as `none_indexed` on `account_research_source_searches`. Do **not** store a single authoritative run-level `social_index_status` that hides platform outcomes. Briefing copy must say “no recent public indexed activity found,” never “store appears inactive.”
 
 ### 3.5 Product matching rules
 
@@ -249,11 +272,12 @@ Inputs:
 Outputs: **1–3** ranked `catalog_item_id`s, each with:
 
 - match rationale (short)
-- citation ids (FK to research citations)
-- fit kind / score
-- “excluded recent send” note if near-miss
+- citation links via **junction table** (not `uuid[]`)
+- fit kind (`channel_intersect` | `global_fallback`)
 
-Staff must pick a product (or approve the top pick) before draft generation.
+Products excluded by the 90-day prior-email rule are filtered **before insert** (no `excluded_recent_send` item flag). Empty outcomes use match-run `status = empty` + reason.
+
+Staff must pick a product (SKU selection is sufficient draft-generation approval in later PRs) before draft generation.
 
 ### 3.6 Staff gates
 
@@ -283,89 +307,38 @@ Product match runs should record `research_run_id` used. If research goes stale,
 
 ## 4. Schema proposal (smallest additive)
 
-**Verdict:** Existing tables **cannot** cleanly support citation-level evidence + freshness + line-separated matches without overloading `account_enrichment_jobs.evidence` jsonb and losing queryability. Propose **four small tables** + optional thin columns on `prospects`.
+**Verdict:** Existing tables **cannot** cleanly support citation-level evidence + freshness + line-separated matches without overloading `account_enrichment_jobs.evidence` jsonb and losing queryability.
 
-### 4.1 New tables
+**PR1 creates eight tables** (see [PR1 plan](../../plans/agent-outreach-account-research-pr1-schema-foundation.md)):
 
-#### `account_research_runs`
+1. `account_research_runs`
+2. `account_research_source_searches`
+3. `account_research_citations`
+4. `account_research_profile_suggestions`
+5. `account_research_suggestion_citations`
+6. `account_product_match_runs`
+7. `account_product_match_items`
+8. `account_product_match_item_citations`
 
-| Column                                       | Type                 | Notes                                                                          |
-| -------------------------------------------- | -------------------- | ------------------------------------------------------------------------------ |
-| `id`                                         | uuid PK              |                                                                                |
-| `retailer_id`                                | int FK → `prospects` | Retailer-level                                                                 |
-| `status`                                     | text                 | `running` \| `succeeded` \| `failed` \| `needs_identity_review` \| `cancelled` |
-| `provider`                                   | text                 | e.g. `perplexity_via_gateway`                                                  |
-| `trigger`                                    | text                 | `manual` \| `prep` \| `api`                                                    |
-| `identity_confidence`                        | text                 | `high` \| `medium` \| `low` \| `unresolved`                                    |
-| `resolved_website`                           | text null            |                                                                                |
-| `social_index_status`                        | text                 | `found` \| `none_indexed` \| `not_searched` \| `blocked`                       |
-| `research_brief`                             | text null            | Short narrative (not canonical CRM)                                            |
-| `error`                                      | text null            |                                                                                |
-| `started_at` / `completed_at` / `created_at` | timestamptz          |                                                                                |
-| `requested_by`                               | uuid null            | auth user                                                                      |
-| `supersedes_run_id`                          | uuid null            | Chain for refresh                                                              |
+### 4.1 Design notes (superseding earlier four-table sketch)
 
-#### `account_research_citations`
+- **No** run-level aggregate `social_index_status` — platform outcomes live on source-search rows.
+- **No** `citation_ids uuid[]` on suggestions or match items — use junctions.
+- **No** optional `prospects.last_account_research_*` columns in PR1.
+- **No** social URL columns on `prospects` in v1 (citation-only).
+- Match runs require **NOT NULL** `sales_line_id` → `lines(id)` and exactly one `research_run_id`.
+- One active `pending`/`running` research run per retailer via partial unique index.
+- Types: hand-update `src/types/database.ts` (repo has no `supabase gen types` script).
 
-| Column                | Type             | Notes                                                                                                          |
-| --------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------- |
-| `id`                  | uuid PK          |                                                                                                                |
-| `research_run_id`     | uuid FK          |                                                                                                                |
-| `retailer_id`         | int FK           | Denormalized for RLS/query                                                                                     |
-| `source_url`          | text             | Required                                                                                                       |
-| `title`               | text null        |                                                                                                                |
-| `platform`            | text             | `website` \| `instagram` \| `facebook` \| `linkedin` \| `x` \| `tiktok` \| `youtube` \| `other` \| `directory` |
-| `published_at`        | timestamptz null | When known from source                                                                                         |
-| `observed_at`         | timestamptz      | When we saw it (required)                                                                                      |
-| `excerpt`             | text null        | Short quote; never private content                                                                             |
-| `confidence`          | text             | `high` \| `medium` \| `low`                                                                                    |
-| `identity_confidence` | text             | Per-citation attachment confidence                                                                             |
-| `accepted`            | boolean          | Default false until identity gate passes / staff accept                                                        |
-| `metadata`            | jsonb            | Provider raw ids, etc. (non-secret)                                                                            |
+### 4.2 What not to reuse as primary store
 
-#### `account_research_profile_suggestions`
+| Avoid | Why |
+| ----- | --- |
+| Stuffing citations into `system_messages.payload` | Wrong domain; pollutes outreach ledger |
+| Overloading `account_enrichment_jobs` | Different lifecycle (import/enrich); mode enum is fill-blanks/update |
+| Writing suggestions straight to `prospects` | Violates no-auto-overwrite |
 
-Normalized suggestions **not** written to `prospects` until apply:
-
-| Column            | Type      | Notes                                                         |
-| ----------------- | --------- | ------------------------------------------------------------- |
-| `id`              | uuid PK   |                                                               |
-| `research_run_id` | uuid FK   |                                                               |
-| `retailer_id`     | int FK    |                                                               |
-| `field_path`      | text      | Align with `retailer_field_changes.field_path` where possible |
-| `suggested_value` | jsonb     |                                                               |
-| `rationale`       | text null |                                                               |
-| `citation_ids`    | uuid[]    |                                                               |
-| `status`          | text      | `pending` \| `accepted` \| `rejected` \| `superseded`         |
-| `confidence`      | text      |                                                               |
-
-**Apply path:** staff accept → write via existing `retailer_field_changes` + prospect update helpers; mark suggestion `accepted`. Do not invent a second apply stack.
-
-#### `account_product_match_runs` + `account_product_match_items`
-
-| Table                         | Key columns                                                                                                                           |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `account_product_match_runs`  | `id`, `retailer_id`, `sales_line_id`, `research_run_id`, `status`, `created_at`, `requested_by`                                       |
-| `account_product_match_items` | `id`, `match_run_id`, `catalog_item_id`, `rank` (1–3), `rationale`, `citation_ids` uuid[], `product_fit`, `excluded_recent_send` bool |
-
-### 4.2 Optional thin columns on `prospects` (convenience only)
-
-| Column                         | Purpose                                   |
-| ------------------------------ | ----------------------------------------- |
-| `last_account_research_at`     | Fast freshness badge without joining runs |
-| `last_account_research_run_id` | Pointer to latest succeeded run           |
-
-**Do not** add social URL columns in v1 unless staff apply invents them via suggestions → then add allowlisted columns in a later PR. Prefer storing discovered social URLs as **citations** (`platform` + `source_url`) first.
-
-### 4.3 What not to reuse as primary store
-
-| Avoid                                             | Why                                                                  |
-| ------------------------------------------------- | -------------------------------------------------------------------- |
-| Stuffing citations into `system_messages.payload` | Wrong domain; pollutes outreach ledger                               |
-| Overloading `account_enrichment_jobs`             | Different lifecycle (import/enrich); mode enum is fill-blanks/update |
-| Writing suggestions straight to `prospects`       | Violates no-auto-overwrite                                           |
-
-### 4.4 RLS
+### 4.3 RLS
 
 Mirror existing pattern:
 
@@ -479,10 +452,10 @@ Prefer pure unit tests for identity/match ranking; mock Gateway/Perplexity like 
 
 ### PR1 — Schema + types + RLS
 
-- Migration for runs, citations, suggestions, match tables (+ optional prospect pointer columns).
-- Regenerate `database.ts`.
-- Empty lib stubs + RLS tests if present pattern exists.
-- **No UI, no nightly changes.**
+- See [PR1 plan](../../plans/agent-outreach-account-research-pr1-schema-foundation.md).
+- Eight tables + junctions, CHECKs, partial unique active run, staff RLS, same-run triggers.
+- Hand-update `database.ts` + Vitest SQL-content foundation tests.
+- **No** prospect pointer columns, APIs, UI, searches, or empty app stubs.
 
 ### PR2 — Research run API (retailer-level)
 
@@ -549,14 +522,16 @@ Prefer pure unit tests for identity/match ranking; mock Gateway/Perplexity like 
 
 ---
 
-## 11. Open questions (resolve before PR3/PR5)
+## 11. Open questions
 
-1. Should accepted social profile URLs eventually become first-class `prospects` columns, or remain citation-only?
-2. For OGR-only v1, is `sales_line_id` always OGR, or must match API require explicit line from `LineContext` day one?
-3. Does “staff approval before draft generation” mean a new `research_approved` flag, or is picking a matched SKU in UI sufficient?
-4. Should Call Today / Hot / Warm briefing cards deep-link to Research before Log Call?
+**Resolved (2026-08-23 locks):**
 
-Default recommendations if unanswered: (1) citation-only v1, (2) require `sales_line_id` from line context, (3) SKU pick is sufficient approval, (4) optional later — don’t block Log Call.
+1. Social URLs remain **citation-only** in v1 (not first-class `prospects` columns).
+2. Product match requires explicit `sales_line_id` from line context (no silent OGR default).
+3. Picking a matched SKU is sufficient approval for later draft generation (no separate `research_approved` flag).
+4. Briefing cards do **not** force Research before Log Call.
+
+**Still open for PR2+ (non-blocking for PR1):** URL normalization details, identity auto-accept heuristics, Shopify custom-domain detection, excerpt length, `provider_metadata` shape.
 
 ---
 
@@ -572,7 +547,8 @@ Default recommendations if unanswered: (1) citation-only v1, (2) require `sales_
 | Web research today       | `src/lib/companyWebResearch.ts`, `fillBlankProspectFields.ts`, `updateProspectResearch.ts`  |
 | Field suggestions ledger | `src/lib/retailerFieldChanges.ts`                                                           |
 | Staff auth               | `src/lib/agentAuth.ts`                                                                      |
-| Schema                   | `supabase/schema.sql`, `src/types/database.ts`                                              |
+| Schema / PR1 plan        | `docs/plans/agent-outreach-account-research-pr1-schema-foundation.md`                       |
+| Schema (live)            | `supabase/schema.sql`, `src/types/database.ts`                                              |
 
 ---
 
