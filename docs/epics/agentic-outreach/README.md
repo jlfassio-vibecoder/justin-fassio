@@ -357,6 +357,7 @@ Until that Epic ships, every agent-created Product Outreach email requires expli
 | [phase-3-engagement-qualification.md](./phase-3-engagement-qualification.md)     | Warm/Hot/Call Today              |
 | [phase-4-goals-attribution-learning.md](./phase-4-goals-attribution-learning.md) | Goals, pace, learning            |
 | [phase-5-nightly-briefing.md](./phase-5-nightly-briefing.md)                     | Cron + morning briefing          |
+| [account-research-before-product-selection.md](./account-research-before-product-selection.md) | **Planned:** public-web account research → profile suggestions → 1–3 product matches (before draft); GO Mode A |
 
 ---
 
