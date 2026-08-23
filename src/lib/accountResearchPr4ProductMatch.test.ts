@@ -18,4 +18,12 @@ describe('account research PR4 product match migration', () => {
     expect(migration).toMatch(/invalid_text_representation/i);
     expect(schemaSql).toMatch(/invalid_text_representation/i);
   });
+
+  it('maps invalid item casts and duplicate ranks to INVALID_ITEMS', () => {
+    expect(migration).toMatch(/when invalid_text_representation then[\s\S]*INVALID_ITEMS/);
+    expect(migration).toMatch(/when unique_violation then[\s\S]*INVALID_ITEMS/);
+    expect(migration).toMatch(/product_fit' is null/);
+    expect(schemaSql).toMatch(/when unique_violation then[\s\S]*INVALID_ITEMS/);
+    expect(schemaSql).toMatch(/product_fit' is null/);
+  });
 });

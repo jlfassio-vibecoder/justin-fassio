@@ -85,8 +85,13 @@ begin
 
   for v_item in select * from jsonb_array_elements(p_items)
   loop
-    v_catalog_item_id := (v_item->>'catalog_item_id')::uuid;
-    v_rank := (v_item->>'rank')::smallint;
+    begin
+      v_catalog_item_id := (v_item->>'catalog_item_id')::uuid;
+      v_rank := (v_item->>'rank')::smallint;
+    exception
+      when invalid_text_representation then
+        raise exception 'INVALID_ITEMS';
+    end;
 
     if v_catalog_item_id is null or v_rank is null or v_rank < 1 or v_rank > 3 then
       raise exception 'INVALID_ITEMS';
@@ -96,7 +101,8 @@ begin
       raise exception 'INVALID_ITEMS';
     end if;
 
-    if v_item->>'product_fit' not in ('channel_intersect', 'global_fallback') then
+    if v_item->>'product_fit' is null
+      or v_item->>'product_fit' not in ('channel_intersect', 'global_fallback') then
       raise exception 'INVALID_ITEMS';
     end if;
 
@@ -112,21 +118,26 @@ begin
       raise exception 'INVALID_CITATIONS';
     end if;
 
-    insert into account_product_match_items (
-      match_run_id,
-      catalog_item_id,
-      rank,
-      rationale,
-      product_fit
-    )
-    values (
-      v_match_run_id,
-      v_catalog_item_id,
-      v_rank,
-      left(trim(v_item->>'rationale'), 500),
-      v_item->>'product_fit'
-    )
-    returning id into v_match_item_id;
+    begin
+      insert into account_product_match_items (
+        match_run_id,
+        catalog_item_id,
+        rank,
+        rationale,
+        product_fit
+      )
+      values (
+        v_match_run_id,
+        v_catalog_item_id,
+        v_rank,
+        left(trim(v_item->>'rationale'), 500),
+        v_item->>'product_fit'
+      )
+      returning id into v_match_item_id;
+    exception
+      when unique_violation then
+        raise exception 'INVALID_ITEMS';
+    end;
 
     begin
       for v_citation_id in
