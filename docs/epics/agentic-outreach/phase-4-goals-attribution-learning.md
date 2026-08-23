@@ -14,15 +14,9 @@ Make **Prospect → Active Account** the measurable primary success event, with 
 
 ## Why this phase exists
 
-Live code can convert (`convertToActiveAccount` → `converted_at`) and can send/track Product Outreach, but:
+Phase 4 closes the **learning loop**: attributed conversions drive adaptive pace and measured weights for channel allocation, product selection, fit-band ranking, and lead-rule calibration. Without attribution, volume and rotation recommendations cannot be honest.
 
-- no monthly account goal or settings surface
-- Dashboard (`DashboardTab` + `callAggregates.ts`) is call-PMF oriented, not outreach→account
-- no outreach-to-account attribution
-- no recommended daily pace
-- no learning loop into Phase 1 allocation
-
-Without attribution, adaptive volume and channel rotation cannot be honest.
+**Shipped (Aug 2026):** goals settings, pace/progress, conversion attribution, performance slices, and learning inputs wired into Phase 1 nightly selection and Phase 3 lead qualification.
 
 ---
 
@@ -30,13 +24,18 @@ Without attribution, adaptive volume and channel rotation cannot be honest.
 
 | Artifact        | Location                                                                                     |
 | --------------- | -------------------------------------------------------------------------------------------- |
+| Goals           | `outreach_goal_settings` — `src/lib/outreachGoals.ts` (default target **5**, planning rate **1.5%**) |
+| Pace / progress | `src/lib/outreachPace.ts`, `src/lib/outreachGoalDashboard.ts`                                |
 | Convert         | `src/lib/convertToActiveAccount.ts` — sets `account_status = active_account`, `converted_at` |
-| UI              | `ConvertAccountModal.tsx`, conversion call outcomes in `callOutcomes.ts`                     |
-| Orders          | optional initial `orders` row on convert                                                     |
+| Attribution     | `account_conversion_attribution` — `src/lib/outreachAttribution.ts` (staff-confirmed + last-touch) |
+| Performance     | `src/lib/outreachPerformance.ts` — slices + `attributionCohort` for lead-rule calibration    |
+| Channel weights | `src/lib/outreachChannelWeights.ts` → `outreachNightlyPrep` → `allocateChannelsForDay`       |
+| Product weights | `src/lib/outreachProductWeights.ts` → `selectProductForProspect`                             |
+| Fit-band weights| `src/lib/outreachFitBandWeights.ts` → `compareOutreachProspectRank`                          |
+| Lead rules      | `src/lib/outreachLeadRuleCalibration.ts`, `resolveOutreachLeadRules.ts` → lead lists + convert snapshot |
+| UI              | `OutreachGoalsSettingsCard`, `DashboardTab`, `AgentBriefingTab` learning slices              |
 | Outreach ledger | `system_messages` with `prospect_id`, `catalog_item_id`, engagement                          |
-| Lead states     | Phase 3 framework                                                                            |
-| Settings today  | `catalog_settings` (pricing landed rates) — **do not overload** for sales goals              |
-| Dashboard       | `src/components/tabs/DashboardTab.tsx` — calls, reach, PMF, Closed PO — no date window       |
+| Lead states     | Phase 3 — `outreachLeadState.ts`, provisional + measured rules                               |
 
 ---
 
@@ -69,22 +68,36 @@ system_message (sent, prospect_id, …)
   → attribution record links conversion to contributing outreach
 ```
 
-Minimum viable attribution options (pick in implementation, document choice):
+Minimum viable attribution — **implemented choice:**
 
-1. **Last-touch:** most recent product_outreach send to prospect before `converted_at` within N days
-2. **First-touch** in window
-3. **Explicit** staff-selected contributing message at convert time (highest confidence)
+1. **Staff-confirmed** at convert (highest confidence) when staff selects contributing message
+2. **Last-touch** fallback within `lastTouchWindowDays` (default 45) when staff does not choose
+3. **None** when no qualifying outreach in window
 
-Store enough to learn: `prospect_id`, `system_message_id`(s), `catalog_item_id`, channel snapshot, lead state at convert, `converted_at`.
+Store enough to learn: `prospect_id`, `system_message_id`(s), `catalog_item_id`, channel snapshot, lead state + score at convert, `rules_version`, `converted_at`.
 
 Loose “same month” joins without message linkage are **not** sufficient for learning weights.
 
 ### Performance slices
 
-- By retail channel (`prospects.category` / allocation channel)
+- By retail channel (`prospects.category` / allocation channel) — sends + attributed conversions
 - By product (`catalog_item_id`)
-- By prospect-fit band (`priority` / `fit_score` buckets)
-- By Warm/Hot conversion rates (Phase 3 state at or before convert)
+- By prospect-fit band (`fit_score` buckets via `fitBandKey`)
+- By lead state (Warm/Hot/Cold at convert; send denominators via historical state at send time)
+
+Slices feed **reporting** (Dashboard, Briefing) and **weight computation** (channel, product, fit-band, lead-rule calibration). Unattributed converts are excluded from learned numerators.
+
+### Learning loop wiring
+
+| Input | When measured | Consumer |
+| ----- | ------------- | -------- |
+| Pace / volume | `totalAttributed >= minAttributedConversions` | `outreachNightlyPrep` capacity |
+| Channel weights | Same global gate + `MIN_CHANNEL_SENDS` per slice | `allocateChannelsForDay` |
+| Product weights | Same + `MIN_PRODUCT_SENDS` | `selectProductForProspect` (within tier) |
+| Fit-band weights | Same + `MIN_FIT_BAND_SENDS` | `compareOutreachProspectRank` (after `fitScore`) |
+| Lead rules | Same + `MIN_LEAD_STATE_SENDS`; cohort from attribution rows | `resolveOutreachLeadRules` → lead lists + convert snapshot |
+
+Below the gate: planning conversion assumption (pace), even channel rotation, rank-only product/fit selection, provisional lead rules (`v1-provisional`).
 
 ### Leading vs primary
 
@@ -134,10 +147,8 @@ Extend `convertToActiveAccount` (or post-convert staff API) to record attributio
 
 | Surface                            | Change                                       |
 | ---------------------------------- | -------------------------------------------- |
-| Settings or Account/Briefing admin | Edit monthly target + planning assumption    |
-| Dashboard and/or Briefing          | Goal MTD, projection, recommended pace       |
-| Convert modal                      | Optional “linked outreach” confirmation      |
-| Later                              | Simple performance table for channel/product |
+| Convert modal                      | Staff-confirmed attribution + last-touch fallback (`ConvertAccountModal.tsx`) |
+| Dashboard and Briefing             | Goal MTD, projection, pace, learning slices (channel, product, fit band, lead state) |
 
 ---
 
@@ -156,19 +167,20 @@ Extend `convertToActiveAccount` (or post-convert staff API) to record attributio
 
 - `src/lib/convertToActiveAccount.ts`
 - `src/lib/systemMessages.ts`
-- `src/lib/callAggregates.ts` / `DashboardTab.tsx` (pattern only — new metrics)
-- Phase 3 lead evaluation
-- Phase 1 allocation stubs
+- `src/lib/callAggregates.ts` / `DashboardTab.tsx` (call PMF metrics coexist with outreach KPIs)
+- Phase 3 lead evaluation + `resolveOutreachLeadRules`
+- Phase 1 allocation + selection (weight consumers)
 
 ---
 
-## New files / components likely required
+## Shipped libraries (Aug 2026)
 
-- Migration(s) for goals + attribution
 - `src/lib/outreachGoals.ts`, `src/lib/outreachPace.ts`, `src/lib/outreachAttribution.ts`
-- Settings UI fragment
-- Dashboard/Briefing KPI cards
-- Tests for pace math edge cases (0 conversions, end of month, over-goal)
+- `src/lib/outreachPerformance.ts`
+- `src/lib/outreachChannelWeights.ts`, `outreachProductWeights.ts`, `outreachFitBandWeights.ts`
+- `src/lib/outreachLeadRuleCalibration.ts`, `resolveOutreachLeadRules.ts`
+- `OutreachGoalsSettingsCard`, Dashboard/Briefing KPI + learning-slice UI
+- Tests for pace math, attribution, weights, calibration, and performance aggregation
 
 ---
 
@@ -186,12 +198,12 @@ Extend `convertToActiveAccount` (or post-convert staff API) to record attributio
 
 ## Acceptance criteria
 
-- [ ] Staff can set monthly Active Account target (default 5)
-- [ ] System computes MTD progress, projection, recommended daily outreach
-- [ ] Planning assumption documented and used until data suffices
-- [ ] Conversion attribution links System Message → Prospect → Active Account
-- [ ] Channel/product/fit/Warm-Hot performance available for learning inputs
-- [ ] Primary vs leading metrics clearly separated in UI copy
+- [x] Staff can set monthly Active Account target (default 5)
+- [x] System computes MTD progress, projection, recommended daily outreach
+- [x] Planning assumption documented and used until data suffices (default **1.5%** in `outreach_goal_settings`)
+- [x] Conversion attribution links System Message → Prospect → Active Account
+- [x] Channel/product/fit/lead-state performance available for learning inputs and wired into nightly prep (channel, product, fit-band) and lead qualification (lead rules)
+- [x] Primary vs leading metrics clearly separated in UI copy
 
 ---
 
@@ -215,9 +227,9 @@ Extend `convertToActiveAccount` (or post-convert staff API) to record attributio
 
 ## Migration / deployment considerations
 
-- Seed default goal row = 5
-- Backfill attribution optionally for recent converts (best-effort last-touch) — label confidence
-- Feature-flag adaptive weights into Phase 1 until trusted
+- Seed default goal row = 5 (migration `20260812120000_outreach_goals_and_attribution.sql`)
+- Backfill attribution optionally for recent converts (best-effort last-touch) — `backfillRecentConversionAttribution`
+- Measured weights are **always-on** behind `minAttributedConversions` global gate (epic originally suggested a feature flag; conservative gate used instead)
 
 ---
 
@@ -235,9 +247,10 @@ Extend `convertToActiveAccount` (or post-convert staff API) to record attributio
 
 ## Completion checklist
 
-- [ ] Goals settings shipped
-- [ ] Pace + progress libraries tested
-- [ ] Attribution on convert path
-- [ ] Performance slice queries
-- [ ] Briefing/Dashboard KPIs wired or exported for Phase 5
-- [ ] Planning assumption value decided and documented
+- [x] Goals settings shipped
+- [x] Pace + progress libraries tested
+- [x] Attribution on convert path
+- [x] Performance slice queries
+- [x] Briefing/Dashboard KPIs wired or exported for Phase 5
+- [x] Planning assumption value decided and documented (**1.5%** default)
+- [x] Learning loop wired: channel, product, fit-band weights + lead-rule calibration

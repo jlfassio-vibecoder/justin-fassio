@@ -131,7 +131,7 @@ v1 may implement suppression as **queries against `system_messages`** without ne
 | ------------------------------- | --------------------------------------------- |
 | `selectEligibleProspects(...)`  | Hard filters + rank                           |
 | `selectProductForProspect(...)` | Top/New pool + channel fit                    |
-| `allocateChannelsForDay(...)`   | Strategy + optional Phase 4 weights (stub OK) |
+| `allocateChannelsForDay(...)`   | Strategy + Phase 4 **measured channel weights** when global gate passes; even rotation when provisional |
 | Staff preview API               | Dry-run selection for debugging (optional)    |
 
 Nightly job (Phase 5) calls these modules; Phase 2 draft generation consumes their output.

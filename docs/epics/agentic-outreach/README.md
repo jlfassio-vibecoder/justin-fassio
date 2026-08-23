@@ -1,6 +1,6 @@
 # Epic: Agentic Outreach & Lead Qualification
 
-**Status:** Documentation / implementation-ready  
+**Status:** Implemented (Aug 2026) — Phases 0–5 shipped in code; epic checklists below reflect live behavior.  
 **Source of truth:** Live codebase audit (Aug 2026). Where older roadmaps conflict with live code, follow this Epic and the code.
 
 **Business outcome:** Help the rep open **5 new retail accounts per month** through a review-first agentic outreach workflow.
@@ -187,7 +187,7 @@ Eligible pool:
 - **New:** `catalog_items.is_new`.
 - Must remain publicly emailable: same gates as `loadPublishedOgrProductForEmail` (OGR line, active, published, non-empty `public_slug`).
 
-Fit signals: product `recommended_channels` ∩ prospect channels/themes; lifestyle themes; avoid recent duplicate product→prospect sends when history exists.
+Fit signals: product `recommended_channels` ∩ prospect channels/themes; lifestyle themes; **product→prospect dedup when history exists is documented but not yet enforced in selection** (optional follow-up).
 
 Deterministic filter first; AI only chooses among the filtered pool.
 
@@ -199,7 +199,7 @@ Deterministic filter first; AI only chooses among the filtered pool.
 
 **Product-level UI today:** Line Sheet Opened/Clicked via `product_outreach_engagement_seen` — **keep separate** from lead-state UI.
 
-**This Epic adds** prospect/contact-level aggregation and configurable Cold / Warm / Hot / Call Today rules (Phase 3). Clicks carry materially more intent than opens. Thresholds are configurable and tunable from conversion data — do not hardcode final scores in Phase 3.
+**This Epic adds** prospect/contact-level aggregation and configurable Cold / Warm / Hot / Call Today rules (Phase 3). Clicks carry materially more intent than opens. Thresholds are **provisional by default** (`v1-provisional`); when enough attributed conversions exist, Phase 4 calibrates a measured rules pack (`v1-measured`) from `byLeadState` performance — see [Learning loop](#19-learning-loop-shipped).
 
 **Success hierarchy**
 
@@ -368,3 +368,34 @@ Until that Epic ships, every agent-created Product Outreach email requires expli
 4. Briefing UI home: new tab vs Dashboard strip vs both.
 5. Initial planning conversion assumption value (e.g. outreach-to-account %) — product decision for Phase 4.
 6. Whether Call Today blends email Hot state with `calls.follow_up_date` and Active Account reorder-due.
+
+---
+
+## 19. Learning loop (shipped)
+
+Attribution and performance slices now **feed nightly selection and pace** when data is sufficient (global gate: `minAttributedConversions`, default **8** in `outreach_goal_settings`).
+
+```text
+convert → account_conversion_attribution
+       → outreachPerformance (byChannel / byProduct / byFitBand / byLeadState)
+       → measured weights OR provisional fallbacks
+       → nightly prep (pace + selectOutreachTargets) + lead qualification
+```
+
+| Learning dimension | Library | Wired into |
+| ------------------ | ------- | ---------- |
+| Daily pace | `outreachPace.ts`, `outreachGoalDashboard.ts` | Nightly prep capacity; Dashboard + Briefing KPIs |
+| Channel allocation | `outreachChannelWeights.ts` | `allocateChannelsForDay` (nightly prep) |
+| Product selection | `outreachProductWeights.ts` | `selectProductForProspect` within channel-fit tiers |
+| Prospect fit band | `outreachFitBandWeights.ts` | `compareOutreachProspectRank` soft boost after `fitScore` |
+| Lead rules (Warm/Hot) | `outreachLeadRuleCalibration.ts`, `resolveOutreachLeadRules.ts` | Lead lists, attribution snapshot, Briefing/Dashboard copy — **not** nightly prospect rank |
+
+Staff see measured vs provisional state on **Daily Briefing** (channel allocation meta, learning-slices tables, lead-rule source). Dashboard shows attributed channel and lead-state performance.
+
+**Conservative defaults:** per-slice minimum sends (3), smoothing (`smoothingAlpha`), rate floors, and bounded calibration deltas. Agent still does not send.
+
+**Optional follow-ups (not blocking the loop):**
+
+- Enforce recent product→prospect dedup in selection (§8)
+- Persist calibrated `lead_rules` JSON on `outreach_goal_settings` (today: compute on-read)
+- Epic doc-only feature-flag note — weights are always-on behind the global gate instead

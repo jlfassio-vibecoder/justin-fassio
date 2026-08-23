@@ -15,15 +15,11 @@ Securely orchestrate **nightly** preparation of the next selling day’s outreac
 
 ## Why this phase exists
 
-Live deploy has:
+**Shipped (Aug 2026):** Vercel cron (`outreach-nightly-prep`), `agent_briefing_runs` + briefing items, Daily Agent Briefing tab, and staff APIs. Phases 0–4 feed the nightly orchestrator; Phase 5 is the **operational surface** — pace, drafts, channel allocation, lead lists, goals, and learning slices before staff act in Product Outreach.
 
-- No Vercel Cron (`vercel.json` is headers/CSP only)
-- No outreach job runner (`scheduled_for` / `automation_run_id` unused)
-- No Daily Agent Briefing surface
-- Default app tab = Line Sheet (`RepCommandCenter` `defaultTab = 'catalog'`)
-- Floating `AIAssistantModal` coach — not an outreach briefing
+**Product principle:** Agent recommends; staff send. No autonomous email send in this Epic.
 
-Phases 0–4 provide drafts, selection, lead states, and pace math; Phase 5 wires them into an operable daily loop.
+**Prior gaps (resolved):** no cron, no briefing tab, no job runner — all addressed in live code.
 
 ---
 
@@ -32,11 +28,14 @@ Phases 0–4 provide drafts, selection, lead states, and pace math; Phase 5 wire
 | Artifact      | Location                                                                                            |
 | ------------- | --------------------------------------------------------------------------------------------------- |
 | App shell     | `src/components/RepCommandCenter.tsx`, `src/components/TabNav.tsx`, `src/types/index.ts` (`TabKey`) |
-| Dashboard     | `src/components/tabs/DashboardTab.tsx`                                                              |
+| Dashboard     | `src/components/tabs/DashboardTab.tsx` — goals, pace, learning slices                               |
+| Briefing      | `src/components/tabs/AgentBriefingTab.tsx` — queue, lead lists, learning tables, lead-rule source   |
+| Nightly prep  | `src/lib/outreachNightlyPrep.ts`, `POST /api/cron/outreach-nightly-prep`                            |
+| Briefing API  | `src/lib/outreachBriefing.ts`, staff outreach briefing routes                                       |
 | AI chrome     | `src/components/ui/AIAssistantModal.tsx`                                                            |
 | Auth          | `src/components/auth/AuthGate.tsx`                                                                  |
-| Deploy        | `vercel.json` — no `crons`                                                                          |
-| Placeholders  | `system_messages.scheduled_for`, `automation_run_id`                                                |
+| Deploy        | `vercel.json` — `crons` for nightly prep                                                            |
+| Runs          | `agent_briefing_runs`, `agent_briefing_items`; `system_messages.automation_run_id`                  |
 | Engagement UI | `CatalogTab` Opened/Clicked                                                                         |
 | Active due    | `ActiveAccountsTab` reorder-due (separate from new-logo Call Today)                                 |
 
@@ -82,6 +81,7 @@ Secure scheduled job (Vercel Cron → protected API, or equivalent on current ho
 | Warm leads                   | Phase 3                                         |
 | Recent meaningful engagement | Aggregates / recent clicks                      |
 | Recent account conversions   | `converted_at` list                             |
+| Learning slices (optional)   | Phase 4 — channel/product/fit-band/lead-state when data exists |
 
 **Navigation:** each row links to prospect/account, product drawer, and draft review/send.
 
@@ -182,13 +182,14 @@ Prefer first-class Briefing over burying solely in the AI chat modal.
 
 ## Acceptance criteria
 
-- [ ] Secure nightly job prepares next-day drafts without sending
-- [ ] Idempotent per selling day
-- [ ] Failure/partial states visible to staff
-- [ ] Daily Agent Briefing shows goal, pace, drafts, channels, Hot/Call Today, Warm, engagement, conversions
-- [ ] Navigation from briefing to prospect/product/draft works
-- [ ] Staff still sends via existing Product Email path only
-- [ ] No autosend, queues-for-dispatch, or business-hour send engine
+- [x] Secure nightly job prepares next-day drafts without sending
+- [x] Idempotent per selling day
+- [x] Failure/partial states visible to staff
+- [x] Daily Agent Briefing shows goal, pace, drafts, channels, Hot/Call Today, Warm, engagement, conversions
+- [x] Learning slices visible when performance data exists (measured vs provisional copy)
+- [x] Navigation from briefing to prospect/product/draft works
+- [x] Staff still sends via existing Product Email path only
+- [x] No autosend, queues-for-dispatch, or business-hour send engine
 
 ---
 
@@ -231,10 +232,10 @@ Prefer first-class Briefing over burying solely in the AI chat modal.
 
 ## Completion checklist
 
-- [ ] `outreach_automation_runs` (or equivalent) live
-- [ ] Secured nightly prep endpoint
-- [ ] Cron configured in deploy
-- [ ] Briefing UI with required blocks + navigation
-- [ ] Idempotency + failure tests
-- [ ] Explicit verification: no overnight Resend
-- [ ] Epic loop demoable: prep → review → send → engage → convert → pace update
+- [x] `agent_briefing_runs` (or equivalent) live
+- [x] Secured nightly prep endpoint
+- [x] Cron configured in deploy
+- [x] Briefing UI with required blocks + navigation
+- [x] Idempotency + failure tests
+- [x] Explicit verification: no overnight Resend
+- [x] Epic loop demoable: prep → review → send → engage → convert → pace update
