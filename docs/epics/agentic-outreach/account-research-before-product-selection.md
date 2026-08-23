@@ -23,26 +23,30 @@ Insert an **on-demand public-web Account Research** step **before** catalog prod
 
 **Hard separation:** retailer-level research ≠ line-specific product matching.
 
-**PR1 implementation plan:** [docs/plans/agent-outreach-account-research-pr1-schema-foundation.md](../../plans/agent-outreach-account-research-pr1-schema-foundation.md)
+**PR1 implementation plan:** [docs/plans/agent-outreach-account-research-pr1-schema-foundation.md](../../plans/agent-outreach-account-research-pr1-schema-foundation.md) (merged to `main` via PR #114)  
+**PR2 implementation plan:** [docs/plans/agent-outreach-account-research-pr2-research-service.md](../../plans/agent-outreach-account-research-pr2-research-service.md)
 
 ### Locked clarifications (2026-08-23)
 
 These supersede earlier shorthand in §3–4 where they conflict:
 
-| Topic                  | Lock                                                                                                        |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Table shape            | Original “four domain tables” expand into **normalized tables + citation junctions** (8 tables in PR1).     |
-| Platform searches      | **Independent** source-search rows — never one combined provider query.                                     |
-| Search All             | One parent research run + **six** child searches: Website, Shopify, Instagram, Facebook, TikTok, Pinterest. |
-| Website vs Shopify     | **Separate** source types; Shopify is storefront/ecommerce, not social.                                     |
-| Social URLs            | **Citation-only** in v1; no social columns on `prospects`.                                                  |
-| Product matching       | Requires explicit `sales_line_id` (no silent OGR default).                                                  |
-| Draft approval (later) | Selecting a recommended SKU is sufficient approval for draft generation; staff Send remains mandatory.      |
-| Briefing cards         | Do **not** force Research before Log Call.                                                                  |
-| Prospect pointers      | **No** `last_account_research_*` columns in PR1.                                                            |
-| Citation relationships | **No** `uuid[]` — junction tables only.                                                                     |
-| Mode                   | **Mode A only**; Mode B deferred.                                                                           |
-| Types                  | Hand-update `src/types/database.ts` (no CLI gen script in this repo).                                       |
+| Topic                  | Lock                                                                                                              |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Table shape            | Original “four domain tables” expand into **normalized tables + citation junctions** (8 tables in PR1).           |
+| Platform searches      | **Independent** source-search rows — never one combined provider query.                                           |
+| Search All             | One parent research run + **six** child searches: Website, Shopify, Instagram, Facebook, TikTok, Pinterest.       |
+| Website vs Shopify     | **Separate** source types; Shopify is storefront/ecommerce, not social.                                           |
+| Social URLs            | **Citation-only** in v1; no social columns on `prospects`.                                                        |
+| Product matching       | Requires explicit `sales_line_id` (no silent OGR default).                                                        |
+| Draft approval (later) | Selecting a recommended SKU is sufficient approval for draft generation; staff Send remains mandatory.            |
+| Briefing cards         | Do **not** force Research before Log Call.                                                                        |
+| Prospect pointers      | **No** `last_account_research_*` columns in PR1.                                                                  |
+| Citation relationships | **No** `uuid[]` — junction tables only.                                                                           |
+| Mode                   | **Mode A only**; Mode B deferred.                                                                                 |
+| Types                  | Hand-update `src/types/database.ts` (no CLI gen script in this repo).                                             |
+| PR2 execution          | **Queued** start/process (one source per 60s invocation); sync Search All is NO-GO.                               |
+| Per-source outcomes    | Platform results live on `account_research_source_searches.status` only — **no** run-level `social_index_status`. |
+| Freshness clock        | Use `completed_at` (not `researched_at`).                                                                         |
 
 ---
 
@@ -294,14 +298,16 @@ Agent still never calls Resend.
 
 ### 3.7 Freshness (7 days)
 
-| Field                           | Meaning                                                    |
-| ------------------------------- | ---------------------------------------------------------- |
-| `researched_at` on research run | Wall clock when run completed successfully                 |
-| Fresh                           | `now - researched_at &lt; 7 days` and `status = succeeded` |
-| Stale                           | Older than 7 days or superseded                            |
-| Manual refresh                  | Staff action forces new run even if fresh                  |
+| Field                                          | Meaning                                                                   |
+| ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `completed_at` on research run / source search | Wall clock when the run or source search finished successfully            |
+| Fresh                                          | `now - completed_at < 7 days` and run `status IN ('succeeded','partial')` |
+| Stale                                          | Older than 7 days or not a usable success/partial run                     |
+| Manual refresh                                 | Staff action forces new run even if fresh (`forceRefresh`)                |
 
 Product match runs should record `research_run_id` used. If research goes stale, mark match run `stale_research` and require refresh before trusting recommendations.
+
+**Cache policy (PR2):** a fresh Search All run may satisfy an individual-platform read when that source’s `completed_at` is fresh; an individual-platform run never satisfies Search All.
 
 ---
 
@@ -401,7 +407,7 @@ Staff APIs: `requireApprovedStaffClient` only (same as research-update / enrich)
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | Provider / Gateway error              | Run `failed`; surface error; keep prior succeeded run as current for freshness UI                                      |
 | Identity unresolved                   | `needs_identity_review`; no accepted citations; no product match until staff confirms or refresh                       |
-| Website found, social none indexed    | `social_index_status = none_indexed`; succeed run; **do not** claim inactivity                                         |
+| Website found, social none indexed    | Per-source `status = none_indexed` on social rows; run may still `succeeded`/`partial`; **do not** claim inactivity    |
 | Partial citations                     | Store what passed identity gate; mark others `accepted = false`                                                        |
 | Stale (&gt;7d)                        | UI badge; match recommendations disabled or marked stale until refresh                                                 |
 | Concurrent refresh                    | New run `supersedes_run_id`; mark prior suggestions `superseded`                                                       |
@@ -459,9 +465,10 @@ Prefer pure unit tests for identity/match ranking; mock Gateway/Perplexity like 
 
 ### PR2 — Research run API (retailer-level)
 
-- Identity gate + website search (refactor shared bits from `companyWebResearch`).
-- Persist citations + brief + `social_index_status`.
-- Freshness helper + manual refresh.
+- See [PR2 plan](../../plans/agent-outreach-account-research-pr2-research-service.md).
+- Identity gate + six independent platform searches (queued start/process; not one sync Search All request).
+- Persist citations + per-source statuses (`none_indexed` etc.); **no** run-level `social_index_status`.
+- Freshness helper (`completed_at`, 7 days) + manual refresh; DB-backed daily refresh cap.
 - Unit tests for identity and “none_indexed ≠ inactive.”
 
 ### PR3 — Profile suggestions + apply
@@ -531,7 +538,16 @@ Prefer pure unit tests for identity/match ranking; mock Gateway/Perplexity like 
 3. Picking a matched SKU is sufficient approval for later draft generation (no separate `research_approved` flag).
 4. Briefing cards do **not** force Research before Log Call.
 
-**Still open for PR2+ (non-blocking for PR1):** URL normalization details, identity auto-accept heuristics, Shopify custom-domain detection, excerpt length, `provider_metadata` shape.
+**Resolved in PR2 plan (2026-08-23):**
+
+5. URL normalization: lowercase host, strip `www.`/fragment/tracking params, trailing-slash rules; dedupe on `source_url_normalized`.
+6. Identity `high` requires official-host agreement **plus** ≥1 corroborator (not model confidence alone).
+7. Excerpt max 500 chars; `published_at` null when unknown.
+8. `provider_metadata`: non-secret operational fields only (steps, latency, counts).
+9. Execution: **queued** start/process (`maxDuration=60` per source); sync Search All is NO-GO.
+10. Freshness uses `completed_at`; Search All may satisfy a platform read if that source is fresh; platform never satisfies Search All.
+
+**Still open (non-blocking for PR2 implementation):** fine Shopify CDN heuristics, exact stale-running threshold default (plan suggests 120s), whether website pass always writes `research_brief`.
 
 ---
 
@@ -548,6 +564,7 @@ Prefer pure unit tests for identity/match ranking; mock Gateway/Perplexity like 
 | Field suggestions ledger | `src/lib/retailerFieldChanges.ts`                                                           |
 | Staff auth               | `src/lib/agentAuth.ts`                                                                      |
 | Schema / PR1 plan        | `docs/plans/agent-outreach-account-research-pr1-schema-foundation.md`                       |
+| Research service / PR2   | `docs/plans/agent-outreach-account-research-pr2-research-service.md`                        |
 | Schema (live)            | `supabase/schema.sql`, `src/types/database.ts`                                              |
 
 ---
