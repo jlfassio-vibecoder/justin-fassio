@@ -488,9 +488,10 @@ Prefer pure unit tests for identity/match ranking; mock Gateway/Perplexity like 
 
 ### PR5 — UI surfaces
 
+- See [PR5 plan](../../plans/account-research-pr5-ui-surfaces.md).
 - Account drawer Research panel: Run / Refresh / citations / suggestions / matches.
 - Wire “use selected product → open draft composer / generate-draft.”
-- Briefing optional entry point.
+- Briefing optional entry point. Completes Mode A staff workflow (PR6 prep optional).
 
 ### PR6 — (Optional) Prep integration Mode B
 
