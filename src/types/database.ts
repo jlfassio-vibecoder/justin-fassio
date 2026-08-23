@@ -3320,7 +3320,6 @@ export interface Database {
           p_retailer_id: number;
           p_scope: string;
           p_trigger: string;
-          p_requested_by: string;
           p_supersedes_run_id?: string | null;
         };
         Returns: unknown;

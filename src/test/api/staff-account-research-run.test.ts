@@ -52,6 +52,25 @@ describe('POST /api/staff/account-research/run', () => {
     expect(startOrReuseMock).not.toHaveBeenCalled();
   });
 
+  it('rejects non-boolean forceRefresh', async () => {
+    requireApprovedStaffClientMock.mockResolvedValue({
+      ok: true,
+      supabase: {},
+      userId: 'user-1',
+    });
+    const res = await POST({
+      request: new Request('http://localhost/api/staff/account-research/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ retailerId: 1, scope: 'website', forceRefresh: 'false' }),
+      }),
+    } as never);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(startOrReuseMock).not.toHaveBeenCalled();
+  });
+
   it('starts a run for valid scope', async () => {
     requireApprovedStaffClientMock.mockResolvedValue({
       ok: true,

@@ -46,6 +46,36 @@ describe('accountResearch sources', () => {
     expect(validated.citations[0]?.platform).toBe('shopify');
   });
 
+  it('drops unparseable publishedAt values', () => {
+    const candidates = sanitizeCitationCandidates(
+      [
+        {
+          url: 'https://instagram.com/trailoutfitters',
+          title: 'IG',
+          snippet: 'post',
+          date: '2 days ago',
+        },
+      ],
+      SOURCE_STRATEGIES.instagram,
+    );
+    expect(candidates[0]?.publishedAt).toBeNull();
+  });
+
+  it('normalizes parseable publishedAt values to ISO', () => {
+    const candidates = sanitizeCitationCandidates(
+      [
+        {
+          url: 'https://instagram.com/trailoutfitters',
+          title: 'IG',
+          snippet: 'post',
+          date: '2026-01-15T10:00:00Z',
+        },
+      ],
+      SOURCE_STRATEGIES.instagram,
+    );
+    expect(candidates[0]?.publishedAt).toBe('2026-01-15T10:00:00.000Z');
+  });
+
   it('isolates Instagram hosts', () => {
     const candidates = sanitizeCitationCandidates(
       [

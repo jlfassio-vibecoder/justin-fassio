@@ -5,7 +5,6 @@ create or replace function public.start_account_research_run(
   p_retailer_id integer,
   p_scope text,
   p_trigger text,
-  p_requested_by uuid,
   p_supersedes_run_id uuid default null
 )
 returns jsonb
@@ -17,8 +16,13 @@ declare
   v_run_id uuid;
   v_sources jsonb := '[]'::jsonb;
   v_src record;
+  v_requested_by uuid := auth.uid();
 begin
   if not public.is_approved_staff() then
+    raise exception 'Forbidden';
+  end if;
+
+  if v_requested_by is null then
     raise exception 'Forbidden';
   end if;
 
@@ -51,7 +55,7 @@ begin
       'running',
       p_trigger,
       p_scope,
-      p_requested_by,
+      v_requested_by,
       p_supersedes_run_id,
       now()
     )
@@ -66,24 +70,24 @@ begin
       research_run_id, source_type, search_mode, status, requested_by
     )
     values
-      (v_run_id, 'website', 'identity', 'pending', p_requested_by),
-      (v_run_id, 'shopify', 'storefront', 'pending', p_requested_by),
-      (v_run_id, 'instagram', 'recent_activity', 'pending', p_requested_by),
-      (v_run_id, 'facebook', 'recent_activity', 'pending', p_requested_by),
-      (v_run_id, 'tiktok', 'recent_activity', 'pending', p_requested_by),
-      (v_run_id, 'pinterest', 'recent_activity', 'pending', p_requested_by);
+      (v_run_id, 'website', 'identity', 'pending', v_requested_by),
+      (v_run_id, 'shopify', 'storefront', 'pending', v_requested_by),
+      (v_run_id, 'instagram', 'recent_activity', 'pending', v_requested_by),
+      (v_run_id, 'facebook', 'recent_activity', 'pending', v_requested_by),
+      (v_run_id, 'tiktok', 'recent_activity', 'pending', v_requested_by),
+      (v_run_id, 'pinterest', 'recent_activity', 'pending', v_requested_by);
   elsif p_scope = 'website' then
     insert into account_research_source_searches (
       research_run_id, source_type, search_mode, status, requested_by
-    ) values (v_run_id, 'website', 'identity', 'pending', p_requested_by);
+    ) values (v_run_id, 'website', 'identity', 'pending', v_requested_by);
   elsif p_scope = 'shopify' then
     insert into account_research_source_searches (
       research_run_id, source_type, search_mode, status, requested_by
-    ) values (v_run_id, 'shopify', 'storefront', 'pending', p_requested_by);
+    ) values (v_run_id, 'shopify', 'storefront', 'pending', v_requested_by);
   else
     insert into account_research_source_searches (
       research_run_id, source_type, search_mode, status, requested_by
-    ) values (v_run_id, p_scope, 'recent_activity', 'pending', p_requested_by);
+    ) values (v_run_id, p_scope, 'recent_activity', 'pending', v_requested_by);
   end if;
 
   for v_src in
@@ -108,8 +112,8 @@ begin
 end;
 $$;
 
-revoke all on function public.start_account_research_run(integer, text, text, uuid, uuid) from public;
-grant execute on function public.start_account_research_run(integer, text, text, uuid, uuid) to authenticated;
+revoke all on function public.start_account_research_run(integer, text, text, uuid) from public;
+grant execute on function public.start_account_research_run(integer, text, text, uuid) to authenticated;
 
 create or replace function public.complete_account_research_source_search(
   p_source_search_id uuid,

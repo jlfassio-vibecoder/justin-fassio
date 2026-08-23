@@ -89,6 +89,14 @@ export function hostFromUrl(url: string): string | null {
   }
 }
 
+function normalizePublishedAt(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  const ms = Date.parse(trimmed);
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms).toISOString();
+}
+
 function isShopifyEvidenceUrl(url: string): boolean {
   const host = hostFromUrl(url);
   if (!host) return false;
@@ -206,7 +214,7 @@ export function sanitizeCitationCandidates(
       title: item.title?.trim() || null,
       platform: strategy.mapPlatform(host),
       excerpt: truncateExcerpt(item.snippet, ACCOUNT_RESEARCH_EXCERPT_MAX_CHARS),
-      publishedAt: item.date?.trim() || null,
+      publishedAt: normalizePublishedAt(item.date),
       confidence,
     });
     if (!parsed.success) continue;

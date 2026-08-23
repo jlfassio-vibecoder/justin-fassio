@@ -20,7 +20,6 @@ export const POST: APIRoute = async ({ request }) => {
   const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
   const retailerId = Number(record.retailerId);
   const scope = record.scope;
-  const forceRefresh = Boolean(record.forceRefresh);
 
   if (!Number.isInteger(retailerId) || retailerId <= 0) {
     return jsonAccountResearch({ ok: false, error: 'retailerId is required' }, 400);
@@ -33,6 +32,17 @@ export const POST: APIRoute = async ({ request }) => {
       },
       400,
     );
+  }
+
+  let forceRefresh = false;
+  if (record.forceRefresh !== undefined) {
+    if (record.forceRefresh === true) {
+      forceRefresh = true;
+    } else if (record.forceRefresh === false) {
+      forceRefresh = false;
+    } else {
+      return jsonAccountResearch({ ok: false, error: 'forceRefresh must be a boolean' }, 400);
+    }
   }
 
   const result = await startOrReuseAccountResearch({

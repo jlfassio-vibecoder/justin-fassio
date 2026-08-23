@@ -164,7 +164,6 @@ export async function startOrReuseAccountResearch(args: {
     p_retailer_id: args.retailerId,
     p_scope: args.scope,
     p_trigger: trigger,
-    p_requested_by: args.userId,
     p_supersedes_run_id: supersedesRunId,
   });
 
@@ -361,11 +360,30 @@ export async function processNextAccountResearchSource(args: {
     return { ok: true, processed: true, sourceId: source.id, snapshot: snap, done: true };
   }
 
-  const { data: prospect } = await args.supabase
+  const { data: prospect, error: prospectError } = await args.supabase
     .from('prospects')
     .select('id, name, city, region, phone, website')
     .eq('id', researchRun.retailer_id)
     .maybeSingle();
+
+  if (prospectError || !prospect) {
+    const failError = prospectError?.message ?? 'Retailer not found';
+    await args.supabase.rpc('complete_account_research_source_search', {
+      p_source_search_id: source.id,
+      p_status: 'failed',
+      p_error: failError.slice(0, 500),
+      p_citations: [],
+    });
+    const snap = await finalizeAccountResearchRun(args.supabase, args.runId);
+    if (!snap) return { ok: false, error: 'Failed after prospect load error', status: 500 };
+    return {
+      ok: true,
+      processed: true,
+      sourceId: source.id,
+      snapshot: snap,
+      done: snap.run.status !== 'running',
+    };
+  }
 
   const prospectRow = prospect as Pick<
     ProspectRow,
