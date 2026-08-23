@@ -25,7 +25,8 @@ Insert an **on-demand public-web Account Research** step **before** catalog prod
 
 **PR1 implementation plan:** [docs/plans/agent-outreach-account-research-pr1-schema-foundation.md](../../plans/agent-outreach-account-research-pr1-schema-foundation.md) (merged to `main` via PR #114; migration applied)  
 **PR2 implementation plan:** [docs/plans/agent-outreach-account-research-pr2-research-service.md](../../plans/agent-outreach-account-research-pr2-research-service.md) (merged to `main` via PR #115; migration `20260823140000_account_research_run_rpcs.sql` applied)  
-**PR3 implementation plan:** [docs/plans/account-research-pr3-profile-suggestions.md](../../plans/account-research-pr3-profile-suggestions.md)
+**PR3 implementation plan:** [docs/plans/account-research-pr3-profile-suggestions.md](../../plans/account-research-pr3-profile-suggestions.md) (merged via PR #116)  
+**PR4 implementation plan:** [docs/plans/account-research-pr4-product-match.md](../../plans/account-research-pr4-product-match.md)
 
 ### Locked clarifications (2026-08-23)
 
@@ -482,6 +483,7 @@ Prefer pure unit tests for identity/match ranking; mock Gateway/Perplexity like 
 
 ### PR4 — Product match (line-specific)
 
+- See [PR4 plan](../../plans/account-research-pr4-product-match.md).
 - `accountProductMatch` using research + `outreachProductSelection` pool + 90d dedup.
 - API to create match run; return 1–3 with citation ids.
 - Tests for dedup and empty-pool reasons.
