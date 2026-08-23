@@ -36,6 +36,15 @@ export type OutreachProductCandidate = {
 
 export type ProductFitKind = 'channel_intersect' | 'global_fallback';
 
+export type SelectProductInput = {
+  prospectChannels: PrimaryRetailChannel[];
+  prospectLifestyleThemes?: string[];
+  excludeCatalogItemIds?: ReadonlySet<string>;
+  productWeights?: ReadonlyMap<string, number>;
+  globalProductWeight?: number;
+  productWeightSource?: ProductWeightSource;
+};
+
 function asStringArray(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter((v): v is string => typeof v === 'string' && v.length > 0);
@@ -178,14 +187,7 @@ function compareWithProductWeights(
  */
 export function selectProductForProspect(
   pool: OutreachProductCandidate[],
-  input: {
-    prospectChannels: PrimaryRetailChannel[];
-    prospectLifestyleThemes?: string[];
-    excludeCatalogItemIds?: ReadonlySet<string>;
-    productWeights?: ReadonlyMap<string, number>;
-    globalProductWeight?: number;
-    productWeightSource?: ProductWeightSource;
-  },
+  input: SelectProductInput,
 ): { product: OutreachProductCandidate; productFit: ProductFitKind } | null {
   const eligiblePool = filterExcludedProducts(pool, input.excludeCatalogItemIds);
   if (eligiblePool.length === 0) return null;
@@ -216,6 +218,37 @@ export function selectProductForProspect(
 
   const remaining = [...eligiblePool].sort(compare);
   return remaining[0] ? { product: remaining[0], productFit: 'global_fallback' } : null;
+}
+
+export function classifyMatchPoolEmpty(
+  pool: OutreachProductCandidate[],
+  excludeCatalogItemIds?: ReadonlySet<string>,
+): 'no_eligible_products' | 'all_recently_emailed' | null {
+  if (pool.length === 0) return 'no_eligible_products';
+  const eligible = filterExcludedProducts(pool, excludeCatalogItemIds);
+  if (eligible.length === 0) return 'all_recently_emailed';
+  return null;
+}
+
+/** Greedy multi-pick: up to maxItems distinct SKUs using selectProductForProspect ranking. */
+export function selectProductsForProspect(
+  pool: OutreachProductCandidate[],
+  input: SelectProductInput,
+  maxItems = 3,
+): Array<{ product: OutreachProductCandidate; productFit: ProductFitKind }> {
+  const picks: Array<{ product: OutreachProductCandidate; productFit: ProductFitKind }> = [];
+  const exclude = new Set(input.excludeCatalogItemIds ?? []);
+  let remaining = [...pool];
+
+  for (let rank = 0; rank < maxItems; rank += 1) {
+    const pick = selectProductForProspect(remaining, { ...input, excludeCatalogItemIds: exclude });
+    if (!pick) break;
+    picks.push(pick);
+    exclude.add(pick.product.id);
+    remaining = remaining.filter((p) => p.id !== pick.product.id);
+  }
+
+  return picks;
 }
 
 /** Load published catalog rows for a line and build Top-N OR New pool. Defaults to OGR. */

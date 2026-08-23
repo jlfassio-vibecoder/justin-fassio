@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildOutreachProductPool, selectProductForProspect } from '@/lib/outreachProductSelection';
+import {
+  buildOutreachProductPool,
+  selectProductForProspect,
+  selectProductsForProspect,
+  classifyMatchPoolEmpty,
+} from '@/lib/outreachProductSelection';
 import { AGENT_OUTREACH_TOP_RANK_LIMIT } from '@/lib/outreachSelectionConstants';
 
 function row(
@@ -253,5 +258,80 @@ describe('selectProductForProspect', () => {
     });
     expect(picked?.product.id).toBe('golf-b');
     expect(picked?.productFit).toBe('channel_intersect');
+  });
+});
+
+describe('selectProductsForProspect', () => {
+  const pool = buildOutreachProductPool([
+    row({
+      id: 'golf-a',
+      sku: 'GA',
+      name: 'Golf A',
+      public_sort_order: 1,
+      recommended_channels: ['golf_retail'],
+    }),
+    row({
+      id: 'golf-b',
+      sku: 'GB',
+      name: 'Golf B',
+      public_sort_order: 2,
+      recommended_channels: ['golf_retail'],
+    }),
+    row({
+      id: 'golf-c',
+      sku: 'GC',
+      name: 'Golf C',
+      public_sort_order: 3,
+      recommended_channels: ['golf_retail'],
+    }),
+    row({
+      id: 'marine-a',
+      sku: 'MA',
+      name: 'Marine A',
+      public_sort_order: 4,
+      recommended_channels: ['marine_retail'],
+    }),
+  ]);
+
+  it('returns up to three distinct products', () => {
+    const picks = selectProductsForProspect(pool, { prospectChannels: ['golf_retail'] }, 3);
+    expect(picks).toHaveLength(3);
+    expect(new Set(picks.map((p) => p.product.id)).size).toBe(3);
+    expect(picks[0]?.product.id).toBe('golf-a');
+    expect(picks[1]?.product.id).toBe('golf-b');
+    expect(picks[2]?.product.id).toBe('golf-c');
+  });
+
+  it('respects exclude set across multiple picks', () => {
+    const picks = selectProductsForProspect(
+      pool,
+      {
+        prospectChannels: ['golf_retail'],
+        excludeCatalogItemIds: new Set(['golf-a', 'golf-b']),
+      },
+      3,
+    );
+    expect(picks.length).toBeGreaterThanOrEqual(1);
+    expect(picks[0]?.product.id).toBe('golf-c');
+    expect(picks.some((pick) => pick.product.id === 'golf-a')).toBe(false);
+    expect(picks.some((pick) => pick.product.id === 'golf-b')).toBe(false);
+  });
+});
+
+describe('classifyMatchPoolEmpty', () => {
+  const pool = buildOutreachProductPool([
+    row({ id: '1', sku: 'A', name: 'A', public_sort_order: 1 }),
+  ]);
+
+  it('detects empty published pool', () => {
+    expect(classifyMatchPoolEmpty([])).toBe('no_eligible_products');
+  });
+
+  it('detects all-recently-emailed when dedup excludes entire pool', () => {
+    expect(classifyMatchPoolEmpty(pool, new Set(['1']))).toBe('all_recently_emailed');
+  });
+
+  it('returns null when eligible products remain', () => {
+    expect(classifyMatchPoolEmpty(pool, new Set(['other']))).toBeNull();
   });
 });
