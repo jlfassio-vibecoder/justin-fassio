@@ -23,6 +23,24 @@ function candidateHost(url: string): string | null {
 }
 
 /**
+ * Golf Canada and its provincial affiliates (golfcanada.ca, golfnb.ca,
+ * golfontario.ca, golfsaskatchewan.org, golfinbritishcolumbia.com, …) all
+ * share the same "golf<jurisdiction>.<tld>" naming and the same
+ * "/golf-facility/<slug>-en/" listing-page template. New affiliate domains
+ * turn up over time, so match the shared template instead of only the
+ * specific hosts already added to the directory host list.
+ */
+function isGolfFacilityDirectoryUrl(url: string): boolean {
+  const host = candidateHost(url);
+  if (!host || !/^golf[a-z]+\.(ca|com|org)$/i.test(host)) return false;
+  try {
+    return new URL(url).pathname.includes('/golf-facility/');
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Pure connective/legal filler — never appears on a real business's own site as
  * an identifier, so it's safe to drop from the required match set.
  *
@@ -37,6 +55,31 @@ function candidateHost(url: string): string | null {
  */
 const WEBSITE_NAME_FILLER_WORDS = new Set(['the', 'and', 'llc', 'inc', 'ltd', 'company']);
 
+/**
+ * Category/type words (golf, club, course, resort, …). Real official sites
+ * almost always carry one of these somewhere in host+title, which is what
+ * tells "Black Mountain Golf Club" apart from an unrelated "Black Mountain
+ * Distillery" sharing the same place name. But the CRM's exact wording isn't
+ * gospel — a course entered in the CRM as "... Golf Club" may call itself
+ * "... Golf Course" on its own site (and vice versa), so requiring the CRM's
+ * literal category word would reject the real site. These words are required
+ * on a first, strict pass; if that finds nothing, a second pass drops them
+ * and matches on place-name tokens alone (`websiteDistinctiveNameTokens`)
+ * rather than returning no candidates at all.
+ */
+const WEBSITE_CATEGORY_WORDS = new Set([
+  'golf',
+  'club',
+  'course',
+  'resort',
+  'hotel',
+  'shop',
+  'store',
+  'centre',
+  'center',
+  'pro',
+]);
+
 /** Meaningful tokens from the CRM business name (e.g. black + mountain + golf + club). */
 export function websiteNameMatchTokens(businessName: string): string[] {
   return businessName
@@ -45,16 +88,20 @@ export function websiteNameMatchTokens(businessName: string): string[] {
     .filter((t) => t.length >= 4 && !WEBSITE_NAME_FILLER_WORDS.has(t));
 }
 
+/** Place-name-only tokens, with category words dropped too — the relaxed fallback set. */
+export function websiteDistinctiveNameTokens(businessName: string): string[] {
+  return websiteNameMatchTokens(businessName).filter((t) => !WEBSITE_CATEGORY_WORDS.has(t));
+}
+
 function compactAlnum(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
-/** True when host or title clearly refers to this business — not a peer in the same city. */
-export function websiteCandidateMatchesBusinessName(
+function matchesTokens(
+  tokens: string[],
   businessName: string,
   candidate: { url: string; title: string | null; snippet?: string | null },
 ): boolean {
-  const tokens = websiteNameMatchTokens(businessName);
   const host = candidateHost(candidate.url) ?? '';
   const compactHost = compactAlnum(host);
   const title = (candidate.title ?? '').toLowerCase();
@@ -70,11 +117,26 @@ export function websiteCandidateMatchesBusinessName(
   return tokens.every((t) => hay.includes(t) || compactHost.includes(t));
 }
 
+/** Strict pass: host or title must carry every meaningful token, category words included. */
+export function websiteCandidateMatchesBusinessName(
+  businessName: string,
+  candidate: { url: string; title: string | null; snippet?: string | null },
+): boolean {
+  return matchesTokens(websiteNameMatchTokens(businessName), businessName, candidate);
+}
+
+/** Relaxed fallback pass: place-name tokens only, category words dropped. */
+export function websiteCandidateMatchesDistinctiveName(
+  businessName: string,
+  candidate: { url: string; title: string | null; snippet?: string | null },
+): boolean {
+  return matchesTokens(websiteDistinctiveNameTokens(businessName), businessName, candidate);
+}
+
 function scoreWebsiteCandidate(
   businessName: string,
   candidate: { url: string; title: string | null; snippet: string | null },
 ): number {
-  if (!websiteCandidateMatchesBusinessName(businessName, candidate)) return -1;
   const host = candidateHost(candidate.url) ?? '';
   const tokens = websiteNameMatchTokens(businessName);
   const compactHost = compactAlnum(host);
@@ -147,7 +209,7 @@ export function toWebsiteSearchCandidates(
     const normalized = normalizeSourceUrl(rawUrl);
     if (!normalized) return;
     const host = candidateHost(normalized);
-    if (!host || isDirectoryCitationHost(host)) return;
+    if (!host || isDirectoryCitationHost(host) || isGolfFacilityDirectoryUrl(normalized)) return;
     const existing = byUrl.get(normalized);
     if (existing) {
       byUrl.set(normalized, {
@@ -174,8 +236,18 @@ export function toWebsiteSearchCandidates(
     }
   }
 
-  return [...byUrl.values()]
-    .filter((c) => websiteCandidateMatchesBusinessName(businessName, c))
+  const all = [...byUrl.values()];
+  const strict = all.filter((c) => websiteCandidateMatchesBusinessName(businessName, c));
+  // Fall back to place-name-only matching only when the strict (category-word-
+  // inclusive) pass finds nothing — e.g. the CRM says "Golf Club" but the site
+  // calls itself "Golf Course". Preferring strict matches whenever they exist
+  // keeps the stronger disambiguation from an unrelated same-place-name business.
+  const pool =
+    strict.length > 0
+      ? strict
+      : all.filter((c) => websiteCandidateMatchesDistinctiveName(businessName, c));
+
+  return pool
     .sort((a, b) => scoreWebsiteCandidate(businessName, b) - scoreWebsiteCandidate(businessName, a))
     .slice(0, ACCOUNT_RESEARCH_MAX_RESULTS_PER_SOURCE)
     .map((c, i) => ({ ...c, rank: i + 1 }));
