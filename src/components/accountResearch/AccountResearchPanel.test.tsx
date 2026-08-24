@@ -75,6 +75,36 @@ describe('AccountResearchPanel', () => {
     expect(screen.queryByText(/Identity must be high confidence/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Run Search All/i }));
     await waitFor(() => expect(startResearchMock).toHaveBeenCalled());
+    expect(startResearchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'all', forceRefresh: false }),
+    );
+  });
+
+  it('starts a website-only run from Run Website Search', async () => {
+    const user = userEvent.setup();
+    startResearchMock.mockResolvedValue({
+      ok: true,
+      outcome: 'started',
+      run: {
+        id: 'run-website',
+        status: 'succeeded',
+        requested_scope: 'website',
+        identity_confidence: 'high',
+        completed_at: new Date().toISOString(),
+      },
+      sources: [],
+      citationsBySourceId: {},
+      sourceFreshness: {},
+    });
+
+    render(<AccountResearchPanel prospect={prospect} />);
+
+    expect(await screen.findByText(/No run yet/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Run Website Search/i }));
+    await waitFor(() => expect(startResearchMock).toHaveBeenCalled());
+    expect(startResearchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'website', forceRefresh: false }),
+    );
   });
 
   it('shows identity warning when confidence is not high', async () => {
