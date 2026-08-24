@@ -5,6 +5,7 @@ import {
   ACCOUNT_RESEARCH_MAX_RESULTS_PER_SOURCE,
 } from '@/lib/accountResearch/constants';
 import { normalizeSourceUrl, truncateExcerpt } from '@/lib/accountResearch/normalizeUrl';
+import { isSharedDirectoryHost } from '@/lib/companyWebResearch';
 import type {
   AccountResearchCitationPlatform,
   AccountResearchConfidence,
@@ -97,6 +98,67 @@ function normalizePublishedAt(raw: string | null | undefined): string | null {
   return new Date(ms).toISOString();
 }
 
+/** Aggregator/directory hosts beyond the shared list that should never win as "the" website. */
+const WEBSITE_EXTRA_DIRECTORY_HOSTS = [
+  'yellowpages.com',
+  'linkedin.com',
+  'tripadvisor.com',
+  'bbb.org',
+  'manta.com',
+  'foursquare.com',
+  'instagram.com',
+  'twitter.com',
+  'x.com',
+  'chamberofcommerce.com',
+  'mapquest.com',
+  'yellowbook.com',
+  'wikipedia.org',
+];
+
+function isWebsiteDirectoryHost(host: string | null): boolean {
+  if (!host) return false;
+  if (isSharedDirectoryHost(host)) return true;
+  return WEBSITE_EXTRA_DIRECTORY_HOSTS.some((s) => host === s || host.endsWith(`.${s}`));
+}
+
+const WEBSITE_NAME_STOPWORDS = new Set([
+  'golf',
+  'club',
+  'course',
+  'resort',
+  'hotel',
+  'shop',
+  'store',
+  'the',
+  'and',
+  'llc',
+  'inc',
+  'ltd',
+  'company',
+  'centre',
+  'center',
+  'pro',
+]);
+
+function businessNameMatchTokens(businessName: string): string[] {
+  return businessName
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 4 && !WEBSITE_NAME_STOPWORDS.has(t));
+}
+
+/** Require the business name to actually show up in the candidate before we treat it as "the" site. */
+function websiteCandidateMatchesBusinessName(
+  candidate: CitationCandidate,
+  businessName: string,
+): boolean {
+  const tokens = businessNameMatchTokens(businessName);
+  if (tokens.length === 0) return true;
+  const host = hostFromUrl(candidate.url) ?? '';
+  const haystack = `${host} ${candidate.title ?? ''}`.toLowerCase();
+  return tokens.every((t) => haystack.includes(t));
+}
+
 function isShopifyEvidenceUrl(url: string): boolean {
   const host = hostFromUrl(url);
   if (!host) return false;
@@ -119,9 +181,14 @@ export const websiteStrategy: SourceStrategy = {
   },
   domainFilter: (ctx) => (ctx.officialHostname ? [ctx.officialHostname] : undefined),
   mapPlatform: () => 'website',
-  postValidate: (citations) => {
-    if (citations.length === 0) return { status: 'none_indexed', citations: [] };
-    return { status: 'succeeded', citations };
+  postValidate: (citations, ctx) => {
+    const filtered = citations.filter((c) => {
+      const host = hostFromUrl(c.url);
+      if (isWebsiteDirectoryHost(host)) return false;
+      return websiteCandidateMatchesBusinessName(c, ctx.businessName);
+    });
+    if (filtered.length === 0) return { status: 'none_indexed', citations: [] };
+    return { status: 'succeeded', citations: filtered };
   },
 };
 

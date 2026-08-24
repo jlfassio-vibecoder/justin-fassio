@@ -76,6 +76,60 @@ describe('accountResearch sources', () => {
     expect(candidates[0]?.publishedAt).toBe('2026-01-15T10:00:00.000Z');
   });
 
+  it('rejects a website candidate whose name does not match the business', () => {
+    const candidates = sanitizeCitationCandidates(
+      [
+        {
+          url: 'https://acmegoods.example.com/',
+          title: 'Acme Goods — Home',
+          snippet: 'Welcome to Acme Goods',
+        },
+      ],
+      SOURCE_STRATEGIES.website,
+    );
+    const validated = SOURCE_STRATEGIES.website.postValidate(candidates, {
+      businessName: 'Trail Outfitters',
+    });
+    expect(validated.status).toBe('none_indexed');
+    expect(validated.citations).toHaveLength(0);
+  });
+
+  it('rejects a directory/aggregator host even when the name matches', () => {
+    const candidates = sanitizeCitationCandidates(
+      [
+        {
+          url: 'https://www.yelp.com/biz/trail-outfitters-bend',
+          title: 'Trail Outfitters - Bend, OR',
+          snippet: 'Reviews for Trail Outfitters',
+        },
+      ],
+      SOURCE_STRATEGIES.website,
+    );
+    const validated = SOURCE_STRATEGIES.website.postValidate(candidates, {
+      businessName: 'Trail Outfitters',
+    });
+    expect(validated.status).toBe('none_indexed');
+    expect(validated.citations).toHaveLength(0);
+  });
+
+  it('accepts a website candidate whose host and title match the business name', () => {
+    const candidates = sanitizeCitationCandidates(
+      [
+        {
+          url: 'https://trailoutfitters.com/',
+          title: 'Trail Outfitters | Official Site',
+          snippet: 'Shop Trail Outfitters gear',
+        },
+      ],
+      SOURCE_STRATEGIES.website,
+    );
+    const validated = SOURCE_STRATEGIES.website.postValidate(candidates, {
+      businessName: 'Trail Outfitters',
+    });
+    expect(validated.status).toBe('succeeded');
+    expect(validated.citations[0]?.url).toBe('https://trailoutfitters.com/');
+  });
+
   it('isolates Instagram hosts', () => {
     const candidates = sanitizeCitationCandidates(
       [
