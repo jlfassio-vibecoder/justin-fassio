@@ -8,6 +8,7 @@ import type {
   AccountProductMatchRun,
   AccountResearchCitation,
   AccountResearchRun,
+  AccountResearchSourceLock,
   AccountResearchSourceSearch,
 } from '@/types/database';
 
@@ -18,6 +19,7 @@ export type AccountResearchSnapshotDto = {
   sources: AccountResearchSourceSearch[];
   citationsBySourceId: Record<string, AccountResearchCitation[]>;
   sourceFreshness: Record<string, boolean>;
+  locksBySourceType: Record<string, AccountResearchSourceLock>;
 };
 
 export type LatestAccountResearchResult =
@@ -90,11 +92,17 @@ function parseSnapshot(payload: Record<string, unknown>): AccountResearchSnapsho
   if (!run || typeof run !== 'object' || !Array.isArray(sources)) return null;
   if (!citationsBySourceId || typeof citationsBySourceId !== 'object') return null;
   if (!sourceFreshness || typeof sourceFreshness !== 'object') return null;
+  const locksRaw = payload.locksBySourceType;
+  const locksBySourceType =
+    locksRaw && typeof locksRaw === 'object' && !Array.isArray(locksRaw)
+      ? (locksRaw as Record<string, AccountResearchSourceLock>)
+      : {};
   return {
     run: run as AccountResearchRun,
     sources: sources as AccountResearchSourceSearch[],
     citationsBySourceId: citationsBySourceId as Record<string, AccountResearchCitation[]>,
     sourceFreshness: sourceFreshness as Record<string, boolean>,
+    locksBySourceType,
   };
 }
 
@@ -185,6 +193,61 @@ export async function processAccountResearchSource(
     done: payload.done === true,
     ...snapshot,
   };
+}
+
+export async function lockAccountResearchSource(input: {
+  retailerId: number;
+  sourceType: string;
+  url: string;
+}): Promise<({ ok: true } & AccountResearchSnapshotDto) | ApiFail> {
+  const result = await staffFetch('/api/staff/account-research/lock', {
+    method: 'POST',
+    body: JSON.stringify({
+      retailerId: input.retailerId,
+      sourceType: input.sourceType,
+      url: input.url,
+    }),
+  });
+  if (!('res' in result)) return result;
+
+  const { res, payload } = result;
+  if (!res.ok || payload.ok !== true) {
+    return {
+      ok: false,
+      error: typeof payload.error === 'string' ? payload.error : `Request failed (${res.status})`,
+    };
+  }
+
+  const snapshot = parseSnapshot(payload);
+  if (!snapshot) return { ok: false, error: 'Invalid research snapshot' };
+  return { ok: true, ...snapshot };
+}
+
+export async function unlockAccountResearchSource(input: {
+  retailerId: number;
+  sourceType: string;
+}): Promise<({ ok: true } & AccountResearchSnapshotDto) | ApiFail> {
+  const result = await staffFetch('/api/staff/account-research/lock', {
+    method: 'POST',
+    body: JSON.stringify({
+      retailerId: input.retailerId,
+      sourceType: input.sourceType,
+      unlock: true,
+    }),
+  });
+  if (!('res' in result)) return result;
+
+  const { res, payload } = result;
+  if (!res.ok || payload.ok !== true) {
+    return {
+      ok: false,
+      error: typeof payload.error === 'string' ? payload.error : `Request failed (${res.status})`,
+    };
+  }
+
+  const snapshot = parseSnapshot(payload);
+  if (!snapshot) return { ok: false, error: 'Invalid research snapshot' };
+  return { ok: true, ...snapshot };
 }
 
 export async function runAccountResearchUntilDone(

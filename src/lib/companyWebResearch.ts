@@ -7,17 +7,55 @@ const BRIEF_MAX_CHARS = 4000;
 const DIRECTORY_HOST_SUFFIXES = [
   'britishcolumbiagolf.org',
   'golftown.com',
+  'golfnb.ca',
+  'golfcanada.ca',
+  'golfpass.com',
+  'golfnow.com',
+  'integolf.com',
+  'chronogolf.com',
+  'teeoff.com',
   'yellowpages.ca',
+  'yellowpages.com',
   'yelp.ca',
   'yelp.com',
+  '411.ca',
+  'canada411.ca',
   'facebook.com',
+  'linkedin.com',
   'google.com',
+  'tripadvisor.com',
+  'tripadvisor.ca',
+  'foursquare.com',
+  'mapquest.com',
+  'bbb.org',
+  'chamberofcommerce.com',
+  'kelownachamber.org',
 ];
+
+/** Directory hosts to exclude from official-website discovery (Exa excludeDomains). */
+export const WEBSITE_SEARCH_EXCLUDE_DOMAINS = DIRECTORY_HOST_SUFFIXES.slice(0, 22);
+
+/** Denylist entries for Perplexity searchDomainFilter (prefix `-`). Cap 20. */
+export const WEBSITE_SEARCH_DOMAIN_DENYLIST = WEBSITE_SEARCH_EXCLUDE_DOMAINS.map(
+  (host) => `-${host}`,
+);
 
 export function isSharedDirectoryHost(hostname: string | null | undefined): boolean {
   if (!hostname) return false;
-  const h = hostname.toLowerCase();
-  return DIRECTORY_HOST_SUFFIXES.some((suffix) => h === suffix || h.endsWith(`.${suffix}`));
+  const h = hostname.toLowerCase().replace(/^www\./, '');
+  if (DIRECTORY_HOST_SUFFIXES.some((suffix) => h === suffix || h.endsWith(`.${suffix}`))) {
+    return true;
+  }
+  // Chamber directories often use city-prefixed hosts (e.g. secure.kelownachamber.org).
+  if (h.includes('chamber') && (h.includes('commerce') || h.endsWith('chamber.org'))) {
+    return true;
+  }
+  return false;
+}
+
+/** Directory/listing hosts that must never be treated as an official website. */
+export function isDirectoryCitationHost(hostname: string | null | undefined): boolean {
+  return isSharedDirectoryHost(hostname);
 }
 
 export type CompanyWebResearchInput = {

@@ -2,13 +2,27 @@ import type { AgentSupabase } from '@/lib/agentAuth';
 import { hostnameFromUrl } from '@/lib/enrichGuidance';
 import {
   ACCOUNT_RESEARCH_MANUAL_RUNS_PER_DAY,
+  ACCOUNT_RESEARCH_PROVIDER,
   ACCOUNT_RESEARCH_STALE_RUNNING_MS,
   isAccountResearchPlatformScope,
   type AccountResearchV1Scope,
 } from '@/lib/accountResearch/constants';
+import {
+  ACCOUNT_RESEARCH_PROSPECT_SELECT,
+  buildAccountResearchContext,
+  mapProspectRowForResearch,
+  mergeWebsiteSocialCache,
+  readWebsiteSocialCache,
+  type RunWebsiteSocialCache,
+} from '@/lib/accountResearch/context';
+import { mapOutcomeCitations } from '@/lib/accountResearch/citationRows';
+import { isSocialPlatform } from '@/lib/accountResearch/context';
+import { fetchOfficialWebsiteSocialLinks } from '@/lib/accountResearch/officialWebsiteSocialLinks';
 import { runSatisfiesScopeRequest } from '@/lib/accountResearch/freshness';
 import { resolveAccountIdentity, type IdentityResolution } from '@/lib/accountResearch/identity';
 import { executeAccountResearchSourceSearch } from '@/lib/accountResearch/provider';
+import { loadSourceLocks } from '@/lib/accountResearch/locks';
+import type { SocialSearchOutcome } from '@/lib/accountResearch/socialSourceSearch';
 import {
   loadAccountResearchSnapshot,
   type AccountResearchSnapshot,
@@ -18,7 +32,6 @@ import type {
   AccountResearchRunStatus,
   AccountResearchSourceSearch,
   AccountResearchSourceSearchStatus,
-  ProspectRow,
 } from '@/types/database';
 
 export type StartOrReuseResult =
@@ -125,7 +138,7 @@ export async function startOrReuseAccountResearch(args: {
 
   const { data: prospect, error: prospectError } = await args.supabase
     .from('prospects')
-    .select('id, name, city, region, phone, website')
+    .select(ACCOUNT_RESEARCH_PROSPECT_SELECT)
     .eq('id', args.retailerId)
     .maybeSingle();
   if (prospectError) {
@@ -134,6 +147,10 @@ export async function startOrReuseAccountResearch(args: {
   if (!prospect) {
     return { ok: false, outcome: 'not_found', error: 'Retailer not found', status: 404 };
   }
+
+  const prospectMapped = mapProspectRowForResearch(
+    prospect as Parameters<typeof mapProspectRowForResearch>[0],
+  );
 
   if (!args.forceRefresh) {
     const cached = await findLatestUsableRun(args.supabase, args.retailerId, args.scope);
@@ -189,11 +206,11 @@ export async function startOrReuseAccountResearch(args: {
 
   // Seed identity from CRM fields before provider work.
   const identity = resolveAccountIdentity({
-    businessName: prospect.name,
-    city: prospect.city,
-    region: prospect.region,
-    phone: prospect.phone,
-    website: prospect.website,
+    businessName: prospectMapped.name,
+    city: prospectMapped.city,
+    region: prospectMapped.region,
+    phone: prospectMapped.phone,
+    website: prospectMapped.website,
   });
   await args.supabase
     .from('account_research_runs')
@@ -298,18 +315,37 @@ export async function processNextAccountResearchSource(args: {
     };
   }
 
-  const { data: nextPending, error: pendingError } = await args.supabase
-    .from('account_research_source_searches')
-    .select('*')
-    .eq('research_run_id', args.runId)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const { data: claimData, error: claimError } = await args.supabase.rpc(
+    'claim_account_research_source_search',
+    { p_run_id: args.runId },
+  );
 
-  if (pendingError) return { ok: false, error: pendingError.message, status: 500 };
+  if (claimError) return { ok: false, error: claimError.message, status: 500 };
 
-  if (!nextPending) {
+  const claimRecord =
+    claimData && typeof claimData === 'object'
+      ? (claimData as { claimed?: boolean; source?: AccountResearchSourceSearch | null })
+      : null;
+
+  if (!claimRecord?.claimed || !claimRecord.source) {
+    const { data: remaining } = await args.supabase
+      .from('account_research_source_searches')
+      .select('id')
+      .eq('research_run_id', args.runId)
+      .in('status', ['pending', 'running']);
+
+    if ((remaining ?? []).length > 0) {
+      const snapshot = await loadAccountResearchSnapshot(args.supabase, args.runId);
+      if (!snapshot) return { ok: false, error: 'Run not found', status: 404 };
+      return {
+        ok: true,
+        processed: false,
+        sourceId: null,
+        snapshot,
+        done: false,
+      };
+    }
+
     const finalized = await finalizeAccountResearchRun(args.supabase, args.runId);
     if (!finalized) return { ok: false, error: 'Failed to finalize run', status: 500 };
     return {
@@ -317,37 +353,11 @@ export async function processNextAccountResearchSource(args: {
       processed: false,
       sourceId: null,
       snapshot: finalized,
-      done: true,
+      done: finalized.run.status !== 'running',
     };
   }
 
-  const { data: claimed, error: claimError } = await args.supabase
-    .from('account_research_source_searches')
-    .update({
-      status: 'running',
-      started_at: new Date().toISOString(),
-    })
-    .eq('id', nextPending.id)
-    .eq('status', 'pending')
-    .select('*')
-    .maybeSingle();
-
-  if (claimError) return { ok: false, error: claimError.message, status: 500 };
-
-  if (!claimed) {
-    // Lost the race; reload and continue.
-    const snapshot = await loadAccountResearchSnapshot(args.supabase, args.runId);
-    if (!snapshot) return { ok: false, error: 'Failed to load snapshot', status: 500 };
-    return {
-      ok: true,
-      processed: false,
-      sourceId: null,
-      snapshot,
-      done: snapshot.sources.every((s) => isTerminalSourceStatus(s.status)),
-    };
-  }
-
-  const source = claimed as AccountResearchSourceSearch;
+  const source = claimRecord.source as AccountResearchSourceSearch;
   if (!isAccountResearchPlatformScope(source.source_type)) {
     await args.supabase.rpc('complete_account_research_source_search', {
       p_source_search_id: source.id,
@@ -362,7 +372,7 @@ export async function processNextAccountResearchSource(args: {
 
   const { data: prospect, error: prospectError } = await args.supabase
     .from('prospects')
-    .select('id, name, city, region, phone, website')
+    .select(ACCOUNT_RESEARCH_PROSPECT_SELECT)
     .eq('id', researchRun.retailer_id)
     .maybeSingle();
 
@@ -385,73 +395,107 @@ export async function processNextAccountResearchSource(args: {
     };
   }
 
-  const prospectRow = prospect as Pick<
-    ProspectRow,
-    'name' | 'city' | 'region' | 'phone' | 'website'
-  > | null;
-
-  const officialHostname = researchRun.resolved_website
-    ? hostnameFromUrl(researchRun.resolved_website)
-    : prospectRow?.website
-      ? hostnameFromUrl(prospectRow.website)
-      : null;
-
-  const outcome = await executeAccountResearchSourceSearch({
-    sourceType: source.source_type,
-    ctx: {
-      businessName: prospectRow?.name ?? 'Unknown',
-      city: prospectRow?.city,
-      region: prospectRow?.region,
-      website: prospectRow?.website,
-      officialHostname,
-    },
+  const prospectMapped = mapProspectRowForResearch(
+    prospect as Parameters<typeof mapProspectRowForResearch>[0],
+  );
+  const researchCtx = buildAccountResearchContext({
+    prospect: prospectMapped,
+    resolvedWebsite: researchRun.resolved_website,
   });
 
-  // Refine identity after website evidence.
+  let websiteSocialLinks: RunWebsiteSocialCache = readWebsiteSocialCache(
+    (researchRun.provider_metadata as Record<string, unknown> | null) ?? {},
+  );
+
+  let lockedUrl =
+    (await loadSourceLocks(args.supabase, researchRun.retailer_id))[source.source_type]
+      ?.locked_url ?? null;
+
+  let outcome = await executeAccountResearchSourceSearch({
+    sourceType: source.source_type,
+    ctx: researchCtx,
+    websiteSocialLinks,
+    lockedUrl,
+  });
+
+  const lockAfter =
+    (await loadSourceLocks(args.supabase, researchRun.retailer_id))[source.source_type]
+      ?.locked_url ?? null;
+  if (lockAfter && lockAfter !== lockedUrl) {
+    lockedUrl = lockAfter;
+    outcome = await executeAccountResearchSourceSearch({
+      sourceType: source.source_type,
+      ctx: researchCtx,
+      websiteSocialLinks,
+      lockedUrl,
+    });
+  } else {
+    lockedUrl = lockAfter;
+  }
+
+  // Refine identity only after a staff-locked website (never from auto-picked search hits).
   let identityConfidence = researchRun.identity_confidence;
-  if (source.source_type === 'website' && prospectRow) {
+  if (source.source_type === 'website' && lockedUrl) {
+    const lockedHost = hostnameFromUrl(lockedUrl);
     const evidenceText = [
       outcome.brief ?? '',
       ...outcome.citations.map((c) => `${c.title ?? ''} ${c.excerpt ?? ''}`),
     ].join('\n');
     const refined = resolveAccountIdentity({
-      businessName: prospectRow.name,
-      city: prospectRow.city,
-      region: prospectRow.region,
-      phone: prospectRow.phone,
-      website: prospectRow.website,
-      evidenceOfficialHostname: outcome.citations[0]?.url
-        ? hostnameFromUrl(outcome.citations[0].url)
-        : officialHostname,
+      businessName: prospectMapped.name,
+      city: prospectMapped.city,
+      region: prospectMapped.region,
+      phone: prospectMapped.phone,
+      website: prospectMapped.website,
+      evidenceOfficialHostname: lockedHost,
       officialHostEvidenceText: evidenceText,
     });
-    identityConfidence = refined.identity_confidence;
+    identityConfidence = 'high';
+
+    let runProviderMetadata =
+      (researchRun.provider_metadata as Record<string, unknown> | null) ?? {};
+
+    if (lockedHost) {
+      try {
+        const fetched = await fetchOfficialWebsiteSocialLinks({
+          officialHostname: lockedHost,
+          websiteUrl: lockedUrl,
+        });
+        websiteSocialLinks = fetched.links;
+        runProviderMetadata = mergeWebsiteSocialCache(runProviderMetadata, fetched.links);
+        runProviderMetadata.website_fetch_url = fetched.fetchUrl;
+      } catch (err) {
+        runProviderMetadata.website_fetch_error =
+          err instanceof Error ? err.message.slice(0, 200) : 'Website fetch failed';
+      }
+    }
+
     await args.supabase
       .from('account_research_runs')
       .update({
-        identity_confidence: refined.identity_confidence,
-        identity_review_status: refined.identity_review_status,
-        identity_resolution: refined.identity_resolution,
-        resolved_website: refined.resolved_website,
+        identity_confidence: 'high',
+        identity_review_status: 'staff_confirmed',
+        identity_resolution: refined.identity_resolution ?? 'Staff locked official website',
+        resolved_website: lockedUrl,
+        provider_metadata: runProviderMetadata,
       })
       .eq('id', args.runId);
   }
 
-  const accept = identityConfidence === 'high';
-  const citationPayload = outcome.citations.map((c) => ({
-    source_url: c.url,
-    source_url_normalized: c.url,
-    title: c.title,
-    platform: c.platform,
-    published_at: c.publishedAt,
-    observed_at: new Date().toISOString(),
-    excerpt: c.excerpt,
-    confidence: c.confidence,
-    identity_confidence: identityConfidence,
-    acceptance_status: accept ? 'accepted' : 'pending',
-    acceptance_basis: accept ? 'identity_gate' : null,
-    provider_metadata: {},
-  }));
+  const isSocial = isSocialPlatform(source.source_type);
+  const socialOutcome = isSocial ? (outcome as SocialSearchOutcome) : null;
+  const citationPayload = mapOutcomeCitations({
+    citations: outcome.citations,
+    isSocial,
+    lockedUrl,
+    identityConfidence,
+    attributedHandle: socialOutcome?.confirmedProfile?.handle ?? null,
+  });
+
+  const providerMetadata = {
+    ...outcome.providerMetadata,
+    ...(socialOutcome?.socialMetadata ?? {}),
+  };
 
   const { error: completeError } = await args.supabase.rpc(
     'complete_account_research_source_search',
@@ -459,10 +503,10 @@ export async function processNextAccountResearchSource(args: {
       p_source_search_id: source.id,
       p_status: outcome.status,
       p_query_text: outcome.queryText,
-      p_resolved_public_url: outcome.resolvedPublicUrl,
+      p_resolved_public_url: lockedUrl ?? outcome.resolvedPublicUrl,
       p_error: outcome.error,
-      p_provider: 'perplexity_via_gateway',
-      p_provider_metadata: outcome.providerMetadata,
+      p_provider: ACCOUNT_RESEARCH_PROVIDER,
+      p_provider_metadata: providerMetadata,
       p_citations: citationPayload,
       p_research_brief: outcome.brief,
     },

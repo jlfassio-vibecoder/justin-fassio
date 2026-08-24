@@ -31,7 +31,7 @@ export const ACCOUNT_RESEARCH_MANUAL_RUNS_PER_DAY = 3;
 export const ACCOUNT_RESEARCH_PROVIDER_STEP_LIMIT = 4;
 export const ACCOUNT_RESEARCH_STALE_RUNNING_MS = 120_000;
 export const ACCOUNT_RESEARCH_BRIEF_MAX_CHARS = 4000;
-export const ACCOUNT_RESEARCH_PROVIDER = 'perplexity_via_gateway';
+export const ACCOUNT_RESEARCH_PROVIDER = 'exa_via_gateway';
 export const ACCOUNT_RESEARCH_MODEL = 'openai/gpt-4o';
 
 export function isAccountResearchV1Scope(value: unknown): value is AccountResearchV1Scope {

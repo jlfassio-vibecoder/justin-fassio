@@ -12,12 +12,15 @@ import {
   generateAccountResearchSuggestions,
   listAccountResearchSuggestions,
   loadLatestProductMatch,
+  lockAccountResearchSource,
   rejectAccountResearchSuggestion,
   runAccountResearchUntilDone,
   startAccountResearch,
+  unlockAccountResearchSource,
   type AccountResearchSnapshotDto,
   type LoadedProductMatch,
 } from '@/lib/accountResearchClient';
+import { readSearchCandidates } from '@/lib/accountResearch/candidates';
 import { generateDraftFromResearchMatch } from '@/lib/accountResearchDraftHandoff';
 import type { MatchItemResponse } from '@/lib/accountProductMatch';
 import type { CatalogItem } from '@/lib/catalog';
@@ -70,8 +73,26 @@ function formatJsonValue(value: unknown): string {
   }
 }
 
-function sourceStatusLabel(source: AccountResearchSourceSearch): string {
+function sourceStatusLabel(
+  source: AccountResearchSourceSearch,
+  locked: boolean,
+  candidateCount: number,
+): string {
+  if (locked) return source.status.replace(/_/g, ' ');
+  const meta = source.provider_metadata as { empty_outcome?: string } | null;
+  if (candidateCount > 0 && (source.status === 'succeeded' || source.status === 'none_indexed')) {
+    return 'Awaiting staff URL';
+  }
   if (source.status === 'none_indexed') {
+    if (source.source_type === 'shopify') {
+      return 'No Shopify storefront found';
+    }
+    if (meta?.empty_outcome === 'no_profile') {
+      return 'No official profile confirmed';
+    }
+    if (meta?.empty_outcome === 'no_activity') {
+      return 'No recent public indexed activity found';
+    }
     return 'No recent public indexed activity found';
   }
   return source.status.replace(/_/g, ' ');
@@ -102,6 +123,9 @@ export function AccountResearchPanel({
   const [ignoreDedup, setIgnoreDedup] = useState(false);
   const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
   const [contactPickItem, setContactPickItem] = useState<MatchItemResponse | null>(null);
+  const [selectedCandidateBySource, setSelectedCandidateBySource] = useState<
+    Record<string, string>
+  >({});
 
   const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
   const bigFishOutreachBlocked = line.lineSlug === 'big-fish' && !line.bigFishOutreach;
@@ -114,11 +138,14 @@ export function AccountResearchPanel({
     snapshot?.run.status === 'running' ||
     busyAction === 'run' ||
     busyAction === 'refresh' ||
-    busyAction === 'process';
+    busyAction === 'process' ||
+    Boolean(busyAction?.startsWith('lock-') || busyAction?.startsWith('unlock-'));
 
   const citationsFlat = useMemo(() => {
     if (!snapshot) return [] as AccountResearchCitation[];
-    return Object.values(snapshot.citationsBySourceId).flat();
+    return Object.values(snapshot.citationsBySourceId)
+      .flat()
+      .filter((c) => c.acceptance_status === 'accepted');
   }, [snapshot]);
 
   const hydrateSuggestions = useCallback(async (runId: string) => {
@@ -163,6 +190,7 @@ export function AccountResearchPanel({
       sources: latest.sources,
       citationsBySourceId: latest.citationsBySourceId,
       sourceFreshness: latest.sourceFreshness,
+      locksBySourceType: latest.locksBySourceType ?? {},
     });
     await Promise.all([hydrateSuggestions(latest.run.id), hydrateMatch(latest.run.id)]);
     setLoading(false);
@@ -206,6 +234,7 @@ export function AccountResearchPanel({
       sources: started.sources,
       citationsBySourceId: started.citationsBySourceId,
       sourceFreshness: started.sourceFreshness,
+      locksBySourceType: started.locksBySourceType ?? {},
     });
 
     if (started.run.status === 'pending' || started.run.status === 'running') {
@@ -321,6 +350,50 @@ export function AccountResearchPanel({
     });
   }
 
+  async function handleLockSource(source: AccountResearchSourceSearch) {
+    const url = selectedCandidateBySource[source.id];
+    if (!url) {
+      setError('Select a URL to lock in.');
+      return;
+    }
+    setBusyAction(`lock-${source.id}`);
+    setError(null);
+    setProgress('Locking URL and indexing activity…');
+    const result = await lockAccountResearchSource({
+      retailerId: prospect.id,
+      sourceType: source.source_type,
+      url,
+    });
+    setBusyAction(null);
+    setProgress(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setSnapshot(result);
+    await Promise.all([hydrateSuggestions(result.run.id), hydrateMatch(result.run.id)]);
+  }
+
+  async function handleUnlockSource(source: AccountResearchSourceSearch) {
+    setBusyAction(`unlock-${source.id}`);
+    setError(null);
+    const result = await unlockAccountResearchSource({
+      retailerId: prospect.id,
+      sourceType: source.source_type,
+    });
+    setBusyAction(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setSnapshot(result);
+    setSelectedCandidateBySource((prev) => {
+      const next = { ...prev };
+      delete next[source.id];
+      return next;
+    });
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -373,19 +446,94 @@ export function AccountResearchPanel({
               Sources
             </h4>
             <ul className="m-0 flex list-none flex-col gap-2 p-0">
-              {snapshot.sources.map((source) => (
-                <li key={source.id} className="border-ink/10 rounded-md border px-3 py-2 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">
-                      {SOURCE_LABELS[source.source_type] ?? source.source_type}
-                    </span>
-                    <span className="text-ink/55 text-xs">
-                      {sourceStatusLabel(source)}
-                      {snapshot.sourceFreshness[source.id] ? ' · fresh' : ''}
-                    </span>
-                  </div>
-                </li>
-              ))}
+              {snapshot.sources.map((source) => {
+                const lock = snapshot.locksBySourceType?.[source.source_type] ?? null;
+                const candidates = readSearchCandidates(
+                  source.provider_metadata as Record<string, unknown> | null,
+                );
+                const selected = selectedCandidateBySource[source.id] ?? '';
+                return (
+                  <li key={source.id} className="border-ink/10 rounded-md border px-3 py-2 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">
+                        {SOURCE_LABELS[source.source_type] ?? source.source_type}
+                      </span>
+                      <span className="text-ink/55 flex items-center gap-2 text-xs">
+                        {lock ? <Tag variant="accent-2">Locked</Tag> : null}
+                        {sourceStatusLabel(source, Boolean(lock), candidates.length)}
+                        {snapshot.sourceFreshness[source.id] ? ' · fresh' : ''}
+                      </span>
+                    </div>
+                    {lock ? (
+                      <div className="mt-2 flex flex-col gap-2">
+                        <a
+                          href={lock.locked_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent-800 inline-block text-xs hover:underline"
+                        >
+                          {lock.locked_url}
+                        </a>
+                        <div>
+                          <Button
+                            variant="secondary"
+                            disabled={busyAction != null}
+                            onClick={() => void handleUnlockSource(source)}
+                          >
+                            {busyAction === `unlock-${source.id}` ? 'Unlocking…' : 'Unlock'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : candidates.length > 0 ? (
+                      <div className="mt-2 flex flex-col gap-2">
+                        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                          {candidates.map((candidate) => (
+                            <li key={candidate.url}>
+                              <label className="flex cursor-pointer items-start gap-2">
+                                <input
+                                  type="radio"
+                                  className="mt-1"
+                                  name={`lock-${source.id}`}
+                                  value={candidate.url}
+                                  checked={selected === candidate.url}
+                                  onChange={() =>
+                                    setSelectedCandidateBySource((prev) => ({
+                                      ...prev,
+                                      [source.id]: candidate.url,
+                                    }))
+                                  }
+                                />
+                                <span>
+                                  <span className="block text-xs font-medium">
+                                    {candidate.title ?? candidate.url}
+                                  </span>
+                                  <span className="text-ink/55 block text-[11px] break-all">
+                                    {candidate.url}
+                                  </span>
+                                  {candidate.snippet ? (
+                                    <span className="text-ink/60 mt-0.5 block text-[11px] leading-relaxed">
+                                      {candidate.snippet}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                        <div>
+                          <Button
+                            variant="primary"
+                            disabled={busyAction != null || !selected}
+                            onClick={() => void handleLockSource(source)}
+                          >
+                            {busyAction === `lock-${source.id}` ? 'Locking…' : 'Lock in'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           </section>
 
@@ -398,7 +546,9 @@ export function AccountResearchPanel({
             ) : (
               <ul className="m-0 flex list-none flex-col gap-2 p-0">
                 {snapshot.sources.map((source) => {
-                  const citations = snapshot.citationsBySourceId[source.id] ?? [];
+                  const citations = (snapshot.citationsBySourceId[source.id] ?? []).filter(
+                    (c) => c.acceptance_status === 'accepted',
+                  );
                   const expanded = expandedSources[source.id] ?? false;
                   return (
                     <li key={source.id} className="border-ink/10 rounded-md border">

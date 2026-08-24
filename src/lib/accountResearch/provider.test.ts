@@ -1,21 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildAccountResearchContext } from '@/lib/accountResearch/context';
+import { readSearchCandidates } from '@/lib/accountResearch/candidates';
+import { prospectFixture } from '@/lib/prospectFixture';
 
 const generateTextMock = vi.fn();
-const perplexitySearchMock = vi.fn(() => ({ type: 'mock-tool' }));
+const exaSearchMock = vi.fn(() => ({ type: 'mock-tool' }));
 
 vi.mock('ai', () => ({
   generateText: (...args: unknown[]) => generateTextMock(...args),
   stepCountIs: (n: number) => ({ type: 'stepCount', n }),
   createGateway: () => ({
     tools: {
-      perplexitySearch: (opts?: { maxResults?: number; searchDomainFilter?: string[] }) =>
-        (perplexitySearchMock as (o?: unknown) => unknown)(opts),
+      exaSearch: (opts?: Record<string, unknown>) =>
+        (exaSearchMock as (o?: unknown) => unknown)(opts),
     },
   }),
   gateway: {
     tools: {
-      perplexitySearch: (opts?: { maxResults?: number; searchDomainFilter?: string[] }) =>
-        (perplexitySearchMock as (o?: unknown) => unknown)(opts),
+      exaSearch: (opts?: Record<string, unknown>) =>
+        (exaSearchMock as (o?: unknown) => unknown)(opts),
     },
   },
 }));
@@ -26,8 +29,8 @@ vi.mock('@/lib/aiGatewayEnv', () => ({
   LOCAL_AI_GATEWAY_AUTH_HELP: 'missing key',
   staffAiGateway: () => ({
     tools: {
-      perplexitySearch: (opts?: { maxResults?: number; searchDomainFilter?: string[] }) =>
-        (perplexitySearchMock as (o?: unknown) => unknown)(opts),
+      exaSearch: (opts?: Record<string, unknown>) =>
+        (exaSearchMock as (o?: unknown) => unknown)(opts),
     },
   }),
   staffGatewayModel: () => 'openai/gpt-4o',
@@ -35,23 +38,31 @@ vi.mock('@/lib/aiGatewayEnv', () => ({
 
 import { executeAccountResearchSourceSearch } from '@/lib/accountResearch/provider';
 
+const baseCtx = buildAccountResearchContext({
+  prospect: prospectFixture({
+    id: 1,
+    name: 'Trail Outfitters',
+    city: 'Bend',
+    website: 'https://trailoutfitters.com',
+  }),
+});
+
 describe('executeAccountResearchSourceSearch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('passes source-specific domain filter and harvests tool URLs', async () => {
+  it('stores website HTML social links as candidates without auto-locking', async () => {
     generateTextMock.mockResolvedValue({
-      text: 'Instagram profile found.',
+      text: 'Hits.',
       toolResults: [
         {
           output: {
             results: [
               {
-                url: 'https://www.instagram.com/trailoutfitters/',
-                title: 'Trail Outfitters',
-                snippet: 'New arrivals',
-                date: null,
+                url: 'https://www.instagram.com/othergolf/',
+                title: 'Other',
+                snippet: 'Unrelated',
               },
             ],
           },
@@ -61,39 +72,195 @@ describe('executeAccountResearchSourceSearch', () => {
 
     const result = await executeAccountResearchSourceSearch({
       sourceType: 'instagram',
-      ctx: { businessName: 'Trail Outfitters', city: 'Bend' },
+      ctx: baseCtx,
+      websiteSocialLinks: {
+        instagram: {
+          url: 'https://instagram.com/trailoutfitters',
+          handle: 'trailoutfitters',
+          source: 'html_anchor',
+        },
+      },
     });
 
-    expect(perplexitySearchMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        maxResults: 5,
-        searchDomainFilter: ['instagram.com'],
-      }),
-    );
-    expect(result.status).toBe('succeeded');
-    expect(result.citations).toHaveLength(1);
-    expect(result.citations[0]?.url).toBe('https://instagram.com/trailoutfitters');
-    expect(result.citations[0]?.publishedAt).toBeNull();
+    expect(generateTextMock).toHaveBeenCalledTimes(1);
+    expect(result.resolvedPublicUrl).toBeNull();
+    expect(result.citations).toHaveLength(0);
+    const candidates = readSearchCandidates(result.providerMetadata);
+    expect(candidates[0]?.url).toContain('instagram.com/trailoutfitters');
+    expect(candidates.some((c) => c.url.includes('instagram.com/othergolf'))).toBe(true);
   });
 
-  it('returns none_indexed when platform filter yields no hosts', async () => {
+  it('stores Instagram discovery candidates without resolving a profile', async () => {
     generateTextMock.mockResolvedValue({
-      text: 'No profile.',
+      text: 'Mixed results.',
       toolResults: [
         {
           output: {
-            results: [{ url: 'https://example.com/page', title: 'Other', snippet: 'x' }],
+            results: [
+              {
+                url: 'https://www.instagram.com/trailoutfitters/',
+                title: 'Trail Outfitters',
+                snippet: 'Bend OR',
+              },
+              {
+                url: 'https://www.instagram.com/p/ABC123/',
+                title: 'Post',
+                snippet: 'sale',
+              },
+            ],
           },
         },
       ],
     });
 
     const result = await executeAccountResearchSourceSearch({
-      sourceType: 'tiktok',
-      ctx: { businessName: 'Trail Outfitters' },
+      sourceType: 'instagram',
+      ctx: baseCtx,
     });
 
-    expect(result.status).toBe('none_indexed');
+    expect(result.resolvedPublicUrl).toBeNull();
     expect(result.citations).toHaveLength(0);
+    const candidates = readSearchCandidates(result.providerMetadata);
+    expect(candidates.some((c) => /instagram\.com\/trailoutfitters/i.test(c.url))).toBe(true);
+  });
+
+  it('does not domain-filter website discovery even when official hostname is known', async () => {
+    generateTextMock.mockResolvedValue({
+      text: 'Official site.',
+      toolResults: [
+        {
+          output: {
+            results: [
+              {
+                url: 'https://trailoutfitters.com/about',
+                title: 'About',
+                text: 'Outdoor retailer in Bend',
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const result = await executeAccountResearchSourceSearch({
+      sourceType: 'website',
+      ctx: { ...baseCtx, officialHostname: 'trailoutfitters.com' },
+    });
+
+    expect(exaSearchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.stringContaining('"Trail Outfitters" official website'),
+        excludeDomains: expect.arrayContaining(['yellowpages.ca', 'integolf.com']),
+        numResults: 10,
+      }),
+    );
+    expect(exaSearchMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ category: expect.anything() }),
+    );
+    expect(exaSearchMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ userLocation: expect.anything() }),
+    );
+    expect(generateTextMock.mock.calls[0]?.[0]?.toolChoice).toBe('required');
+    expect(generateTextMock.mock.calls[0]?.[0]?.prompt).toContain(
+      'Reject similarly named competitors',
+    );
+    expect(result.status).toBe('succeeded');
+    expect(result.resolvedPublicUrl).toBeNull();
+    expect(result.citations).toHaveLength(0);
+    expect(readSearchCandidates(result.providerMetadata)).toHaveLength(1);
+  });
+
+  it('drops Yellow Pages website candidates and does not auto-resolve', async () => {
+    generateTextMock.mockResolvedValue({
+      text: 'Official site.',
+      toolResults: [
+        {
+          output: {
+            results: [
+              {
+                url: 'https://www.yellowpages.ca/bus/listing',
+                title: 'YP',
+                snippet: 'listing',
+              },
+              {
+                url: 'https://www.buckerfields.ca/',
+                title: "Buckerfield's Kelowna",
+                snippet: 'Kelowna, BC country store',
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const result = await executeAccountResearchSourceSearch({
+      sourceType: 'website',
+      ctx: {
+        ...baseCtx,
+        businessName: "Buckerfield's Kelowna",
+        city: 'Kelowna',
+        officialHostname: 'yellowpages.ca',
+        website: 'https://www.yellowpages.ca/bus/listing',
+      },
+    });
+
+    expect(exaSearchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.stringContaining(`"Buckerfield's Kelowna" official website`),
+        excludeDomains: expect.arrayContaining(['yellowpages.ca']),
+      }),
+    );
+    expect(result.status).toBe('succeeded');
+    expect(result.queryText).toContain(`"Buckerfield's Kelowna" official website`);
+    expect(result.queryText).toContain('Kelowna');
+    expect(result.resolvedPublicUrl).toBeNull();
+    expect(result.citations).toHaveLength(0);
+    const candidates = readSearchCandidates(result.providerMetadata);
+    expect(candidates.every((c) => !c.url.includes('yellowpages'))).toBe(true);
+    expect(candidates.some((c) => c.url.includes('buckerfields.ca'))).toBe(true);
+  });
+
+  it('re-fetches only the locked website host and does not rewrite the URL', async () => {
+    generateTextMock.mockResolvedValue({
+      text: 'About page.',
+      toolResults: [
+        {
+          output: {
+            results: [
+              {
+                url: 'https://www.yellowpages.ca/bus/listing',
+                title: 'YP',
+                snippet: 'listing',
+              },
+              {
+                url: 'https://www.buckerfields.ca/Locations',
+                title: 'Locations',
+                snippet: 'Kelowna',
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const locked = 'https://www.buckerfields.ca/';
+    const result = await executeAccountResearchSourceSearch({
+      sourceType: 'website',
+      ctx: {
+        ...baseCtx,
+        businessName: "Buckerfield's Kelowna",
+      },
+      lockedUrl: locked,
+    });
+
+    expect(exaSearchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.stringContaining(`"Buckerfield's Kelowna" official website`),
+        includeDomains: ['buckerfields.ca'],
+      }),
+    );
+    expect(result.resolvedPublicUrl).toContain('buckerfields.ca');
+    expect(result.resolvedPublicUrl).not.toContain('yellowpages');
+    expect(result.citations.every((c) => c.url.includes('buckerfields.ca'))).toBe(true);
   });
 });

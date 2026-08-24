@@ -1,5 +1,6 @@
 import { isSharedDirectoryHost } from '@/lib/companyWebResearch';
 import { hostnameFromUrl } from '@/lib/enrichGuidance';
+import { hasConflictingGeography } from '@/lib/accountResearch/socialProfile';
 import type { AccountResearchIdentityConfidence } from '@/types/database';
 
 export type IdentityCorroborator =
@@ -80,6 +81,17 @@ export function resolveAccountIdentity(input: IdentityResolutionInput): Identity
     };
   }
 
+  if (evidenceText && hasConflictingGeography(evidenceText)) {
+    return {
+      identity_confidence: 'low',
+      identity_review_status: 'pending',
+      resolved_website: officialHostname ? `https://${officialHostname}` : null,
+      identity_resolution: 'Evidence conflicts with prospect geography',
+      official_hostname: officialHostname,
+      corroborators,
+    };
+  }
+
   if (!officialHostname) {
     return {
       identity_confidence: 'unresolved',
@@ -113,19 +125,21 @@ export function resolveAccountIdentity(input: IdentityResolutionInput): Identity
     prospectHost === officialHostname;
 
   const extraCorroborators = corroborators.filter((c) => c !== 'website_match');
+  const hasNameOrCity =
+    corroborators.includes('name_on_host') || corroborators.includes('city_match');
 
-  if (hasWebsiteAgreement && extraCorroborators.length >= 1) {
+  if (hasNameOrCity || (hasWebsiteAgreement && extraCorroborators.length >= 1)) {
     return {
       identity_confidence: 'high',
       identity_review_status: 'not_required',
       resolved_website: `https://${officialHostname}`,
-      identity_resolution: `Official host ${officialHostname} with corroborators: ${corroborators.join(', ')}`,
+      identity_resolution: `Official host ${officialHostname} with corroborators: ${corroborators.join(', ') || 'name/city on evidence'}`,
       official_hostname: officialHostname,
       corroborators,
     };
   }
 
-  if (hasWebsiteAgreement || (officialHostname && extraCorroborators.length >= 1)) {
+  if (hasWebsiteAgreement || extraCorroborators.length >= 1) {
     return {
       identity_confidence: 'medium',
       identity_review_status: 'pending',

@@ -6,6 +6,7 @@ import {
   staffAiGateway,
   staffGatewayModel,
 } from '@/lib/aiGatewayEnv';
+import { hostnameFromUrl } from '@/lib/enrichGuidance';
 import {
   ACCOUNT_RESEARCH_BRIEF_MAX_CHARS,
   ACCOUNT_RESEARCH_MAX_RESULTS_PER_SOURCE,
@@ -14,59 +15,27 @@ import {
   ACCOUNT_RESEARCH_PROVIDER_STEP_LIMIT,
   type AccountResearchPlatformScope,
 } from '@/lib/accountResearch/constants';
+import type { AccountResearchContext, RunWebsiteSocialCache } from '@/lib/accountResearch/context';
+import { isSocialPlatform } from '@/lib/accountResearch/context';
+import { toSearchCandidates, toWebsiteSearchCandidates } from '@/lib/accountResearch/candidates';
+import { normalizeSourceUrl } from '@/lib/accountResearch/normalizeUrl';
+import { buildForcedExaSearchPrompt } from '@/lib/accountResearch/searchPrompt';
+import { executeSocialPlatformSearch } from '@/lib/accountResearch/socialSourceSearch';
 import {
-  SOURCE_STRATEGIES,
+  citationsOnLockedHost,
+  lockedSourceUrlCitation,
   sanitizeCitationCandidates,
+  SOURCE_STRATEGIES,
+  type CitationCandidate,
   type SourceSearchOutcome,
-  type SourceStrategyContext,
 } from '@/lib/accountResearch/sources';
+import { extractSearchToolHits } from '@/lib/accountResearch/toolHits';
+import { isDirectoryCitationHost, WEBSITE_SEARCH_EXCLUDE_DOMAINS } from '@/lib/companyWebResearch';
 
-type ToolHit = { url?: string; title?: string; snippet?: string; date?: string };
-
-function extractToolHits(search: {
-  toolResults?: ReadonlyArray<{ output?: unknown; result?: unknown }>;
-  steps?: ReadonlyArray<{
-    toolResults?: ReadonlyArray<{ output?: unknown; result?: unknown }>;
-  }>;
-}): ToolHit[] {
-  const hits: ToolHit[] = [];
-
-  const consume = (payload: unknown) => {
-    if (!payload || typeof payload !== 'object') return;
-    const obj = payload as { results?: unknown };
-    if (!Array.isArray(obj.results)) return;
-    for (const row of obj.results) {
-      if (!row || typeof row !== 'object') continue;
-      const r = row as Record<string, unknown>;
-      hits.push({
-        url: typeof r.url === 'string' ? r.url : undefined,
-        title: typeof r.title === 'string' ? r.title : undefined,
-        snippet:
-          typeof r.snippet === 'string'
-            ? r.snippet
-            : typeof r.description === 'string'
-              ? r.description
-              : undefined,
-        date:
-          typeof r.date === 'string'
-            ? r.date
-            : typeof r.lastUpdated === 'string'
-              ? r.lastUpdated
-              : undefined,
-      });
-    }
-  };
-
-  for (const tr of search.toolResults ?? []) {
-    consume(tr.output !== undefined ? tr.output : tr.result);
-  }
-  for (const step of search.steps ?? []) {
-    for (const tr of step.toolResults ?? []) {
-      consume(tr.output !== undefined ? tr.output : tr.result);
-    }
-  }
-
-  return hits;
+function userLocationFromCtx(ctx: AccountResearchContext): string | undefined {
+  if (ctx.countryName === 'Canada') return 'CA';
+  if (ctx.countryName === 'United States') return 'US';
+  return undefined;
 }
 
 function sanitizeError(err: unknown): string {
@@ -77,17 +46,48 @@ function sanitizeError(err: unknown): string {
     .slice(0, 500);
 }
 
+function withLockedUrlCitation(
+  citations: CitationCandidate[],
+  lockedUrl: string,
+  platform: CitationCandidate['platform'],
+): CitationCandidate[] {
+  const locked = lockedSourceUrlCitation(lockedUrl, platform);
+  if (!locked) return citations;
+  if (citations.some((c) => c.url === locked.url)) return citations;
+  return [locked, ...citations].slice(0, ACCOUNT_RESEARCH_MAX_RESULTS_PER_SOURCE);
+}
+
 /**
- * Execute one platform-scoped public search via Gateway + Perplexity.
- * Captures tool citation URLs (not model-invented links).
+ * Execute one platform-scoped public search via Gateway + Exa.
+ * Unlocked: persist top 5 search hits as candidates; do not auto-resolve a URL.
+ * Locked: skip discovery and index activity from the staff-locked URL only.
  */
 export async function executeAccountResearchSourceSearch(args: {
   sourceType: AccountResearchPlatformScope;
-  ctx: SourceStrategyContext;
+  ctx: AccountResearchContext;
+  websiteSocialLinks?: RunWebsiteSocialCache;
+  lockedUrl?: string | null;
 }): Promise<SourceSearchOutcome> {
+  if (isSocialPlatform(args.sourceType)) {
+    return executeSocialPlatformSearch({
+      platform: args.sourceType,
+      ctx: args.ctx,
+      websiteSocialLinks: args.websiteSocialLinks ?? {},
+      lockedUrl: args.lockedUrl,
+    });
+  }
+
   const strategy = SOURCE_STRATEGIES[args.sourceType];
   const queryText = strategy.buildQuery(args.ctx);
-  const domainFilter = strategy.domainFilter(args.ctx);
+  const lockedUrl = args.lockedUrl ? (normalizeSourceUrl(args.lockedUrl) ?? args.lockedUrl) : null;
+  const lockedHost = lockedUrl ? hostnameFromUrl(lockedUrl) : null;
+  const includeDomains = lockedHost ? [lockedHost] : undefined;
+  const excludeDomains =
+    !lockedHost && args.sourceType === 'website' ? WEBSITE_SEARCH_EXCLUDE_DOMAINS : undefined;
+  // Do not pass userLocation on website discovery — geo bias returns peer businesses in the city.
+  const userLocation =
+    args.sourceType === 'website' && !lockedUrl ? undefined : userLocationFromCtx(args.ctx);
+  const websiteDiscovery = args.sourceType === 'website' && !lockedUrl;
   const started = Date.now();
 
   ensureAiGatewayApiKey();
@@ -112,60 +112,119 @@ export async function executeAccountResearchSourceSearch(args: {
     const result = await generateText({
       model,
       stopWhen: stepCountIs(ACCOUNT_RESEARCH_PROVIDER_STEP_LIMIT),
+      // Force a search; pinned `query` in tool config overrides any model-rewritten query.
+      toolChoice: 'required',
       tools: {
-        perplexity_search: gw.tools.perplexitySearch({
-          maxResults: ACCOUNT_RESEARCH_MAX_RESULTS_PER_SOURCE,
-          ...(domainFilter?.length ? { searchDomainFilter: domainFilter } : {}),
-        }),
+        exa_search: gw.tools.exaSearch({
+          // Gateway config `query` wins over model-generated tool args (exact business name).
+          query: queryText,
+          // Website: over-fetch then name-filter to top 5.
+          numResults: websiteDiscovery ? 10 : ACCOUNT_RESEARCH_MAX_RESULTS_PER_SOURCE,
+          type: 'auto',
+          ...(userLocation ? { userLocation } : {}),
+          ...(includeDomains?.length ? { includeDomains } : {}),
+          ...(excludeDomains?.length ? { excludeDomains } : {}),
+          contents: {
+            text: { maxCharacters: 800 },
+            highlights: true,
+            extras: { links: websiteDiscovery ? 8 : 5 },
+          },
+        } as Parameters<typeof gw.tools.exaSearch>[0] & { query: string }),
       },
-      prompt: [
-        'You research public web evidence for a wholesale apparel sales rep.',
-        'Use the web search tool. Prefer tool results over invention.',
-        'Do not log into social platforms or claim private content.',
-        'Never invent URLs. After searching, write a short factual brief.',
-        `Platform focus: ${args.sourceType}`,
-        `Search query: ${queryText}`,
-        `Business: ${args.ctx.businessName}`,
-        args.ctx.city ? `City: ${args.ctx.city}` : '',
-        args.ctx.website ? `CRM website: ${args.ctx.website}` : '',
-      ]
-        .filter(Boolean)
-        .join('\n'),
+      prompt: buildForcedExaSearchPrompt({
+        queryText,
+        platformFocus: args.sourceType,
+        extraLines: [
+          lockedUrl
+            ? `Staff-locked URL: ${lockedUrl}. Prefer evidence on that host only.`
+            : args.sourceType === 'website'
+              ? [
+                  `Search must use this exact query (already pinned on the tool): ${queryText}`,
+                  `Exact business name: "${args.ctx.businessName.trim()}".`,
+                  'Only keep results whose title or domain matches this exact business name.',
+                  'Reject similarly named competitors in the same city or industry.',
+                  'Ignore directories, chambers, LinkedIn, Facebook, tee-time aggregators, Yellow Pages, and Yelp.',
+                ].join(' ')
+              : args.sourceType === 'shopify'
+                ? 'Prefer myshopify.com storefronts or Powered-by-Shopify evidence.'
+                : '',
+          args.ctx.website && !isDirectoryCitationHost(hostnameFromUrl(args.ctx.website))
+            ? `CRM website hint: ${args.ctx.website}`
+            : '',
+          websiteDiscovery
+            ? 'After searching, write a short factual brief from tool results only.'
+            : '',
+        ],
+      }),
     });
 
-    const hits = extractToolHits(result);
-    const candidates = sanitizeCitationCandidates(hits, strategy);
-    const validated = strategy.postValidate(candidates, args.ctx);
+    const hits = extractSearchToolHits(result);
     const brief = result.text?.trim().slice(0, ACCOUNT_RESEARCH_BRIEF_MAX_CHARS) || null;
-
     const lowerBrief = (brief ?? '').toLowerCase();
     const blocked =
       lowerBrief.includes('login wall') ||
       lowerBrief.includes('must log in') ||
       lowerBrief.includes('sign in to continue');
 
+    if (!lockedUrl) {
+      const candidates =
+        args.sourceType === 'website'
+          ? toWebsiteSearchCandidates(args.ctx.businessName, hits)
+          : toSearchCandidates(hits);
+      return {
+        status:
+          blocked && candidates.length === 0
+            ? 'blocked'
+            : candidates.length > 0
+              ? 'succeeded'
+              : 'none_indexed',
+        queryText,
+        resolvedPublicUrl: null,
+        brief: args.sourceType === 'website' ? brief : null,
+        citations: [],
+        error: null,
+        providerMetadata: {
+          provider: ACCOUNT_RESEARCH_PROVIDER,
+          model: ACCOUNT_RESEARCH_MODEL,
+          latency_ms: Date.now() - started,
+          tool_hit_count: hits.length,
+          result_count: 0,
+          candidates,
+          include_domains: includeDomains ?? null,
+          exclude_domains: excludeDomains ?? null,
+          step_limit: ACCOUNT_RESEARCH_PROVIDER_STEP_LIMIT,
+        },
+      };
+    }
+
+    const rawCitations = sanitizeCitationCandidates(hits, strategy);
+    const onHost = citationsOnLockedHost(rawCitations, lockedUrl);
+    const citations = withLockedUrlCitation(onHost, lockedUrl, args.sourceType);
+
     return {
-      status: blocked && validated.citations.length === 0 ? 'blocked' : validated.status,
+      status: blocked && citations.length === 0 ? 'blocked' : 'succeeded',
       queryText,
-      resolvedPublicUrl: validated.citations[0]?.url ?? null,
+      resolvedPublicUrl: lockedUrl,
       brief: args.sourceType === 'website' ? brief : null,
-      citations: validated.citations,
+      citations,
       error: null,
       providerMetadata: {
         provider: ACCOUNT_RESEARCH_PROVIDER,
         model: ACCOUNT_RESEARCH_MODEL,
         latency_ms: Date.now() - started,
         tool_hit_count: hits.length,
-        result_count: validated.citations.length,
-        domain_filter: domainFilter ?? null,
+        result_count: citations.length,
+        include_domains: includeDomains ?? null,
+        exclude_domains: excludeDomains ?? null,
         step_limit: ACCOUNT_RESEARCH_PROVIDER_STEP_LIMIT,
+        locked_url: lockedUrl,
       },
     };
   } catch (err) {
     return {
       status: 'failed',
       queryText,
-      resolvedPublicUrl: null,
+      resolvedPublicUrl: lockedUrl,
       brief: null,
       citations: [],
       error: sanitizeError(err),
