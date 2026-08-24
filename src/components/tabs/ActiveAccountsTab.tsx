@@ -138,12 +138,12 @@ export function ActiveAccountsTab({
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (deepLinkAccountId != null && deepLinkAccountId !== appliedDeepLinkAccountId) {
     const match = accounts.find((a) => a.id === deepLinkAccountId);
-    setAppliedDeepLinkAccountId(deepLinkAccountId);
     if (match) {
+      setAppliedDeepLinkAccountId(deepLinkAccountId);
       setDetailAccount(match);
       if (deepLinkOpenResearch) setOpenResearchAccountId(match.id);
+      queueMicrotask(() => onDeepLinkConsumed?.());
     }
-    queueMicrotask(() => onDeepLinkConsumed?.());
   }
 
   if (deepLinkImport && !importOpen) {
@@ -656,7 +656,11 @@ export function ActiveAccountsTab({
             : null
         }
         reorderSettings={detailAccount ? (settingsByAccount.get(detailAccount.id) ?? null) : null}
-        onClose={() => setDetailAccount(null)}
+        onClose={() => {
+          setDetailAccount(null);
+          setAppliedDeepLinkAccountId(null);
+          setOpenResearchAccountId(null);
+        }}
         onLogCall={onLogCall}
         onLogOrder={(account) => setHistoryAccount(account)}
         onNotesSaved={(notes) => {

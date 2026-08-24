@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  createAccountProductMatchClient,
   processAccountResearchSource,
   runAccountResearchUntilDone,
 } from '@/lib/accountResearchClient';
@@ -60,5 +61,43 @@ describe('accountResearchClient', () => {
 
     const result = await processAccountResearchSource('run-1');
     expect(result).toEqual({ ok: false, error: 'Not signed in' });
+  });
+
+  it('converts network rejections into ApiFail', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+
+    const result = await processAccountResearchSource('run-1');
+
+    expect(result).toEqual({ ok: false, error: 'offline' });
+  });
+
+  it('accepts classified empty match results returned with 409', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          ok: true,
+          outcome: 'empty',
+          empty_reason: 'no_accepted_evidence',
+          run: { id: 'match-1', status: 'empty' },
+          items: [],
+        }),
+      }),
+    );
+
+    const result = await createAccountProductMatchClient({
+      retailerId: 7,
+      salesLineId: 'line-1',
+      researchRunId: 'run-1',
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      outcome: 'empty',
+      empty_reason: 'no_accepted_evidence',
+      items: [],
+    });
   });
 });

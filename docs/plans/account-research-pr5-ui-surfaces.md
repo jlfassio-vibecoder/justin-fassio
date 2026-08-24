@@ -5,7 +5,7 @@
 **PR4 plan:** [account-research-pr4-product-match.md](./account-research-pr4-product-match.md)  
 **Date:** 2026-08-23
 
-Staff-facing Mode A UI: run/refresh research, review citations and suggestions, run line product match, and open the existing AI draft composer from a matched SKU. No new migrations or staff APIs.
+Staff-facing Mode A UI: run/refresh research, review citations and suggestions, run line product match, and open the existing AI draft composer from a matched SKU. Includes the account-research start RPC and source-lock migrations plus their staff API surfaces.
 
 ---
 

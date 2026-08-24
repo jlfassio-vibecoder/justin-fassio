@@ -10,6 +10,7 @@ const listSuggestionsMock = vi.fn();
 const loadMatchMock = vi.fn();
 const lockResearchMock = vi.fn();
 const unlockResearchMock = vi.fn();
+const generateSuggestionsMock = vi.fn();
 
 vi.mock('@/lib/accountResearchClient', () => ({
   fetchLatestAccountResearch: (...args: unknown[]) => fetchLatestMock(...args),
@@ -17,7 +18,7 @@ vi.mock('@/lib/accountResearchClient', () => ({
   runAccountResearchUntilDone: vi.fn(),
   listAccountResearchSuggestions: (...args: unknown[]) => listSuggestionsMock(...args),
   loadLatestProductMatch: (...args: unknown[]) => loadMatchMock(...args),
-  generateAccountResearchSuggestions: vi.fn(),
+  generateAccountResearchSuggestions: (...args: unknown[]) => generateSuggestionsMock(...args),
   applyAccountResearchSuggestion: vi.fn(),
   rejectAccountResearchSuggestion: vi.fn(),
   createAccountProductMatchClient: vi.fn(),
@@ -46,6 +47,7 @@ describe('AccountResearchPanel', () => {
     startResearchMock.mockReset();
     lockResearchMock.mockReset();
     unlockResearchMock.mockReset();
+    generateSuggestionsMock.mockReset();
     listSuggestionsMock.mockResolvedValue({ ok: true, suggestions: [] });
     loadMatchMock.mockResolvedValue(null);
     fetchLatestMock.mockResolvedValue({ ok: true, outcome: 'none', run: null });
@@ -70,6 +72,7 @@ describe('AccountResearchPanel', () => {
     render(<AccountResearchPanel prospect={prospect} />);
 
     expect(await screen.findByText(/No run yet/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Identity must be high confidence/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Run Search All/i }));
     await waitFor(() => expect(startResearchMock).toHaveBeenCalled());
   });

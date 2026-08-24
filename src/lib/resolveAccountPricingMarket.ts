@@ -142,8 +142,16 @@ export async function resolveOgrPricingMarketForProspect(
  */
 export async function resolveOgrPricingMarketForProductEmailDraft(
   client: PricingMarketClient,
-  input: { prospectId: number; payloadMarket?: PublicMarket | null },
+  input: {
+    prospectId: number;
+    retailerLineAccountId?: string | null;
+    payloadMarket?: PublicMarket | null;
+  },
 ): Promise<PricingMarket> {
+  if (input.retailerLineAccountId?.trim()) {
+    return resolvePricingMarketForRetailerLineAccount(client, input.retailerLineAccountId);
+  }
+
   const { data: line, error: lineError } = await client
     .from('lines')
     .select('id')

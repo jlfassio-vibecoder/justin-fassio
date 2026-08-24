@@ -112,13 +112,13 @@ export function ProspectsTab({
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (deepLinkProspectId != null && deepLinkProspectId !== appliedDeepLinkProspectId) {
     const match = prospects.find((p) => p.id === deepLinkProspectId);
-    setAppliedDeepLinkProspectId(deepLinkProspectId);
     if (match) {
+      setAppliedDeepLinkProspectId(deepLinkProspectId);
       setDetailProspect(match);
       setHighlightedProspectId(match.id);
       if (deepLinkOpenResearch) setScrollResearchForProspectId(match.id);
+      queueMicrotask(() => onDeepLinkConsumed?.());
     }
-    queueMicrotask(() => onDeepLinkConsumed?.());
   }
 
   if (deepLinkImport && !importOpen) {
@@ -346,7 +346,11 @@ export function ProspectsTab({
         initialScrollToResearch={
           detailProspect != null && scrollResearchForProspectId === detailProspect.id
         }
-        onClose={() => setDetailProspect(null)}
+        onClose={() => {
+          setDetailProspect(null);
+          setAppliedDeepLinkProspectId(null);
+          setScrollResearchForProspectId(null);
+        }}
         onLogCall={onLogCall}
         onConverted={onConverted}
         contactsReloadToken={contactsReloadToken}

@@ -74,7 +74,15 @@ async function staffFetch(
     headers.set('Content-Type', 'application/json');
   }
 
-  const res = await fetch(path, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(path, { ...init, headers });
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Network request failed',
+    };
+  }
   let payload: Record<string, unknown>;
   try {
     payload = (await res.json()) as Record<string, unknown>;
@@ -426,7 +434,8 @@ export async function createAccountProductMatchClient(input: {
   if (!('res' in result)) return result;
 
   const { res, payload } = result;
-  if (!res.ok || payload.ok !== true) {
+  const classifiedEmpty = res.status === 409 && payload.ok === true && payload.outcome === 'empty';
+  if ((!res.ok && !classifiedEmpty) || payload.ok !== true) {
     return {
       ok: false,
       error: typeof payload.error === 'string' ? payload.error : `Match failed (${res.status})`,

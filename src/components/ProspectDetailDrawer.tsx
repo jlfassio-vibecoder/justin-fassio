@@ -62,24 +62,45 @@ export function ProspectDetailDrawer({
   const line = useOptionalLineContext();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const appliedResearchScrollRef = useRef<string | null>(null);
+  const currentProspectIdRef = useRef<number | null>(prospect?.id ?? null);
   const [convertOpen, setConvertOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
   const [researchDraft, setResearchDraft] = useState<OgrProductEmailComposerDraft | null>(null);
   const [researchDraftProduct, setResearchDraftProduct] = useState<CatalogItem | null>(null);
-  const [retailerLineAccountId, setRetailerLineAccountId] = useState<string | null>(null);
+  const [researchDraftBoundProspectId, setResearchDraftBoundProspectId] = useState<number | null>(
+    prospect?.id ?? null,
+  );
+  const [retailerLineAccountRecord, setRetailerLineAccountRecord] = useState<{
+    scope: string;
+    id: string | null;
+  } | null>(null);
   const [emailMarket, setEmailMarket] = useState<PublicMarket>('ca');
+  const prospectId = prospect?.id ?? null;
+  if (prospectId !== researchDraftBoundProspectId) {
+    setResearchDraftBoundProspectId(prospectId);
+    setResearchDraft(null);
+    setResearchDraftProduct(null);
+  }
+  const rlaScope = prospect && line.salesLineId ? `${prospect.id}:${line.salesLineId}` : null;
+  const retailerLineAccountId =
+    rlaScope && retailerLineAccountRecord?.scope === rlaScope ? retailerLineAccountRecord.id : null;
+
+  useEffect(() => {
+    currentProspectIdRef.current = prospect?.id ?? null;
+  }, [prospect?.id]);
 
   useEffect(() => {
     if (!prospect || !line.salesLineId) return;
     let active = true;
     void (async () => {
+      const scope = `${prospect.id}:${line.salesLineId}`;
       const rla = await fetchOperationalLineAccount({
         retailerId: prospect.id,
         salesLineId: line.salesLineId ?? '',
       });
       if (!active) return;
-      setRetailerLineAccountId(rla.data?.id ?? null);
+      setRetailerLineAccountRecord({ scope, id: rla.data?.id ?? null });
       if (!rla.data?.salesLineTerritoryId || !line.lineSlug) {
         setEmailMarket(resolvePricingMarketFromRlaAssignment(null).publicMarket);
         return;
@@ -109,7 +130,10 @@ export function ProspectDetailDrawer({
   }, [line.lineSlug, line.salesLineId, prospect]);
 
   useEffect(() => {
-    if (!prospect || !initialScrollToResearch) return;
+    if (!prospect || !initialScrollToResearch) {
+      appliedResearchScrollRef.current = null;
+      return;
+    }
     const key = String(prospect.id);
     if (appliedResearchScrollRef.current === key) return;
     appliedResearchScrollRef.current = key;
@@ -189,6 +213,7 @@ export function ProspectDetailDrawer({
                 onIdentitySaved?.(next);
               }}
               onOpenDraftComposer={({ draft, catalogItem }) => {
+                if (currentProspectIdRef.current !== prospect.id) return;
                 setResearchDraftProduct(catalogItem);
                 setResearchDraft(draft);
               }}

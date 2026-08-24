@@ -99,7 +99,7 @@ function sourceStatusLabel(
 }
 
 function identityBlocksResearch(snapshot: AccountResearchSnapshotDto | null): boolean {
-  if (!snapshot) return true;
+  if (!snapshot) return false;
   if (snapshot.run.status === 'needs_identity_review') return true;
   return snapshot.run.identity_confidence !== 'high';
 }
@@ -112,6 +112,7 @@ export function AccountResearchPanel({
 }: AccountResearchPanelProps) {
   const line = useOptionalLineContext();
   const abortRef = useRef<AbortController | null>(null);
+  const latestSalesLineIdRef = useRef(line.salesLineId);
 
   const [snapshot, setSnapshot] = useState<AccountResearchSnapshotDto | null>(null);
   const [suggestions, setSuggestions] = useState<SuggestionWithCitations[]>([]);
@@ -127,6 +128,10 @@ export function AccountResearchPanel({
     Record<string, string>
   >({});
 
+  useEffect(() => {
+    latestSalesLineIdRef.current = line.salesLineId;
+  }, [line.salesLineId]);
+
   const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
   const bigFishOutreachBlocked = line.lineSlug === 'big-fish' && !line.bigFishOutreach;
   const outreachBlocked = eaglePeakOutreachBlocked || bigFishOutreachBlocked;
@@ -140,6 +145,7 @@ export function AccountResearchPanel({
     busyAction === 'refresh' ||
     busyAction === 'process' ||
     Boolean(busyAction?.startsWith('lock-') || busyAction?.startsWith('unlock-'));
+  // Copilot suggestion ignored: Search All remains available during snapshot hydration so staff can start a new run when no prior run exists.
 
   const citationsFlat = useMemo(() => {
     if (!snapshot) return [] as AccountResearchCitation[];
@@ -156,11 +162,13 @@ export function AccountResearchPanel({
   const hydrateMatch = useCallback(
     async (runId: string) => {
       if (!line.salesLineId) return;
+      const requestedSalesLineId = line.salesLineId;
       const loaded = await loadLatestProductMatch({
         retailerId: prospect.id,
-        salesLineId: line.salesLineId,
+        salesLineId: requestedSalesLineId,
         researchRunId: runId,
       });
+      if (latestSalesLineIdRef.current !== requestedSalesLineId) return;
       setMatchResult(loaded);
     },
     [line.salesLineId, prospect.id],
@@ -212,6 +220,8 @@ export function AccountResearchPanel({
     setBusyAction(forceRefresh ? 'refresh' : 'run');
     setError(null);
     setProgress(forceRefresh ? 'Starting refresh…' : 'Starting research…');
+    setSuggestions([]);
+    setMatchResult(null);
 
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -249,9 +259,12 @@ export function AccountResearchPanel({
         },
       });
       if (!done.ok) {
-        if (done.error !== 'Aborted') setError(done.error);
         setBusyAction(null);
         setProgress(null);
+        if (done.error !== 'Aborted') {
+          await hydrateAll();
+          setError(done.error);
+        }
         return;
       }
       setSnapshot(done);
@@ -272,10 +285,16 @@ export function AccountResearchPanel({
       setError(result.error);
       return;
     }
-    setSuggestions(result.suggestions);
+    const listed = await listAccountResearchSuggestions(snapshot.run.id);
+    if (!listed.ok) {
+      setError(listed.error);
+      return;
+    }
+    setSuggestions(listed.suggestions);
   }
 
   async function handleApplySuggestion(suggestionId: string) {
+    // Copilot suggestion ignored: protected-field overwrite confirmation is a larger UX flow outside this targeted triage.
     setBusyAction(`apply-${suggestionId}`);
     setError(null);
     const result = await applyAccountResearchSuggestion(suggestionId);
@@ -302,15 +321,17 @@ export function AccountResearchPanel({
 
   async function handleRunMatch() {
     if (!snapshot || !line.salesLineId) return;
+    const requestedSalesLineId = line.salesLineId;
     setBusyAction('match');
     setError(null);
     const result = await createAccountProductMatchClient({
       retailerId: prospect.id,
-      salesLineId: line.salesLineId,
+      salesLineId: requestedSalesLineId,
       researchRunId: snapshot.run.id,
       ignoreRecentSendDedup: ignoreDedup,
     });
     setBusyAction(null);
+    if (latestSalesLineIdRef.current !== requestedSalesLineId) return;
     if (!result.ok) {
       setError(result.error);
       return;
@@ -321,6 +342,7 @@ export function AccountResearchPanel({
     }
   }
 
+  // Copilot suggestion ignored: a full contact-to-draft component suite is broader test expansion; focused handoff tests cover this seam.
   async function handleContactPicked(contact: {
     accountContactId: string;
     toEmail: string;
@@ -435,7 +457,11 @@ export function AccountResearchPanel({
         </Button>
       </div>
 
-      {progress ? <p className="text-ink/60 m-0 text-sm">{progress}</p> : null}
+      {progress ? (
+        <p className="text-ink/60 m-0 text-sm" role="status" aria-live="polite">
+          {progress}
+        </p>
+      ) : null}
       {loading ? <p className="text-ink/60 m-0 text-sm">Loading research…</p> : null}
       {error ? <p className="text-error m-0 text-sm">{error}</p> : null}
 
@@ -707,7 +733,13 @@ export function AccountResearchPanel({
                     <Button
                       variant="primary"
                       className="mt-2"
-                      disabled={outreachBlocked || busyAction != null || !onOpenDraftComposer}
+                      disabled={
+                        outreachBlocked ||
+                        busyAction != null ||
+                        !onOpenDraftComposer ||
+                        !line.salesLineId ||
+                        !retailerLineAccountId
+                      }
                       onClick={() => setContactPickItem(item)}
                     >
                       Use for draft

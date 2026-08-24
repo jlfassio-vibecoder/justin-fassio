@@ -58,6 +58,7 @@ export type OutreachBriefingDraftRow = {
   productSku: string;
   productSlug: string;
   toEmail: string;
+  accountStatus?: string;
   primaryChannel: string | null;
   createdAt: string;
 };
@@ -359,12 +360,14 @@ export async function assembleOutreachBriefing(params: {
   if (draftProspectIds.length > 0) {
     const { data: names } = await client
       .from('prospects')
-      .select('id, name')
+      .select('id, name, account_status')
       .in('id', draftProspectIds);
-    const nameById = new Map((names ?? []).map((p) => [p.id, p.name?.trim() || '']));
+    const prospectById = new Map((names ?? []).map((p) => [p.id, p] as const));
     for (const d of drafts) {
-      const n = nameById.get(d.prospectId);
-      if (n) d.prospectName = n;
+      const prospect = prospectById.get(d.prospectId);
+      const name = prospect?.name?.trim();
+      if (name) d.prospectName = name;
+      if (prospect?.account_status) d.accountStatus = prospect.account_status;
     }
   }
 

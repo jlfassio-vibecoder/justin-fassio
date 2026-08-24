@@ -232,6 +232,7 @@ export function AgentBriefingTab({
   }, [reloadToken, briefingReloadToken, lineCtx.multiLineUi, lineCtx.salesLineId]);
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
+  // Copilot suggestion ignored: a new event/token deep-link protocol is out of scope; drawer close now clears its applied deep-link state.
   if (pendingDraftId && pendingDeepLinkKey !== appliedDeepLinkKey && !loading && briefing) {
     setAppliedDeepLinkKey(pendingDeepLinkKey);
     const row = briefing.drafts.find((d) => d.draftId === pendingDraftId);
@@ -398,7 +399,7 @@ export function AgentBriefingTab({
                               onClick={() =>
                                 onOpenProspect({
                                   prospectId: d.prospectId,
-                                  accountStatus: 'prospect',
+                                  accountStatus: d.accountStatus ?? 'prospect',
                                 })
                               }
                             >
@@ -410,7 +411,7 @@ export function AgentBriefingTab({
                               onClick={() =>
                                 onOpenProspect({
                                   prospectId: d.prospectId,
-                                  accountStatus: 'prospect',
+                                  accountStatus: d.accountStatus ?? 'prospect',
                                   openResearch: true,
                                 })
                               }

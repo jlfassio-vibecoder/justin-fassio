@@ -15,7 +15,7 @@ export const PRODUCT_OUTREACH_HISTORY_SELECT =
 export const PRODUCT_OUTREACH_HISTORY_LIMIT = 50;
 
 export const AGENT_PRODUCT_OUTREACH_DRAFT_SELECT =
-  'id, message_type, origin, status, catalog_item_id, resend_email_id, to_email, to_name, subject, intro_text, closing_text, prospect_id, account_contact_id, sent_by, queued_at, sent_at, payload, automation_run_id, created_at, updated_at' as const;
+  'id, message_type, origin, status, catalog_item_id, resend_email_id, to_email, to_name, subject, intro_text, closing_text, prospect_id, retailer_line_account_id, account_contact_id, sent_by, queued_at, sent_at, payload, automation_run_id, created_at, updated_at' as const;
 
 export type ProductOutreachHistoryItem = {
   id: string;
@@ -357,6 +357,7 @@ export type AgentProductOutreachDraftRow = {
   introText: string;
   closingText: string;
   prospectId: number;
+  retailerLineAccountId: string | null;
   accountContactId: string;
   sentBy: string | null;
   queuedAt: string | null;
@@ -375,6 +376,7 @@ export type InsertAgentProductOutreachDraftInput = {
   introText: string;
   closingText: string;
   prospectId: number;
+  retailerLineAccountId?: string | null;
   accountContactId: string;
   /** Null allowed for cron when OUTREACH_PREP_ACTOR_USER_ID is unset. */
   sentBy: string | null;
@@ -390,6 +392,7 @@ export type UpdateAgentProductOutreachDraftInput = {
   closingText?: string;
   /** When regenerating for a new product selection. */
   catalogItemId?: string;
+  retailerLineAccountId?: string | null;
   payload?: ProductOutreachSystemMessagePayload;
 };
 
@@ -412,6 +415,7 @@ function mapAgentDraftRow(row: {
   intro_text: string | null;
   closing_text: string | null;
   prospect_id: number | null;
+  retailer_line_account_id: string | null;
   account_contact_id: string | null;
   sent_by: string | null;
   queued_at: string | null;
@@ -451,6 +455,7 @@ function mapAgentDraftRow(row: {
     introText: row.intro_text,
     closingText: row.closing_text,
     prospectId: row.prospect_id,
+    retailerLineAccountId: row.retailer_line_account_id,
     accountContactId: row.account_contact_id,
     sentBy: row.sent_by,
     queuedAt: row.queued_at,
@@ -493,6 +498,7 @@ export async function insertAgentProductOutreachDraft(
     intro_text: input.introText,
     closing_text: input.closingText,
     prospect_id: input.prospectId,
+    retailer_line_account_id: input.retailerLineAccountId ?? null,
     account_contact_id: input.accountContactId,
     sent_by: input.sentBy,
     queued_at: null,
@@ -547,6 +553,7 @@ export async function listAgentProductOutreachDrafts(
   input: {
     catalogItemId?: string;
     prospectId?: number;
+    retailerLineAccountId?: string;
     /** Single status filter (default `draft` when `statuses` omitted). */
     status?: string;
     /** When set, overrides `status` and filters with `.in()`. */
@@ -583,6 +590,9 @@ export async function listAgentProductOutreachDrafts(
   }
   if (input.prospectId != null) {
     query = query.eq('prospect_id', input.prospectId);
+  }
+  if (input.retailerLineAccountId?.trim()) {
+    query = query.eq('retailer_line_account_id', input.retailerLineAccountId.trim());
   }
   if (input.automationRunId?.trim()) {
     query = query.eq('automation_run_id', input.automationRunId.trim());
@@ -858,6 +868,9 @@ export async function updateAgentProductOutreachDraft(
   }
   if (input.catalogItemId != null) {
     patch.catalog_item_id = input.catalogItemId.trim();
+  }
+  if (input.retailerLineAccountId !== undefined) {
+    patch.retailer_line_account_id = input.retailerLineAccountId?.trim() || null;
   }
   if (input.payload != null) {
     patch.payload = buildProductOutreachPayload(input.payload, input.payload.generation ?? null);

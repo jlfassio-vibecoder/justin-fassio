@@ -321,8 +321,12 @@ export function AccountDetailDrawer({
   const composerSentRef = useRef(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const appliedInitialSectionRef = useRef<string | null>(null);
+  const currentAccountIdRef = useRef<number | null>(account?.id ?? null);
   const [researchDraft, setResearchDraft] = useState<OgrProductEmailComposerDraft | null>(null);
   const [researchDraftProduct, setResearchDraftProduct] = useState<CatalogItem | null>(null);
+  const [researchDraftBoundAccountId, setResearchDraftBoundAccountId] = useState<number | null>(
+    account?.id ?? null,
+  );
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status
@@ -342,6 +346,16 @@ export function AccountDetailDrawer({
   const rlaScope = account && line.salesLineId ? `${account.id}:${line.salesLineId}` : null;
   const retailerLineAccountId =
     rlaScope && retailerLineAccountRecord?.scope === rlaScope ? retailerLineAccountRecord.id : null;
+  const researchDraftAccountId = account?.id ?? null;
+  if (researchDraftAccountId !== researchDraftBoundAccountId) {
+    setResearchDraftBoundAccountId(researchDraftAccountId);
+    setResearchDraft(null);
+    setResearchDraftProduct(null);
+  }
+
+  useEffect(() => {
+    currentAccountIdRef.current = account?.id ?? null;
+  }, [account?.id]);
 
   const emailSessionAccountId = account?.id ?? null;
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
@@ -401,7 +415,10 @@ export function AccountDetailDrawer({
   }, [account, line.lineSlug, line.salesLineId]);
 
   useEffect(() => {
-    if (!account || !initialSection) return;
+    if (!account || !initialSection) {
+      appliedInitialSectionRef.current = null;
+      return;
+    }
     const key = `${account.id}:${initialSection}`;
     if (appliedInitialSectionRef.current === key) return;
     appliedInitialSectionRef.current = key;
@@ -609,6 +626,7 @@ export function AccountDetailDrawer({
                 onIdentitySaved?.(next);
               }}
               onOpenDraftComposer={({ draft, catalogItem }) => {
+                if (currentAccountIdRef.current !== account.id) return;
                 setResearchDraftProduct(catalogItem);
                 setResearchDraft(draft);
               }}
