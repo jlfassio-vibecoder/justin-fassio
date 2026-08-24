@@ -33,6 +33,7 @@ import type { Prospect } from '@/lib/prospects';
 import type {
   AccountProductMatchEmptyReason,
   AccountResearchCitation,
+  AccountResearchSourceLock,
   AccountResearchSourceSearch,
 } from '@/types/database';
 
@@ -108,6 +109,12 @@ function identityBlocksResearch(snapshot: AccountResearchSnapshotDto | null): bo
   return snapshot.run.identity_confidence !== 'high';
 }
 
+function readWebsiteLock(
+  locks: Record<string, AccountResearchSourceLock> | undefined,
+): AccountResearchSourceLock | null {
+  return locks?.website ?? null;
+}
+
 export function AccountResearchPanel({
   prospect,
   retailerLineAccountId = null,
@@ -131,6 +138,12 @@ export function AccountResearchPanel({
   const [selectedCandidateBySource, setSelectedCandidateBySource] = useState<
     Record<string, string>
   >({});
+  const [websiteLock, setWebsiteLock] = useState<AccountResearchSourceLock | null>(null);
+
+  const applySnapshot = useCallback((next: AccountResearchSnapshotDto) => {
+    setSnapshot(next);
+    setWebsiteLock(readWebsiteLock(next.locksBySourceType));
+  }, []);
 
   useEffect(() => {
     latestSalesLineIdRef.current = line.salesLineId;
@@ -197,10 +210,16 @@ export function AccountResearchPanel({
       setSnapshot(null);
       setSuggestions([]);
       setMatchResult(null);
+      const websiteLatest = await fetchLatestAccountResearch(prospect.id, 'website');
+      setWebsiteLock(
+        websiteLatest.ok && websiteLatest.outcome !== 'none'
+          ? readWebsiteLock(websiteLatest.locksBySourceType)
+          : null,
+      );
       setLoading(false);
       return;
     }
-    setSnapshot({
+    applySnapshot({
       run: latest.run,
       sources: latest.sources,
       citationsBySourceId: latest.citationsBySourceId,
@@ -209,7 +228,7 @@ export function AccountResearchPanel({
     });
     await Promise.all([hydrateSuggestions(latest.run.id), hydrateMatch(latest.run.id)]);
     setLoading(false);
-  }, [hydrateMatch, hydrateSuggestions, prospect.id]);
+  }, [applySnapshot, hydrateMatch, hydrateSuggestions, prospect.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -246,7 +265,7 @@ export function AccountResearchPanel({
       return;
     }
 
-    setSnapshot({
+    applySnapshot({
       run: started.run,
       sources: started.sources,
       citationsBySourceId: started.citationsBySourceId,
@@ -258,7 +277,7 @@ export function AccountResearchPanel({
       const done = await runAccountResearchUntilDone(started.run.id, {
         signal: controller.signal,
         onProgress: (snap) => {
-          setSnapshot(snap);
+          applySnapshot(snap);
           const completed = snap.sources.filter(
             (s) => s.status !== 'pending' && s.status !== 'running',
           ).length;
@@ -274,7 +293,7 @@ export function AccountResearchPanel({
         }
         return;
       }
-      setSnapshot(done);
+      applySnapshot(done);
     }
 
     setProgress(null);
@@ -399,11 +418,38 @@ export function AccountResearchPanel({
       setError(result.error);
       return;
     }
-    setSnapshot(result);
+    applySnapshot(result);
     await Promise.all([hydrateSuggestions(result.run.id), hydrateMatch(result.run.id)]);
   }
 
+  async function handleUnlockWebsiteLock() {
+    setBusyAction('unlock-website');
+    setError(null);
+    const result = await unlockAccountResearchSource({
+      retailerId: prospect.id,
+      sourceType: 'website',
+    });
+    setBusyAction(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    applySnapshot(result);
+    const websiteSource = result.sources.find((source) => source.source_type === 'website');
+    if (websiteSource) {
+      setSelectedCandidateBySource((prev) => {
+        const next = { ...prev };
+        delete next[websiteSource.id];
+        return next;
+      });
+    }
+  }
+
   async function handleUnlockSource(source: AccountResearchSourceSearch) {
+    if (source.source_type === 'website') {
+      await handleUnlockWebsiteLock();
+      return;
+    }
     setBusyAction(`unlock-${source.id}`);
     setError(null);
     const result = await unlockAccountResearchSource({
@@ -415,7 +461,7 @@ export function AccountResearchPanel({
       setError(result.error);
       return;
     }
-    setSnapshot(result);
+    applySnapshot(result);
     setSelectedCandidateBySource((prev) => {
       const next = { ...prev };
       delete next[source.id];
@@ -490,6 +536,37 @@ export function AccountResearchPanel({
       {loading ? <p className="text-ink/60 m-0 text-sm">Loading research…</p> : null}
       {error ? <p className="text-error m-0 text-sm">{error}</p> : null}
 
+      {websiteLock ? (
+        <section aria-label="Locked official website">
+          <h4 className="text-ink/70 m-0 mb-2 text-xs font-semibold tracking-wider uppercase">
+            Official website
+          </h4>
+          <div className="border-ink/10 rounded-md border px-3 py-2 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-medium">{SOURCE_LABELS.website}</span>
+              <Tag variant="accent-2">Locked</Tag>
+            </div>
+            <a
+              href={websiteLock.locked_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-800 mt-2 inline-block text-xs hover:underline"
+            >
+              {websiteLock.locked_url}
+            </a>
+            <div className="mt-2">
+              <Button
+                variant="secondary"
+                disabled={busyAction != null}
+                onClick={() => void handleUnlockWebsiteLock()}
+              >
+                {busyAction === 'unlock-website' ? 'Unlocking…' : 'Unlock'}
+              </Button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {snapshot ? (
         <>
           <section>
@@ -497,94 +574,99 @@ export function AccountResearchPanel({
               Sources
             </h4>
             <ul className="m-0 flex list-none flex-col gap-2 p-0">
-              {snapshot.sources.map((source) => {
-                const lock = snapshot.locksBySourceType?.[source.source_type] ?? null;
-                const candidates = readSearchCandidates(
-                  source.provider_metadata as Record<string, unknown> | null,
-                );
-                const selected = selectedCandidateBySource[source.id] ?? '';
-                return (
-                  <li key={source.id} className="border-ink/10 rounded-md border px-3 py-2 text-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-medium">
-                        {SOURCE_LABELS[source.source_type] ?? source.source_type}
-                      </span>
-                      <span className="text-ink/55 flex items-center gap-2 text-xs">
-                        {lock ? <Tag variant="accent-2">Locked</Tag> : null}
-                        {sourceStatusLabel(source, Boolean(lock), candidates.length)}
-                        {snapshot.sourceFreshness[source.id] ? ' · fresh' : ''}
-                      </span>
-                    </div>
-                    {lock ? (
-                      <div className="mt-2 flex flex-col gap-2">
-                        <a
-                          href={lock.locked_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-accent-800 inline-block text-xs hover:underline"
-                        >
-                          {lock.locked_url}
-                        </a>
-                        <div>
-                          <Button
-                            variant="secondary"
-                            disabled={busyAction != null}
-                            onClick={() => void handleUnlockSource(source)}
-                          >
-                            {busyAction === `unlock-${source.id}` ? 'Unlocking…' : 'Unlock'}
-                          </Button>
-                        </div>
+              {snapshot.sources
+                .filter((source) => !(websiteLock && source.source_type === 'website'))
+                .map((source) => {
+                  const lock = snapshot.locksBySourceType?.[source.source_type] ?? null;
+                  const candidates = readSearchCandidates(
+                    source.provider_metadata as Record<string, unknown> | null,
+                  );
+                  const selected = selectedCandidateBySource[source.id] ?? '';
+                  return (
+                    <li
+                      key={source.id}
+                      className="border-ink/10 rounded-md border px-3 py-2 text-sm"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">
+                          {SOURCE_LABELS[source.source_type] ?? source.source_type}
+                        </span>
+                        <span className="text-ink/55 flex items-center gap-2 text-xs">
+                          {lock ? <Tag variant="accent-2">Locked</Tag> : null}
+                          {sourceStatusLabel(source, Boolean(lock), candidates.length)}
+                          {snapshot.sourceFreshness[source.id] ? ' · fresh' : ''}
+                        </span>
                       </div>
-                    ) : candidates.length > 0 ? (
-                      <div className="mt-2 flex flex-col gap-2">
-                        <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                          {candidates.map((candidate) => (
-                            <li key={candidate.url}>
-                              <label className="flex cursor-pointer items-start gap-2">
-                                <input
-                                  type="radio"
-                                  className="mt-1"
-                                  name={`lock-${source.id}`}
-                                  value={candidate.url}
-                                  checked={selected === candidate.url}
-                                  onChange={() =>
-                                    setSelectedCandidateBySource((prev) => ({
-                                      ...prev,
-                                      [source.id]: candidate.url,
-                                    }))
-                                  }
-                                />
-                                <span>
-                                  <span className="block text-xs font-medium">
-                                    {candidate.title ?? candidate.url}
-                                  </span>
-                                  <span className="text-ink/55 block text-[11px] break-all">
-                                    {candidate.url}
-                                  </span>
-                                  {candidate.snippet ? (
-                                    <span className="text-ink/60 mt-0.5 block text-[11px] leading-relaxed">
-                                      {candidate.snippet}
+                      {lock ? (
+                        <div className="mt-2 flex flex-col gap-2">
+                          <a
+                            href={lock.locked_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-accent-800 inline-block text-xs hover:underline"
+                          >
+                            {lock.locked_url}
+                          </a>
+                          <div>
+                            <Button
+                              variant="secondary"
+                              disabled={busyAction != null}
+                              onClick={() => void handleUnlockSource(source)}
+                            >
+                              {busyAction === `unlock-${source.id}` ? 'Unlocking…' : 'Unlock'}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : candidates.length > 0 ? (
+                        <div className="mt-2 flex flex-col gap-2">
+                          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                            {candidates.map((candidate) => (
+                              <li key={candidate.url}>
+                                <label className="flex cursor-pointer items-start gap-2">
+                                  <input
+                                    type="radio"
+                                    className="mt-1"
+                                    name={`lock-${source.id}`}
+                                    value={candidate.url}
+                                    checked={selected === candidate.url}
+                                    onChange={() =>
+                                      setSelectedCandidateBySource((prev) => ({
+                                        ...prev,
+                                        [source.id]: candidate.url,
+                                      }))
+                                    }
+                                  />
+                                  <span>
+                                    <span className="block text-xs font-medium">
+                                      {candidate.title ?? candidate.url}
                                     </span>
-                                  ) : null}
-                                </span>
-                              </label>
-                            </li>
-                          ))}
-                        </ul>
-                        <div>
-                          <Button
-                            variant="primary"
-                            disabled={busyAction != null || !selected}
-                            onClick={() => void handleLockSource(source)}
-                          >
-                            {busyAction === `lock-${source.id}` ? 'Locking…' : 'Lock in'}
-                          </Button>
+                                    <span className="text-ink/55 block text-[11px] break-all">
+                                      {candidate.url}
+                                    </span>
+                                    {candidate.snippet ? (
+                                      <span className="text-ink/60 mt-0.5 block text-[11px] leading-relaxed">
+                                        {candidate.snippet}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                </label>
+                              </li>
+                            ))}
+                          </ul>
+                          <div>
+                            <Button
+                              variant="primary"
+                              disabled={busyAction != null || !selected}
+                              onClick={() => void handleLockSource(source)}
+                            >
+                              {busyAction === `lock-${source.id}` ? 'Locking…' : 'Lock in'}
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
+                      ) : null}
+                    </li>
+                  );
+                })}
             </ul>
           </section>
 
@@ -786,6 +868,10 @@ export function AccountResearchPanel({
             ) : null}
           </section>
         </>
+      ) : websiteLock ? (
+        <p className="text-ink/50 m-0 text-sm">
+          Official website is locked. Run Search All to gather social evidence before product match.
+        </p>
       ) : (
         <p className="text-ink/50 m-0 text-sm">
           Run Website Search first, pick and lock in the official URL, then run the rest to gather

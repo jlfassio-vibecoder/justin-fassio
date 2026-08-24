@@ -107,6 +107,94 @@ describe('AccountResearchPanel', () => {
     );
   });
 
+  it('shows the locked website URL when only a website-scope run exists', async () => {
+    fetchLatestMock.mockImplementation((_retailerId: number, scope: string) => {
+      if (scope === 'website') {
+        return Promise.resolve({
+          ok: true,
+          outcome: 'found',
+          run: {
+            id: 'run-website',
+            status: 'succeeded',
+            requested_scope: 'website',
+            identity_confidence: 'high',
+            completed_at: new Date().toISOString(),
+          },
+          sources: [
+            {
+              id: 'src-website',
+              source_type: 'website',
+              status: 'succeeded',
+              resolved_public_url: 'https://trailoutfitters.com',
+              provider_metadata: {},
+            },
+          ],
+          citationsBySourceId: { 'src-website': [] },
+          sourceFreshness: { 'src-website': true },
+          locksBySourceType: {
+            website: {
+              retailer_id: 7,
+              source_type: 'website',
+              locked_url: 'https://trailoutfitters.com',
+              locked_url_normalized: 'https://trailoutfitters.com',
+              locked_by: null,
+              locked_at: new Date().toISOString(),
+            },
+          },
+        });
+      }
+      return Promise.resolve({ ok: true, outcome: 'none', run: null });
+    });
+
+    render(<AccountResearchPanel prospect={prospect} />);
+
+    expect(await screen.findByText(/No run yet/i)).toBeInTheDocument();
+    const link = await screen.findByRole('link', { name: 'https://trailoutfitters.com' });
+    expect(link).toHaveAttribute('href', 'https://trailoutfitters.com');
+    expect(screen.getByRole('button', { name: /^Unlock$/i })).toBeInTheDocument();
+  });
+
+  it('shows the locked website URL on an all-scope run without a website source row', async () => {
+    fetchLatestMock.mockResolvedValue({
+      ok: true,
+      outcome: 'found',
+      run: {
+        id: 'run-all',
+        status: 'succeeded',
+        requested_scope: 'all',
+        identity_confidence: 'high',
+        completed_at: new Date().toISOString(),
+      },
+      sources: [
+        {
+          id: 'src-fb',
+          source_type: 'facebook',
+          status: 'none_indexed',
+          resolved_public_url: null,
+          provider_metadata: {},
+        },
+      ],
+      citationsBySourceId: { 'src-fb': [] },
+      sourceFreshness: { 'src-fb': true },
+      locksBySourceType: {
+        website: {
+          retailer_id: 7,
+          source_type: 'website',
+          locked_url: 'https://trailoutfitters.com',
+          locked_url_normalized: 'https://trailoutfitters.com',
+          locked_by: null,
+          locked_at: new Date().toISOString(),
+        },
+      },
+    });
+
+    render(<AccountResearchPanel prospect={prospect} />);
+
+    const link = await screen.findByRole('link', { name: 'https://trailoutfitters.com' });
+    expect(link).toHaveAttribute('href', 'https://trailoutfitters.com');
+    expect(screen.getAllByText(/^Locked$/i)).toHaveLength(1);
+  });
+
   it('shows identity warning when confidence is not high', async () => {
     fetchLatestMock.mockResolvedValue({
       ok: true,
