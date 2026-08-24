@@ -49,6 +49,19 @@ describe('extractShopifyEvidenceFromHtml', () => {
     expect(extractShopifyEvidenceFromHtml(html).found).toBe(true);
   });
 
+  it('detects a cdn.shopify.com script src reference', () => {
+    const html = '<script src="https://cdn.shopify.com/s/files/1/0001/theme.js"></script>';
+    expect(extractShopifyEvidenceFromHtml(html)).toEqual({
+      found: true,
+      evidenceUrl: 'https://cdn.shopify.com/s/files/1/0001/theme.js',
+    });
+  });
+
+  it('does not treat a lookalike host as Shopify evidence', () => {
+    const html = '<script src="https://cdn.shopify.com.evil.com/theme.js"></script>';
+    expect(extractShopifyEvidenceFromHtml(html).found).toBe(false);
+  });
+
   it('detects a "Powered by Shopify" footer credit with no evidence URL', () => {
     const html = '<footer>Powered by Shopify</footer>';
     expect(extractShopifyEvidenceFromHtml(html)).toEqual({ found: true, evidenceUrl: null });

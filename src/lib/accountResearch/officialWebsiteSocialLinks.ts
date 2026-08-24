@@ -6,6 +6,7 @@ import type {
   WebsiteSocialLink,
 } from '@/lib/accountResearch/context';
 import { extractHandleFromProfileUrl } from '@/lib/accountResearch/socialProfile';
+import { isShopifyEvidenceUrl } from '@/lib/accountResearch/sources';
 
 const MAX_REDIRECTS = 5;
 const FETCH_TIMEOUT_MS = 8_000;
@@ -78,6 +79,17 @@ function parseAnchorLinks(html: string): string[] {
   return urls;
 }
 
+function parseUrlAttributeLinks(html: string): string[] {
+  const urls: string[] = [];
+  const re = /(?:href|src)\s*=\s*["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const url = m[1]?.trim();
+    if (url && /^https?:\/\//i.test(url)) urls.push(url);
+  }
+  return urls;
+}
+
 function parseJsonLdSameAs(html: string): string[] {
   const urls: string[] = [];
   const re = /<script[^>]+type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
@@ -134,20 +146,9 @@ export function extractSocialLinksFromHtml(
  * "Powered by Shopify" footer credit.
  */
 export function extractShopifyEvidenceFromHtml(html: string): ShopifyEvidence {
-  const anchorUrls = parseAnchorLinks(html);
-  for (const url of anchorUrls) {
-    try {
-      const host = new URL(url).hostname.toLowerCase();
-      if (
-        host.endsWith('.myshopify.com') ||
-        host === 'myshopify.com' ||
-        host.includes('cdn.shopify.com') ||
-        host.includes('shopifycdn.com')
-      ) {
-        return { found: true, evidenceUrl: url };
-      }
-    } catch {
-      continue;
+  for (const url of parseUrlAttributeLinks(html)) {
+    if (isShopifyEvidenceUrl(url)) {
+      return { found: true, evidenceUrl: url };
     }
   }
 

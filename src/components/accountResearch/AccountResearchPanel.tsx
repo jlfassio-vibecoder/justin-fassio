@@ -148,7 +148,8 @@ export function AccountResearchPanel({
 
   const fresh = snapshot ? isUsableFreshRun(snapshot.run) : false;
   const identityBlocked = identityBlocksResearch(snapshot);
-  const websiteLocked = Boolean(snapshot?.locksBySourceType?.website) || websiteLockFallback;
+  const websiteLocked =
+    Boolean(snapshot?.locksBySourceType?.website) || (snapshot == null && websiteLockFallback);
   const running =
     snapshot?.run.status === 'pending' ||
     snapshot?.run.status === 'running' ||
@@ -213,6 +214,7 @@ export function AccountResearchPanel({
       setLoading(false);
       return;
     }
+    setWebsiteLockFallback(false);
     setSnapshot({
       run: latest.run,
       sources: latest.sources,

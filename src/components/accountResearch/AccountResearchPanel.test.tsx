@@ -120,6 +120,31 @@ describe('AccountResearchPanel', () => {
     );
   });
 
+  it('keeps Run Search All disabled when an all-scope snapshot has no website lock', async () => {
+    fetchLatestMock.mockResolvedValue({
+      ok: true,
+      outcome: 'found',
+      run: {
+        id: 'run-all',
+        status: 'succeeded',
+        requested_scope: 'all',
+        identity_confidence: 'high',
+        completed_at: new Date().toISOString(),
+      },
+      sources: [],
+      citationsBySourceId: {},
+      sourceFreshness: {},
+      locksBySourceType: {},
+    });
+
+    render(<AccountResearchPanel prospect={prospect} />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Run Search All/i })).toBeDisabled(),
+    );
+    expect(screen.getByText(/Lock the official website first/i)).toBeInTheDocument();
+  });
+
   it('starts a website-only run from Run Website Search', async () => {
     const user = userEvent.setup();
     startResearchMock.mockResolvedValue({
