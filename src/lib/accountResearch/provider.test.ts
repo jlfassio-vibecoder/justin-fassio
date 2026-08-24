@@ -156,15 +156,13 @@ describe('executeAccountResearchSourceSearch', () => {
         numResults: 10,
       }),
     );
-    expect(exaSearchMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({ category: expect.anything() }),
-    );
+    expect(exaSearchMock).toHaveBeenCalledWith(expect.objectContaining({ category: 'company' }));
     expect(exaSearchMock).not.toHaveBeenCalledWith(
       expect.objectContaining({ userLocation: expect.anything() }),
     );
     expect(generateTextMock.mock.calls[0]?.[0]?.toolChoice).toBe('required');
     expect(generateTextMock.mock.calls[0]?.[0]?.prompt).toContain(
-      '"Trail Outfitters" official website',
+      'Official website of Trail Outfitters',
     );
     expect(generateTextMock.mock.calls[0]?.[0]?.prompt).toContain(
       'Reject similarly named competitors',
@@ -244,10 +242,10 @@ describe('executeAccountResearchSourceSearch', () => {
       }),
     );
     expect(generateTextMock.mock.calls[0]?.[0]?.prompt).toContain(
-      `"Buckerfield's Kelowna" official website`,
+      `Official website of Buckerfield's Kelowna`,
     );
     expect(result.status).toBe('succeeded');
-    expect(result.queryText).toContain(`"Buckerfield's Kelowna" official website`);
+    expect(result.queryText).toContain(`Official website of Buckerfield's Kelowna`);
     expect(result.queryText).toContain('Kelowna');
     expect(result.resolvedPublicUrl).toBeNull();
     expect(result.citations).toHaveLength(0);
@@ -298,7 +296,7 @@ describe('executeAccountResearchSourceSearch', () => {
       }),
     );
     expect(generateTextMock.mock.calls[0]?.[0]?.prompt).toContain(
-      `"Buckerfield's Kelowna" official website`,
+      `Official website of Buckerfield's Kelowna`,
     );
     expect(result.resolvedPublicUrl).toContain('buckerfields.ca');
     expect(result.resolvedPublicUrl).not.toContain('yellowpages');
