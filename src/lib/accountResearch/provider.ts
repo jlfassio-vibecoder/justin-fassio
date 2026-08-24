@@ -211,6 +211,10 @@ export async function executeAccountResearchSourceSearch(args: {
           // Website: over-fetch then name-filter to top 5.
           numResults: websiteDiscovery ? 10 : ACCOUNT_RESEARCH_MAX_RESULTS_PER_SOURCE,
           type: 'auto',
+          // Bias toward business/company pages for unlocked website discovery —
+          // Exa has a purpose-built category for exactly this "find the
+          // official site of a company" search.
+          ...(websiteDiscovery ? { category: 'company' as const } : {}),
           ...(userLocation ? { userLocation } : {}),
           ...(includeDomains?.length ? { includeDomains } : {}),
           ...(excludeDomains?.length ? { excludeDomains } : {}),
