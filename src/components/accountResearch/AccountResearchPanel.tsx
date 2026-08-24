@@ -3,6 +3,10 @@ import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
 import { AccountResearchContactPickModal } from '@/components/accountResearch/AccountResearchContactPickModal';
 import type { OgrProductEmailComposerDraft } from '@/components/OgrProductEmailComposerModal';
+import {
+  isAccountResearchV1Scope,
+  type AccountResearchV1Scope,
+} from '@/lib/accountResearch/constants';
 import type { SuggestionWithCitations } from '@/lib/accountResearch/suggestions';
 import { isUsableFreshRun } from '@/lib/accountResearch/freshness';
 import {
@@ -141,10 +145,13 @@ export function AccountResearchPanel({
   const running =
     snapshot?.run.status === 'pending' ||
     snapshot?.run.status === 'running' ||
-    busyAction === 'run' ||
     busyAction === 'refresh' ||
     busyAction === 'process' ||
-    Boolean(busyAction?.startsWith('lock-') || busyAction?.startsWith('unlock-'));
+    Boolean(
+      busyAction?.startsWith('run-') ||
+      busyAction?.startsWith('lock-') ||
+      busyAction?.startsWith('unlock-'),
+    );
   // Copilot suggestion ignored: Search All remains available during snapshot hydration so staff can start a new run when no prior run exists.
 
   const citationsFlat = useMemo(() => {
@@ -216,8 +223,8 @@ export function AccountResearchPanel({
     };
   }, [hydrateAll]);
 
-  async function runResearch(forceRefresh: boolean) {
-    setBusyAction(forceRefresh ? 'refresh' : 'run');
+  async function runResearch(scope: AccountResearchV1Scope, forceRefresh: boolean) {
+    setBusyAction(forceRefresh ? 'refresh' : `run-${scope}`);
     setError(null);
     setProgress(forceRefresh ? 'Starting refresh…' : 'Starting research…');
     setSuggestions([]);
@@ -229,7 +236,7 @@ export function AccountResearchPanel({
 
     const started = await startAccountResearch({
       retailerId: prospect.id,
-      scope: 'all',
+      scope,
       forceRefresh,
     });
     if (!started.ok) {
@@ -445,13 +452,31 @@ export function AccountResearchPanel({
       ) : null}
 
       <div className="flex flex-wrap gap-2">
-        <Button variant="primary" disabled={running} onClick={() => void runResearch(false)}>
-          {busyAction === 'run' ? 'Running…' : 'Run Search All'}
+        <Button
+          variant="primary"
+          disabled={running}
+          onClick={() => void runResearch('website', false)}
+        >
+          {busyAction === 'run-website' ? 'Running…' : 'Run Website Search'}
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={running}
+          onClick={() => void runResearch('all', false)}
+        >
+          {busyAction === 'run-all' ? 'Running…' : 'Run Search All'}
         </Button>
         <Button
           variant="secondary"
           disabled={running || !snapshot}
-          onClick={() => void runResearch(true)}
+          onClick={() =>
+            void runResearch(
+              snapshot && isAccountResearchV1Scope(snapshot.run.requested_scope)
+                ? snapshot.run.requested_scope
+                : 'all',
+              true,
+            )
+          }
         >
           {busyAction === 'refresh' ? 'Refreshing…' : 'Refresh'}
         </Button>
@@ -763,7 +788,8 @@ export function AccountResearchPanel({
         </>
       ) : (
         <p className="text-ink/50 m-0 text-sm">
-          Run Search All to gather website and social evidence before product match.
+          Run Website Search first, pick and lock in the official URL, then run the rest to gather
+          social evidence before product match.
         </p>
       )}
 
