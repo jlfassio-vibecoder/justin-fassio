@@ -9,6 +9,9 @@ const DIRECTORY_HOST_SUFFIXES = [
   'golftown.com',
   'golfnb.ca',
   'golfcanada.ca',
+  'golfontario.ca',
+  'golfsaskatchewan.org',
+  'golfinbritishcolumbia.com',
   'golfpass.com',
   'golfnow.com',
   'integolf.com',
@@ -30,6 +33,8 @@ const DIRECTORY_HOST_SUFFIXES = [
   'bbb.org',
   'chamberofcommerce.com',
   'kelownachamber.org',
+  'tourismkelowna.com',
+  'kelowna.com',
 ];
 
 /** Directory hosts to exclude from official-website discovery (Exa excludeDomains). */
