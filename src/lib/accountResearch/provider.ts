@@ -38,6 +38,32 @@ function userLocationFromCtx(ctx: AccountResearchContext): string | undefined {
   return undefined;
 }
 
+/**
+ * Pull the `query` argument the model actually sent to exa_search.
+ *
+ * `gw.tools.exaSearch()`'s config only accepts defaults (type, numResults,
+ * userLocation, includeDomains/excludeDomains, contents, …) — it has no
+ * `query` field, so nothing in this file can force the search string. The
+ * model always authors `query` itself for this tool call, guided only by
+ * the prompt text. This is captured for observability so a bad candidate
+ * list can be diagnosed against what was actually searched, not just what
+ * we intended to search.
+ */
+function extractModelIssuedQuery(search: {
+  toolCalls?: ReadonlyArray<{ toolName?: string; input?: unknown }>;
+  steps?: ReadonlyArray<{ toolCalls?: ReadonlyArray<{ toolName?: string; input?: unknown }> }>;
+}): string | null {
+  const calls = [...(search.toolCalls ?? []), ...(search.steps ?? []).flatMap((s) => s.toolCalls ?? [])];
+  for (const call of calls) {
+    if (call.toolName !== 'exa_search') continue;
+    const input = call.input;
+    if (input && typeof input === 'object' && typeof (input as { query?: unknown }).query === 'string') {
+      return (input as { query: string }).query;
+    }
+  }
+  return null;
+}
+
 function sanitizeError(err: unknown): string {
   const message = err instanceof Error ? err.message : 'Provider search failed';
   return message
@@ -112,12 +138,12 @@ export async function executeAccountResearchSourceSearch(args: {
     const result = await generateText({
       model,
       stopWhen: stepCountIs(ACCOUNT_RESEARCH_PROVIDER_STEP_LIMIT),
-      // Force a search; pinned `query` in tool config overrides any model-rewritten query.
+      // Force a search. The `query` argument is authored by the model, not this
+      // config — gw.tools.exaSearch() has no field to pin it (see
+      // extractModelIssuedQuery below) — so the prompt is the only lever.
       toolChoice: 'required',
       tools: {
         exa_search: gw.tools.exaSearch({
-          // Gateway config `query` wins over model-generated tool args (exact business name).
-          query: queryText,
           // Website: over-fetch then name-filter to top 5.
           numResults: websiteDiscovery ? 10 : ACCOUNT_RESEARCH_MAX_RESULTS_PER_SOURCE,
           type: 'auto',
@@ -129,7 +155,7 @@ export async function executeAccountResearchSourceSearch(args: {
             highlights: true,
             extras: { links: websiteDiscovery ? 8 : 5 },
           },
-        } as Parameters<typeof gw.tools.exaSearch>[0] & { query: string }),
+        }),
       },
       prompt: buildForcedExaSearchPrompt({
         queryText,
@@ -139,7 +165,6 @@ export async function executeAccountResearchSourceSearch(args: {
             ? `Staff-locked URL: ${lockedUrl}. Prefer evidence on that host only.`
             : args.sourceType === 'website'
               ? [
-                  `Search must use this exact query (already pinned on the tool): ${queryText}`,
                   `Exact business name: "${args.ctx.businessName.trim()}".`,
                   'Only keep results whose title or domain matches this exact business name.',
                   'Reject similarly named competitors in the same city or industry.',
@@ -159,6 +184,7 @@ export async function executeAccountResearchSourceSearch(args: {
     });
 
     const hits = extractSearchToolHits(result);
+    const modelQuery = extractModelIssuedQuery(result);
     const brief = result.text?.trim().slice(0, ACCOUNT_RESEARCH_BRIEF_MAX_CHARS) || null;
     const lowerBrief = (brief ?? '').toLowerCase();
     const blocked =
@@ -193,6 +219,7 @@ export async function executeAccountResearchSourceSearch(args: {
           include_domains: includeDomains ?? null,
           exclude_domains: excludeDomains ?? null,
           step_limit: ACCOUNT_RESEARCH_PROVIDER_STEP_LIMIT,
+          model_query: modelQuery,
         },
       };
     }
@@ -218,6 +245,7 @@ export async function executeAccountResearchSourceSearch(args: {
         exclude_domains: excludeDomains ?? null,
         step_limit: ACCOUNT_RESEARCH_PROVIDER_STEP_LIMIT,
         locked_url: lockedUrl,
+        model_query: modelQuery,
       },
     };
   } catch (err) {
