@@ -11,13 +11,16 @@ import {
   ACCOUNT_RESEARCH_PROSPECT_SELECT,
   buildAccountResearchContext,
   mapProspectRowForResearch,
+  mergeWebsiteShopifyEvidence,
   mergeWebsiteSocialCache,
+  readWebsiteShopifyEvidence,
   readWebsiteSocialCache,
   type RunWebsiteSocialCache,
+  type ShopifyEvidence,
 } from '@/lib/accountResearch/context';
 import { mapOutcomeCitations } from '@/lib/accountResearch/citationRows';
 import { isSocialPlatform } from '@/lib/accountResearch/context';
-import { fetchOfficialWebsiteSocialLinks } from '@/lib/accountResearch/officialWebsiteSocialLinks';
+import { fetchOfficialWebsiteEvidence } from '@/lib/accountResearch/officialWebsiteSocialLinks';
 import { runSatisfiesScopeRequest } from '@/lib/accountResearch/freshness';
 import { resolveAccountIdentity, type IdentityResolution } from '@/lib/accountResearch/identity';
 import { executeAccountResearchSourceSearch } from '@/lib/accountResearch/provider';
@@ -38,7 +41,7 @@ export type StartOrReuseResult =
   | { ok: true; outcome: 'cached' | 'started'; snapshot: AccountResearchSnapshot }
   | {
       ok: false;
-      outcome: 'active_conflict' | 'rate_limited' | 'not_found' | 'error';
+      outcome: 'active_conflict' | 'rate_limited' | 'not_found' | 'website_not_locked' | 'error';
       error: string;
       status: number;
     };
@@ -190,6 +193,14 @@ export async function startOrReuseAccountResearch(args: {
         ok: false,
         outcome: 'active_conflict',
         error: 'An active research run already exists for this retailer',
+        status: 409,
+      };
+    }
+    if (/WEBSITE_NOT_LOCKED/i.test(rpcError.message)) {
+      return {
+        ok: false,
+        outcome: 'website_not_locked',
+        error: 'Lock the official website before running the rest of the search.',
         status: 409,
       };
     }
@@ -406,15 +417,78 @@ export async function processNextAccountResearchSource(args: {
   let websiteSocialLinks: RunWebsiteSocialCache = readWebsiteSocialCache(
     (researchRun.provider_metadata as Record<string, unknown> | null) ?? {},
   );
+  let shopifyEvidence: ShopifyEvidence | null = readWebsiteShopifyEvidence(
+    (researchRun.provider_metadata as Record<string, unknown> | null) ?? {},
+  );
 
-  let lockedUrl =
-    (await loadSourceLocks(args.supabase, researchRun.retailer_id))[source.source_type]
-      ?.locked_url ?? null;
+  const priorLocks = await loadSourceLocks(args.supabase, researchRun.retailer_id);
+  let lockedUrl = priorLocks[source.source_type]?.locked_url ?? null;
+
+  // Non-website sources now discover exclusively by scraping the staff-locked
+  // official website (never an independent search) — fetch and cache it once
+  // per run, shared across every remaining source in this run.
+  if (
+    source.source_type !== 'website' &&
+    !(researchRun.provider_metadata as Record<string, unknown> | null)?.[
+      'website_social_links_fetched_at'
+    ]
+  ) {
+    const websiteLockUrl = priorLocks.website?.locked_url ?? null;
+    const websiteHost = websiteLockUrl ? hostnameFromUrl(websiteLockUrl) : null;
+
+    if (!websiteLockUrl || !websiteHost) {
+      // Defensive: the RPC precondition should already prevent this.
+      await args.supabase.rpc('complete_account_research_source_search', {
+        p_source_search_id: source.id,
+        p_status: 'blocked',
+        p_error: 'Lock the official website before running this source.',
+        p_citations: [],
+      });
+      const snap = await finalizeAccountResearchRun(args.supabase, args.runId);
+      if (!snap) return { ok: false, error: 'Failed after missing website lock', status: 500 };
+      return {
+        ok: true,
+        processed: true,
+        sourceId: source.id,
+        snapshot: snap,
+        done: snap.run.status !== 'running',
+      };
+    }
+
+    let runProviderMetadata =
+      (researchRun.provider_metadata as Record<string, unknown> | null) ?? {};
+    try {
+      const fetched = await fetchOfficialWebsiteEvidence({
+        officialHostname: websiteHost,
+        websiteUrl: websiteLockUrl,
+      });
+      websiteSocialLinks = fetched.links;
+      shopifyEvidence = fetched.shopifyEvidence;
+      runProviderMetadata = mergeWebsiteSocialCache(runProviderMetadata, fetched.links);
+      runProviderMetadata = mergeWebsiteShopifyEvidence(
+        runProviderMetadata,
+        fetched.shopifyEvidence,
+      );
+      runProviderMetadata.website_fetch_url = fetched.fetchUrl;
+    } catch (err) {
+      runProviderMetadata.website_fetch_error =
+        err instanceof Error ? err.message.slice(0, 200) : 'Website fetch failed';
+      // Mark the cache as "attempted" even on failure so later sources in this
+      // run don't retry the fetch on every claim.
+      runProviderMetadata.website_social_links_fetched_at = new Date().toISOString();
+    }
+
+    await args.supabase
+      .from('account_research_runs')
+      .update({ provider_metadata: runProviderMetadata })
+      .eq('id', args.runId);
+  }
 
   let outcome = await executeAccountResearchSourceSearch({
     sourceType: source.source_type,
     ctx: researchCtx,
     websiteSocialLinks,
+    shopifyEvidence,
     lockedUrl,
   });
 
@@ -427,6 +501,7 @@ export async function processNextAccountResearchSource(args: {
       sourceType: source.source_type,
       ctx: researchCtx,
       websiteSocialLinks,
+      shopifyEvidence,
       lockedUrl,
     });
   } else {
@@ -457,12 +532,17 @@ export async function processNextAccountResearchSource(args: {
 
     if (lockedHost) {
       try {
-        const fetched = await fetchOfficialWebsiteSocialLinks({
+        const fetched = await fetchOfficialWebsiteEvidence({
           officialHostname: lockedHost,
           websiteUrl: lockedUrl,
         });
         websiteSocialLinks = fetched.links;
+        shopifyEvidence = fetched.shopifyEvidence;
         runProviderMetadata = mergeWebsiteSocialCache(runProviderMetadata, fetched.links);
+        runProviderMetadata = mergeWebsiteShopifyEvidence(
+          runProviderMetadata,
+          fetched.shopifyEvidence,
+        );
         runProviderMetadata.website_fetch_url = fetched.fetchUrl;
       } catch (err) {
         runProviderMetadata.website_fetch_error =

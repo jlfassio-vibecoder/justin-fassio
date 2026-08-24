@@ -1,7 +1,12 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import type { SocialPlatform, WebsiteSocialLink } from '@/lib/accountResearch/context';
+import type {
+  ShopifyEvidence,
+  SocialPlatform,
+  WebsiteSocialLink,
+} from '@/lib/accountResearch/context';
 import { extractHandleFromProfileUrl } from '@/lib/accountResearch/socialProfile';
+import { isShopifyEvidenceUrl } from '@/lib/accountResearch/sources';
 
 const MAX_REDIRECTS = 5;
 const FETCH_TIMEOUT_MS = 8_000;
@@ -74,6 +79,17 @@ function parseAnchorLinks(html: string): string[] {
   return urls;
 }
 
+function parseUrlAttributeLinks(html: string): string[] {
+  const urls: string[] = [];
+  const re = /(?:href|src)\s*=\s*["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const url = m[1]?.trim();
+    if (url && /^https?:\/\//i.test(url)) urls.push(url);
+  }
+  return urls;
+}
+
 function parseJsonLdSameAs(html: string): string[] {
   const urls: string[] = [];
   const re = /<script[^>]+type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
@@ -121,6 +137,26 @@ export function extractSocialLinksFromHtml(
   }
 
   return found;
+}
+
+/**
+ * Same "what counts as Shopify evidence" bar as the locked-citation path
+ * (`isShopifyEvidenceUrl` in sources.ts): a myshopify.com link, a
+ * cdn.shopify.com/shopifycdn.com asset reference, or a literal
+ * "Powered by Shopify" footer credit.
+ */
+export function extractShopifyEvidenceFromHtml(html: string): ShopifyEvidence {
+  for (const url of parseUrlAttributeLinks(html)) {
+    if (isShopifyEvidenceUrl(url)) {
+      return { found: true, evidenceUrl: url };
+    }
+  }
+
+  if (/powered\s+by\s+shopify/i.test(html)) {
+    return { found: true, evidenceUrl: null };
+  }
+
+  return { found: false, evidenceUrl: null };
 }
 
 async function fetchWithGuards(
@@ -190,15 +226,20 @@ async function fetchWithGuards(
   }
 }
 
-export async function fetchOfficialWebsiteSocialLinks(args: {
+export async function fetchOfficialWebsiteEvidence(args: {
   officialHostname: string;
   websiteUrl?: string | null;
-}): Promise<{ fetchUrl: string; links: Partial<Record<SocialPlatform, WebsiteSocialLink>> }> {
+}): Promise<{
+  fetchUrl: string;
+  links: Partial<Record<SocialPlatform, WebsiteSocialLink>>;
+  shopifyEvidence: ShopifyEvidence;
+}> {
   const host = normalizeOfficialHostname(args.officialHostname);
   const startUrl =
     args.websiteUrl && /^https?:\/\//i.test(args.websiteUrl) ? args.websiteUrl : `https://${host}/`;
 
   const html = await fetchWithGuards(startUrl, host);
   const links = extractSocialLinksFromHtml(html);
-  return { fetchUrl: startUrl, links };
+  const shopifyEvidence = extractShopifyEvidenceFromHtml(html);
+  return { fetchUrl: startUrl, links, shopifyEvidence };
 }

@@ -95,11 +95,11 @@ function normalizePublishedAt(raw: string | null | undefined): string | null {
   return new Date(ms).toISOString();
 }
 
-function isShopifyEvidenceUrl(url: string): boolean {
+export function isShopifyEvidenceUrl(url: string): boolean {
   const host = hostFromUrl(url);
   if (!host) return false;
   if (host.endsWith('.myshopify.com') || host === 'myshopify.com') return true;
-  if (host.includes('cdn.shopify.com') || host.includes('shopifycdn.com')) return true;
+  if (hostMatches(host, ['cdn.shopify.com', 'shopifycdn.com'])) return true;
   return false;
 }
 

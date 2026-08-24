@@ -6,12 +6,13 @@ import {
   buildAccountResearchContext,
   isSocialPlatform,
   mapProspectRowForResearch,
+  mergeWebsiteShopifyEvidence,
   mergeWebsiteSocialCache,
   readWebsiteSocialCache,
 } from '@/lib/accountResearch/context';
 import type { AccountResearchPlatformScope } from '@/lib/accountResearch/constants';
 import { ACCOUNT_RESEARCH_PROVIDER } from '@/lib/accountResearch/constants';
-import { fetchOfficialWebsiteSocialLinks } from '@/lib/accountResearch/officialWebsiteSocialLinks';
+import { fetchOfficialWebsiteEvidence } from '@/lib/accountResearch/officialWebsiteSocialLinks';
 import { normalizeSourceUrl } from '@/lib/accountResearch/normalizeUrl';
 import { computeFinalRunStatus } from '@/lib/accountResearch/orchestrate';
 import { executeAccountResearchSourceSearch } from '@/lib/accountResearch/provider';
@@ -176,11 +177,15 @@ async function applyWebsiteLockIdentity(args: {
 
   if (lockedHost) {
     try {
-      const fetched = await fetchOfficialWebsiteSocialLinks({
+      const fetched = await fetchOfficialWebsiteEvidence({
         officialHostname: lockedHost,
         websiteUrl: args.lockedUrl,
       });
       runProviderMetadata = mergeWebsiteSocialCache(runProviderMetadata, fetched.links);
+      runProviderMetadata = mergeWebsiteShopifyEvidence(
+        runProviderMetadata,
+        fetched.shopifyEvidence,
+      );
       runProviderMetadata.website_fetch_url = fetched.fetchUrl;
     } catch (err) {
       runProviderMetadata.website_fetch_error =

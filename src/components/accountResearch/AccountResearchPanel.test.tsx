@@ -53,8 +53,45 @@ describe('AccountResearchPanel', () => {
     fetchLatestMock.mockResolvedValue({ ok: true, outcome: 'none', run: null });
   });
 
-  it('renders empty state and starts research from Run Search All', async () => {
+  it('disables Run Search All until the website is locked', async () => {
+    render(<AccountResearchPanel prospect={prospect} />);
+
+    expect(await screen.findByText(/No run yet/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Run Search All/i })).toBeDisabled();
+    expect(await screen.findByText(/Lock the official website first/i)).toBeInTheDocument();
+  });
+
+  it('enables and starts Run Search All once the website is locked (found via the website-scope fallback fetch)', async () => {
     const user = userEvent.setup();
+    fetchLatestMock.mockImplementation((_retailerId: number, scope: string) => {
+      if (scope === 'website') {
+        return Promise.resolve({
+          ok: true,
+          outcome: 'found',
+          run: {
+            id: 'run-website',
+            status: 'succeeded',
+            requested_scope: 'website',
+            identity_confidence: 'high',
+            completed_at: new Date().toISOString(),
+          },
+          sources: [],
+          citationsBySourceId: {},
+          sourceFreshness: {},
+          locksBySourceType: {
+            website: {
+              retailer_id: 7,
+              source_type: 'website',
+              locked_url: 'https://trailoutfitters.com',
+              locked_url_normalized: 'https://trailoutfitters.com',
+              locked_by: null,
+              locked_at: new Date().toISOString(),
+            },
+          },
+        });
+      }
+      return Promise.resolve({ ok: true, outcome: 'none', run: null });
+    });
     startResearchMock.mockResolvedValue({
       ok: true,
       outcome: 'started',
@@ -73,11 +110,39 @@ describe('AccountResearchPanel', () => {
 
     expect(await screen.findByText(/No run yet/i)).toBeInTheDocument();
     expect(screen.queryByText(/Identity must be high confidence/i)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Run Search All/i })).toBeEnabled(),
+    );
     await user.click(screen.getByRole('button', { name: /Run Search All/i }));
     await waitFor(() => expect(startResearchMock).toHaveBeenCalled());
     expect(startResearchMock).toHaveBeenCalledWith(
       expect.objectContaining({ scope: 'all', forceRefresh: false }),
     );
+  });
+
+  it('keeps Run Search All disabled when an all-scope snapshot has no website lock', async () => {
+    fetchLatestMock.mockResolvedValue({
+      ok: true,
+      outcome: 'found',
+      run: {
+        id: 'run-all',
+        status: 'succeeded',
+        requested_scope: 'all',
+        identity_confidence: 'high',
+        completed_at: new Date().toISOString(),
+      },
+      sources: [],
+      citationsBySourceId: {},
+      sourceFreshness: {},
+      locksBySourceType: {},
+    });
+
+    render(<AccountResearchPanel prospect={prospect} />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Run Search All/i })).toBeDisabled(),
+    );
+    expect(screen.getByText(/Lock the official website first/i)).toBeInTheDocument();
   });
 
   it('starts a website-only run from Run Website Search', async () => {

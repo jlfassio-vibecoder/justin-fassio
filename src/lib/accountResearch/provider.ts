@@ -15,9 +15,17 @@ import {
   ACCOUNT_RESEARCH_PROVIDER_STEP_LIMIT,
   type AccountResearchPlatformScope,
 } from '@/lib/accountResearch/constants';
-import type { AccountResearchContext, RunWebsiteSocialCache } from '@/lib/accountResearch/context';
+import type {
+  AccountResearchContext,
+  RunWebsiteSocialCache,
+  ShopifyEvidence,
+} from '@/lib/accountResearch/context';
 import { isSocialPlatform } from '@/lib/accountResearch/context';
-import { toSearchCandidates, toWebsiteSearchCandidates } from '@/lib/accountResearch/candidates';
+import {
+  toSearchCandidates,
+  toWebsiteSearchCandidates,
+  type SearchCandidate,
+} from '@/lib/accountResearch/candidates';
 import { normalizeSourceUrl } from '@/lib/accountResearch/normalizeUrl';
 import { buildForcedExaSearchPrompt } from '@/lib/accountResearch/searchPrompt';
 import { executeSocialPlatformSearch } from '@/lib/accountResearch/socialSourceSearch';
@@ -79,6 +87,47 @@ function sanitizeError(err: unknown): string {
     .slice(0, 500);
 }
 
+/**
+ * Unlocked Shopify discovery: scrape-based only, same as social platforms —
+ * no independent Exa search. Found (a myshopify.com/CDN link on the locked
+ * official site) → one candidate for staff to review and lock. Text-only
+ * "Powered by Shopify" evidence (no URL) has nothing lockable to offer, so
+ * it's treated the same as no evidence at all: none_indexed.
+ */
+function shopifyEvidenceDiscoveryOutcome(args: {
+  ctx: AccountResearchContext;
+  shopifyEvidence?: ShopifyEvidence | null;
+}): SourceSearchOutcome {
+  const queryText = SOURCE_STRATEGIES.shopify.buildQuery(args.ctx);
+  const evidenceUrl = args.shopifyEvidence?.found ? args.shopifyEvidence.evidenceUrl : null;
+  const candidates: SearchCandidate[] = evidenceUrl
+    ? [
+        {
+          rank: 1,
+          url: evidenceUrl,
+          title: 'Shopify evidence on official website',
+          snippet: null,
+        },
+      ]
+    : [];
+
+  return {
+    status: candidates.length > 0 ? 'succeeded' : 'none_indexed',
+    queryText,
+    resolvedPublicUrl: null,
+    brief: null,
+    citations: [],
+    error: null,
+    providerMetadata: {
+      provider: ACCOUNT_RESEARCH_PROVIDER,
+      model: ACCOUNT_RESEARCH_MODEL,
+      result_count: 0,
+      candidates,
+      source: 'website_scrape',
+    },
+  };
+}
+
 function withLockedUrlCitation(
   citations: CitationCandidate[],
   lockedUrl: string,
@@ -99,6 +148,7 @@ export async function executeAccountResearchSourceSearch(args: {
   sourceType: AccountResearchPlatformScope;
   ctx: AccountResearchContext;
   websiteSocialLinks?: RunWebsiteSocialCache;
+  shopifyEvidence?: ShopifyEvidence | null;
   lockedUrl?: string | null;
 }): Promise<SourceSearchOutcome> {
   if (isSocialPlatform(args.sourceType)) {
@@ -107,6 +157,13 @@ export async function executeAccountResearchSourceSearch(args: {
       ctx: args.ctx,
       websiteSocialLinks: args.websiteSocialLinks ?? {},
       lockedUrl: args.lockedUrl,
+    });
+  }
+
+  if (args.sourceType === 'shopify' && !args.lockedUrl) {
+    return shopifyEvidenceDiscoveryOutcome({
+      ctx: args.ctx,
+      shopifyEvidence: args.shopifyEvidence,
     });
   }
 
