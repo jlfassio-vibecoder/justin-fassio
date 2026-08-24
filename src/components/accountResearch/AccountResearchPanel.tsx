@@ -4,7 +4,9 @@ import { Tag } from '@/components/ui/Tag';
 import { AccountResearchContactPickModal } from '@/components/accountResearch/AccountResearchContactPickModal';
 import type { OgrProductEmailComposerDraft } from '@/components/OgrProductEmailComposerModal';
 import {
+  ACCOUNT_RESEARCH_PLATFORM_SCOPES,
   isAccountResearchV1Scope,
+  type AccountResearchPlatformScope,
   type AccountResearchV1Scope,
 } from '@/lib/accountResearch/constants';
 import type { SuggestionWithCitations } from '@/lib/accountResearch/suggestions';
@@ -109,10 +111,24 @@ function identityBlocksResearch(snapshot: AccountResearchSnapshotDto | null): bo
   return snapshot.run.identity_confidence !== 'high';
 }
 
-function readWebsiteLock(
+function readRetailerLocks(
   locks: Record<string, AccountResearchSourceLock> | undefined,
-): AccountResearchSourceLock | null {
-  return locks?.website ?? null;
+): Record<string, AccountResearchSourceLock> {
+  if (!locks) return {};
+  const out: Record<string, AccountResearchSourceLock> = {};
+  for (const sourceType of ACCOUNT_RESEARCH_PLATFORM_SCOPES) {
+    const lock = locks[sourceType];
+    if (lock) out[sourceType] = lock;
+  }
+  return out;
+}
+
+function orderedLockedSources(
+  locks: Record<string, AccountResearchSourceLock>,
+): AccountResearchSourceLock[] {
+  return ACCOUNT_RESEARCH_PLATFORM_SCOPES.flatMap((sourceType) =>
+    locks[sourceType] ? [locks[sourceType]] : [],
+  );
 }
 
 export function AccountResearchPanel({
@@ -138,12 +154,18 @@ export function AccountResearchPanel({
   const [selectedCandidateBySource, setSelectedCandidateBySource] = useState<
     Record<string, string>
   >({});
-  const [websiteLock, setWebsiteLock] = useState<AccountResearchSourceLock | null>(null);
+  const [retailerLocks, setRetailerLocks] = useState<Record<string, AccountResearchSourceLock>>({});
 
   const applySnapshot = useCallback((next: AccountResearchSnapshotDto) => {
     setSnapshot(next);
-    setWebsiteLock(readWebsiteLock(next.locksBySourceType));
+    setRetailerLocks(readRetailerLocks(next.locksBySourceType));
   }, []);
+
+  const lockedSources = useMemo(() => orderedLockedSources(retailerLocks), [retailerLocks]);
+  const lockedSourceTypes = useMemo(
+    () => new Set(lockedSources.map((lock) => lock.source_type)),
+    [lockedSources],
+  );
 
   useEffect(() => {
     latestSalesLineIdRef.current = line.salesLineId;
@@ -211,10 +233,10 @@ export function AccountResearchPanel({
       setSuggestions([]);
       setMatchResult(null);
       const websiteLatest = await fetchLatestAccountResearch(prospect.id, 'website');
-      setWebsiteLock(
+      setRetailerLocks(
         websiteLatest.ok && websiteLatest.outcome !== 'none'
-          ? readWebsiteLock(websiteLatest.locksBySourceType)
-          : null,
+          ? readRetailerLocks(websiteLatest.locksBySourceType)
+          : {},
       );
       setLoading(false);
       return;
@@ -422,12 +444,12 @@ export function AccountResearchPanel({
     await Promise.all([hydrateSuggestions(result.run.id), hydrateMatch(result.run.id)]);
   }
 
-  async function handleUnlockWebsiteLock() {
-    setBusyAction('unlock-website');
+  async function handleUnlockSourceLock(sourceType: AccountResearchPlatformScope) {
+    setBusyAction(`unlock-${sourceType}`);
     setError(null);
     const result = await unlockAccountResearchSource({
       retailerId: prospect.id,
-      sourceType: 'website',
+      sourceType,
     });
     setBusyAction(null);
     if (!result.ok) {
@@ -435,38 +457,14 @@ export function AccountResearchPanel({
       return;
     }
     applySnapshot(result);
-    const websiteSource = result.sources.find((source) => source.source_type === 'website');
-    if (websiteSource) {
+    const source = result.sources.find((row) => row.source_type === sourceType);
+    if (source) {
       setSelectedCandidateBySource((prev) => {
         const next = { ...prev };
-        delete next[websiteSource.id];
+        delete next[source.id];
         return next;
       });
     }
-  }
-
-  async function handleUnlockSource(source: AccountResearchSourceSearch) {
-    if (source.source_type === 'website') {
-      await handleUnlockWebsiteLock();
-      return;
-    }
-    setBusyAction(`unlock-${source.id}`);
-    setError(null);
-    const result = await unlockAccountResearchSource({
-      retailerId: prospect.id,
-      sourceType: source.source_type,
-    });
-    setBusyAction(null);
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    applySnapshot(result);
-    setSelectedCandidateBySource((prev) => {
-      const next = { ...prev };
-      delete next[source.id];
-      return next;
-    });
   }
 
   return (
@@ -536,34 +534,45 @@ export function AccountResearchPanel({
       {loading ? <p className="text-ink/60 m-0 text-sm">Loading research…</p> : null}
       {error ? <p className="text-error m-0 text-sm">{error}</p> : null}
 
-      {websiteLock ? (
-        <section aria-label="Locked official website">
+      {lockedSources.length > 0 ? (
+        <section aria-label="Locked sources">
           <h4 className="text-ink/70 m-0 mb-2 text-xs font-semibold tracking-wider uppercase">
-            Official website
+            Locked sources
           </h4>
-          <div className="border-ink/10 rounded-md border px-3 py-2 text-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-medium">{SOURCE_LABELS.website}</span>
-              <Tag variant="accent-2">Locked</Tag>
-            </div>
-            <a
-              href={websiteLock.locked_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent-800 mt-2 inline-block text-xs hover:underline"
-            >
-              {websiteLock.locked_url}
-            </a>
-            <div className="mt-2">
-              <Button
-                variant="secondary"
-                disabled={busyAction != null}
-                onClick={() => void handleUnlockWebsiteLock()}
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            {lockedSources.map((lock) => (
+              <li
+                key={lock.source_type}
+                className="border-ink/10 rounded-md border px-3 py-2 text-sm"
               >
-                {busyAction === 'unlock-website' ? 'Unlocking…' : 'Unlock'}
-              </Button>
-            </div>
-          </div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">
+                    {SOURCE_LABELS[lock.source_type] ?? lock.source_type}
+                  </span>
+                  <Tag variant="accent-2">Locked</Tag>
+                </div>
+                <a
+                  href={lock.locked_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent-800 mt-2 inline-block text-xs hover:underline"
+                >
+                  {lock.locked_url}
+                </a>
+                <div className="mt-2">
+                  <Button
+                    variant="secondary"
+                    disabled={busyAction != null}
+                    onClick={() =>
+                      void handleUnlockSourceLock(lock.source_type as AccountResearchPlatformScope)
+                    }
+                  >
+                    {busyAction === `unlock-${lock.source_type}` ? 'Unlocking…' : 'Unlock'}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 
@@ -575,9 +584,8 @@ export function AccountResearchPanel({
             </h4>
             <ul className="m-0 flex list-none flex-col gap-2 p-0">
               {snapshot.sources
-                .filter((source) => !(websiteLock && source.source_type === 'website'))
+                .filter((source) => !lockedSourceTypes.has(source.source_type))
                 .map((source) => {
-                  const lock = snapshot.locksBySourceType?.[source.source_type] ?? null;
                   const candidates = readSearchCandidates(
                     source.provider_metadata as Record<string, unknown> | null,
                   );
@@ -592,32 +600,11 @@ export function AccountResearchPanel({
                           {SOURCE_LABELS[source.source_type] ?? source.source_type}
                         </span>
                         <span className="text-ink/55 flex items-center gap-2 text-xs">
-                          {lock ? <Tag variant="accent-2">Locked</Tag> : null}
-                          {sourceStatusLabel(source, Boolean(lock), candidates.length)}
+                          {sourceStatusLabel(source, false, candidates.length)}
                           {snapshot.sourceFreshness[source.id] ? ' · fresh' : ''}
                         </span>
                       </div>
-                      {lock ? (
-                        <div className="mt-2 flex flex-col gap-2">
-                          <a
-                            href={lock.locked_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-accent-800 inline-block text-xs hover:underline"
-                          >
-                            {lock.locked_url}
-                          </a>
-                          <div>
-                            <Button
-                              variant="secondary"
-                              disabled={busyAction != null}
-                              onClick={() => void handleUnlockSource(source)}
-                            >
-                              {busyAction === `unlock-${source.id}` ? 'Unlocking…' : 'Unlock'}
-                            </Button>
-                          </div>
-                        </div>
-                      ) : candidates.length > 0 ? (
+                      {candidates.length > 0 ? (
                         <div className="mt-2 flex flex-col gap-2">
                           <ul className="m-0 flex list-none flex-col gap-2 p-0">
                             {candidates.map((candidate) => (
@@ -868,9 +855,10 @@ export function AccountResearchPanel({
             ) : null}
           </section>
         </>
-      ) : websiteLock ? (
+      ) : lockedSources.length > 0 ? (
         <p className="text-ink/50 m-0 text-sm">
-          Official website is locked. Run Search All to gather social evidence before product match.
+          Locked sources are saved. Run Search All to gather remaining social evidence before
+          product match.
         </p>
       ) : (
         <p className="text-ink/50 m-0 text-sm">

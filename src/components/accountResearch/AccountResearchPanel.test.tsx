@@ -195,6 +195,64 @@ describe('AccountResearchPanel', () => {
     expect(screen.getAllByText(/^Locked$/i)).toHaveLength(1);
   });
 
+  it('shows all locked social URLs even when those sources are absent from the run', async () => {
+    fetchLatestMock.mockResolvedValue({
+      ok: true,
+      outcome: 'found',
+      run: {
+        id: 'run-all',
+        status: 'succeeded',
+        requested_scope: 'all',
+        identity_confidence: 'high',
+        completed_at: new Date().toISOString(),
+      },
+      sources: [],
+      citationsBySourceId: {},
+      sourceFreshness: {},
+      locksBySourceType: {
+        website: {
+          retailer_id: 7,
+          source_type: 'website',
+          locked_url: 'https://trailoutfitters.com',
+          locked_url_normalized: 'https://trailoutfitters.com',
+          locked_by: null,
+          locked_at: new Date().toISOString(),
+        },
+        instagram: {
+          retailer_id: 7,
+          source_type: 'instagram',
+          locked_url: 'https://www.instagram.com/trailoutfitters/',
+          locked_url_normalized: 'https://instagram.com/trailoutfitters',
+          locked_by: null,
+          locked_at: new Date().toISOString(),
+        },
+        facebook: {
+          retailer_id: 7,
+          source_type: 'facebook',
+          locked_url: 'https://www.facebook.com/trailoutfitters',
+          locked_url_normalized: 'https://facebook.com/trailoutfitters',
+          locked_by: null,
+          locked_at: new Date().toISOString(),
+        },
+      },
+    });
+
+    render(<AccountResearchPanel prospect={prospect} />);
+
+    expect(await screen.findByText(/Locked sources/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'https://trailoutfitters.com' })).toHaveAttribute(
+      'href',
+      'https://trailoutfitters.com',
+    );
+    expect(
+      screen.getByRole('link', { name: 'https://www.instagram.com/trailoutfitters/' }),
+    ).toHaveAttribute('href', 'https://www.instagram.com/trailoutfitters/');
+    expect(
+      screen.getByRole('link', { name: 'https://www.facebook.com/trailoutfitters' }),
+    ).toHaveAttribute('href', 'https://www.facebook.com/trailoutfitters');
+    expect(screen.getAllByRole('button', { name: /^Unlock$/i })).toHaveLength(3);
+  });
+
   it('shows identity warning when confidence is not high', async () => {
     fetchLatestMock.mockResolvedValue({
       ok: true,
@@ -337,7 +395,9 @@ describe('AccountResearchPanel', () => {
     expect(await screen.findByText(/^Locked$/i)).toBeInTheDocument();
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Unlock/i }));
-    expect(unlockResearchMock).toHaveBeenCalled();
+    expect(unlockResearchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceType: 'facebook' }),
+    );
     expect(await screen.findByText(/Awaiting staff URL/i)).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /Spallumcheen Golf/i })).toBeInTheDocument();
   });
