@@ -123,6 +123,28 @@ describe('toWebsiteSearchCandidates', () => {
     expect(candidates).toHaveLength(1);
     expect(candidates[0]?.url).toMatch(/blackmountaingolfclub\.com/i);
   });
+
+  it('rejects an unrelated business that only shares the place-name tokens', () => {
+    // "Black Mountain" alone is a shared local place name — a distillery, a
+    // vineyard, or a trailhead nearby can legitimately host/title-match on
+    // just "black" + "mountain". Requiring "golf" + "club" too (the category
+    // words from the CRM name) is what tells them apart.
+    const candidates = toWebsiteSearchCandidates('Black Mountain Golf Club', [
+      {
+        url: 'https://blackmountaindistillery.com/',
+        title: 'Black Mountain Distillery — Craft Spirits',
+        snippet: 'Small-batch spirits in the Black Mountain area',
+      },
+      {
+        url: 'https://blackmountaingolfclub.com/',
+        title: 'Black Mountain Golf Club',
+        snippet: 'Kelowna',
+      },
+    ]);
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.url).toMatch(/blackmountaingolfclub\.com/i);
+  });
 });
 
 describe('toSocialProfileCandidates', () => {

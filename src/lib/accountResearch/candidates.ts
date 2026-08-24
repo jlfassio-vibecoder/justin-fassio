@@ -22,33 +22,27 @@ function candidateHost(url: string): string | null {
   }
 }
 
-/** Industry/legal filler — ignored when matching a business name to a URL/title. */
-const WEBSITE_NAME_STOPWORDS = new Set([
-  'golf',
-  'club',
-  'course',
-  'resort',
-  'hotel',
-  'shop',
-  'store',
-  'the',
-  'and',
-  'llc',
-  'inc',
-  'ltd',
-  'company',
-  'centre',
-  'center',
-  'pro',
-  'shop',
-]);
+/**
+ * Pure connective/legal filler — never appears on a real business's own site as
+ * an identifier, so it's safe to drop from the required match set.
+ *
+ * Category words (golf, club, resort, hotel, shop, store, …) are deliberately
+ * KEPT out of this list, unlike an earlier version of this filter. Stripping
+ * them left only the place-name tokens (e.g. "black" + "mountain") as the
+ * entire match requirement, which let an unrelated business sharing that place
+ * name (e.g. "Black Mountain Distillery") pass the gate for a CRM entry named
+ * "Black Mountain Golf Club" and outrank the real site. Real official sites
+ * almost always carry the category word in their title even when the domain
+ * abbreviates it, so requiring it costs little recall while fixing precision.
+ */
+const WEBSITE_NAME_FILLER_WORDS = new Set(['the', 'and', 'llc', 'inc', 'ltd', 'company']);
 
-/** Distinctive tokens from the CRM business name (e.g. black + mountain). */
+/** Meaningful tokens from the CRM business name (e.g. black + mountain + golf + club). */
 export function websiteNameMatchTokens(businessName: string): string[] {
   return businessName
     .toLowerCase()
     .split(/[^a-z0-9]+/)
-    .filter((t) => t.length >= 4 && !WEBSITE_NAME_STOPWORDS.has(t));
+    .filter((t) => t.length >= 4 && !WEBSITE_NAME_FILLER_WORDS.has(t));
 }
 
 function compactAlnum(value: string): string {

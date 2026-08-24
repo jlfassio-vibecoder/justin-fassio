@@ -147,9 +147,14 @@ describe('executeAccountResearchSourceSearch', () => {
       ctx: { ...baseCtx, officialHostname: 'trailoutfitters.com' },
     });
 
+    // The gw.tools.exaSearch() config has no `query` field — the model always
+    // authors the search string itself, so the pinned query can only reach it
+    // via the prompt text, never via the tool config.
+    expect(exaSearchMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ query: expect.anything() }),
+    );
     expect(exaSearchMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        query: expect.stringContaining('"Trail Outfitters" official website'),
         excludeDomains: expect.arrayContaining(['yellowpages.ca', 'integolf.com']),
         numResults: 10,
       }),
@@ -162,12 +167,41 @@ describe('executeAccountResearchSourceSearch', () => {
     );
     expect(generateTextMock.mock.calls[0]?.[0]?.toolChoice).toBe('required');
     expect(generateTextMock.mock.calls[0]?.[0]?.prompt).toContain(
+      '"Trail Outfitters" official website',
+    );
+    expect(generateTextMock.mock.calls[0]?.[0]?.prompt).toContain(
       'Reject similarly named competitors',
     );
     expect(result.status).toBe('succeeded');
     expect(result.resolvedPublicUrl).toBeNull();
     expect(result.citations).toHaveLength(0);
     expect(readSearchCandidates(result.providerMetadata)).toHaveLength(1);
+  });
+
+  it('captures the query the model actually sent to exa_search for observability', async () => {
+    generateTextMock.mockResolvedValue({
+      text: 'Official site.',
+      toolCalls: [
+        {
+          toolName: 'exa_search',
+          input: { query: 'Trail Outfitters shop Bend Oregon' },
+        },
+      ],
+      toolResults: [
+        {
+          output: {
+            results: [{ url: 'https://trailoutfitters.com/about', title: 'About' }],
+          },
+        },
+      ],
+    });
+
+    const result = await executeAccountResearchSourceSearch({
+      sourceType: 'website',
+      ctx: { ...baseCtx, officialHostname: 'trailoutfitters.com' },
+    });
+
+    expect(result.providerMetadata.model_query).toBe('Trail Outfitters shop Bend Oregon');
   });
 
   it('drops Yellow Pages website candidates and does not auto-resolve', async () => {
@@ -204,11 +238,16 @@ describe('executeAccountResearchSourceSearch', () => {
       },
     });
 
+    expect(exaSearchMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ query: expect.anything() }),
+    );
     expect(exaSearchMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        query: expect.stringContaining(`"Buckerfield's Kelowna" official website`),
         excludeDomains: expect.arrayContaining(['yellowpages.ca']),
       }),
+    );
+    expect(generateTextMock.mock.calls[0]?.[0]?.prompt).toContain(
+      `"Buckerfield's Kelowna" official website`,
     );
     expect(result.status).toBe('succeeded');
     expect(result.queryText).toContain(`"Buckerfield's Kelowna" official website`);
@@ -253,11 +292,16 @@ describe('executeAccountResearchSourceSearch', () => {
       lockedUrl: locked,
     });
 
+    expect(exaSearchMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ query: expect.anything() }),
+    );
     expect(exaSearchMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        query: expect.stringContaining(`"Buckerfield's Kelowna" official website`),
         includeDomains: ['buckerfields.ca'],
       }),
+    );
+    expect(generateTextMock.mock.calls[0]?.[0]?.prompt).toContain(
+      `"Buckerfield's Kelowna" official website`,
     );
     expect(result.resolvedPublicUrl).toContain('buckerfields.ca');
     expect(result.resolvedPublicUrl).not.toContain('yellowpages');
