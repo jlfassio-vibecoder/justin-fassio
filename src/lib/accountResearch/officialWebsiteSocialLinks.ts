@@ -1,6 +1,10 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import type { SocialPlatform, WebsiteSocialLink } from '@/lib/accountResearch/context';
+import type {
+  ShopifyEvidence,
+  SocialPlatform,
+  WebsiteSocialLink,
+} from '@/lib/accountResearch/context';
 import { extractHandleFromProfileUrl } from '@/lib/accountResearch/socialProfile';
 
 const MAX_REDIRECTS = 5;
@@ -123,6 +127,37 @@ export function extractSocialLinksFromHtml(
   return found;
 }
 
+/**
+ * Same "what counts as Shopify evidence" bar as the locked-citation path
+ * (`isShopifyEvidenceUrl` in sources.ts): a myshopify.com link, a
+ * cdn.shopify.com/shopifycdn.com asset reference, or a literal
+ * "Powered by Shopify" footer credit.
+ */
+export function extractShopifyEvidenceFromHtml(html: string): ShopifyEvidence {
+  const anchorUrls = parseAnchorLinks(html);
+  for (const url of anchorUrls) {
+    try {
+      const host = new URL(url).hostname.toLowerCase();
+      if (
+        host.endsWith('.myshopify.com') ||
+        host === 'myshopify.com' ||
+        host.includes('cdn.shopify.com') ||
+        host.includes('shopifycdn.com')
+      ) {
+        return { found: true, evidenceUrl: url };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  if (/powered\s+by\s+shopify/i.test(html)) {
+    return { found: true, evidenceUrl: null };
+  }
+
+  return { found: false, evidenceUrl: null };
+}
+
 async function fetchWithGuards(
   url: string,
   expectedHost: string,
@@ -190,15 +225,20 @@ async function fetchWithGuards(
   }
 }
 
-export async function fetchOfficialWebsiteSocialLinks(args: {
+export async function fetchOfficialWebsiteEvidence(args: {
   officialHostname: string;
   websiteUrl?: string | null;
-}): Promise<{ fetchUrl: string; links: Partial<Record<SocialPlatform, WebsiteSocialLink>> }> {
+}): Promise<{
+  fetchUrl: string;
+  links: Partial<Record<SocialPlatform, WebsiteSocialLink>>;
+  shopifyEvidence: ShopifyEvidence;
+}> {
   const host = normalizeOfficialHostname(args.officialHostname);
   const startUrl =
     args.websiteUrl && /^https?:\/\//i.test(args.websiteUrl) ? args.websiteUrl : `https://${host}/`;
 
   const html = await fetchWithGuards(startUrl, host);
   const links = extractSocialLinksFromHtml(html);
-  return { fetchUrl: startUrl, links };
+  const shopifyEvidence = extractShopifyEvidenceFromHtml(html);
+  return { fetchUrl: startUrl, links, shopifyEvidence };
 }

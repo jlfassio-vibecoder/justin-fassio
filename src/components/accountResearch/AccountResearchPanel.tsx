@@ -131,6 +131,12 @@ export function AccountResearchPanel({
   const [selectedCandidateBySource, setSelectedCandidateBySource] = useState<
     Record<string, string>
   >({});
+  // Locks are retailer-wide, not run-scoped, but the panel's main `snapshot`
+  // only hydrates from the latest 'all'-scope run. Right after the dedicated
+  // website flow (a 'website'-scope run) locks the site, there may be no
+  // 'all' run yet at all — this fallback lets "Run Search All" know the
+  // website is locked even before it's ever been run.
+  const [websiteLockFallback, setWebsiteLockFallback] = useState(false);
 
   useEffect(() => {
     latestSalesLineIdRef.current = line.salesLineId;
@@ -142,6 +148,7 @@ export function AccountResearchPanel({
 
   const fresh = snapshot ? isUsableFreshRun(snapshot.run) : false;
   const identityBlocked = identityBlocksResearch(snapshot);
+  const websiteLocked = Boolean(snapshot?.locksBySourceType?.website) || websiteLockFallback;
   const running =
     snapshot?.run.status === 'pending' ||
     snapshot?.run.status === 'running' ||
@@ -197,6 +204,12 @@ export function AccountResearchPanel({
       setSnapshot(null);
       setSuggestions([]);
       setMatchResult(null);
+      const websiteLatest = await fetchLatestAccountResearch(prospect.id, 'website');
+      setWebsiteLockFallback(
+        websiteLatest.ok &&
+          websiteLatest.outcome !== 'none' &&
+          Boolean(websiteLatest.locksBySourceType?.website),
+      );
       setLoading(false);
       return;
     }
@@ -416,6 +429,7 @@ export function AccountResearchPanel({
       return;
     }
     setSnapshot(result);
+    if (source.source_type === 'website') setWebsiteLockFallback(false);
     setSelectedCandidateBySource((prev) => {
       const next = { ...prev };
       delete next[source.id];
@@ -461,7 +475,7 @@ export function AccountResearchPanel({
         </Button>
         <Button
           variant="secondary"
-          disabled={running}
+          disabled={running || !websiteLocked}
           onClick={() => void runResearch('all', false)}
         >
           {busyAction === 'run-all' ? 'Running…' : 'Run Search All'}
@@ -481,6 +495,12 @@ export function AccountResearchPanel({
           {busyAction === 'refresh' ? 'Refreshing…' : 'Refresh'}
         </Button>
       </div>
+      {!websiteLocked ? (
+        <p className="text-ink/55 m-0 text-xs">
+          Lock the official website first — Run Search All scrapes it for social channels and
+          Shopify evidence instead of guessing.
+        </p>
+      ) : null}
 
       {progress ? (
         <p className="text-ink/60 m-0 text-sm" role="status" aria-live="polite">

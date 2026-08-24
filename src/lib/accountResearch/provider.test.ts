@@ -52,24 +52,7 @@ describe('executeAccountResearchSourceSearch', () => {
     vi.clearAllMocks();
   });
 
-  it('stores website HTML social links as candidates without auto-locking', async () => {
-    generateTextMock.mockResolvedValue({
-      text: 'Hits.',
-      toolResults: [
-        {
-          output: {
-            results: [
-              {
-                url: 'https://www.instagram.com/othergolf/',
-                title: 'Other',
-                snippet: 'Unrelated',
-              },
-            ],
-          },
-        },
-      ],
-    });
-
+  it('stores website HTML social links as candidates without auto-locking or any Exa call', async () => {
     const result = await executeAccountResearchSourceSearch({
       sourceType: 'instagram',
       ctx: baseCtx,
@@ -82,46 +65,60 @@ describe('executeAccountResearchSourceSearch', () => {
       },
     });
 
-    expect(generateTextMock).toHaveBeenCalledTimes(1);
+    expect(generateTextMock).not.toHaveBeenCalled();
+    expect(exaSearchMock).not.toHaveBeenCalled();
+    expect(result.status).toBe('succeeded');
     expect(result.resolvedPublicUrl).toBeNull();
     expect(result.citations).toHaveLength(0);
     const candidates = readSearchCandidates(result.providerMetadata);
+    expect(candidates).toHaveLength(1);
     expect(candidates[0]?.url).toContain('instagram.com/trailoutfitters');
-    expect(candidates.some((c) => c.url.includes('instagram.com/othergolf'))).toBe(true);
   });
 
-  it('stores Instagram discovery candidates without resolving a profile', async () => {
-    generateTextMock.mockResolvedValue({
-      text: 'Mixed results.',
-      toolResults: [
-        {
-          output: {
-            results: [
-              {
-                url: 'https://www.instagram.com/trailoutfitters/',
-                title: 'Trail Outfitters',
-                snippet: 'Bend OR',
-              },
-              {
-                url: 'https://www.instagram.com/p/ABC123/',
-                title: 'Post',
-                snippet: 'sale',
-              },
-            ],
-          },
-        },
-      ],
-    });
-
+  it('reports no_profile with no Exa fallback when the site has no Instagram link', async () => {
     const result = await executeAccountResearchSourceSearch({
       sourceType: 'instagram',
       ctx: baseCtx,
     });
 
+    expect(generateTextMock).not.toHaveBeenCalled();
+    expect(exaSearchMock).not.toHaveBeenCalled();
+    expect(result.status).toBe('none_indexed');
     expect(result.resolvedPublicUrl).toBeNull();
     expect(result.citations).toHaveLength(0);
     const candidates = readSearchCandidates(result.providerMetadata);
-    expect(candidates.some((c) => /instagram\.com\/trailoutfitters/i.test(c.url))).toBe(true);
+    expect(candidates).toHaveLength(0);
+  });
+
+  it('discovers Shopify evidence from the scraped website with no Exa call', async () => {
+    const result = await executeAccountResearchSourceSearch({
+      sourceType: 'shopify',
+      ctx: baseCtx,
+      shopifyEvidence: {
+        found: true,
+        evidenceUrl: 'https://trail-outfitters.myshopify.com/collections/all',
+      },
+    });
+
+    expect(generateTextMock).not.toHaveBeenCalled();
+    expect(exaSearchMock).not.toHaveBeenCalled();
+    expect(result.status).toBe('succeeded');
+    const candidates = readSearchCandidates(result.providerMetadata);
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.url).toContain('myshopify.com');
+  });
+
+  it('reports none_indexed with no Exa fallback when the site has no Shopify evidence', async () => {
+    const result = await executeAccountResearchSourceSearch({
+      sourceType: 'shopify',
+      ctx: baseCtx,
+      shopifyEvidence: { found: false, evidenceUrl: null },
+    });
+
+    expect(generateTextMock).not.toHaveBeenCalled();
+    expect(exaSearchMock).not.toHaveBeenCalled();
+    expect(result.status).toBe('none_indexed');
+    expect(readSearchCandidates(result.providerMetadata)).toHaveLength(0);
   });
 
   it('does not domain-filter website discovery even when official hostname is known', async () => {

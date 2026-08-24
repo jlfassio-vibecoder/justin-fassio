@@ -24,6 +24,19 @@ export const ACCOUNT_RESEARCH_PLATFORM_SCOPES = [
 
 export type AccountResearchPlatformScope = (typeof ACCOUNT_RESEARCH_PLATFORM_SCOPES)[number];
 
+/**
+ * What 'all' expands to. Website is deliberately excluded — it's discovered
+ * and locked through its own dedicated flow, and everything else now scrapes
+ * that locked site for evidence instead of independently searching.
+ */
+export const ACCOUNT_RESEARCH_ALL_SCOPE_PLATFORMS = [
+  'shopify',
+  'instagram',
+  'facebook',
+  'tiktok',
+  'pinterest',
+] as const satisfies readonly AccountResearchPlatformScope[];
+
 export const ACCOUNT_RESEARCH_FRESHNESS_DAYS = 7;
 export const ACCOUNT_RESEARCH_MAX_RESULTS_PER_SOURCE = 5;
 export const ACCOUNT_RESEARCH_EXCERPT_MAX_CHARS = 500;
@@ -50,7 +63,7 @@ export function isAccountResearchPlatformScope(
 }
 
 export function scopesForRequested(scope: AccountResearchV1Scope): AccountResearchPlatformScope[] {
-  if (scope === 'all') return [...ACCOUNT_RESEARCH_PLATFORM_SCOPES];
+  if (scope === 'all') return [...ACCOUNT_RESEARCH_ALL_SCOPE_PLATFORMS];
   return [scope];
 }
 

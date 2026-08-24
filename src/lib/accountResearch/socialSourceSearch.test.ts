@@ -40,117 +40,46 @@ describe('executeSocialPlatformSearch', () => {
     vi.clearAllMocks();
   });
 
-  it('runs a single discovery search with the two-variable query', async () => {
-    generateTextMock.mockResolvedValueOnce({
-      toolResults: [
-        {
-          output: {
-            results: [
-              {
-                url: 'https://instagram.com/spallumcheengolf',
-                title: 'Spallumcheen Golf & Country Club',
-                snippet: '',
-              },
-            ],
-          },
-        },
-      ],
-    });
-
+  it('discovers a profile from the scraped website link without any Exa call', async () => {
     const result = await executeSocialPlatformSearch({
       platform: 'instagram',
       ctx,
-      websiteSocialLinks: {},
+      websiteSocialLinks: {
+        instagram: {
+          url: 'https://instagram.com/spallumcheengolf',
+          handle: 'spallumcheengolf',
+          source: 'html_anchor',
+        },
+      },
     });
 
-    expect(generateTextMock).toHaveBeenCalledTimes(1);
-    const expectedQuery =
-      '"Spallumcheen Golf & Country Club" official Instagram profile site:instagram.com';
-    expect(generateTextMock.mock.calls[0]?.[0]?.prompt).toContain(expectedQuery);
-    expect(generateTextMock.mock.calls[0]?.[0]?.prompt).toContain(
-      'Set the tool parameter "query" to exactly this string',
-    );
-    expect(generateTextMock.mock.calls[0]?.[0]?.prompt).toContain('exa_search');
-    expect(result.queryText).toBe(expectedQuery);
-    expect(result.socialMetadata.profile_query).toBe(expectedQuery);
+    expect(generateTextMock).not.toHaveBeenCalled();
+    expect(exaSearchMock).not.toHaveBeenCalled();
+    expect(result.status).toBe('succeeded');
     expect(result.resolvedPublicUrl).toBeNull();
     expect(result.citations).toHaveLength(0);
-    expect(exaSearchMock).toHaveBeenCalledWith(
-      expect.objectContaining({ includeDomains: ['instagram.com'] }),
-    );
+    expect(result.socialMetadata.resolution_method).toBe('website_html_link');
+    const candidates = readSearchCandidates(result.providerMetadata);
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.url).toContain('instagram.com/spallumcheengolf');
   });
 
-  it('does not fabricate profile URL when hits are all posts', async () => {
-    generateTextMock.mockResolvedValueOnce({
-      toolResults: [
-        {
-          output: {
-            results: [
-              { url: 'https://instagram.com/reel/ABC', title: 'Reel', snippet: '' },
-              { url: 'https://instagram.com/p/DEF', title: 'Post', snippet: '' },
-            ],
-          },
-        },
-      ],
-    });
-
+  it('reports no_profile with no Exa fallback when the site has no link for the platform', async () => {
     const result = await executeSocialPlatformSearch({
       platform: 'instagram',
       ctx,
       websiteSocialLinks: {},
     });
 
+    expect(generateTextMock).not.toHaveBeenCalled();
+    expect(exaSearchMock).not.toHaveBeenCalled();
     expect(result.confirmedProfile).toBeNull();
     expect(result.resolvedPublicUrl).toBeNull();
     expect(result.citations).toHaveLength(0);
     expect(result.status).toBe('none_indexed');
-    expect(generateTextMock).toHaveBeenCalledTimes(1);
+    expect(result.socialMetadata.empty_outcome).toBe('no_profile');
     const candidates = readSearchCandidates(result.providerMetadata);
     expect(candidates).toHaveLength(0);
-  });
-
-  it('drops marketplace noise and keeps facebook.com/SpallGolf as a lockable profile candidate', async () => {
-    generateTextMock.mockResolvedValueOnce({
-      toolResults: [
-        {
-          output: {
-            results: [
-              {
-                url: 'https://www.facebook.com/marketplace/106956609336424/cacti',
-                title: 'Cacti for sale',
-                snippet: 'Kelowna',
-              },
-              {
-                url: 'https://www.facebook.com/TheCountryClubID/',
-                title: 'The Country Club',
-                snippet: 'Idaho',
-              },
-              {
-                url: 'https://www.facebook.com/SpallGolf',
-                title: 'Spallumcheen Golf & Country Club',
-                snippet: 'Vernon BC',
-              },
-            ],
-          },
-        },
-      ],
-    });
-
-    const result = await executeSocialPlatformSearch({
-      platform: 'facebook',
-      ctx,
-      websiteSocialLinks: {},
-    });
-
-    expect(result.status).toBe('succeeded');
-    expect(result.confirmedProfile).toBeNull();
-    expect(result.resolvedPublicUrl).toBeNull();
-    expect(exaSearchMock).toHaveBeenCalledWith(
-      expect.objectContaining({ includeDomains: ['facebook.com', 'fb.com'] }),
-    );
-    const candidates = readSearchCandidates(result.providerMetadata);
-    expect(candidates.every((c) => !c.url.includes('marketplace'))).toBe(true);
-    expect(candidates.some((c) => /facebook\.com\/spallgolf/i.test(c.url))).toBe(true);
   });
 
   it('uses staff-locked facebook.com/SpallGolf for activity and does not rewrite the URL', async () => {

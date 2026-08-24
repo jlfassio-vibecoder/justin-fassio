@@ -96,6 +96,11 @@ export function mapProspectRowForResearch(row: ProspectListRow): Prospect {
   return mapProspectRow(row);
 }
 
+export type ShopifyEvidence = {
+  found: boolean;
+  evidenceUrl: string | null;
+};
+
 export type SocialEmptyOutcome = 'no_profile' | 'no_activity';
 
 export type SocialSourceMetadata = {
@@ -123,5 +128,23 @@ export function mergeWebsiteSocialCache(
     ...(existing ?? {}),
     website_social_links: links,
     website_social_links_fetched_at: new Date().toISOString(),
+  };
+}
+
+export function readWebsiteShopifyEvidence(
+  providerMetadata: Record<string, unknown> | null | undefined,
+): ShopifyEvidence | null {
+  const raw = providerMetadata?.website_shopify_evidence;
+  if (!raw || typeof raw !== 'object') return null;
+  return raw as ShopifyEvidence;
+}
+
+export function mergeWebsiteShopifyEvidence(
+  existing: Record<string, unknown> | null | undefined,
+  evidence: ShopifyEvidence,
+): Record<string, unknown> {
+  return {
+    ...(existing ?? {}),
+    website_shopify_evidence: evidence,
   };
 }
