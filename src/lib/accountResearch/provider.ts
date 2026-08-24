@@ -53,11 +53,18 @@ function extractModelIssuedQuery(search: {
   toolCalls?: ReadonlyArray<{ toolName?: string; input?: unknown }>;
   steps?: ReadonlyArray<{ toolCalls?: ReadonlyArray<{ toolName?: string; input?: unknown }> }>;
 }): string | null {
-  const calls = [...(search.toolCalls ?? []), ...(search.steps ?? []).flatMap((s) => s.toolCalls ?? [])];
+  const calls = [
+    ...(search.toolCalls ?? []),
+    ...(search.steps ?? []).flatMap((s) => s.toolCalls ?? []),
+  ];
   for (const call of calls) {
     if (call.toolName !== 'exa_search') continue;
     const input = call.input;
-    if (input && typeof input === 'object' && typeof (input as { query?: unknown }).query === 'string') {
+    if (
+      input &&
+      typeof input === 'object' &&
+      typeof (input as { query?: unknown }).query === 'string'
+    ) {
       return (input as { query: string }).query;
     }
   }
