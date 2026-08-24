@@ -85,6 +85,9 @@ vi.mock('@/components/AccountDetailsEditor', () => ({
 vi.mock('@/components/OutreachLeadStateChip', () => ({
   OutreachLeadStateChip: () => null,
 }));
+vi.mock('@/components/accountResearch/AccountResearchPanel', () => ({
+  AccountResearchPanel: () => <div>Account research panel</div>,
+}));
 
 vi.mock('@/components/AccountEmailProductPickerModal', () => ({
   AccountEmailProductPickerModal: ({
@@ -267,5 +270,11 @@ describe('AccountDetailDrawer email product flow', () => {
     renderDrawer();
     expect(screen.getByRole('button', { name: 'Email product' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '+ Log Order / Reorder' })).not.toBeInTheDocument();
+  });
+
+  it('renders the Research section with AccountResearchPanel', () => {
+    renderDrawer();
+    expect(screen.getByRole('button', { name: 'Research' })).toBeInTheDocument();
+    expect(screen.getByText('Account research panel')).toBeInTheDocument();
   });
 });

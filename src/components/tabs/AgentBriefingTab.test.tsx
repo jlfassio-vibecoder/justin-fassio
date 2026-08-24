@@ -271,3 +271,28 @@ describe('AgentBriefingTab log call', () => {
     expect(onLogCallForLead).not.toHaveBeenCalled();
   });
 });
+
+describe('AgentBriefingTab research entry', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockBriefingFetch(briefingPayload);
+  });
+
+  it('opens prospect drawer research from draft row Research button', async () => {
+    const user = userEvent.setup();
+    const onOpenProspect = vi.fn();
+    render(<AgentBriefingTab {...briefingProps({ onOpenProspect })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Coastal Golf')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Research' }));
+
+    expect(onOpenProspect).toHaveBeenCalledWith({
+      prospectId: 12,
+      accountStatus: 'prospect',
+      openResearch: true,
+    });
+  });
+});

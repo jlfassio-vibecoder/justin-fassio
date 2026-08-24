@@ -1,5 +1,6 @@
 import type { AgentSupabase } from '@/lib/agentAuth';
 import { sourceFreshnessMap } from '@/lib/accountResearch/freshness';
+import { loadSourceLocks, type SourceLockMap } from '@/lib/accountResearch/locks';
 import type {
   AccountResearchCitation,
   AccountResearchRun,
@@ -11,6 +12,7 @@ export type AccountResearchSnapshot = {
   sources: AccountResearchSourceSearch[];
   citationsBySourceId: Record<string, AccountResearchCitation[]>;
   sourceFreshness: Record<string, boolean>;
+  locksBySourceType: SourceLockMap;
 };
 
 export async function loadAccountResearchSnapshot(
@@ -53,10 +55,16 @@ export async function loadAccountResearchSnapshot(
     citationsBySourceId[citation.source_search_id] = list;
   }
 
+  const locksBySourceType = await loadSourceLocks(
+    supabase,
+    (run as AccountResearchRun).retailer_id,
+  );
+
   return {
     run: run as AccountResearchRun,
     sources: sourceRows,
     citationsBySourceId,
     sourceFreshness: sourceFreshnessMap(sourceRows),
+    locksBySourceType,
   };
 }

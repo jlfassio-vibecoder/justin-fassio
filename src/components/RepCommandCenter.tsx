@@ -126,6 +126,7 @@ export function RepCommandCenter({
   const [deepLinkImport, setDeepLinkImport] = useState(initialLinks.importAccounts);
   const [deepLinkReactivation, setDeepLinkReactivation] = useState(initialLinks.reactivation);
   const [deepLinkTerritory, setDeepLinkTerritory] = useState<string | null>(initialLinks.territory);
+  const [deepLinkOpenResearch, setDeepLinkOpenResearch] = useState(false);
   const [lineAccountError, setLineAccountError] = useState<string | null>(null);
 
   // URL prospectId may belong to an active account — remap once directory is loaded.
@@ -149,10 +150,12 @@ export function RepCommandCenter({
 
   const clearProspectDeepLink = useCallback(() => {
     setDeepLinkProspectId(null);
+    setDeepLinkOpenResearch(false);
   }, []);
 
   const clearAccountDeepLink = useCallback(() => {
     setDeepLinkAccountId(null);
+    setDeepLinkOpenResearch(false);
   }, []);
 
   const clearImportDeepLink = useCallback(() => {
@@ -165,7 +168,8 @@ export function RepCommandCenter({
   }, []);
 
   const openProspectDeepLink = useCallback(
-    (args: { prospectId: number; accountStatus?: string }) => {
+    (args: { prospectId: number; accountStatus?: string; openResearch?: boolean }) => {
+      setDeepLinkOpenResearch(args.openResearch === true);
       if (args.accountStatus === 'active_account') {
         setDeepLinkAccountId(args.prospectId);
         setDeepLinkProspectId(null);
@@ -530,6 +534,7 @@ export function RepCommandCenter({
                     setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
                   }}
                   deepLinkProspectId={deepLinkProspectId}
+                  deepLinkOpenResearch={deepLinkOpenResearch}
                   onDeepLinkConsumed={clearProspectDeepLink}
                   deepLinkImport={deepLinkImport && activeTab === 'prospects'}
                   onImportDeepLinkConsumed={clearImportDeepLink}
@@ -550,6 +555,7 @@ export function RepCommandCenter({
                     setProspects((prev) => prev.map((p) => (p.id === prospect.id ? prospect : p)));
                   }}
                   deepLinkAccountId={deepLinkAccountId}
+                  deepLinkOpenResearch={deepLinkOpenResearch}
                   onDeepLinkConsumed={clearAccountDeepLink}
                   deepLinkImport={deepLinkImport && activeTab === 'accounts'}
                   onImportDeepLinkConsumed={clearImportDeepLink}

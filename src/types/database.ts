@@ -109,7 +109,7 @@ export type AccountResearchSourceSearchStatus =
 export type AccountResearchCitationPlatform = AccountResearchSourceType | 'directory';
 export type AccountResearchConfidence = 'high' | 'medium' | 'low';
 export type AccountResearchAcceptanceStatus = 'pending' | 'accepted' | 'rejected';
-export type AccountResearchAcceptanceBasis = 'identity_gate' | 'staff';
+export type AccountResearchAcceptanceBasis = 'identity_gate' | 'staff' | 'confirmed_profile';
 export type AccountResearchSuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'superseded';
 export type AccountProductMatchRunStatus =
   'pending' | 'running' | 'succeeded' | 'empty' | 'failed' | 'stale_research' | 'cancelled';
@@ -2847,6 +2847,33 @@ export interface Database {
         };
         Relationships: [];
       };
+      account_research_source_locks: {
+        Row: {
+          retailer_id: number;
+          source_type: AccountResearchSourceType;
+          locked_url: string;
+          locked_url_normalized: string;
+          locked_by: string | null;
+          locked_at: string;
+        };
+        Insert: {
+          retailer_id: number;
+          source_type: AccountResearchSourceType;
+          locked_url: string;
+          locked_url_normalized: string;
+          locked_by?: string | null;
+          locked_at?: string;
+        };
+        Update: {
+          retailer_id?: number;
+          source_type?: AccountResearchSourceType;
+          locked_url?: string;
+          locked_url_normalized?: string;
+          locked_by?: string | null;
+          locked_at?: string;
+        };
+        Relationships: [];
+      };
       account_research_citations: {
         Row: {
           id: string;
@@ -3327,6 +3354,18 @@ export interface Database {
         };
         Returns: unknown;
       };
+      claim_account_research_source_search: {
+        Args: { p_run_id: string };
+        Returns: unknown;
+      };
+      lock_account_research_source: {
+        Args: { p_retailer_id: number; p_source_type: string; p_url: string };
+        Returns: unknown;
+      };
+      unlock_account_research_source: {
+        Args: { p_retailer_id: number; p_source_type: string };
+        Returns: unknown;
+      };
       complete_account_research_source_search: {
         Args: {
           p_source_search_id: string;
@@ -3427,6 +3466,8 @@ export type AccountEnrichmentJob = Database['public']['Tables']['account_enrichm
 export type AccountResearchRun = Database['public']['Tables']['account_research_runs']['Row'];
 export type AccountResearchSourceSearch =
   Database['public']['Tables']['account_research_source_searches']['Row'];
+export type AccountResearchSourceLock =
+  Database['public']['Tables']['account_research_source_locks']['Row'];
 export type AccountResearchCitation =
   Database['public']['Tables']['account_research_citations']['Row'];
 export type AccountResearchProfileSuggestion =

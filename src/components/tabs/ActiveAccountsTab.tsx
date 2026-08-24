@@ -49,6 +49,7 @@ interface ActiveAccountsTabProps {
   onNotesSaved?: (id: number, notes: string | null) => void;
   onProspectUpdated?: (prospect: Prospect) => void;
   deepLinkAccountId?: number | null;
+  deepLinkOpenResearch?: boolean;
   onDeepLinkConsumed?: () => void;
   deepLinkImport?: boolean;
   onImportDeepLinkConsumed?: () => void;
@@ -86,6 +87,7 @@ export function ActiveAccountsTab({
   onNotesSaved,
   onProspectUpdated,
   deepLinkAccountId = null,
+  deepLinkOpenResearch = false,
   onDeepLinkConsumed,
   deepLinkImport = false,
   onImportDeepLinkConsumed,
@@ -123,6 +125,7 @@ export function ActiveAccountsTab({
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [appliedDeepLinkAccountId, setAppliedDeepLinkAccountId] = useState<number | null>(null);
+  const [openResearchAccountId, setOpenResearchAccountId] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [lookalikeOpen, setLookalikeOpen] = useState(false);
@@ -135,9 +138,12 @@ export function ActiveAccountsTab({
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (deepLinkAccountId != null && deepLinkAccountId !== appliedDeepLinkAccountId) {
     const match = accounts.find((a) => a.id === deepLinkAccountId);
-    setAppliedDeepLinkAccountId(deepLinkAccountId);
-    if (match) setDetailAccount(match);
-    queueMicrotask(() => onDeepLinkConsumed?.());
+    if (match) {
+      setAppliedDeepLinkAccountId(deepLinkAccountId);
+      setDetailAccount(match);
+      if (deepLinkOpenResearch) setOpenResearchAccountId(match.id);
+      queueMicrotask(() => onDeepLinkConsumed?.());
+    }
   }
 
   if (deepLinkImport && !importOpen) {
@@ -635,6 +641,9 @@ export function ActiveAccountsTab({
 
       <AccountDetailDrawer
         account={detailAccount}
+        initialSection={
+          detailAccount && openResearchAccountId === detailAccount.id ? 'research' : undefined
+        }
         contactsReloadToken={contactsReloadToken}
         onProductEmailSent={onProductEmailSent}
         summary={
@@ -647,7 +656,11 @@ export function ActiveAccountsTab({
             : null
         }
         reorderSettings={detailAccount ? (settingsByAccount.get(detailAccount.id) ?? null) : null}
-        onClose={() => setDetailAccount(null)}
+        onClose={() => {
+          setDetailAccount(null);
+          setAppliedDeepLinkAccountId(null);
+          setOpenResearchAccountId(null);
+        }}
         onLogCall={onLogCall}
         onLogOrder={(account) => setHistoryAccount(account)}
         onNotesSaved={(notes) => {

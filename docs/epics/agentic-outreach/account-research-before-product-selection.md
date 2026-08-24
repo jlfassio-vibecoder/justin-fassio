@@ -26,7 +26,8 @@ Insert an **on-demand public-web Account Research** step **before** catalog prod
 **PR1 implementation plan:** [docs/plans/agent-outreach-account-research-pr1-schema-foundation.md](../../plans/agent-outreach-account-research-pr1-schema-foundation.md) (merged to `main` via PR #114; migration applied)  
 **PR2 implementation plan:** [docs/plans/agent-outreach-account-research-pr2-research-service.md](../../plans/agent-outreach-account-research-pr2-research-service.md) (merged to `main` via PR #115; migration `20260823140000_account_research_run_rpcs.sql` applied)  
 **PR3 implementation plan:** [docs/plans/account-research-pr3-profile-suggestions.md](../../plans/account-research-pr3-profile-suggestions.md) (merged via PR #116)  
-**PR4 implementation plan:** [docs/plans/account-research-pr4-product-match.md](../../plans/account-research-pr4-product-match.md)
+**PR4 implementation plan:** [docs/plans/account-research-pr4-product-match.md](../../plans/account-research-pr4-product-match.md) (PR #117)  
+**PR5 implementation plan:** [docs/plans/account-research-pr5-ui-surfaces.md](../../plans/account-research-pr5-ui-surfaces.md) (Mode A staff UI)
 
 ### Locked clarifications (2026-08-23)
 
@@ -490,9 +491,10 @@ Prefer pure unit tests for identity/match ranking; mock Gateway/Perplexity like 
 
 ### PR5 — UI surfaces
 
+- See [PR5 plan](../../plans/account-research-pr5-ui-surfaces.md).
 - Account drawer Research panel: Run / Refresh / citations / suggestions / matches.
 - Wire “use selected product → open draft composer / generate-draft.”
-- Briefing optional entry point.
+- Briefing optional entry point. Completes Mode A staff workflow (PR6 prep optional).
 
 ### PR6 — (Optional) Prep integration Mode B
 

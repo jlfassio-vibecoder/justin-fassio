@@ -51,6 +51,19 @@ describe('accountResearch identity', () => {
     expect(result.identity_confidence).toBe('low');
   });
 
+  it('treats a searched official host plus name/city snippet as high without CRM website', () => {
+    const result = resolveAccountIdentity({
+      businessName: "Buckerfield's Kelowna",
+      city: 'Kelowna',
+      website: 'https://www.yellowpages.ca/bus/BC/Kelowna/Buckerfields',
+      evidenceOfficialHostname: 'buckerfields.ca',
+      officialHostEvidenceText:
+        "Buckerfield's Kelowna from www.buckerfields.ca — 1889 Springfield Road Kelowna, BC",
+    });
+    expect(result.identity_confidence).toBe('high');
+    expect(result.official_hostname).toBe('buckerfields.ca');
+  });
+
   it('marks directory-only as low/unresolved', () => {
     const result = resolveAccountIdentity({
       businessName: 'Some Shop',

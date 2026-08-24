@@ -13,5 +13,6 @@ export function snapshotPayload(snapshot: AccountResearchSnapshot) {
     sources: snapshot.sources,
     citationsBySourceId: snapshot.citationsBySourceId,
     sourceFreshness: snapshot.sourceFreshness,
+    locksBySourceType: snapshot.locksBySourceType,
   };
 }

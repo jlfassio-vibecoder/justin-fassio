@@ -30,7 +30,11 @@ type AgentBriefingTabProps = {
   onProductEmailSent?: () => void;
   onLogCallForLead: (prospectId: number) => void;
   briefingReloadToken?: number;
-  onOpenProspect: (args: { prospectId: number; accountStatus?: string }) => void;
+  onOpenProspect: (args: {
+    prospectId: number;
+    accountStatus?: string;
+    openResearch?: boolean;
+  }) => void;
 };
 
 async function staffGet(
@@ -228,6 +232,7 @@ export function AgentBriefingTab({
   }, [reloadToken, briefingReloadToken, lineCtx.multiLineUi, lineCtx.salesLineId]);
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
+  // Copilot suggestion ignored: a new event/token deep-link protocol is out of scope; drawer close now clears its applied deep-link state.
   if (pendingDraftId && pendingDeepLinkKey !== appliedDeepLinkKey && !loading && briefing) {
     setAppliedDeepLinkKey(pendingDeepLinkKey);
     const row = briefing.drafts.find((d) => d.draftId === pendingDraftId);
@@ -387,18 +392,33 @@ export function AgentBriefingTab({
                     {briefing.drafts.map((d) => (
                       <tr key={d.draftId} className="hover:bg-bg/80">
                         <td className="border-ink/[0.06] border-b p-2">
-                          <button
-                            type="button"
-                            className="text-accent-800 font-medium hover:underline"
-                            onClick={() =>
-                              onOpenProspect({
-                                prospectId: d.prospectId,
-                                accountStatus: 'prospect',
-                              })
-                            }
-                          >
-                            {d.prospectName}
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              className="text-accent-800 font-medium hover:underline"
+                              onClick={() =>
+                                onOpenProspect({
+                                  prospectId: d.prospectId,
+                                  accountStatus: d.accountStatus ?? 'prospect',
+                                })
+                              }
+                            >
+                              {d.prospectName}
+                            </button>
+                            <button
+                              type="button"
+                              className="text-ink/55 hover:text-accent-800 text-xs hover:underline"
+                              onClick={() =>
+                                onOpenProspect({
+                                  prospectId: d.prospectId,
+                                  accountStatus: d.accountStatus ?? 'prospect',
+                                  openResearch: true,
+                                })
+                              }
+                            >
+                              Research
+                            </button>
+                          </div>
                         </td>
                         <td className="border-ink/[0.06] border-b p-2">
                           <button

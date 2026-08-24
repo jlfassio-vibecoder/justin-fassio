@@ -275,12 +275,15 @@ export const POST: APIRoute = async ({ request }) => {
     typeof body.existingDraftId === 'string' && body.existingDraftId.trim()
       ? body.existingDraftId.trim()
       : undefined;
+  const retailerLineAccountId =
+    gated.ctx?.retailerLineAccountId ?? parseOptionalUuidField(body.retailerLineAccountId);
 
   const generated = await generateOgrProductOutreachDraft(gate.supabase, {
     target: parsed.value,
     userId: gate.userId,
     existingDraftId,
     salesLineId: gated.ctx?.salesLineId,
+    retailerLineAccountId,
   });
   if (!generated.ok) {
     return jsonError(generated.error, 502);

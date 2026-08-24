@@ -75,6 +75,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     const emailMarket = (
       await resolveOgrPricingMarketForProductEmailDraft(gate.supabase, {
         prospectId: crm.association.prospectId,
+        retailerLineAccountId: draft.retailerLineAccountId,
         payloadMarket: publicMarketFromOutreachPayload(draft.payload),
       })
     ).publicMarket;

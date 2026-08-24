@@ -356,6 +356,7 @@ export type GenerateOgrProductOutreachDraftInput = {
   automationRunId?: string | null;
   /** When set (staff generate-draft with AI flag on), load published SKUs for this line only. */
   salesLineId?: string;
+  retailerLineAccountId?: string | null;
 };
 
 export type GenerateOgrProductOutreachDraftResult =
@@ -442,6 +443,7 @@ export async function generateOgrProductOutreachDraft(
   const emailMarket = (
     await resolveOgrPricingMarketForProductEmailDraft(client, {
       prospectId: target.prospectId,
+      retailerLineAccountId: input.retailerLineAccountId,
     })
   ).publicMarket;
   const presentation = buildPublicProductPresentation(loaded.product, {
@@ -483,6 +485,9 @@ export async function generateOgrProductOutreachDraft(
   if (!draftId) {
     const pending = await listAgentProductOutreachDrafts(client, {
       prospectId: target.prospectId,
+      ...(input.retailerLineAccountId
+        ? { retailerLineAccountId: input.retailerLineAccountId }
+        : {}),
       statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
       limit: 5,
     });
@@ -501,6 +506,7 @@ export async function generateOgrProductOutreachDraft(
       introText: copy.introText,
       closingText: copy.closingText,
       catalogItemId: target.catalogItemId,
+      retailerLineAccountId: input.retailerLineAccountId,
       payload,
     });
     if (!updated.ok) return { ok: false, error: updated.error };
@@ -522,6 +528,7 @@ export async function generateOgrProductOutreachDraft(
     introText: copy.introText,
     closingText: copy.closingText,
     prospectId: target.prospectId,
+    retailerLineAccountId: input.retailerLineAccountId,
     accountContactId: target.accountContactId,
     sentBy,
     payload,

@@ -1,10 +1,13 @@
 import { z } from 'zod';
+import type { AccountResearchContext } from '@/lib/accountResearch/context';
 import type { AccountResearchPlatformScope } from '@/lib/accountResearch/constants';
 import {
   ACCOUNT_RESEARCH_EXCERPT_MAX_CHARS,
   ACCOUNT_RESEARCH_MAX_RESULTS_PER_SOURCE,
 } from '@/lib/accountResearch/constants';
 import { normalizeSourceUrl, truncateExcerpt } from '@/lib/accountResearch/normalizeUrl';
+import { buildSocialSearchQuery } from '@/lib/accountResearch/socialProfile';
+import { isDirectoryCitationHost } from '@/lib/companyWebResearch';
 import type {
   AccountResearchCitationPlatform,
   AccountResearchConfidence,
@@ -47,13 +50,8 @@ export type SourceSearchOutcome = {
   providerMetadata: Record<string, unknown>;
 };
 
-export type SourceStrategyContext = {
-  businessName: string;
-  city?: string | null;
-  region?: string | null;
-  website?: string | null;
-  officialHostname?: string | null;
-};
+/** @deprecated Use AccountResearchContext from context.ts */
+export type SourceStrategyContext = AccountResearchContext;
 
 export type SourceStrategy = {
   sourceType: AccountResearchPlatformScope;
@@ -66,7 +64,7 @@ export type SourceStrategy = {
   ) => { status: SourceSearchOutcome['status']; citations: CitationCandidate[] };
 };
 
-const PLATFORM_HOSTS: Record<
+export const SOCIAL_PLATFORM_HOSTS: Record<
   Exclude<AccountResearchPlatformScope, 'website' | 'shopify'>,
   string[]
 > = {
@@ -105,23 +103,36 @@ function isShopifyEvidenceUrl(url: string): boolean {
   return false;
 }
 
+function officialHostnameDomainFilter(ctx: SourceStrategyContext): string[] | undefined {
+  if (!ctx.officialHostname || isDirectoryCitationHost(ctx.officialHostname)) return undefined;
+  return [ctx.officialHostname];
+}
+
+/** Exact-name homepage query — quoted name first so Exa does keyword match, not “similar clubs”. */
+export function buildWebsiteSearchQuery(ctx: SourceStrategyContext): string {
+  const name = ctx.businessName.trim();
+  const city = ctx.city?.trim() || '';
+  const province = ctx.provinceName?.trim() || ctx.region?.trim() || '';
+  const address = ctx.address?.trim() || '';
+  const phone = ctx.phone?.trim() || '';
+
+  return [`"${name}"`, 'official website', city, province, address ? `"${address}"` : '', phone]
+    .filter(Boolean)
+    .join(' ');
+}
+
 export const websiteStrategy: SourceStrategy = {
   sourceType: 'website',
-  buildQuery: (ctx) => {
-    const parts = [
-      `"${ctx.businessName}"`,
-      ctx.city ? ctx.city : null,
-      'official website About Shop Brands Collections Contact',
-    ];
-    if (ctx.officialHostname) parts.push(`site:${ctx.officialHostname}`);
-    else if (ctx.website) parts.push(ctx.website);
-    return parts.filter(Boolean).join(' ');
-  },
-  domainFilter: (ctx) => (ctx.officialHostname ? [ctx.officialHostname] : undefined),
+  buildQuery: buildWebsiteSearchQuery,
+  domainFilter: officialHostnameDomainFilter,
   mapPlatform: () => 'website',
   postValidate: (citations) => {
-    if (citations.length === 0) return { status: 'none_indexed', citations: [] };
-    return { status: 'succeeded', citations };
+    const official = citations.filter((c) => {
+      const host = hostFromUrl(c.url);
+      return host ? !isDirectoryCitationHost(host) : false;
+    });
+    if (official.length === 0) return { status: 'none_indexed', citations: [] };
+    return { status: 'succeeded', citations: official };
   },
 };
 
@@ -129,13 +140,16 @@ export const shopifyStrategy: SourceStrategy = {
   sourceType: 'shopify',
   buildQuery: (ctx) =>
     [
-      `"${ctx.businessName}"`,
-      ctx.officialHostname ?? ctx.website ?? '',
-      'Shopify storefront myshopify collections',
+      `"${ctx.businessName.trim()}"`,
+      'Shopify storefront',
+      'site:myshopify.com OR "Powered by Shopify"',
+      ctx.officialHostname && !isDirectoryCitationHost(ctx.officialHostname)
+        ? ctx.officialHostname
+        : '',
     ]
       .filter(Boolean)
       .join(' '),
-  domainFilter: (ctx) => (ctx.officialHostname ? [ctx.officialHostname] : undefined),
+  domainFilter: officialHostnameDomainFilter,
   mapPlatform: (host) =>
     host.endsWith('myshopify.com') || host.includes('shopify') ? 'shopify' : 'website',
   postValidate: (citations) => {
@@ -155,12 +169,11 @@ export const shopifyStrategy: SourceStrategy = {
 function socialStrategy(
   sourceType: Exclude<AccountResearchPlatformScope, 'website' | 'shopify'>,
 ): SourceStrategy {
-  const hosts = PLATFORM_HOSTS[sourceType];
+  const hosts = SOCIAL_PLATFORM_HOSTS[sourceType];
   return {
     sourceType,
-    buildQuery: (ctx) =>
-      [`"${ctx.businessName}"`, ctx.city ?? null, `site:${hosts[0]}`].filter(Boolean).join(' '),
-    domainFilter: () => hosts,
+    buildQuery: (ctx) => buildSocialSearchQuery(sourceType, ctx.businessName),
+    domainFilter: () => undefined,
     mapPlatform: () => sourceType,
     postValidate: (citations) => {
       const filtered = citations.filter((c) => {
@@ -184,6 +197,35 @@ export const SOURCE_STRATEGIES: Record<AccountResearchPlatformScope, SourceStrat
   tiktok: socialStrategy('tiktok'),
   pinterest: socialStrategy('pinterest'),
 };
+
+export function citationsOnLockedHost(
+  citations: CitationCandidate[],
+  lockedUrl: string,
+): CitationCandidate[] {
+  const host = hostFromUrl(lockedUrl);
+  if (!host) return [];
+  return citations.filter((c) => {
+    const h = hostFromUrl(c.url);
+    if (!h) return false;
+    return h === host || h.endsWith(`.${host}`);
+  });
+}
+
+export function lockedSourceUrlCitation(
+  lockedUrl: string,
+  platform: CitationCandidate['platform'],
+): CitationCandidate | null {
+  const normalized = normalizeSourceUrl(lockedUrl);
+  if (!normalized) return null;
+  return {
+    url: normalized,
+    title: 'Staff-locked source URL',
+    platform,
+    excerpt: null,
+    publishedAt: null,
+    confidence: 'high',
+  };
+}
 
 export function sanitizeCitationCandidates(
   raw: ReadonlyArray<{

@@ -64,6 +64,7 @@ interface ProspectsTabProps {
   onNotesSaved?: (id: number, notes: string | null) => void;
   onImported?: () => void;
   deepLinkProspectId?: number | null;
+  deepLinkOpenResearch?: boolean;
   onDeepLinkConsumed?: () => void;
   deepLinkImport?: boolean;
   onImportDeepLinkConsumed?: () => void;
@@ -80,6 +81,7 @@ export function ProspectsTab({
   onNotesSaved,
   onImported,
   deepLinkProspectId = null,
+  deepLinkOpenResearch = false,
   onDeepLinkConsumed,
   deepLinkImport = false,
   onImportDeepLinkConsumed,
@@ -103,16 +105,20 @@ export function ProspectsTab({
     mode: ProspectResearchMode;
   } | null>(null);
   const [appliedDeepLinkProspectId, setAppliedDeepLinkProspectId] = useState<number | null>(null);
+  const [scrollResearchForProspectId, setScrollResearchForProspectId] = useState<number | null>(
+    null,
+  );
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (deepLinkProspectId != null && deepLinkProspectId !== appliedDeepLinkProspectId) {
     const match = prospects.find((p) => p.id === deepLinkProspectId);
-    setAppliedDeepLinkProspectId(deepLinkProspectId);
     if (match) {
+      setAppliedDeepLinkProspectId(deepLinkProspectId);
       setDetailProspect(match);
       setHighlightedProspectId(match.id);
+      if (deepLinkOpenResearch) setScrollResearchForProspectId(match.id);
+      queueMicrotask(() => onDeepLinkConsumed?.());
     }
-    queueMicrotask(() => onDeepLinkConsumed?.());
   }
 
   if (deepLinkImport && !importOpen) {
@@ -337,7 +343,14 @@ export function ProspectsTab({
 
       <ProspectDetailDrawer
         prospect={detailProspect}
-        onClose={() => setDetailProspect(null)}
+        initialScrollToResearch={
+          detailProspect != null && scrollResearchForProspectId === detailProspect.id
+        }
+        onClose={() => {
+          setDetailProspect(null);
+          setAppliedDeepLinkProspectId(null);
+          setScrollResearchForProspectId(null);
+        }}
         onLogCall={onLogCall}
         onConverted={onConverted}
         contactsReloadToken={contactsReloadToken}
