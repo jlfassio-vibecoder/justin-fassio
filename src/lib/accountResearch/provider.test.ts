@@ -150,8 +150,8 @@ describe('executeAccountResearchSourceSearch', () => {
     // The gw.tools.exaSearch() config has no `query` field — the model always
     // authors the search string itself, so the pinned query can only reach it
     // via the prompt text, never via the tool config.
-    expect(exaSearchMock).toHaveBeenCalledWith(
-      expect.not.objectContaining({ query: expect.anything() }),
+    expect(exaSearchMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ query: expect.anything() }),
     );
     expect(exaSearchMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -238,8 +238,8 @@ describe('executeAccountResearchSourceSearch', () => {
       },
     });
 
-    expect(exaSearchMock).toHaveBeenCalledWith(
-      expect.not.objectContaining({ query: expect.anything() }),
+    expect(exaSearchMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ query: expect.anything() }),
     );
     expect(exaSearchMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -292,8 +292,8 @@ describe('executeAccountResearchSourceSearch', () => {
       lockedUrl: locked,
     });
 
-    expect(exaSearchMock).toHaveBeenCalledWith(
-      expect.not.objectContaining({ query: expect.anything() }),
+    expect(exaSearchMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ query: expect.anything() }),
     );
     expect(exaSearchMock).toHaveBeenCalledWith(
       expect.objectContaining({
