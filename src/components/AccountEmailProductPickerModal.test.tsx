@@ -223,6 +223,34 @@ describe('AccountEmailProductPickerModal', () => {
       }),
     );
   });
+
+  it('opens enlarged image preview from thumbnail and keeps picker usable', async () => {
+    const user = userEvent.setup();
+    const onPick = vi.fn();
+    render(
+      <AccountEmailProductPickerModal
+        open
+        accountId={7}
+        salesLineId={LINE_ID}
+        lineSlug="ogr"
+        onClose={vi.fn()}
+        onPick={onPick}
+      />,
+    );
+
+    await screen.findByText('OG2511');
+    await user.click(screen.getByRole('button', { name: 'View larger image of AMERICAN DREAM' }));
+    expect(screen.getByRole('dialog', { name: 'OG2511 — AMERICAN DREAM' })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    expect(
+      screen.queryByRole('dialog', { name: 'OG2511 — AMERICAN DREAM' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Email a product')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Email this' }));
+    expect(onPick).toHaveBeenCalledOnce();
+  });
 });
 
 describe('CatalogTab Line Sheet contract', () => {

@@ -100,6 +100,16 @@ export function resolvePrimaryImageSrc(
   return item.primaryImageUrl || item.primaryImagePath || item.sourceImageUrl || null;
 }
 
+/** Browser-displayable catalog thumbnail URL (http(s) or site-root path only). */
+export function resolveCatalogThumbSrc(
+  item: Pick<CatalogItem, 'primaryImageUrl' | 'primaryImagePath' | 'sourceImageUrl'>,
+): string | null {
+  const src = resolvePrimaryImageSrc(item);
+  if (!src) return null;
+  if (/^https?:\/\//i.test(src) || src.startsWith('/')) return src;
+  return null;
+}
+
 export function mapCatalogRow(
   row: CatalogItemRow,
   variants: CatalogVariant[] = [],

@@ -13,7 +13,7 @@ import {
 import {
   catalogFetchOptionsForAccountEmail,
   fetchCatalogItems,
-  resolvePrimaryImageSrc,
+  resolveCatalogThumbSrc,
   type CatalogItem,
 } from '@/lib/catalog';
 import {
@@ -21,6 +21,7 @@ import {
   filterCatalogItems,
   type CatalogFlagFilter,
 } from '@/lib/catalogFilters';
+import { ClickableCatalogProductThumbnail } from '@/components/catalog/ClickableCatalogProductThumbnail';
 
 export type AccountEmailProductPickerIntent = 'email' | 'replaceProduct';
 
@@ -46,13 +47,6 @@ export type AccountEmailProductPickerModalProps = {
 
 function isPublishedEmailableCatalogItem(item: CatalogItem): boolean {
   return item.isPubliclyPublished && Boolean(item.publicSlug?.trim());
-}
-
-function catalogThumbSrc(item: CatalogItem): string | null {
-  const src = resolvePrimaryImageSrc(item);
-  if (!src) return null;
-  if (/^https?:\/\//i.test(src) || src.startsWith('/')) return src;
-  return null;
 }
 
 export function AccountEmailProductPickerModal({
@@ -265,12 +259,18 @@ export function AccountEmailProductPickerModal({
               </thead>
               <tbody>
                 {filtered.map((item) => {
-                  const thumb = catalogThumbSrc(item);
+                  const thumb = resolveCatalogThumbSrc(item);
                   return (
                     <tr key={item.id} className="border-ink/10 border-t">
                       <td className="px-2 py-2">
                         {thumb ? (
-                          <img src={thumb} alt="" className="h-10 w-10 rounded-md object-cover" />
+                          <ClickableCatalogProductThumbnail
+                            src={thumb}
+                            sku={item.sku}
+                            name={item.name}
+                            className="h-10 w-10 rounded-md"
+                            overlayClassName="z-[70]"
+                          />
                         ) : (
                           <span className="bg-ink/10 block h-10 w-10 rounded-md" />
                         )}
