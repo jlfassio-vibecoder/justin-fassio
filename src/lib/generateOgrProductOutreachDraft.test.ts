@@ -1,11 +1,22 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const generateObjectMock = vi.fn();
+const staffGatewayModelMock = vi.fn((modelId: string) => `gateway:${modelId}`);
+const ensureAiGatewayApiKeyMock = vi.fn(() => 'test-key');
+const aiGatewayUserErrorMessageMock = vi.fn((err: unknown) =>
+  err instanceof Error ? err.message : String(err ?? 'An error occurred.'),
+);
 
 vi.mock('ai', () => ({
   generateObject: (...args: unknown[]) => generateObjectMock(...args),
+}));
+
+vi.mock('@/lib/aiGatewayEnv', () => ({
+  ensureAiGatewayApiKey: () => ensureAiGatewayApiKeyMock(),
+  staffGatewayModel: (modelId?: string) => staffGatewayModelMock(modelId ?? 'openai/gpt-4o'),
+  aiGatewayUserErrorMessage: (err: unknown) => aiGatewayUserErrorMessageMock(err),
+  hasAiGatewayAuth: () => true,
+  LOCAL_AI_GATEWAY_AUTH_HELP: 'missing key',
 }));
 
 import {
@@ -20,14 +31,18 @@ import {
   hostnameFromWebsite,
   normalizeOutreachCopy,
   ogrOutreachDraftSchema,
+  OGR_OUTREACH_DRAFT_MODEL,
   OGR_OUTREACH_DRAFT_PROMPT_VERSION,
   produceOutreachCopy,
   proseContainsPricingLanguage,
   proseLooksUnsafe,
   sanitizeOutreachProse,
+  stripLeadingOutreachGreeting,
 } from '@/lib/generateOgrProductOutreachDraft';
 import type { SelectedOutreachTarget } from '@/lib/outreachSelectTargets';
 import { PUBLIC_PRESENTATION_FORBIDDEN_KEYS } from '@/lib/publicProductPresentation';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const target: SelectedOutreachTarget = {
   preparationDate: '2026-08-12',
@@ -78,6 +93,22 @@ describe('sanitizeOutreachProse', () => {
   });
 });
 
+describe('stripLeadingOutreachGreeting', () => {
+  it('removes Hi Name, so the template greeting is not duplicated', () => {
+    expect(
+      stripLeadingOutreachGreeting(
+        "Hi Pam, I hope you're doing well. We have an exciting new addition.",
+      ),
+    ).toBe("I hope you're doing well. We have an exciting new addition.");
+    expect(stripLeadingOutreachGreeting('Hello Sam! Great fit for your shop.')).toBe(
+      'Great fit for your shop.',
+    );
+    expect(stripLeadingOutreachGreeting('This tee fits golf shops.')).toBe(
+      'This tee fits golf shops.',
+    );
+  });
+});
+
 describe('pricing and word helpers', () => {
   it('flags pricing language', () => {
     expect(proseContainsPricingLanguage('Our wholesale is great')).toBe(true);
@@ -100,6 +131,17 @@ describe('normalizeOutreachCopy', () => {
     expect(result.introText).toBe(OGR_PRODUCT_EMAIL_DEFAULT_INTRO);
     expect(result.closingText).toBe(OGR_PRODUCT_EMAIL_DEFAULT_CLOSING);
     expect(result.needsRetry).toBe(true);
+  });
+
+  it('strips a leading greeting from otherwise clean copy', () => {
+    const result = normalizeOutreachCopy({
+      introText: 'Hi Pam, This style should resonate with your golf customers.',
+      closingText: 'Happy to hop on a quick call.',
+    });
+    expect(result.needsRetry).toBe(false);
+    expect(result.fallback).toBe('none');
+    expect(result.introText).toBe('This style should resonate with your golf customers.');
+    expect(result.introText).not.toMatch(/^Hi Pam/i);
   });
 
   it('flags over-preferred word count for retry', () => {
@@ -153,6 +195,7 @@ describe('buildSafeOutreachPromptContext', () => {
     });
     const prompt = buildOutreachDraftPrompt(ctx);
     expect(prompt).toContain('Golf Shop');
+    expect(prompt).toContain('Do not greet or address the buyer by name');
     expect(prompt).not.toContain('sam@example.com');
     expect(prompt).not.toContain(target.accountContactId);
     expect(prompt).not.toContain(target.catalogItemId);
@@ -196,7 +239,27 @@ describe('buildSafeOutreachPromptContext', () => {
 describe('produceOutreachCopy', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    staffGatewayModelMock.mockImplementation((modelId: string) => `gateway:${modelId}`);
+    ensureAiGatewayApiKeyMock.mockReturnValue('test-key');
+    aiGatewayUserErrorMessageMock.mockImplementation((err: unknown) =>
+      err instanceof Error ? err.message : String(err ?? 'An error occurred.'),
+    );
   });
+
+  function baseCtx() {
+    return buildSafeOutreachPromptContext({
+      target,
+      product: {
+        name: 'Golf Tee',
+        tagline: '',
+        description: '',
+        category: 'Apparel',
+        lifestyleThemeLabels: [],
+        isNew: false,
+      },
+      prospect: null,
+    });
+  }
 
   it('retries once when first draft is too long then saves shortened copy', async () => {
     const longIntro = Array.from({ length: 60 }, (_, i) => `word${i}`).join(' ');
@@ -211,41 +274,41 @@ describe('produceOutreachCopy', () => {
         },
       });
 
-    const ctx = buildSafeOutreachPromptContext({
-      target,
-      product: {
-        name: 'Golf Tee',
-        tagline: '',
-        description: '',
-        category: 'Apparel',
-        lifestyleThemeLabels: [],
-        isNew: false,
-      },
-      prospect: null,
-    });
-    const result = await produceOutreachCopy(ctx);
+    const result = await produceOutreachCopy(baseCtx());
     expect(generateObjectMock).toHaveBeenCalledTimes(2);
+    expect(ensureAiGatewayApiKeyMock).toHaveBeenCalled();
+    expect(staffGatewayModelMock).toHaveBeenCalledWith(OGR_OUTREACH_DRAFT_MODEL);
+    expect(generateObjectMock).toHaveBeenCalledWith(
+      expect.objectContaining({ model: `gateway:${OGR_OUTREACH_DRAFT_MODEL}` }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
     expect(result.fallback).toBe('retry_shorten');
     expect(result.introText).toContain('strong fit');
   });
 
-  it('falls back to defaults when generateObject throws', async () => {
+  it('returns an error when generateObject throws on the first call', async () => {
     generateObjectMock.mockRejectedValue(new Error('gateway down'));
-    const ctx = buildSafeOutreachPromptContext({
-      target,
-      product: {
-        name: 'Golf Tee',
-        tagline: '',
-        description: '',
-        category: 'Apparel',
-        lifestyleThemeLabels: [],
-        isNew: false,
-      },
-      prospect: null,
-    });
-    const result = await produceOutreachCopy(ctx);
-    expect(result.fallback).toBe('defaults');
-    expect(result.introText).toBe(OGR_PRODUCT_EMAIL_DEFAULT_INTRO);
+    const result = await produceOutreachCopy(baseCtx());
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/gateway down/i);
+  });
+
+  it('keeps the first usable draft when shorten retry throws', async () => {
+    const longIntro = Array.from({ length: 60 }, (_, i) => `word${i}`).join(' ');
+    generateObjectMock
+      .mockResolvedValueOnce({
+        object: { introText: longIntro, closingText: 'Close please.' },
+      })
+      .mockRejectedValueOnce(new Error('retry failed'));
+
+    const result = await produceOutreachCopy(baseCtx());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.fallback).toBe('none');
+    expect(result.introText.startsWith('word0')).toBe(true);
+    expect(result.introText).not.toBe(OGR_PRODUCT_EMAIL_DEFAULT_INTRO);
   });
 });
 

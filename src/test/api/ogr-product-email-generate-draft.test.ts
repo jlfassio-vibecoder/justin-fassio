@@ -4,6 +4,7 @@ const requireApprovedStaffClientMock = vi.fn();
 const checkAgentRateLimitMock = vi.fn();
 const generateOgrProductOutreachDraftMock = vi.fn();
 const sendOgrProductOutreachEmailMock = vi.fn();
+const hasAiGatewayAuthMock = vi.fn(() => true);
 
 vi.mock('@/lib/agentAuth', () => ({
   requireApprovedStaffClient: (...args: unknown[]) => requireApprovedStaffClientMock(...args),
@@ -18,6 +19,14 @@ vi.mock('@/lib/agentRateLimit', () => ({
     }),
 }));
 
+vi.mock('@/lib/aiGatewayEnv', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/aiGatewayEnv')>();
+  return {
+    ...actual,
+    hasAiGatewayAuth: () => hasAiGatewayAuthMock(),
+  };
+});
+
 vi.mock('@/lib/generateOgrProductOutreachDraft', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/generateOgrProductOutreachDraft')>();
   return {
@@ -31,6 +40,7 @@ vi.mock('@/lib/sendOgrProductOutreachEmail', () => ({
   sendOgrProductOutreachEmail: (...args: unknown[]) => sendOgrProductOutreachEmailMock(...args),
 }));
 
+import { LOCAL_AI_GATEWAY_AUTH_HELP } from '@/lib/aiGatewayEnv';
 import { POST } from '@/pages/api/staff/ogr-product-email/generate-draft';
 
 const CONTACT_ID = 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
@@ -73,6 +83,7 @@ function requestWith(body: unknown): Parameters<typeof POST>[0] {
 describe('POST /api/staff/ogr-product-email/generate-draft', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    hasAiGatewayAuthMock.mockReturnValue(true);
     requireApprovedStaffClientMock.mockResolvedValue({
       ok: true,
       supabase: {},
@@ -87,6 +98,25 @@ describe('POST /api/staff/ogr-product-email/generate-draft', () => {
       closingText: 'Closing',
       fallback: 'none',
     });
+  });
+
+  it('returns 503 when AI gateway auth is missing', async () => {
+    hasAiGatewayAuthMock.mockReturnValue(false);
+    const res = await POST(requestWith({ target }));
+    expect(res.status).toBe(503);
+    const json = (await res.json()) as Record<string, unknown>;
+    expect(json.error).toBe(LOCAL_AI_GATEWAY_AUTH_HELP);
+    expect(generateOgrProductOutreachDraftMock).not.toHaveBeenCalled();
+  });
+
+  it('maps generator failures to 502', async () => {
+    generateOgrProductOutreachDraftMock.mockResolvedValue({
+      ok: false,
+      error: 'gateway down',
+    });
+    const res = await POST(requestWith({ target }));
+    expect(res.status).toBe(502);
+    expect(generateOgrProductOutreachDraftMock).toHaveBeenCalled();
   });
 
   it('generates a single draft without calling Resend', async () => {

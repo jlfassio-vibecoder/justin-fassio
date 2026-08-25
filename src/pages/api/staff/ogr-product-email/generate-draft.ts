@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { checkAgentRateLimit, rateLimitResponse } from '@/lib/agentRateLimit';
+import { hasAiGatewayAuth, LOCAL_AI_GATEWAY_AUTH_HELP } from '@/lib/aiGatewayEnv';
 import { gateStaffAiContext, parseOptionalUuidField } from '@/lib/aiLineContext';
 import { generateOgrProductOutreachDraft } from '@/lib/generateOgrProductOutreachDraft';
 import {
@@ -163,6 +164,10 @@ export const POST: APIRoute = async ({ request }) => {
   const limited = checkAgentRateLimit(`generate-draft:${gate.userId}`);
   if (!limited.ok) {
     return rateLimitResponse(limited.retryAfterSec);
+  }
+
+  if (!hasAiGatewayAuth()) {
+    return jsonError(LOCAL_AI_GATEWAY_AUTH_HELP, 503);
   }
 
   let body: Record<string, unknown>;
