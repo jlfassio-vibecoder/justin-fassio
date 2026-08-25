@@ -131,6 +131,14 @@ export function isProspectiveLinesEnabled(): boolean {
   return parseFeatureFlag(readEnv('FEATURE_PROSPECTIVE_LINES'));
 }
 
+/**
+ * Overnight Vercel cron for outreach prep (`/api/cron/outreach-nightly-prep`).
+ * Default off for MVP (manual Run prep now only). Not PUBLIC_; not on staff island snapshot.
+ */
+export function isOutreachNightlyPrepEnabled(): boolean {
+  return parseFeatureFlag(readEnv('FEATURE_OUTREACH_NIGHTLY_PREP'));
+}
+
 /** Snapshot of staff feature flags for approved-staff API responses. */
 export function getStaffFeatureFlags(): StaffFeatureFlags {
   const ui = isMultiLineUiEnabled();

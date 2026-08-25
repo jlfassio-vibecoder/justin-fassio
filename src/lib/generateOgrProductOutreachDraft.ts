@@ -6,6 +6,11 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  aiGatewayUserErrorMessage,
+  ensureAiGatewayApiKey,
+  staffGatewayModel,
+} from '@/lib/aiGatewayEnv';
 import { primaryRetailChannelLabel, lifestyleThemeLabel } from '@/lib/crmRetailTaxonomy';
 import { OGR_PRODUCT_EMAIL_MAX_PROSE } from '@/lib/ogrProductEmailLimits';
 import {
@@ -42,6 +47,22 @@ export const OGR_OUTREACH_INTRO_PREFERRED_WORDS = 50;
 export const OGR_OUTREACH_CLOSING_PREFERRED_WORDS = 40;
 export const OGR_OUTREACH_BATCH_HTTP_MAX = 10;
 export const OGR_OUTREACH_DESCRIPTION_MAX_CHARS = 400;
+export const OGR_OUTREACH_RESEARCH_NOTES_MAX = 5;
+
+export type OutreachCopyMode = 'ai' | 'generic_stub';
+
+/** Extract hostname from a store website URL for safe prompt context (never full URL). */
+export function hostnameFromWebsite(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  try {
+    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const host = new URL(withScheme).hostname.replace(/^www\./i, '').trim();
+    return host || null;
+  } catch {
+    return null;
+  }
+}
 
 export const ogrOutreachDraftSchema = z.object({
   introText: z
@@ -87,6 +108,16 @@ export function sanitizeOutreachProse(raw: string): string {
   return text;
 }
 
+/**
+ * Remove a leading salutation — the send template already adds `Hi {name},`.
+ */
+export function stripLeadingOutreachGreeting(raw: string): string {
+  let text = raw.trim();
+  text = text.replace(/^(hi|hello|hey|dear)\s+[A-Za-z][\w'.-]{0,39}\s*[,!.]\s*/i, '');
+  text = text.replace(/^(hi|hello|hey)\s*[,!.]\s*/i, '');
+  return text.trim();
+}
+
 export function proseLooksUnsafe(value: string): boolean {
   return /<|>|javascript:/i.test(value);
 }
@@ -119,6 +150,10 @@ export type SafeOutreachPromptContext = {
   prospectLifestyleLabels: string[];
   channelMatch: boolean;
   productFit: SelectedOutreachTarget['selectionReasons']['productFit'];
+  /** Hostname only (no scheme/path) when a store website is known. */
+  storeWebsiteHost?: string;
+  /** Short public notes from accepted research citations (no URLs). */
+  recentPublicNotes?: string[];
 };
 
 /** Build allowlisted prompt context — never includes emails, ids, URLs, or forbidden keys. */
@@ -137,7 +172,9 @@ export function buildSafeOutreachPromptContext(input: {
     region: string;
     fit: string;
     lifestyleThemes: string[];
+    website?: string | null;
   } | null;
+  recentPublicNotes?: string[];
 }): SafeOutreachPromptContext {
   const { target, product, prospect } = input;
   const channelLabels = [
@@ -146,6 +183,7 @@ export function buildSafeOutreachPromptContext(input: {
   ].filter(Boolean);
 
   const description = product.description.trim().slice(0, OGR_OUTREACH_DESCRIPTION_MAX_CHARS);
+  const storeWebsiteHost = hostnameFromWebsite(prospect?.website ?? null);
 
   return {
     prospectName: target.prospectName.trim(),
@@ -166,6 +204,10 @@ export function buildSafeOutreachPromptContext(input: {
       .filter(Boolean),
     channelMatch: target.selectionReasons.channelMatch,
     productFit: target.selectionReasons.productFit,
+    ...(storeWebsiteHost ? { storeWebsiteHost } : {}),
+    ...(input.recentPublicNotes && input.recentPublicNotes.length > 0
+      ? { recentPublicNotes: input.recentPublicNotes }
+      : {}),
   };
 }
 
@@ -192,12 +234,13 @@ export function buildOutreachDraftPrompt(
     '- No pricing, wholesale, landed, MSRP, USD/CAD, or cost language.',
     '- Do not invent facts (city, buyer title, inventory, availability).',
     '- Do not write a subject line, From header, or signature.',
+    '- Do not greet or address the buyer by name (no "Hi Pam," / "Hello …"); the email template already adds the greeting.',
     `- Prefer intro under ${OGR_OUTREACH_INTRO_PREFERRED_WORDS} words and closing under ${OGR_OUTREACH_CLOSING_PREFERRED_WORDS} words.`,
     '- Closing should invite a brief reply or call — not spammy CTAs.',
   ];
   if (options.shorten) {
     lines.push(
-      'SHORTEN: Previous draft was too long or mentioned pricing. Rewrite shorter and remove any price language.',
+      'SHORTEN: Previous draft was too long, greeted the buyer, or mentioned pricing. Rewrite shorter; remove any greeting and price language.',
     );
   }
   lines.push('', 'Context (use only what is present; skip empty fields):');
@@ -210,6 +253,13 @@ export function buildOutreachDraftPrompt(
     lines.push(`Store lifestyle themes: ${ctx.prospectLifestyleLabels.join(', ')}`);
   }
   if (ctx.prospectFit) lines.push(`Fit notes: ${ctx.prospectFit}`);
+  if (ctx.storeWebsiteHost) lines.push(`Store website host: ${ctx.storeWebsiteHost}`);
+  if (ctx.recentPublicNotes && ctx.recentPublicNotes.length > 0) {
+    lines.push('Recent public notes (paraphrase lightly; do not invent; never paste URLs):');
+    for (const note of ctx.recentPublicNotes) {
+      lines.push(`- ${note}`);
+    }
+  }
   lines.push(`Product name: ${ctx.productName}`);
   if (ctx.productCategory) lines.push(`Product category: ${ctx.productCategory}`);
   if (ctx.productTagline) lines.push(`Product tagline: ${ctx.productTagline}`);
@@ -237,7 +287,7 @@ export function normalizeOutreachCopy(raw: {
   introText: string;
   closingText: string;
 }): NormalizeOutreachCopyResult {
-  const introText = sanitizeOutreachProse(raw.introText);
+  const introText = stripLeadingOutreachGreeting(sanitizeOutreachProse(raw.introText));
   const closingText = sanitizeOutreachProse(raw.closingText);
 
   if (
@@ -273,8 +323,9 @@ async function callGenerateObject(
   prompt: string,
 ): Promise<{ ok: true; fields: OgrOutreachDraftFields } | { ok: false; error: string }> {
   try {
+    ensureAiGatewayApiKey();
     const { object } = await generateObject({
-      model: OGR_OUTREACH_DRAFT_MODEL,
+      model: staffGatewayModel(OGR_OUTREACH_DRAFT_MODEL),
       schema: ogrOutreachDraftSchema,
       schemaName: 'OgrProductOutreachDraft',
       prompt,
@@ -282,69 +333,80 @@ async function callGenerateObject(
     });
     return { ok: true, fields: object };
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Draft generation failed';
-    return { ok: false, error: message };
+    return { ok: false, error: aiGatewayUserErrorMessage(err) };
   }
 }
 
-export async function produceOutreachCopy(ctx: SafeOutreachPromptContext): Promise<{
-  introText: string;
-  closingText: string;
-  fallback: OutreachDraftFallback;
-  introWordCount: number;
-  closingWordCount: number;
-}> {
+export type ProduceOutreachCopyResult =
+  | {
+      ok: true;
+      introText: string;
+      closingText: string;
+      fallback: OutreachDraftFallback;
+      introWordCount: number;
+      closingWordCount: number;
+    }
+  | { ok: false; error: string };
+
+export async function produceOutreachCopy(
+  ctx: SafeOutreachPromptContext,
+): Promise<ProduceOutreachCopyResult> {
   const first = await callGenerateObject(buildOutreachDraftPrompt(ctx));
   if (!first.ok) {
-    return {
-      introText: OGR_PRODUCT_EMAIL_DEFAULT_INTRO,
-      closingText: OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
-      fallback: 'defaults',
-      introWordCount: countWords(OGR_PRODUCT_EMAIL_DEFAULT_INTRO),
-      closingWordCount: countWords(OGR_PRODUCT_EMAIL_DEFAULT_CLOSING),
-    };
+    return { ok: false, error: first.error };
   }
 
-  let normalized = normalizeOutreachCopy(first.fields);
-  if (!normalized.needsRetry) {
+  const firstNormalized = normalizeOutreachCopy(first.fields);
+  if (!firstNormalized.needsRetry) {
     return {
-      introText: normalized.introText,
-      closingText: normalized.closingText,
-      fallback: normalized.fallback,
-      introWordCount: normalized.introWordCount,
-      closingWordCount: normalized.closingWordCount,
+      ok: true,
+      introText: firstNormalized.introText,
+      closingText: firstNormalized.closingText,
+      fallback: firstNormalized.fallback,
+      introWordCount: firstNormalized.introWordCount,
+      closingWordCount: firstNormalized.closingWordCount,
     };
   }
 
   const second = await callGenerateObject(buildOutreachDraftPrompt(ctx, { shorten: true }));
   if (!second.ok) {
-    return {
-      introText: OGR_PRODUCT_EMAIL_DEFAULT_INTRO,
-      closingText: OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
-      fallback: 'defaults',
-      introWordCount: countWords(OGR_PRODUCT_EMAIL_DEFAULT_INTRO),
-      closingWordCount: countWords(OGR_PRODUCT_EMAIL_DEFAULT_CLOSING),
-    };
+    // Keep a usable over-long first draft rather than silent stub defaults.
+    if (firstNormalized.fallback === 'none') {
+      return {
+        ok: true,
+        introText: firstNormalized.introText,
+        closingText: firstNormalized.closingText,
+        fallback: firstNormalized.fallback,
+        introWordCount: firstNormalized.introWordCount,
+        closingWordCount: firstNormalized.closingWordCount,
+      };
+    }
+    return { ok: false, error: second.error };
   }
 
-  normalized = normalizeOutreachCopy(second.fields);
-  if (normalized.fallback === 'defaults') {
-    return {
-      introText: normalized.introText,
-      closingText: normalized.closingText,
-      fallback: 'defaults',
-      introWordCount: normalized.introWordCount,
-      closingWordCount: normalized.closingWordCount,
-    };
+  const secondNormalized = normalizeOutreachCopy(second.fields);
+  if (secondNormalized.fallback === 'defaults') {
+    if (firstNormalized.fallback === 'none') {
+      return {
+        ok: true,
+        introText: firstNormalized.introText,
+        closingText: firstNormalized.closingText,
+        fallback: firstNormalized.fallback,
+        introWordCount: firstNormalized.introWordCount,
+        closingWordCount: firstNormalized.closingWordCount,
+      };
+    }
+    return { ok: false, error: 'Generated copy failed safety checks' };
   }
 
   // Prefer shortened AI copy even if still slightly over preferred words (under hard max).
   return {
-    introText: normalized.introText,
-    closingText: normalized.closingText,
+    ok: true,
+    introText: secondNormalized.introText,
+    closingText: secondNormalized.closingText,
     fallback: 'retry_shorten',
-    introWordCount: normalized.introWordCount,
-    closingWordCount: normalized.closingWordCount,
+    introWordCount: secondNormalized.introWordCount,
+    closingWordCount: secondNormalized.closingWordCount,
   };
 }
 
@@ -357,6 +419,11 @@ export type GenerateOgrProductOutreachDraftInput = {
   /** When set (staff generate-draft with AI flag on), load published SKUs for this line only. */
   salesLineId?: string;
   retailerLineAccountId?: string | null;
+  /**
+   * `generic_stub` — prep path: defaults only, no AI.
+   * `ai` — staff Add copy / research handoff (default).
+   */
+  copyMode?: OutreachCopyMode;
 };
 
 export type GenerateOgrProductOutreachDraftResult =
@@ -378,6 +445,7 @@ async function loadProspectContext(
   region: string;
   fit: string;
   lifestyleThemes: string[];
+  website: string | null;
 } | null> {
   const { data, error } = await client
     .from('prospects')
@@ -391,7 +459,58 @@ async function loadProspectContext(
     region: prospect.region,
     fit: prospect.fit,
     lifestyleThemes: prospect.lifestyleThemes,
+    website: prospect.website,
   };
+}
+
+/**
+ * Latest completed research run's accepted citation notes (plain text, no URLs).
+ * Missing research is fine — returns [].
+ */
+export function stripUrlsFromResearchNote(raw: string): string {
+  return raw
+    .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/\bwww\.\S+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export async function loadAcceptedResearchNotesForOutreach(
+  client: DbClient,
+  prospectId: number,
+  limit = OGR_OUTREACH_RESEARCH_NOTES_MAX,
+): Promise<string[]> {
+  const { data: runs, error: runError } = await client
+    .from('account_research_runs')
+    .select('id, completed_at')
+    .eq('retailer_id', prospectId)
+    .in('status', ['succeeded', 'partial'])
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false })
+    .limit(1);
+  if (runError || !runs?.[0]?.id) return [];
+
+  const { data: citations, error: citeError } = await client
+    .from('account_research_citations')
+    .select('platform, title, excerpt')
+    .eq('research_run_id', runs[0].id)
+    .eq('acceptance_status', 'accepted')
+    .order('observed_at', { ascending: false })
+    .limit(limit);
+  if (citeError || !citations) return [];
+
+  const notes: string[] = [];
+  for (const row of citations) {
+    const platform = typeof row.platform === 'string' ? row.platform.trim() : '';
+    const title = typeof row.title === 'string' ? row.title.trim() : '';
+    const excerpt = typeof row.excerpt === 'string' ? row.excerpt.trim() : '';
+    const body = stripUrlsFromResearchNote(excerpt || title);
+    if (!body) continue;
+    const clipped = body.slice(0, 180);
+    notes.push(platform ? `${platform}: ${clipped}` : clipped);
+    if (notes.length >= limit) break;
+  }
+  return notes;
 }
 
 function buildGenerationMeta(
@@ -401,10 +520,11 @@ function buildGenerationMeta(
     introWordCount: number;
     closingWordCount: number;
   },
+  copyStatus: 'stub' | 'ai',
 ): ProductOutreachGenerationMeta {
   return {
     promptVersion: OGR_OUTREACH_DRAFT_PROMPT_VERSION,
-    model: OGR_OUTREACH_DRAFT_MODEL,
+    model: copyStatus === 'stub' ? 'none' : OGR_OUTREACH_DRAFT_MODEL,
     preparationDate: target.preparationDate,
     selectionReasons: target.selectionReasons,
     primaryChannel: target.primaryChannel,
@@ -412,6 +532,7 @@ function buildGenerationMeta(
     introWordCount: copy.introWordCount,
     closingWordCount: copy.closingWordCount,
     generatedAt: new Date().toISOString(),
+    copyStatus,
   };
 }
 
@@ -426,6 +547,7 @@ export async function generateOgrProductOutreachDraft(
   const { target } = input;
   const userId = typeof input.userId === 'string' ? input.userId.trim() : '';
   const sentBy = userId || null;
+  const copyMode: OutreachCopyMode = input.copyMode === 'generic_stub' ? 'generic_stub' : 'ai';
 
   const crm = await requireExplicitProductOutreachCrmAssociation(client, {
     prospectId: target.prospectId,
@@ -450,21 +572,55 @@ export async function generateOgrProductOutreachDraft(
     salesVolumeRank: target.productSalesRank,
     publicMarket: emailMarket,
   });
-  const prospectCtx = await loadProspectContext(client, target.prospectId);
-  const promptCtx = buildSafeOutreachPromptContext({
-    target,
-    product: {
-      name: presentation.name,
-      tagline: presentation.tagline,
-      description: presentation.description,
-      category: presentation.category,
-      lifestyleThemeLabels: presentation.lifestyleThemeLabels,
-      isNew: presentation.isNew,
-    },
-    prospect: prospectCtx,
-  });
 
-  const copy = await produceOutreachCopy(promptCtx);
+  let copy: {
+    introText: string;
+    closingText: string;
+    fallback: OutreachDraftFallback;
+    introWordCount: number;
+    closingWordCount: number;
+  };
+  let copyStatus: 'stub' | 'ai';
+
+  if (copyMode === 'generic_stub') {
+    copy = {
+      introText: OGR_PRODUCT_EMAIL_DEFAULT_INTRO,
+      closingText: OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
+      fallback: 'defaults',
+      introWordCount: countWords(OGR_PRODUCT_EMAIL_DEFAULT_INTRO),
+      closingWordCount: countWords(OGR_PRODUCT_EMAIL_DEFAULT_CLOSING),
+    };
+    copyStatus = 'stub';
+  } else {
+    const prospectCtx = await loadProspectContext(client, target.prospectId);
+    const recentPublicNotes = await loadAcceptedResearchNotesForOutreach(client, target.prospectId);
+    const promptCtx = buildSafeOutreachPromptContext({
+      target,
+      product: {
+        name: presentation.name,
+        tagline: presentation.tagline,
+        description: presentation.description,
+        category: presentation.category,
+        lifestyleThemeLabels: presentation.lifestyleThemeLabels,
+        isNew: presentation.isNew,
+      },
+      prospect: prospectCtx,
+      recentPublicNotes,
+    });
+    const produced = await produceOutreachCopy(promptCtx);
+    if (!produced.ok) {
+      return { ok: false, error: produced.error };
+    }
+    copy = {
+      introText: produced.introText,
+      closingText: produced.closingText,
+      fallback: produced.fallback,
+      introWordCount: produced.introWordCount,
+      closingWordCount: produced.closingWordCount,
+    };
+    copyStatus = 'ai';
+  }
+
   const subject = defaultOgrProductEmailSubject(presentation.name);
   const origin = resolvePublicSiteOrigin();
   const productHref =
@@ -477,7 +633,7 @@ export async function generateOgrProductOutreachDraft(
     slug: presentation.slug,
     productHref,
     ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
-    generation: buildGenerationMeta(target, copy),
+    generation: buildGenerationMeta(target, copy, copyStatus),
   };
 
   let draftId = input.existingDraftId?.trim() || '';
@@ -552,6 +708,8 @@ export type GenerateOgrProductOutreachDraftsInput = {
   regenerate?: boolean;
   automationRunId?: string | null;
   salesLineId?: string;
+  /** Prep uses `generic_stub`; staff batch (if any) defaults to `ai`. */
+  copyMode?: OutreachCopyMode;
 };
 
 export type GenerateOgrProductOutreachDraftsResult = {
@@ -590,6 +748,7 @@ export async function generateOgrProductOutreachDrafts(
       userId: input.userId,
       automationRunId: input.automationRunId,
       salesLineId: input.salesLineId,
+      copyMode: input.copyMode,
     });
     if (!generated.ok) {
       results.push({ prospectId: target.prospectId, error: generated.error });

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requireCronSecretMock = vi.fn();
 const getServiceRoleClientMock = vi.fn();
@@ -18,7 +18,14 @@ vi.mock('@/lib/outreachNightlyPrep', () => ({
 
 import { GET, POST } from '@/pages/api/cron/outreach-nightly-prep';
 
+function restoreEnv(name: string, prev: string | undefined): void {
+  if (prev !== undefined) process.env[name] = prev;
+  else delete process.env[name];
+}
+
 describe('/api/cron/outreach-nightly-prep', () => {
+  const prevFlag = process.env.FEATURE_OUTREACH_NIGHTLY_PREP;
+
   beforeEach(() => {
     vi.clearAllMocks();
     requireCronSecretMock.mockReturnValue({ ok: true });
@@ -30,6 +37,10 @@ describe('/api/cron/outreach-nightly-prep', () => {
     });
   });
 
+  afterEach(() => {
+    restoreEnv('FEATURE_OUTREACH_NIGHTLY_PREP', prevFlag);
+  });
+
   it('GET returns 401 without secret', async () => {
     requireCronSecretMock.mockReturnValue({ ok: false, status: 401, error: 'Unauthorized' });
     const res = await GET({
@@ -39,7 +50,24 @@ describe('/api/cron/outreach-nightly-prep', () => {
     expect(runOutreachNightlyPrepMock).not.toHaveBeenCalled();
   });
 
-  it('POST runs prep when authorized', async () => {
+  it('no-ops when FEATURE_OUTREACH_NIGHTLY_PREP is off (default)', async () => {
+    delete process.env.FEATURE_OUTREACH_NIGHTLY_PREP;
+    const res = await POST({
+      request: new Request('http://localhost/api/cron/outreach-nightly-prep', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer secret' },
+      }),
+    } as never);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; disabled?: boolean };
+    expect(body.ok).toBe(true);
+    expect(body.disabled).toBe(true);
+    expect(runOutreachNightlyPrepMock).not.toHaveBeenCalled();
+    expect(getServiceRoleClientMock).not.toHaveBeenCalled();
+  });
+
+  it('POST runs prep when authorized and flag is on', async () => {
+    process.env.FEATURE_OUTREACH_NIGHTLY_PREP = '1';
     const res = await POST({
       request: new Request('http://localhost/api/cron/outreach-nightly-prep', {
         method: 'POST',

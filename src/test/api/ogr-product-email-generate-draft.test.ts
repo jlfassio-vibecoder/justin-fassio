@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const requireApprovedStaffClientMock = vi.fn();
 const checkAgentRateLimitMock = vi.fn();
 const generateOgrProductOutreachDraftMock = vi.fn();
-const generateOgrProductOutreachDraftsMock = vi.fn();
 const sendOgrProductOutreachEmailMock = vi.fn();
+const hasAiGatewayAuthMock = vi.fn(() => true);
 
 vi.mock('@/lib/agentAuth', () => ({
   requireApprovedStaffClient: (...args: unknown[]) => requireApprovedStaffClientMock(...args),
@@ -19,14 +19,20 @@ vi.mock('@/lib/agentRateLimit', () => ({
     }),
 }));
 
+vi.mock('@/lib/aiGatewayEnv', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/aiGatewayEnv')>();
+  return {
+    ...actual,
+    hasAiGatewayAuth: () => hasAiGatewayAuthMock(),
+  };
+});
+
 vi.mock('@/lib/generateOgrProductOutreachDraft', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/generateOgrProductOutreachDraft')>();
   return {
     ...actual,
     generateOgrProductOutreachDraft: (...args: unknown[]) =>
       generateOgrProductOutreachDraftMock(...args),
-    generateOgrProductOutreachDrafts: (...args: unknown[]) =>
-      generateOgrProductOutreachDraftsMock(...args),
   };
 });
 
@@ -34,6 +40,7 @@ vi.mock('@/lib/sendOgrProductOutreachEmail', () => ({
   sendOgrProductOutreachEmail: (...args: unknown[]) => sendOgrProductOutreachEmailMock(...args),
 }));
 
+import { LOCAL_AI_GATEWAY_AUTH_HELP } from '@/lib/aiGatewayEnv';
 import { POST } from '@/pages/api/staff/ogr-product-email/generate-draft';
 
 const CONTACT_ID = 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
@@ -76,6 +83,7 @@ function requestWith(body: unknown): Parameters<typeof POST>[0] {
 describe('POST /api/staff/ogr-product-email/generate-draft', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    hasAiGatewayAuthMock.mockReturnValue(true);
     requireApprovedStaffClientMock.mockResolvedValue({
       ok: true,
       supabase: {},
@@ -90,10 +98,25 @@ describe('POST /api/staff/ogr-product-email/generate-draft', () => {
       closingText: 'Closing',
       fallback: 'none',
     });
-    generateOgrProductOutreachDraftsMock.mockResolvedValue({
-      ok: true,
-      results: [{ prospectId: 10, draftId: 'draft-1' }],
+  });
+
+  it('returns 503 when AI gateway auth is missing', async () => {
+    hasAiGatewayAuthMock.mockReturnValue(false);
+    const res = await POST(requestWith({ target }));
+    expect(res.status).toBe(503);
+    const json = (await res.json()) as Record<string, unknown>;
+    expect(json.error).toBe(LOCAL_AI_GATEWAY_AUTH_HELP);
+    expect(generateOgrProductOutreachDraftMock).not.toHaveBeenCalled();
+  });
+
+  it('maps generator failures to 502', async () => {
+    generateOgrProductOutreachDraftMock.mockResolvedValue({
+      ok: false,
+      error: 'gateway down',
     });
+    const res = await POST(requestWith({ target }));
+    expect(res.status).toBe(502);
+    expect(generateOgrProductOutreachDraftMock).toHaveBeenCalled();
   });
 
   it('generates a single draft without calling Resend', async () => {
@@ -108,6 +131,7 @@ describe('POST /api/staff/ogr-product-email/generate-draft', () => {
       {},
       expect.objectContaining({
         userId: 'user-1',
+        copyMode: 'ai',
         target: expect.objectContaining({ prospectId: 10 }),
       }),
     );
@@ -125,22 +149,29 @@ describe('POST /api/staff/ogr-product-email/generate-draft', () => {
     expect(res.status).toBe(429);
   });
 
-  it('caps batch size at 10', async () => {
-    const targets = Array.from({ length: 11 }, (_, i) => ({
-      ...target,
-      prospectId: i + 1,
-    }));
+  it('rejects multi-target bulk generate', async () => {
+    const targets = [
+      { ...target, prospectId: 1 },
+      { ...target, prospectId: 2 },
+    ];
     const res = await POST(requestWith({ targets }));
     expect(res.status).toBe(400);
-    expect(generateOgrProductOutreachDraftsMock).not.toHaveBeenCalled();
+    const json = (await res.json()) as Record<string, unknown>;
+    expect(json.error).toMatch(/bulk generate/i);
+    expect(generateOgrProductOutreachDraftMock).not.toHaveBeenCalled();
   });
 
-  it('batches up to 10 targets', async () => {
-    const res = await POST(requestWith({ targets: [target], regenerate: true }));
+  it('accepts a single-element targets array as Add copy', async () => {
+    const res = await POST(requestWith({ targets: [target], existingDraftId: 'draft-1' }));
     expect(res.status).toBe(200);
-    expect(generateOgrProductOutreachDraftsMock).toHaveBeenCalledWith(
+    expect(generateOgrProductOutreachDraftMock).toHaveBeenCalledWith(
       {},
-      expect.objectContaining({ regenerate: true, userId: 'user-1' }),
+      expect.objectContaining({
+        userId: 'user-1',
+        copyMode: 'ai',
+        existingDraftId: 'draft-1',
+        target: expect.objectContaining({ prospectId: 10 }),
+      }),
     );
     expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
   });

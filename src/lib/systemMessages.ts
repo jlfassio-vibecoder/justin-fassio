@@ -65,6 +65,8 @@ export type ProductOutreachGenerationMeta = {
   introWordCount: number;
   closingWordCount: number;
   generatedAt: string;
+  /** Prep stubs use `stub`; staff Add copy uses `ai`. Older drafts omit this. */
+  copyStatus?: 'stub' | 'ai';
 };
 
 export type ProductOutreachSystemMessagePayload = {
@@ -140,6 +142,7 @@ export function parseGenerationMeta(raw: unknown): ProductOutreachGenerationMeta
     introWordCount: g.introWordCount,
     closingWordCount: g.closingWordCount,
     generatedAt: g.generatedAt,
+    ...(g.copyStatus === 'stub' || g.copyStatus === 'ai' ? { copyStatus: g.copyStatus } : {}),
   };
 }
 

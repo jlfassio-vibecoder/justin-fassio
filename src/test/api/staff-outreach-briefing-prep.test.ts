@@ -16,7 +16,24 @@ vi.mock('@/lib/outreachBriefing', () => ({
 vi.mock('@/lib/outreachNightlyPrep', () => ({
   runOutreachNightlyPrep: (...args: unknown[]) => runOutreachNightlyPrepMock(...args),
   defaultNightlyPrepRunDate: () => '2026-08-13',
+  briefingSellingDate: () => '2026-08-12',
+  OUTREACH_REGIONAL_PREP_DEFAULT_LIMIT: 25,
+  OUTREACH_REGIONAL_PREP_MAX_LIMIT: 25,
 }));
+
+vi.mock('@/lib/operationalTerritories/fetchOperationalTerritories', () => ({
+  fetchOperationalTerritories: vi.fn(async () => ({
+    data: [{ id: 'ops-pnw-west', code: 'pnw-west', name: 'PNW West' }],
+    error: null,
+  })),
+}));
+
+vi.mock('@/lib/operationalTerritories/resolve', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/operationalTerritories/resolve')>(
+    '@/lib/operationalTerritories/resolve',
+  );
+  return actual;
+});
 
 vi.mock('@/lib/outreachGoals', () => ({
   getOutreachGoalSettings: (...args: unknown[]) => getOutreachGoalSettingsMock(...args),
@@ -133,6 +150,31 @@ describe('staff outreach briefing + prep', () => {
     expect(res.status).toBe(200);
     expect(runOutreachNightlyPrepMock).toHaveBeenCalledWith(
       expect.objectContaining({ trigger: 'manual', triggeredBy: 'staff-1' }),
+    );
+  });
+
+  it('POST regional prep passes ops territory, store geo, limit, and selling date', async () => {
+    const res = await POST_PREP({
+      request: new Request('http://localhost/api/staff/outreach/prep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operationalTerritoryId: 'ops-pnw-west',
+          storeTerritoryCode: 'or',
+          limit: 25,
+        }),
+      }),
+    } as never);
+    expect(res.status).toBe(200);
+    expect(runOutreachNightlyPrepMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: 'manual',
+        triggeredBy: 'staff-1',
+        operationalTerritoryId: 'ops-pnw-west',
+        storeTerritoryCode: 'or',
+        limit: 25,
+        preparationDate: '2026-08-12',
+      }),
     );
   });
 });

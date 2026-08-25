@@ -1882,7 +1882,7 @@ export interface Database {
         Row: {
           id: string;
           run_date: string;
-          kind: 'nightly_prep';
+          kind: 'nightly_prep' | 'manual_regional_prep';
           status: 'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
           trigger: 'cron' | 'manual';
           capacity: number;
@@ -1897,6 +1897,8 @@ export interface Database {
           error: string | null;
           target_errors: unknown;
           reason: string | null;
+          operational_territory_id: string | null;
+          store_territory_code: string | null;
           started_at: string;
           finished_at: string | null;
           triggered_by: string | null;
@@ -1906,7 +1908,7 @@ export interface Database {
         Insert: {
           id?: string;
           run_date: string;
-          kind?: 'nightly_prep';
+          kind?: 'nightly_prep' | 'manual_regional_prep';
           status: 'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
           trigger: 'cron' | 'manual';
           capacity?: number;
@@ -1921,6 +1923,8 @@ export interface Database {
           error?: string | null;
           target_errors?: unknown;
           reason?: string | null;
+          operational_territory_id?: string | null;
+          store_territory_code?: string | null;
           started_at?: string;
           finished_at?: string | null;
           triggered_by?: string | null;
@@ -1930,7 +1934,7 @@ export interface Database {
         Update: {
           id?: string;
           run_date?: string;
-          kind?: 'nightly_prep';
+          kind?: 'nightly_prep' | 'manual_regional_prep';
           status?: 'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
           trigger?: 'cron' | 'manual';
           capacity?: number;
@@ -1945,6 +1949,8 @@ export interface Database {
           error?: string | null;
           target_errors?: unknown;
           reason?: string | null;
+          operational_territory_id?: string | null;
+          store_territory_code?: string | null;
           started_at?: string;
           finished_at?: string | null;
           triggered_by?: string | null;

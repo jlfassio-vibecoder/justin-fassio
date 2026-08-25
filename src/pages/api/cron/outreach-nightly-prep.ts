@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireCronSecret } from '@/lib/cronAuth';
 import { runOutreachNightlyPrep } from '@/lib/outreachNightlyPrep';
+import { isOutreachNightlyPrepEnabled } from '@/lib/staffFeatures';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
 
 export const prerender = false;
@@ -17,6 +18,14 @@ async function handle(request: Request): Promise<Response> {
   const auth = requireCronSecret(request);
   if (!auth.ok) {
     return json({ error: auth.error }, auth.status);
+  }
+
+  if (!isOutreachNightlyPrepEnabled()) {
+    return json({
+      ok: true,
+      disabled: true,
+      reason: 'FEATURE_OUTREACH_NIGHTLY_PREP is off',
+    });
   }
 
   const client = getServiceRoleClient();

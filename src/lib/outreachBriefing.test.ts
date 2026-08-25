@@ -21,6 +21,8 @@ function run(partial: Partial<OutreachAutomationRunRow>): OutreachAutomationRunR
     error: null,
     targetErrors: [],
     reason: null,
+    operationalTerritoryId: null,
+    storeTerritoryCode: null,
     startedAt: '2026-08-12T05:00:00.000Z',
     finishedAt: '2026-08-12T05:01:00.000Z',
     triggeredBy: null,

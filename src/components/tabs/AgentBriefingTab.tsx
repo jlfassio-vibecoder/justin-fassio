@@ -6,20 +6,29 @@ import {
 } from '@/components/OgrProductEmailComposerModal';
 import { Button } from '@/components/ui/Button';
 import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
+import { Select } from '@/components/ui/Input';
 import { getAgentProductOutreachDraftClient } from '@/lib/agentProductOutreachDraftClient';
 import type { CatalogItem } from '@/lib/catalog';
 import { buildCatalogItemEmailCardHtml } from '@/lib/catalogItemEmailCardHtml';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import type { OutreachBriefingDto } from '@/lib/outreachBriefing';
 import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
+import {
+  fetchOperationalTerritories,
+  type OperationalTerritoryOption,
+} from '@/lib/operationalTerritories/fetchOperationalTerritories';
+import { OGR_OPERATIONAL_TERRITORY_CODES } from '@/lib/operationalTerritories/resolve';
 import { supabase } from '@/lib/supabase';
 
 const ICON_STROKE = 2.75;
+const OGR_OPS_SET = new Set<string>(OGR_OPERATIONAL_TERRITORY_CODES);
+const REGIONAL_PREP_LIMIT = 25;
 
 type DraftReviewTarget = {
   draftId: string;
   catalogItemId: string;
   productName: string;
+  prospectName?: string;
 };
 
 type AgentBriefingTabProps = {
@@ -139,6 +148,7 @@ export function AgentBriefingTab({
   onOpenProspect,
 }: AgentBriefingTabProps) {
   const lineCtx = useOptionalLineContext();
+  const isOgrLine = !lineCtx.multiLineUi || lineCtx.lineSlug === 'ogr' || lineCtx.lineSlug == null;
   const [briefing, setBriefing] = useState<OutreachBriefingDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -150,6 +160,9 @@ export function AgentBriefingTab({
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [appliedDeepLinkKey, setAppliedDeepLinkKey] = useState('');
+  const [opsOptions, setOpsOptions] = useState<OperationalTerritoryOption[]>([]);
+  const [opsTerritoryId, setOpsTerritoryId] = useState('');
+  const [storeTerritoryCode, setStoreTerritoryCode] = useState<'or' | 'wa' | ''>('or');
 
   const pendingSku = deepLinkSku?.trim() || null;
   const pendingDraftId = deepLinkDraftId?.trim() || null;
@@ -195,7 +208,7 @@ export function AgentBriefingTab({
         prospectId: d.prospectId,
         accountContactId: d.accountContactId,
         catalogItemId: d.catalogItemId,
-        prospectName: undefined,
+        prospectName: target.prospectName?.trim() || undefined,
         productSku: d.payload.sku,
         productSlug: d.payload.slug,
       });
@@ -231,6 +244,25 @@ export function AgentBriefingTab({
     };
   }, [reloadToken, briefingReloadToken, lineCtx.multiLineUi, lineCtx.salesLineId]);
 
+  useEffect(() => {
+    if (!isOgrLine) return;
+    let active = true;
+    void fetchOperationalTerritories().then((result) => {
+      if (!active) return;
+      if (result.error) return;
+      const ogrOps = result.data.filter((row) => OGR_OPS_SET.has(row.code));
+      setOpsOptions(ogrOps);
+      setOpsTerritoryId((prev) => {
+        if (prev && ogrOps.some((row) => row.id === prev)) return prev;
+        const pnwWest = ogrOps.find((row) => row.code === 'pnw-west');
+        return pnwWest?.id ?? ogrOps[0]?.id ?? '';
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, [isOgrLine]);
+
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   // Copilot suggestion ignored: a new event/token deep-link protocol is out of scope; drawer close now clears its applied deep-link state.
   if (pendingDraftId && pendingDeepLinkKey !== appliedDeepLinkKey && !loading && briefing) {
@@ -251,6 +283,7 @@ export function AgentBriefingTab({
           draftId: pendingDraftId,
           catalogItemId,
           productName: row?.productName ?? pendingSku ?? 'Product',
+          prospectName: row?.prospectName,
         }).finally(() => {
           onDeepLinkConsumed?.();
         });
@@ -259,9 +292,23 @@ export function AgentBriefingTab({
   }
 
   async function runPrepNow() {
+    if (!isOgrLine) {
+      setPrepMessage('Regional prep is available on OGR only.');
+      return;
+    }
+    if (!opsTerritoryId) {
+      setPrepMessage('Select an operational territory first.');
+      return;
+    }
     setPrepBusy(true);
     setPrepMessage(null);
-    const result = await staffPost('/api/staff/outreach/prep', {});
+    const body: Record<string, unknown> = {
+      operationalTerritoryId: opsTerritoryId,
+      limit: REGIONAL_PREP_LIMIT,
+    };
+    if (storeTerritoryCode) body.storeTerritoryCode = storeTerritoryCode;
+    if (briefing?.sellingDate) body.preparationDate = briefing.sellingDate;
+    const result = await staffPost('/api/staff/outreach/prep', body);
     setPrepBusy(false);
     if (!result.ok) {
       setPrepMessage(result.error);
@@ -269,10 +316,14 @@ export function AgentBriefingTab({
     }
     const data = result.data as {
       noop?: boolean;
-      run?: { producedCount?: number; status?: string };
+      run?: { producedCount?: number; status?: string; reason?: string | null };
     };
     if (data.noop) {
-      setPrepMessage('Prep already complete for that selling day.');
+      setPrepMessage('Prep already complete for that region and selling day.');
+    } else if (data.run?.status === 'empty_pool') {
+      setPrepMessage(
+        'No sendable accounts in that region yet. Lookalikes need a usable contact email (and product-fit). Add emails, then retry.',
+      );
     } else {
       setPrepMessage(
         `Prep finished (${data.run?.status ?? 'done'}${
@@ -311,9 +362,55 @@ export function AgentBriefingTab({
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" strokeWidth={ICON_STROKE} aria-hidden />
             Refresh
           </Button>
-          <Button type="button" onClick={() => void runPrepNow()} disabled={prepBusy || loading}>
-            {prepBusy ? 'Running prep…' : 'Run prep now'}
-          </Button>
+          {isOgrLine ? (
+            <>
+              <label className="sr-only" htmlFor="briefing-ops-territory">
+                Operational territory
+              </label>
+              <Select
+                id="briefing-ops-territory"
+                className="w-auto min-w-[10rem]"
+                value={opsTerritoryId}
+                onChange={(e) => setOpsTerritoryId(e.target.value)}
+                disabled={prepBusy || loading || opsOptions.length === 0}
+              >
+                {opsOptions.length === 0 ? (
+                  <option value="">Loading territories…</option>
+                ) : (
+                  opsOptions.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.name}
+                    </option>
+                  ))
+                )}
+              </Select>
+              <label className="sr-only" htmlFor="briefing-store-territory">
+                Store geography
+              </label>
+              <Select
+                id="briefing-store-territory"
+                className="w-auto min-w-[7rem]"
+                value={storeTerritoryCode}
+                onChange={(e) =>
+                  setStoreTerritoryCode(
+                    e.target.value === 'wa' || e.target.value === 'or' ? e.target.value : '',
+                  )
+                }
+                disabled={prepBusy || loading}
+              >
+                <option value="or">Oregon</option>
+                <option value="wa">Washington</option>
+                <option value="">All store geos</option>
+              </Select>
+              <Button
+                type="button"
+                onClick={() => void runPrepNow()}
+                disabled={prepBusy || loading || !opsTerritoryId}
+              >
+                {prepBusy ? 'Running prep…' : `Run prep now (${REGIONAL_PREP_LIMIT})`}
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -374,7 +471,10 @@ export function AgentBriefingTab({
 
           <Card>
             <CardTitle className="text-[15px]">Drafts ready for review</CardTitle>
-            <CardMeta className="mb-2">{briefing.drafts.length} pending</CardMeta>
+            <CardMeta className="mb-2">
+              {briefing.drafts.length} pending · open a draft and use Add copy for personalized
+              intro/closing (prep leaves generic stubs)
+            </CardMeta>
             {briefing.drafts.length === 0 ? (
               <p className="text-ink/50 m-0 text-sm">No pending drafts for this selling date.</p>
             ) : (
@@ -429,6 +529,7 @@ export function AgentBriefingTab({
                                 draftId: d.draftId,
                                 catalogItemId: d.catalogItemId,
                                 productName: d.productName,
+                                prospectName: d.prospectName,
                               })
                             }
                           >
