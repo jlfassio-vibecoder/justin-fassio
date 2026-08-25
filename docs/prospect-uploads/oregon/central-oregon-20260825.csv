@@ -1,0 +1,8 @@
+business_name,physical_address,primary_phone,verified_email,key_personnel,crm_action,crm_id
+Deschutes River Fly Shop & Camp,"7228 NW HWY 26, Madras, OR 97741",541-553-2589 (list) / 541-553-2586 (CRM),Unspecified (Webform),Unnamed Owner / Camp Host,skipped_existing_enriched_address,653
+Fly & Field Outfitters (Bend),"35 SW Century Dr, Bend, OR 97702",541-318-1616,info@flyandfield.com,"Scott Cook (Owner), Kyle S. (GM)",skipped_existing_enriched_contacts,654
+Fly & Field Outfitters (Sunriver),"56805 Venture Ln, Sunriver, OR 97707",541-318-1616,info@flyandfield.com,Shannon S. (Guide Mgr),inserted,677
+The Fly Fisher's Place,"151 W Main Ave (PO Box 1179), Sisters, OR 97759",541-549-3474,"flyfishers.place@gmail.com, greendrakehatch@gmail.com","Jeff Perin (Owner), Steve Erickson (Guide)",skipped_existing_enriched_contacts,656
+Joe's Tackle Box,"1360 NE 3rd St, Prineville, OR 97754",541-220-6852,Unspecified,Joe Gardner (Owner),skipped_existing_enriched_contact,655
+The Bend Store,"815 NW Wall St, Bend, OR 97703",541-389-4700,robyn@bendstore.com,Robyn (Management/Returns),inserted,678
+Outside In (Retail Store),"845 NW Wall St, Bend, OR 97703",541-317-3569,info@outsideinbend.com,Unspecified,inserted_list_incomplete_filled_from_public_sources,679
