@@ -279,6 +279,15 @@ describe('outreach pool eligibility', () => {
       }),
     ).toBe(false);
     expect(
+      isRlaInOutreachPool(
+        {
+          relationshipStatus: 'prospect',
+          markers: ['lookalike_prospect'],
+        },
+        { includeLookalikeDiscovery: true },
+      ),
+    ).toBe(true);
+    expect(
       isRlaInOutreachPool({
         relationshipStatus: 'prospect',
         markers: ['lookalike_prospect', 'outreach_eligible'],

@@ -77,13 +77,16 @@ function makeClient(overrides?: {
       throw new Error(`unexpected table ${table}`);
     }
     return {
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            maybeSingle: async () => ({ data: runStore.row, error: null }),
-          }),
-        }),
-      }),
+      select: () => {
+        const chain: Record<string, unknown> = {};
+        const self = () => chain;
+        chain.eq = self;
+        chain.is = self;
+        chain.order = self;
+        chain.limit = self;
+        chain.maybeSingle = async () => ({ data: runStore.row, error: null });
+        return chain;
+      },
       insert: (row: Record<string, unknown>) => ({
         select: () => ({
           single: async () => {
@@ -93,7 +96,7 @@ function makeClient(overrides?: {
             const inserted = {
               id: 'run-1',
               run_date: row.run_date,
-              kind: 'nightly_prep',
+              kind: row.kind ?? 'nightly_prep',
               status: 'running',
               trigger: row.trigger,
               capacity: row.capacity ?? 0,
@@ -108,6 +111,8 @@ function makeClient(overrides?: {
               error: null,
               target_errors: [],
               reason: null,
+              operational_territory_id: row.operational_territory_id ?? null,
+              store_territory_code: row.store_territory_code ?? null,
               started_at: new Date().toISOString(),
               finished_at: null,
               triggered_by: row.triggered_by ?? null,
@@ -202,6 +207,7 @@ describe('runOutreachNightlyPrep', () => {
     expect(generateOgrProductOutreachDraftsMock).toHaveBeenCalled();
     const genArg = generateOgrProductOutreachDraftsMock.mock.calls[0][1];
     expect(genArg.regenerate).toBe(false);
+    expect(genArg.copyMode).toBe('generic_stub');
     expect(genArg.automationRunId).toBe('run-1');
   });
 
@@ -446,5 +452,74 @@ describe('runOutreachNightlyPrep', () => {
     expect(result.run.reason).toBe('already_at_pace');
     expect(result.run.netCapacity).toBe(0);
     expect(selectOutreachTargetsMock).not.toHaveBeenCalled();
+  });
+
+  it('regional mode uses fixed limit, fit_score rank, and ops filters', async () => {
+    const client = makeClient();
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      limit: 25,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.run.kind).toBe('manual_regional_prep');
+    expect(result.run.capacity).toBe(25);
+    expect(selectOutreachTargetsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        capacity: 25,
+        operationalTerritoryId: 'ops-pnw-west',
+        storeTerritoryCode: 'or',
+        rankMode: 'fit_score',
+        skipChannelAllocation: true,
+      }),
+    );
+  });
+
+  it('regional empty_pool is retryable (not terminal noop)', async () => {
+    const client = makeClient({
+      existingRun: {
+        id: 'run-empty',
+        run_date: '2026-08-25',
+        kind: 'manual_regional_prep',
+        status: 'empty_pool',
+        trigger: 'manual',
+        capacity: 25,
+        pending_before: 0,
+        net_capacity: 25,
+        selected_count: 0,
+        produced_count: 0,
+        skipped_count: 0,
+        failed_count: 0,
+        shortfall: 25,
+        channel_allocation: {},
+        error: null,
+        target_errors: [],
+        reason: 'empty_pool',
+        operational_territory_id: 'ops-pnw-west',
+        store_territory_code: 'or',
+        started_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+        triggered_by: 'staff-1',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      limit: 25,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.noop).toBe(false);
+    expect(selectOutreachTargetsMock).toHaveBeenCalled();
   });
 });

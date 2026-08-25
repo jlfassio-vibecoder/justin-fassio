@@ -209,14 +209,24 @@ export function prospectPassesOutreachPool(prospect: Pick<Prospect, 'accountStat
 }
 
 /** OGR RLA rows that may enter loadProspectAccounts. */
-export function isRlaInOutreachPool(row: {
-  relationshipStatus: string;
-  markers?: readonly string[] | null;
-}): boolean {
+export function isRlaInOutreachPool(
+  row: {
+    relationshipStatus: string;
+    markers?: readonly string[] | null;
+  },
+  options?: {
+    /**
+     * Regional manual prep: include lookalike discovery rows without outreach_eligible.
+     * Nightly prep keeps the opt-in gate.
+     */
+    includeLookalikeDiscovery?: boolean;
+  },
+): boolean {
   if (row.relationshipStatus === 'prospect') {
     if (
       hasMarker(row.markers, 'lookalike_prospect') &&
-      !hasMarker(row.markers, 'outreach_eligible')
+      !hasMarker(row.markers, 'outreach_eligible') &&
+      !options?.includeLookalikeDiscovery
     ) {
       return false;
     }

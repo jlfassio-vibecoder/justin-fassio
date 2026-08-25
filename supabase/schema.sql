@@ -2760,7 +2760,7 @@ create table if not exists outreach_automation_runs (
   id uuid primary key default gen_random_uuid(),
   run_date date not null,
   kind text not null default 'nightly_prep'
-    check (kind in ('nightly_prep')),
+    check (kind in ('nightly_prep', 'manual_regional_prep')),
   status text not null
     check (status in ('running', 'succeeded', 'partial', 'empty_pool', 'failed')),
   trigger text not null
@@ -2785,19 +2785,44 @@ create table if not exists outreach_automation_runs (
   error text,
   target_errors jsonb not null default '[]'::jsonb,
   reason text,
+  operational_territory_id uuid references operational_territories (territory_id) on delete set null,
+  store_territory_code text
+    check (
+      store_territory_code is null
+      or store_territory_code in ('or', 'wa', 'ca', 'bc', 'ab')
+    ),
   started_at timestamptz not null default now(),
   finished_at timestamptz,
   triggered_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint outreach_automation_runs_kind_run_date_uidx unique (kind, run_date)
+  constraint outreach_automation_runs_regional_ops_required check (
+    (kind = 'nightly_prep' and operational_territory_id is null)
+    or (kind = 'manual_regional_prep' and operational_territory_id is not null)
+  )
 );
+
+create unique index if not exists outreach_automation_runs_nightly_run_date_uidx
+  on outreach_automation_runs (run_date)
+  where kind = 'nightly_prep';
+
+create unique index if not exists outreach_automation_runs_regional_identity_uidx
+  on outreach_automation_runs (
+    run_date,
+    operational_territory_id,
+    coalesce(store_territory_code, '')
+  )
+  where kind = 'manual_regional_prep';
 
 create index if not exists outreach_automation_runs_run_date_idx
   on outreach_automation_runs (run_date desc);
 
 create index if not exists outreach_automation_runs_status_idx
   on outreach_automation_runs (status);
+
+create index if not exists outreach_automation_runs_ops_territory_idx
+  on outreach_automation_runs (operational_territory_id)
+  where operational_territory_id is not null;
 
 drop trigger if exists outreach_automation_runs_set_updated_at on outreach_automation_runs;
 create trigger outreach_automation_runs_set_updated_at

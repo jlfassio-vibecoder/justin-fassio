@@ -87,6 +87,20 @@ export type SelectOutreachTargetsInput = {
   fitBandWeightSource?: FitBandWeightSource;
   /** Injectable clock for cooldown / prep-date derivation. */
   asOf?: Date;
+  /** Filter to prospects with this operational_territory_id (regional prep). */
+  operationalTerritoryId?: string;
+  /** Optional store-geo filter (e.g. or / wa) within the ops region. */
+  storeTerritoryCode?: string;
+  /**
+   * Ranking mode. `fit_score` = fit desc (nulls last), then id.
+   * `default` = priority / fit / fit-band / channel soft rank (nightly).
+   */
+  rankMode?: 'default' | 'fit_score';
+  /**
+   * When true, skip channel fill/spill and take top `capacity` after rank + product pick.
+   * Used with regional fit_score prep.
+   */
+  skipChannelAllocation?: boolean;
 };
 
 export type SelectOutreachTargetsResult =
@@ -112,6 +126,7 @@ export function formatOutreachPreparationDate(
 
 async function loadProspectAccounts(
   client: DbClient,
+  options?: { includeLookalikeDiscovery?: boolean },
 ): Promise<{ ok: true; prospects: Prospect[] } | { ok: false; error: string }> {
   const { data: ogr, error: ogrError } = await client
     .from('lines')
@@ -131,10 +146,13 @@ async function loadProspectAccounts(
     ...new Set(
       (rlas ?? [])
         .filter((row) =>
-          isRlaInOutreachPool({
-            relationshipStatus: row.relationship_status,
-            markers: row.line_account_markers,
-          }),
+          isRlaInOutreachPool(
+            {
+              relationshipStatus: row.relationship_status,
+              markers: row.line_account_markers,
+            },
+            { includeLookalikeDiscovery: options?.includeLookalikeDiscovery },
+          ),
         )
         .map((row) => row.retailer_id)
         .filter((id) => Number.isFinite(id)),
@@ -357,7 +375,9 @@ export async function selectOutreachTargets(
   );
 
   const [prospectsResult, poolResult, pendingResult, suppressedResult] = await Promise.all([
-    loadProspectAccounts(client),
+    loadProspectAccounts(client, {
+      includeLookalikeDiscovery: Boolean(input.operationalTerritoryId?.trim()),
+    }),
     loadOutreachProductPool(client),
     fetchPendingAgentProductOutreachProspectIds(client, AGENT_OUTREACH_PENDING_DRAFT_STATUSES),
     loadSuppressedKeys(client),
@@ -368,10 +388,26 @@ export async function selectOutreachTargets(
   if (!pendingResult.ok) return { ok: false, error: pendingResult.error };
   if (!suppressedResult.ok) return { ok: false, error: suppressedResult.error };
 
+  const opsTerritoryId = input.operationalTerritoryId?.trim() || null;
+  const storeTerritoryCode = input.storeTerritoryCode?.trim().toLowerCase() || null;
+  const rankMode = input.rankMode ?? 'default';
+  const skipChannelAllocation = Boolean(input.skipChannelAllocation);
+
   const prospects = prospectsResult.prospects.filter((p) => {
     // Copilot suggestion ignored: load already drops inactive RLAs; renaming this leftover gate would expand the exclusion union without a consumer.
     if (!prospectPassesOutreachPool(p)) {
       excluded.push({ prospectId: p.id, reason: 'not_prospect' });
+      return false;
+    }
+    if (opsTerritoryId && p.operationalTerritoryId !== opsTerritoryId) {
+      excluded.push({ prospectId: p.id, reason: 'outside_ops_territory' });
+      return false;
+    }
+    if (
+      storeTerritoryCode &&
+      (p.territoryCode?.trim().toLowerCase() ?? '') !== storeTerritoryCode
+    ) {
+      excluded.push({ prospectId: p.id, reason: 'outside_store_territory' });
       return false;
     }
     return true;
@@ -458,8 +494,15 @@ export async function selectOutreachTargets(
   );
   if (!dedupResult.ok) return { ok: false, error: dedupResult.error };
 
-  eligible.sort((a, b) =>
-    compareOutreachProspectRank(
+  eligible.sort((a, b) => {
+    if (rankMode === 'fit_score') {
+      const fitA = a.prospect.fitScore;
+      const fitB = b.prospect.fitScore;
+      const fitCmp =
+        fitA == null && fitB == null ? 0 : fitA == null ? 1 : fitB == null ? -1 : fitB - fitA;
+      return fitCmp || a.prospect.id - b.prospect.id;
+    }
+    return compareOutreachProspectRank(
       {
         id: a.prospect.id,
         priority: a.prospect.priority,
@@ -484,8 +527,8 @@ export async function selectOutreachTargets(
         globalFitBandWeight: input.globalFitBandWeight,
         fitBandWeightSource: input.fitBandWeightSource,
       },
-    ),
-  );
+    );
+  });
 
   const remainingSlots = { ...allocation.slotsByChannel };
   const claimedEmails = new Set<string>();
@@ -504,7 +547,7 @@ export async function selectOutreachTargets(
       return false;
     }
 
-    if (preferChannelSlot) {
+    if (preferChannelSlot && !skipChannelAllocation) {
       const matching = candidate.allChannels.find((ch) => (remainingSlots[ch] ?? 0) > 0);
       if (!matching) return false;
       remainingSlots[matching] = (remainingSlots[matching] ?? 0) - 1;
@@ -563,8 +606,9 @@ export async function selectOutreachTargets(
 
   for (const candidate of eligible) {
     if (targets.length >= capacity) break;
-    const matched = trySelect(candidate, true);
+    const matched = trySelect(candidate, !skipChannelAllocation);
     if (
+      !skipChannelAllocation &&
       !matched &&
       !claimedProspects.has(candidate.prospect.id) &&
       !claimedEmails.has(candidate.toEmail)
@@ -577,9 +621,11 @@ export async function selectOutreachTargets(
     }
   }
 
-  for (const candidate of spill) {
-    if (targets.length >= capacity) break;
-    trySelect(candidate, false);
+  if (!skipChannelAllocation) {
+    for (const candidate of spill) {
+      if (targets.length >= capacity) break;
+      trySelect(candidate, false);
+    }
   }
 
   return { ok: true, targets, excluded };

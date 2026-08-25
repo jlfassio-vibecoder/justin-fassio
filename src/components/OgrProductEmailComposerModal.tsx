@@ -148,7 +148,7 @@ function OgrProductEmailComposerForm({
     onClose();
   }
 
-  async function handleRegenerate() {
+  async function handleAddCopy() {
     if (!draft || busy) return;
     if (eaglePeakOutreachBlocked) {
       setError('Eagle Peak outreach is not enabled');
@@ -159,17 +159,17 @@ function OgrProductEmailComposerForm({
       return;
     }
     if (draft.prospectId == null || !draft.accountContactId || !draft.catalogItemId) {
-      setError('Draft is missing CRM associations required to regenerate');
+      setError('Draft is missing CRM associations required to add copy');
       return;
     }
     const prospectName = draft.prospectName?.trim() ?? '';
     if (!prospectName) {
-      setError('Prospect name is required to regenerate');
+      setError('Prospect name is required to add copy');
       return;
     }
     const toEmail = (to.trim() || draft.to).trim();
     if (!isValidOgrProductEmailRecipient(toEmail)) {
-      setError('A valid recipient email is required to regenerate');
+      setError('A valid recipient email is required to add copy');
       return;
     }
     setError(null);
@@ -484,10 +484,10 @@ function OgrProductEmailComposerForm({
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => void handleRegenerate()}
+                onClick={() => void handleAddCopy()}
                 disabled={busy}
               >
-                {regenerating ? 'Regenerating…' : 'Regenerate copy'}
+                {regenerating ? 'Adding…' : 'Add copy'}
               </Button>
             </>
           ) : (

@@ -14,7 +14,7 @@ import {
 } from '@/lib/outreachLeadLists';
 import {
   briefingSellingDate,
-  getOutreachAutomationRunByDate,
+  getLatestOutreachAutomationRunForDate,
   type OutreachAutomationRunRow,
 } from '@/lib/outreachNightlyPrep';
 import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
@@ -310,7 +310,7 @@ export async function assembleOutreachBriefing(params: {
   const asOfDate = formatOutreachPreparationDate(asOf, timeZone);
   const sellingDate = briefingSellingDate(asOf, timeZone);
 
-  const runLookup = await getOutreachAutomationRunByDate(client, sellingDate);
+  const runLookup = await getLatestOutreachAutomationRunForDate(client, sellingDate);
   if (!runLookup.ok) return { ok: false, error: runLookup.error };
   const run = runLookup.run;
   const banner = prepBannerMessage({ sellingDate, run });

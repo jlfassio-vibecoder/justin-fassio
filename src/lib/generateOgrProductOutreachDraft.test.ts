@@ -17,6 +17,7 @@ import {
   buildOutreachDraftPrompt,
   buildSafeOutreachPromptContext,
   countWords,
+  hostnameFromWebsite,
   normalizeOutreachCopy,
   ogrOutreachDraftSchema,
   OGR_OUTREACH_DRAFT_PROMPT_VERSION,
@@ -122,6 +123,15 @@ describe('normalizeOutreachCopy', () => {
   });
 });
 
+describe('hostnameFromWebsite', () => {
+  it('extracts hostname without scheme or path', () => {
+    expect(hostnameFromWebsite('https://www.example.com/shop')).toBe('example.com');
+    expect(hostnameFromWebsite('example.com')).toBe('example.com');
+    expect(hostnameFromWebsite('')).toBeNull();
+    expect(hostnameFromWebsite(null)).toBeNull();
+  });
+});
+
 describe('buildSafeOutreachPromptContext', () => {
   it('omits emails and forbidden keys from prompt JSON', () => {
     const ctx = buildSafeOutreachPromptContext({
@@ -152,6 +162,34 @@ describe('buildSafeOutreachPromptContext', () => {
     for (const key of PUBLIC_PRESENTATION_FORBIDDEN_KEYS) {
       expect(json.includes(`"${key}"`)).toBe(false);
     }
+  });
+
+  it('includes store website host and research notes without raw URLs in rules', () => {
+    const ctx = buildSafeOutreachPromptContext({
+      target,
+      product: {
+        name: 'Golf Tee',
+        tagline: 'Fun tee',
+        description: 'A fun tee for golf shops.',
+        category: 'Apparel',
+        lifestyleThemeLabels: ['Golf'],
+        isNew: false,
+      },
+      prospect: {
+        city: 'Kelowna',
+        region: 'Okanagan',
+        fit: 'Strong golf fit',
+        lifestyleThemes: ['golf'],
+        website: 'https://golfshop.example/path',
+      },
+      recentPublicNotes: ['instagram: Local tournament photos', 'website: Family-owned since 1998'],
+    });
+    expect(ctx.storeWebsiteHost).toBe('golfshop.example');
+    expect(ctx.recentPublicNotes).toHaveLength(2);
+    const prompt = buildOutreachDraftPrompt(ctx);
+    expect(prompt).toContain('golfshop.example');
+    expect(prompt).toContain('Local tournament photos');
+    expect(prompt).toContain('No HTML, markdown links, URLs');
   });
 });
 

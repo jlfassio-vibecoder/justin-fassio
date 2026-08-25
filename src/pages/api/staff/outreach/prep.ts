@@ -1,7 +1,14 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
+import { fetchOperationalTerritories } from '@/lib/operationalTerritories/fetchOperationalTerritories';
+import { ogrMayConsumeOperationalTerritory } from '@/lib/operationalTerritories/resolve';
 import { getOutreachGoalSettings } from '@/lib/outreachGoals';
-import { defaultNightlyPrepRunDate, runOutreachNightlyPrep } from '@/lib/outreachNightlyPrep';
+import {
+  briefingSellingDate,
+  OUTREACH_REGIONAL_PREP_DEFAULT_LIMIT,
+  OUTREACH_REGIONAL_PREP_MAX_LIMIT,
+  runOutreachNightlyPrep,
+} from '@/lib/outreachNightlyPrep';
 import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { isWeekdayIso } from '@/lib/outreachSellingDays';
 
@@ -32,6 +39,29 @@ export const POST: APIRoute = async ({ request }) => {
   const timeZone = goals.settings.businessTimezone;
   const asOf = new Date();
   const today = formatOutreachPreparationDate(asOf, timeZone);
+  const defaultRegionalDate = briefingSellingDate(asOf, timeZone);
+
+  const operationalTerritoryId =
+    typeof body.operationalTerritoryId === 'string' ? body.operationalTerritoryId.trim() : '';
+  const storeRaw =
+    typeof body.storeTerritoryCode === 'string' ? body.storeTerritoryCode.trim().toLowerCase() : '';
+  const storeTerritoryCode = storeRaw || null;
+
+  if (storeTerritoryCode && !['or', 'wa'].includes(storeTerritoryCode)) {
+    return json({ error: 'storeTerritoryCode must be or or wa when set' }, 400);
+  }
+
+  if (operationalTerritoryId) {
+    const ops = await fetchOperationalTerritories(gate.supabase);
+    if (ops.error) return json({ error: ops.error }, 500);
+    const match = ops.data.find((row) => row.id === operationalTerritoryId);
+    if (!match) {
+      return json({ error: 'Unknown or inactive operational territory' }, 400);
+    }
+    if (!ogrMayConsumeOperationalTerritory(match.code)) {
+      return json({ error: `OGR prep does not support ops territory ${match.code}` }, 400);
+    }
+  }
 
   let preparationDate: string | undefined;
   const raw = typeof body.preparationDate === 'string' ? body.preparationDate.trim() : '';
@@ -39,13 +69,30 @@ export const POST: APIRoute = async ({ request }) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
       return json({ error: 'preparationDate must be YYYY-MM-DD' }, 400);
     }
-    // Catch-up today only when today is a selling day
     if (raw === today && !isWeekdayIso(today)) {
       return json({ error: 'Today is not a selling day' }, 400);
     }
     preparationDate = raw;
+  } else if (operationalTerritoryId) {
+    preparationDate = defaultRegionalDate;
   } else {
-    preparationDate = defaultNightlyPrepRunDate(asOf, timeZone);
+    // Legacy nightly-style manual without region: keep next-day default
+    preparationDate = undefined;
+  }
+
+  let limit: number | undefined;
+  if (operationalTerritoryId) {
+    if (typeof body.limit === 'number' && Number.isFinite(body.limit)) {
+      limit = Math.floor(body.limit);
+    } else {
+      limit = OUTREACH_REGIONAL_PREP_DEFAULT_LIMIT;
+    }
+    if (limit < 1 || limit > OUTREACH_REGIONAL_PREP_MAX_LIMIT) {
+      return json(
+        { error: `limit must be between 1 and ${OUTREACH_REGIONAL_PREP_MAX_LIMIT}` },
+        400,
+      );
+    }
   }
 
   const result = await runOutreachNightlyPrep({
@@ -54,6 +101,9 @@ export const POST: APIRoute = async ({ request }) => {
     triggeredBy: gate.userId,
     preparationDate,
     asOf,
+    operationalTerritoryId: operationalTerritoryId || undefined,
+    storeTerritoryCode,
+    limit,
   });
 
   if (!result.ok) {

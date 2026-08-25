@@ -42,7 +42,9 @@ function prospectRow(id: number, name: string, extras: Record<string, unknown> =
     initial_order_date: null,
     notes: null,
     territory_id: 't1',
+    operational_territory_id: extras.operational_territory_id ?? null,
     territories: { code: 'BC', name: 'BC' },
+    operational_territories: null,
     external_id: null,
     subterritory: null,
     primary_district: null,
@@ -820,5 +822,160 @@ describe('selectOutreachTargets', () => {
     expect(result.excluded).toEqual(
       expect.arrayContaining([{ prospectId: 10, reason: 'no_product_after_dedup' }]),
     );
+  });
+
+  it('regional: filters ops + store geo, ranks by fit_score, hard limit without channel spill', async () => {
+    const contact = (id: number, email: string) => ({
+      id: `c-${id}`,
+      account_id: id,
+      role: 'buyer',
+      full_name: `Buyer ${id}`,
+      title: null,
+      phone: null,
+      email,
+      is_primary: true,
+      notes: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    });
+    const client = mockSelectClient({
+      prospects: [
+        prospectRow(1, 'Low Fit OR West', {
+          fit_score: 3,
+          priority: 'Tier 1',
+          operational_territory_id: 'ops-pnw-west',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+        prospectRow(2, 'High Fit OR West', {
+          fit_score: 9,
+          priority: 'Tier 3',
+          operational_territory_id: 'ops-pnw-west',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+        prospectRow(3, 'Mid Fit WA West', {
+          fit_score: 8,
+          priority: 'Tier 1',
+          operational_territory_id: 'ops-pnw-west',
+          territories: { code: 'wa', name: 'Washington' },
+        }),
+        prospectRow(4, 'High Fit OR East', {
+          fit_score: 10,
+          priority: 'Tier 1',
+          operational_territory_id: 'ops-pnw-east',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+      ],
+      contacts: [
+        contact(1, 'a@example.com'),
+        contact(2, 'b@example.com'),
+        contact(3, 'c@example.com'),
+        contact(4, 'd@example.com'),
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 2,
+      preparationDate: '2026-08-25',
+      asOf: new Date('2026-08-25T18:00:00Z'),
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      rankMode: 'fit_score',
+      skipChannelAllocation: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets.map((t) => t.prospectId)).toEqual([2, 1]);
+    expect(result.excluded).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ prospectId: 3, reason: 'outside_store_territory' }),
+        expect.objectContaining({ prospectId: 4, reason: 'outside_ops_territory' }),
+      ]),
+    );
+  });
+
+  it('regional: includes lookalike_prospect without outreach_eligible when ops filter set', async () => {
+    const client = mockSelectClient({
+      prospects: [
+        prospectRow(20, 'Lookalike OR', {
+          fit_score: 7,
+          operational_territory_id: 'ops-pnw-west',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+      ],
+      rlaRows: [
+        {
+          retailer_id: 20,
+          relationship_status: 'prospect',
+          line_account_markers: ['lookalike_prospect'],
+        },
+      ],
+      contacts: [
+        {
+          id: 'c-20',
+          account_id: 20,
+          role: 'buyer',
+          full_name: 'Buyer 20',
+          title: null,
+          phone: null,
+          email: 'lookalike@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+    });
+
+    const blocked = await selectOutreachTargets(client, {
+      capacity: 5,
+      preparationDate: '2026-08-25',
+      asOf: new Date('2026-08-25T18:00:00Z'),
+    });
+    expect(blocked.ok).toBe(true);
+    if (blocked.ok) expect(blocked.targets).toHaveLength(0);
+
+    const regional = await selectOutreachTargets(client, {
+      capacity: 5,
+      preparationDate: '2026-08-25',
+      asOf: new Date('2026-08-25T18:00:00Z'),
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      rankMode: 'fit_score',
+      skipChannelAllocation: true,
+    });
+    expect(regional.ok).toBe(true);
+    if (!regional.ok) return;
+    expect(regional.targets.map((t) => t.prospectId)).toEqual([20]);
   });
 });
