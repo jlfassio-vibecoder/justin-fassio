@@ -25,13 +25,13 @@ The foundational data for this intelligence report stems from a reconstructed 52
 The dataset assigns analytical 2022 NAICS classifications—such as 459110 (Sporting Goods Retailers), 459420 (Gift, Novelty, and Souvenir Retailers), 444140 (Hardware Retailers), and 441222 (Boat Dealers)—based on observed retail formats rather than self-reported registry data1. Geographically, the master list skews heavily toward destination zones, with 117 records in the Oregon Coast district, 111 in Eastern Oregon, 92 in Portland Metro, 76 in the Willamette Valley, 61 in Southern Oregon, and 53 in Central Oregon1.  
 A critical parameter of this reconstructed dataset is the intentional use of "Unspecified" fields for email addresses and buyer names when absolute primary-source verification was unavailable. The dataset protocol explicitly prohibits the algorithmic generation or pattern-guessing of emails (e.g., assuming info@domain.com or firstname@domain.com), ensuring that the contacts provided are empirically validated rather than fabricated1. Consequently, while 85% (448 records) feature validated published phone numbers, direct buyer emails require meticulous manual extraction from secondary corporate footprints1.
 
-| Measure | Result |
-| :---- | :---- |
-| Total Reconstructed Master Records | 527 |
-| Unique Normalized Location Keys | 527 |
-| Records with Published Phone Numbers | 448 (85.0%) |
-| High Verification Confidence Rating | 465 (88.2%) |
-| Strong Multi-Line Wholesale Opportunities | 211 |
+| Measure                                   | Result      |
+| :---------------------------------------- | :---------- |
+| Total Reconstructed Master Records        | 527         |
+| Unique Normalized Location Keys           | 527         |
+| Records with Published Phone Numbers      | 448 (85.0%) |
+| High Verification Confidence Rating       | 465 (88.2%) |
+| Strong Multi-Line Wholesale Opportunities | 211         |
 
 The 527-record reconstruction features an analytical scoring model ranking accounts into tiers (A+, A, B, C), based on channel relevance, geographical destination value, and brand fit for lines such as Old Guys Rule, Big Fish Gear, and Eagle Peak1. The following sections dissect the precise contact vectors, organizational hierarchies, and operational realities of the highest-value targets within this scoring model.
 
@@ -56,15 +56,15 @@ Similarly positioned on the same commercial corridor, Outside In operates as a p
 
 The following structured data presents the verified, disambiguated contact vectors for the Central Oregon prospect cluster.
 
-| Business Name | Physical Address | Primary Phone | Verified Email | Key Personnel & Roles |
-| :---- | :---- | :---- | :---- | :---- |
-| **Deschutes River Fly Shop & Camp** | 7228 NW HWY 26, Madras, OR 97741 | (541) 553-2589 | Unspecified (Webform) | Unnamed Owner / Camp Host |
-| **Fly & Field Outfitters (Bend)** | 35 SW Century Dr, Bend, OR 97702 | (541) 318-1616 (Opt 2\) | info@flyandfield.com | Scott Cook (Owner), Kyle S. (GM) |
-| **Fly & Field Outfitters (Sunriver)** | 56805 Venture Ln, Sunriver, OR 97707 | (541) 318-1616 (Opt 2\) | info@flyandfield.com | Shannon S. (Guide Mgr) |
-| **The Fly Fisher's Place** | 151 W Main Ave (PO Box 1179), Sisters, OR 97759 | (541) 549-3474 | flyfishers.place@gmail.com, greendrakehatch@gmail.com | Jeff Perin (Owner), Steve Erickson (Guide) |
-| **Joe's Tackle Box** | 1360 NE 3rd St, Prineville, OR 97754 | (541) 220-6852 | Unspecified | Joe Gardner (Owner) |
-| **The Bend Store** | 815 NW Wall St, Bend, OR 97703 | (541) 389-4700 | robyn@bendstore.com | Robyn (Management/Returns) |
-| **Outside In (Retail Store)** | 845 NW Wall St, Bend, OR 97703 | (541) 317-3569 | info@outsideinbend.com, angela@outsideinbend.com | Angela Salido (Owner) |
+| Business Name                         | Physical Address                                | Primary Phone           | Verified Email                                        | Key Personnel & Roles                      |
+| :------------------------------------ | :---------------------------------------------- | :---------------------- | :---------------------------------------------------- | :----------------------------------------- |
+| **Deschutes River Fly Shop & Camp**   | 7228 NW HWY 26, Madras, OR 97741                | (541) 553-2589          | Unspecified (Webform)                                 | Unnamed Owner / Camp Host                  |
+| **Fly & Field Outfitters (Bend)**     | 35 SW Century Dr, Bend, OR 97702                | (541) 318-1616 (Opt 2\) | info@flyandfield.com                                  | Scott Cook (Owner), Kyle S. (GM)           |
+| **Fly & Field Outfitters (Sunriver)** | 56805 Venture Ln, Sunriver, OR 97707            | (541) 318-1616 (Opt 2\) | info@flyandfield.com                                  | Shannon S. (Guide Mgr)                     |
+| **The Fly Fisher's Place**            | 151 W Main Ave (PO Box 1179), Sisters, OR 97759 | (541) 549-3474          | flyfishers.place@gmail.com, greendrakehatch@gmail.com | Jeff Perin (Owner), Steve Erickson (Guide) |
+| **Joe's Tackle Box**                  | 1360 NE 3rd St, Prineville, OR 97754            | (541) 220-6852          | Unspecified                                           | Joe Gardner (Owner)                        |
+| **The Bend Store**                    | 815 NW Wall St, Bend, OR 97703                  | (541) 389-4700          | robyn@bendstore.com                                   | Robyn (Management/Returns)                 |
+| **Outside In (Retail Store)**         | 845 NW Wall St, Bend, OR 97703                  | (541) 317-3569          | info@outsideinbend.com, angela@outsideinbend.com      | Angela Salido (Owner)                      |
 
 ## **The Southern Coast Artisanal and Heritage Retail Hub: Bandon Old Town**
 
@@ -89,20 +89,20 @@ Finally, data scrubbing protocols successfully disambiguated Sassy Seagull. The 
 
 The following structured data presents the verified contact vectors for the highly concentrated Bandon prospect cluster.
 
-| Business Name | Physical Address | Primary Phone | Verified Email | Key Personnel / Ownership |
-| :---- | :---- | :---- | :---- | :---- |
-| **Big Wheel General Store** | 130 Baltimore Ave SE, Bandon, OR 97411 | (541) 347-3719 | Unspecified | Christine Michalek (Owner) |
-| **Second Street Gallery** | 210 2nd St SE, Bandon, OR 97411 | (541) 347-4133 | SecondStreetGalleryBandon@gmail.com | Pete Bauer, Candace Kreitlow |
-| **Art by the Sea Gallery** | 145 Fillmore Ave SE, Bandon, OR 97411 | (541) 347-5355 | Artbytheseagalleryandstudio@gmail.com | Cooperative Membership |
-| **The Loft on 2nd** | 120 2nd St SE, Bandon, OR 97411 | (541) 551-5988 | Unspecified (Webform) | Chip and Jean Salmon (Owners) |
-| **Sweet Peas** | 155 Baltimore Ave SE, Bandon, OR 97411 | (530) 517-0238, (541) 329-3967 | Unspecified | Chip and Jean Salmon (Owners) |
-| **The Toy Room** | 295 2nd St SE, Bandon, OR 97411 | (541) 347-9783 | steve@steveprottsman.com | Steve Prottsman (Owner) |
-| **Misty Meadows Jams** | 48053 US-101, Bandon, OR 97411 | (541) 347-2575 | Unspecified (Webform) | Family Owned (Since 1970\) |
-| **Bandon Card & Gift Shoppe** | 265 2nd St SE, Bandon, OR 97411 | (541) 347-9214 | ldavies347@yahoo.com | Unspecified |
-| **Sassy Seagull (Bandon Store)** | 198 2nd St SE, Bandon, OR 97411 | (541) 777-7147 | Unspecified | Unspecified |
-| **Spirit of Oregon** | 112 2nd St, Bandon, OR 97411 | (541) 347-4311 | Unspecified | Unspecified |
-| **WinterRiver Books** | 170 2nd St SE, Bandon, OR 97411 | (541) 347-4111 | team@mywinterriver.com | Unspecified |
-| **Bandon Bait Shop** | Bandon, OR 97411 | Unspecified | Unspecified | Unspecified |
+| Business Name                    | Physical Address                       | Primary Phone                  | Verified Email                        | Key Personnel / Ownership     |
+| :------------------------------- | :------------------------------------- | :----------------------------- | :------------------------------------ | :---------------------------- |
+| **Big Wheel General Store**      | 130 Baltimore Ave SE, Bandon, OR 97411 | (541) 347-3719                 | Unspecified                           | Christine Michalek (Owner)    |
+| **Second Street Gallery**        | 210 2nd St SE, Bandon, OR 97411        | (541) 347-4133                 | SecondStreetGalleryBandon@gmail.com   | Pete Bauer, Candace Kreitlow  |
+| **Art by the Sea Gallery**       | 145 Fillmore Ave SE, Bandon, OR 97411  | (541) 347-5355                 | Artbytheseagalleryandstudio@gmail.com | Cooperative Membership        |
+| **The Loft on 2nd**              | 120 2nd St SE, Bandon, OR 97411        | (541) 551-5988                 | Unspecified (Webform)                 | Chip and Jean Salmon (Owners) |
+| **Sweet Peas**                   | 155 Baltimore Ave SE, Bandon, OR 97411 | (530) 517-0238, (541) 329-3967 | Unspecified                           | Chip and Jean Salmon (Owners) |
+| **The Toy Room**                 | 295 2nd St SE, Bandon, OR 97411        | (541) 347-9783                 | steve@steveprottsman.com              | Steve Prottsman (Owner)       |
+| **Misty Meadows Jams**           | 48053 US-101, Bandon, OR 97411         | (541) 347-2575                 | Unspecified (Webform)                 | Family Owned (Since 1970\)    |
+| **Bandon Card & Gift Shoppe**    | 265 2nd St SE, Bandon, OR 97411        | (541) 347-9214                 | ldavies347@yahoo.com                  | Unspecified                   |
+| **Sassy Seagull (Bandon Store)** | 198 2nd St SE, Bandon, OR 97411        | (541) 777-7147                 | Unspecified                           | Unspecified                   |
+| **Spirit of Oregon**             | 112 2nd St, Bandon, OR 97411           | (541) 347-4311                 | Unspecified                           | Unspecified                   |
+| **WinterRiver Books**            | 170 2nd St SE, Bandon, OR 97411        | (541) 347-4111                 | team@mywinterriver.com                | Unspecified                   |
+| **Bandon Bait Shop**             | Bandon, OR 97411                       | Unspecified                    | Unspecified                           | Unspecified                   |
 
 ## **Marine Chandleries, Coastal Outfitters, and Inland Sporting Goods Networks**
 
@@ -123,16 +123,16 @@ In Roseburg, Waldron's Outdoor Sports operates a sprawling, family-owned facilit
 
 The following structured data presents the verified contact vectors for the Marine and Sporting Goods cluster.
 
-| Business Name | Physical Address | Primary Phone | Verified Email | Key Personnel |
-| :---- | :---- | :---- | :---- | :---- |
-| **Englund Marine Supply (HQ)** | 95 Hamburg Ave (PO Box 296), Astoria, OR 97103 | (503) 325-4341 | Unspecified | Richard Baker |
-| **Englund Marine Supply (Newport)** | 880 SE Bay Blvd, Newport, OR 97365 | (541) 265-9275 | seacoast@englundmarine.com | Unspecified |
-| **Tillamook Sporting Goods** | 2207 Main Ave N, Ste B, Tillamook, OR 97141 | (503) 842-4334, (877) 877-7678 | Unspecified | Unspecified |
-| **Rogue Outdoor Store** | 29865 Ellensburg Ave, Gold Beach, OR 97444 | (541) 247-7142 | Unspecified | Family Owned |
-| **Waldron's Outdoor Sports** | 330 NE Garden Valley Blvd, Roseburg, OR 97470 | (541) 672-8992 | Unspecified | Family Owned |
-| **Bradbury's Gun-N-Tackle** | 1809 Rogue River Hwy, Grants Pass, OR 97527 | (541) 479-1531 | dbradbury@charter.net | D. Bradbury (Implied) |
-| **U Save Gas & Tackle** | 935 Rogue River Hwy, Grants Pass, OR 97527 | (541) 476-9871 | Unspecified | Unspecified |
-| **ShrimpDaddy's Bait & Tackle** | 385 NE Spencer St, Waldport, OR 97394 | (541) 429-1800 | Unspecified | Unspecified |
+| Business Name                       | Physical Address                               | Primary Phone                  | Verified Email             | Key Personnel         |
+| :---------------------------------- | :--------------------------------------------- | :----------------------------- | :------------------------- | :-------------------- |
+| **Englund Marine Supply (HQ)**      | 95 Hamburg Ave (PO Box 296), Astoria, OR 97103 | (503) 325-4341                 | Unspecified                | Richard Baker         |
+| **Englund Marine Supply (Newport)** | 880 SE Bay Blvd, Newport, OR 97365             | (541) 265-9275                 | seacoast@englundmarine.com | Unspecified           |
+| **Tillamook Sporting Goods**        | 2207 Main Ave N, Ste B, Tillamook, OR 97141    | (503) 842-4334, (877) 877-7678 | Unspecified                | Unspecified           |
+| **Rogue Outdoor Store**             | 29865 Ellensburg Ave, Gold Beach, OR 97444     | (541) 247-7142                 | Unspecified                | Family Owned          |
+| **Waldron's Outdoor Sports**        | 330 NE Garden Valley Blvd, Roseburg, OR 97470  | (541) 672-8992                 | Unspecified                | Family Owned          |
+| **Bradbury's Gun-N-Tackle**         | 1809 Rogue River Hwy, Grants Pass, OR 97527    | (541) 479-1531                 | dbradbury@charter.net      | D. Bradbury (Implied) |
+| **U Save Gas & Tackle**             | 935 Rogue River Hwy, Grants Pass, OR 97527     | (541) 476-9871                 | Unspecified                | Unspecified           |
+| **ShrimpDaddy's Bait & Tackle**     | 385 NE Spencer St, Waldport, OR 97394          | (541) 429-1800                 | Unspecified                | Unspecified           |
 
 ## **Eastern Oregon Destination Resorts and Hardware Infrastructure**
 
@@ -154,14 +154,14 @@ Similarly, the Oregon Golf Association (OGA) Golf Course in Woodburn, while open
 
 The following structured data presents the verified contact vectors for the Eastern Oregon and Golf Resort cluster.
 
-| Business Name | Physical Address | Primary Phone | Verified Email | Key Personnel |
-| :---- | :---- | :---- | :---- | :---- |
-| **Joseph Hardware** | 101 S Main St, Joseph, OR 97846 | (541) 432-2271 | Unspecified | Matt Chavez (Owner) |
-| **Wallowa Lake Marina** | 72214 Marina Lane, Joseph, OR 97846 | (541) 432-9115 | Unspecified | Unspecified |
-| **A Piece of Pendleton** | 369 S Main St, Pendleton, OR 97801 | (541) 379-1215 | correctionconnectionpendleton@gmail.com | Pendleton Underground Tours (Owner) |
-| **Ashland Fly Shop** | 399 E Main St, Ashland, OR 97520 | (541) 488-6454 | info@ashlandflyshop.com | Family Owned |
-| **Bandon Dunes Golf Resort (Pro Shop)** | 57744 Round Lake Rd, Bandon, OR 97411 | (888) 345-6008, (541) 347-4380 | Unspecified | Jeff Simonds (GM), Evan Speck (Head Pro) |
-| **OGA Golf Course (Pro Shop)** | 2850 Hazelnut Dr, Woodburn, OR 97071 | (503) 981-4653, (503) 981-6105 | Unspecified | Unspecified |
+| Business Name                           | Physical Address                      | Primary Phone                  | Verified Email                          | Key Personnel                            |
+| :-------------------------------------- | :------------------------------------ | :----------------------------- | :-------------------------------------- | :--------------------------------------- |
+| **Joseph Hardware**                     | 101 S Main St, Joseph, OR 97846       | (541) 432-2271                 | Unspecified                             | Matt Chavez (Owner)                      |
+| **Wallowa Lake Marina**                 | 72214 Marina Lane, Joseph, OR 97846   | (541) 432-9115                 | Unspecified                             | Unspecified                              |
+| **A Piece of Pendleton**                | 369 S Main St, Pendleton, OR 97801    | (541) 379-1215                 | correctionconnectionpendleton@gmail.com | Pendleton Underground Tours (Owner)      |
+| **Ashland Fly Shop**                    | 399 E Main St, Ashland, OR 97520      | (541) 488-6454                 | info@ashlandflyshop.com                 | Family Owned                             |
+| **Bandon Dunes Golf Resort (Pro Shop)** | 57744 Round Lake Rd, Bandon, OR 97411 | (888) 345-6008, (541) 347-4380 | Unspecified                             | Jeff Simonds (GM), Evan Speck (Head Pro) |
+| **OGA Golf Course (Pro Shop)**          | 2850 Hazelnut Dr, Woodburn, OR 97071  | (503) 981-4653, (503) 981-6105 | Unspecified                             | Unspecified                              |
 
 ## **Strategic Disambiguation and Risk Mitigation in Data Enrichment**
 
@@ -184,120 +184,120 @@ The resulting data proves that while independent Oregon retailers closely guard 
 
 #### **Works cited**
 
-> 1. deep-research-report (1).md  
-> 2. ODFW License Agents, [https://dfw.state.or.us/resources/licenses\_regs/agents.asp](https://dfw.state.or.us/resources/licenses_regs/agents.asp)  
-> 3. Oregon entity search: How to find your business information \- Discern, [https://www.discern.com/resources/how-to-find-oregon-entity-information](https://www.discern.com/resources/how-to-find-oregon-entity-information)  
-> 4. Bandon Area Business Directory, [https://directory.bandon.com/list](https://directory.bandon.com/list)  
-> 5. Oregon Business Registry Search — OR Entity Data API \- Apify, [https://apify.com/nexgendata/oregon-business-registry-scraper/api/openapi](https://apify.com/nexgendata/oregon-business-registry-scraper/api/openapi)  
-> 6. Search Active Business Registration Records | Oregon Secretary of State, [https://sos.oregon.gov/business/public-information-data/pages/active-business-registration-search.aspx](https://sos.oregon.gov/business/public-information-data/pages/active-business-registration-search.aspx)  
-> 7. Perform Oregon Business Entity Search: Guide for LLC Owners \- EasyFiling, [https://easyfiling.com/blog/oregon-business-entity-search/](https://easyfiling.com/blog/oregon-business-entity-search/)  
-> 8. Oregon Business Entity Search \- Commenda, [https://www.commenda.io/blog/oregon-business-entity-search](https://www.commenda.io/blog/oregon-business-entity-search)  
-> 9. Oregon Business Registry Search — OR Entity Data API \- Apify, [https://apify.com/nexgendata/oregon-business-registry-scraper/api](https://apify.com/nexgendata/oregon-business-registry-scraper/api)  
-> 10. Oregon Secretary of State Business Search Scraper API · Apify, [https://apify.com/crawlerbros/oregon-sos-scraper/api](https://apify.com/crawlerbros/oregon-sos-scraper/api)  
-> 11. Oregon Secretary of State Business Search Scraper OpenAPI definition \- Apify, [https://apify.com/crawlerbros/oregon-sos-scraper/api/openapi](https://apify.com/crawlerbros/oregon-sos-scraper/api/openapi)  
-> 12. Active Businesses \- County Data | data.oregon.gov, [https://data.oregon.gov/Business/Active-Businesses-County-Data/6g49-bcrm](https://data.oregon.gov/Business/Active-Businesses-County-Data/6g49-bcrm)  
-> 13. Active Nonprofit Corporations \- Oregon's Open Data Portal, [https://data.oregon.gov/Business/Active-Nonprofit-Corporations/8kyv-b2kw](https://data.oregon.gov/Business/Active-Nonprofit-Corporations/8kyv-b2kw)  
-> 14. Assumed Business Name (DBA) Registration Forms | Oregon Secretary of State, [https://sos.oregon.gov/business/register/pages/assumed-business-name-registration-dba.aspx](https://sos.oregon.gov/business/register/pages/assumed-business-name-registration-dba.aspx)  
-> 15. Answers to Business Registration Questions \- Oregon Secretary of State, [https://sos.oregon.gov/business/pages/faq.aspx](https://sos.oregon.gov/business/pages/faq.aspx)  
-> 16. 2021-12-06 ODFW license agents | State Library of Oregon Digital, [https://digitalcollections.library.oregon.gov/nodes/view/113732](https://digitalcollections.library.oregon.gov/nodes/view/113732)  
-> 17. Washington Shore, Dallesport o the Bar \- the NOAA Institutional Repository, [https://repository.library.noaa.gov/view/noaa/42050/noaa\_42050\_DS1.pdf](https://repository.library.noaa.gov/view/noaa/42050/noaa_42050_DS1.pdf)  
-> 18. OGA Golf Course \- Woodburn, OR, [https://www.ogagolfcourse.com/](https://www.ogagolfcourse.com/)  
-> 19. Join an OGA Member Club at Your Favorite Golf Course \- Oregon Golf Association, [https://oga.org/directory/join\_oga\_\_club\_golf\_course](https://oga.org/directory/join_oga__club_golf_course)  
-> 20. Contact Us \- Deschutes River Fly Shop & Camp, [https://deschutescamp.com/contact-us/](https://deschutescamp.com/contact-us/)  
-> 21. About Us \- Deschutes River Fly Shop & Camp, [https://deschutescamp.com/about-us/](https://deschutescamp.com/about-us/)  
-> 22. Deschutes River Fly Shop & Camp, [https://deschutescamp.com/](https://deschutescamp.com/)  
-> 23. Warm Springs, Oregon \- Deschutes River Fly Shop & Camp, [https://deschutescamp.com/fly-shop/](https://deschutescamp.com/fly-shop/)  
-> 24. Labor of Love: Deschutes Fly Shop and Camp, [https://www.deschutesriveralliance.org/deschutes-river-alliance-blog/river-borne](https://www.deschutesriveralliance.org/deschutes-river-alliance-blog/river-borne)  
-> 25. Fly & Field Outfitters | Visit Central Oregon, [https://visitcentraloregon.com/poi/fly-field-outfitters/](https://visitcentraloregon.com/poi/fly-field-outfitters/)  
-> 26. Fly and Field Outfitters: Bend, OR Fly Shop & Fly Fishing Outfitter, [https://www.flyandfield.com/](https://www.flyandfield.com/)  
-> 27. Fishing in and Near Sunriver, [https://www.village-properties.com/things\_to\_do\_main/fishing/](https://www.village-properties.com/things_to_do_main/fishing/)  
-> 28. Meet The Crew \- Fly and Field Outfitters, [https://www.flyandfield.com/pages/meet-the-crew-official](https://www.flyandfield.com/pages/meet-the-crew-official)  
-> 29. Fishing for the Soul: Central Oregon's Allure for Fly Fishing \- Bend Magazine, [https://bendmagazine.com/central-oregons-allure-for-fly-fishing/](https://bendmagazine.com/central-oregons-allure-for-fly-fishing/)  
-> 30. Meet the Guides \- The Fly Fishers Place, [https://flyfishersplace.com/guide-service/meet-the-guides/](https://flyfishersplace.com/guide-service/meet-the-guides/)  
-> 31. Contact Us \- Fly and Field Outfitters in Bend, OR, [https://www.flyandfield.com/pages/contact-us](https://www.flyandfield.com/pages/contact-us)  
-> 32. Fly & Field Outfitters | The Best Fly Fishing Experience in Bend \- Bend Vacation Rentals, [https://bendvacationrentals.com/bend-activity-providers/fly-field-outfitters.html](https://bendvacationrentals.com/bend-activity-providers/fly-field-outfitters.html)  
-> 33. The Fly Fisher's Place \- Sisters Oregon \- Explore Sisters, [https://exploresisters.com/retailer/fly-fishers-place/](https://exploresisters.com/retailer/fly-fishers-place/)  
-> 34. The Fly Fishers Place – Central Oregon's Destination Fly Shop specializing in Euro Nymphing, Tenkara, and the Deschutes, [https://flyfishersplace.com/](https://flyfishersplace.com/)  
-> 35. Jeff Perin \- Oregon Culture Keepers Roster, [https://ofn.uoregon.edu/profile/jeff-perin](https://ofn.uoregon.edu/profile/jeff-perin)  
-> 36. About \- The Fly Fishers Place, [https://flyfishersplace.com/about/](https://flyfishersplace.com/about/)  
-> 37. Central Oregon Guide Service and River Guided Trips \- The Fly Fishers Place, [https://flyfishersplace.com/guide-service/](https://flyfishersplace.com/guide-service/)  
-> 38. Jeff's Blog \- The Fly Fishers Place, [https://flyfishersplace.com/category/jeffs-blog/](https://flyfishersplace.com/category/jeffs-blog/)  
-> 39. Joe's Tackle Box | Ochoco Fishing Gear & Bait, Prineville \- Trippin' Central Oregon, [https://trippincentraloregon.com/joes-tackle-box/](https://trippincentraloregon.com/joes-tackle-box/)  
-> 40. Contact \- The Bend Store, [https://bendstore.com/pages/contact](https://bendstore.com/pages/contact)  
-> 41. The Bend Store | Visit Central Oregon, [https://visitcentraloregon.com/poi/the-bend-store/](https://visitcentraloregon.com/poi/the-bend-store/)  
-> 42. The Bend Store Gift Shop in Bend, Oregon, [https://bendstore.com/](https://bendstore.com/)  
-> 43. Search \- The Bend Store, [https://bendstore.com/search](https://bendstore.com/search)  
-> 44. The Bend Store \- Travel Oregon, [https://traveloregon.com/things-to-do/oregon-attractions/shopping/the-bend-store/](https://traveloregon.com/things-to-do/oregon-attractions/shopping/the-bend-store/)  
-> 45. Return Policy \- The Bend Store, [https://bendstore.com/pages/return-policy](https://bendstore.com/pages/return-policy)  
-> 46. Shipping & returns \- Outside In Bend, [https://www.outsideinbend.com/service/shipping-returns/](https://www.outsideinbend.com/service/shipping-returns/)  
-> 47. Customer support \- Outside In Bend, [https://www.outsideinbend.com/service/](https://www.outsideinbend.com/service/)  
-> 48. Contact Us \- Outside In, [https://outsidein.org/about-us/contact-us/](https://outsidein.org/about-us/contact-us/)  
-> 49. OutsideIn \- About Us \- Outside In Bend, [https://www.outsideinbend.com/service/about/](https://www.outsideinbend.com/service/about/)  
-> 50. Second Street Gallery | Gift Shops \- Bandon Chamber of Commerce, [https://directory.bandon.com/list/member/second-street-gallery-47](https://directory.bandon.com/list/member/second-street-gallery-47)  
-> 51. Shopping in the Bandon Oregon Area | The Inn at Old Town, [https://innatoldtown.com/shopping/](https://innatoldtown.com/shopping/)  
-> 52. The Loft on 2nd | Clothing \- Member \- Bandon Chamber of Commerce, [https://directory.bandon.com/list/member/the-loft-on-2nd-424](https://directory.bandon.com/list/member/the-loft-on-2nd-424)  
-> 53. The Toy Room \- Bandon \- Oregon Coast Visitors Association, [https://visittheoregoncoast.com/cities/bandon/activities/the-toy-room/](https://visittheoregoncoast.com/cities/bandon/activities/the-toy-room/)  
-> 54. Galleries \- Art through Nature \- Steven Thor Johanneson, [http://www.steventhorjohanneson.com/galleries.html](http://www.steventhorjohanneson.com/galleries.html)  
-> 55. Peter Bauer / Candace Kreitlow \- Oregon Coast Council for the Arts, [https://coastarts.org/artists/peter-bauer-candace-kreitlow/](https://coastarts.org/artists/peter-bauer-candace-kreitlow/)  
-> 56. Second Street Art Gallery \- Oregon Coast Visitors Association, [https://visittheoregoncoast.com/cities/bandon/activities/second-street-art-gallery/](https://visittheoregoncoast.com/cities/bandon/activities/second-street-art-gallery/)  
-> 57. Second Street Gallery \- Visit Charlottesville, [https://www.visitcharlottesville.org/directory/second-street-gallery/](https://www.visitcharlottesville.org/directory/second-street-gallery/)  
-> 58. Art by the Sea Gallery and Studio Archives \- Oregon Coast Council for the Arts, [https://coastarts.org/venues/art-by-the-sea-gallery-and-studio/](https://coastarts.org/venues/art-by-the-sea-gallery-and-studio/)  
-> 59. Contact Us | Abts Gallery, [https://www.artbytheseagallery.com/contact-us](https://www.artbytheseagallery.com/contact-us)  
-> 60. Art by the Sea Gallery \- Oregon Coast Council for the Arts, [https://coastarts.org/presenters/art-by-the-sea-gallery-and-studio/](https://coastarts.org/presenters/art-by-the-sea-gallery-and-studio/)  
-> 61. Art Gallery | Art Gallery Bandon Oregon | 145 Fillmore Ave SE, Bandon, OR, USA, [https://www.artbytheseagallery.com/](https://www.artbytheseagallery.com/)  
-> 62. 2026 Spring Has Sprung Community Show | Abts Gallery, [https://www.artbytheseagallery.com/2026-spring-has-sprung-community-show](https://www.artbytheseagallery.com/2026-spring-has-sprung-community-show)  
-> 63. Bandon Card & Gift | Gift Shops \- Member, [https://directory.bandon.com/list/member/bandon-card-gift-60](https://directory.bandon.com/list/member/bandon-card-gift-60)  
-> 64. Gift & Boutique Buyers – BuyersDirect™, [https://buyersdirect.co/gift-boutique-buyers/](https://buyersdirect.co/gift-boutique-buyers/)  
-> 65. Spirit Of Oregon | Clothing | Gift Shops \- Member \- Bandon Chamber of Commerce, [https://directory.bandon.com/list/member/spirit-of-oregon-bandon-122](https://directory.bandon.com/list/member/spirit-of-oregon-bandon-122)  
-> 66. The Loft on 2nd, [https://theloftonsecond.com/](https://theloftonsecond.com/)  
-> 67. Sweet Pea's Home and Garden \- Bandon Chamber of Commerce, [https://directory.bandon.com/list/member/sweet-pea-s-home-and-garden-396](https://directory.bandon.com/list/member/sweet-pea-s-home-and-garden-396)  
-> 68. Sweet Peas Home and Garden, [https://sweetpeashomeandgarden.com/](https://sweetpeashomeandgarden.com/)  
-> 69. As I See It by Mary Schamehorn \- Bandon.tv, [http://www.bandon.tv/html/MaryDecember2021.html](http://www.bandon.tv/html/MaryDecember2021.html)  
-> 70. The Toy Room | Gift Shops \- Member \- Bandon Chamber of Commerce, [https://directory.bandon.com/list/member/the-toy-room-129](https://directory.bandon.com/list/member/the-toy-room-129)  
-> 71. Privacy Policy \- steveprottsman.com, [https://steveprottsman.com/privacy-policy/](https://steveprottsman.com/privacy-policy/)  
-> 72. Accessibility Statement | WinterRiver Books & Gallery, [https://winterriverbooks.com/accessibility-statement](https://winterriverbooks.com/accessibility-statement)  
-> 73. Contact \- Misty Meadows Jams, [https://gotjam.com/contact/](https://gotjam.com/contact/)  
-> 74. Misty Meadows Jams 2026 Company Profile: Valuation, Funding & Investors | PitchBook, [https://pitchbook.com/profiles/company/278626-60](https://pitchbook.com/profiles/company/278626-60)  
-> 75. Misty Meadows Jams \- Oregon Coast Visitors Association, [https://visittheoregoncoast.com/cities/bandon/activities/misty-meadows-jams/](https://visittheoregoncoast.com/cities/bandon/activities/misty-meadows-jams/)  
-> 76. Contact information \- Sassy Seagull, [https://www.sassyseagull.co.uk/policies/contact-information](https://www.sassyseagull.co.uk/policies/contact-information)  
-> 77. Sassy Seagull FAQ | Sizing, Shipping & Returns, [https://www.sassyseagull.co.uk/pages/faq](https://www.sassyseagull.co.uk/pages/faq)  
-> 78. Englund Marine Supply Co. Inc \- Greater Eureka Chamber of Commerce, [https://business.eurekachamber.com/member-directory/Details/englund-marine-supply-co-inc-1819775](https://business.eurekachamber.com/member-directory/Details/englund-marine-supply-co-inc-1819775)  
-> 79. Englund Marine Supply \- Fishing Status, [https://fishingstatus.com/places/directory/groupid/10011](https://fishingstatus.com/places/directory/groupid/10011)  
-> 80. Englund Marine Supply | California State Parks \- Division of Boating and Waterways, [https://dbw.parks.ca.gov/BoatingFacilities/f/973](https://dbw.parks.ca.gov/BoatingFacilities/f/973)  
-> 81. Where to Buy \- Icom America, [https://www.icomamerica.com/where\_to\_buy/](https://www.icomamerica.com/where_to_buy/)  
-> 82. Trade \- National Marine Electronics Association, [https://web.nmea.org/directory/results/results.aspx?affcode=Trade](https://web.nmea.org/directory/results/results.aspx?affcode=Trade)  
-> 83. US DISTRIBUTING, INC \- Marine Wholesale Inc., [https://store.englundmarinegroup.com/downloads/WholesaleAccountCreditApp2022.pdf](https://store.englundmarinegroup.com/downloads/WholesaleAccountCreditApp2022.pdf)  
-> 84. Rogue Outdoor Store \- Oregon Coast Visitors Association, [https://visittheoregoncoast.com/cities/gold-beach/activities/rogue-outdoor-store/](https://visittheoregoncoast.com/cities/gold-beach/activities/rogue-outdoor-store/)  
-> 85. Shrimp Daddy's Bait & Tackle Shack \- Waldport Chamber of Commerce, [https://findyourselfinwaldport.com/business/shrimpdaddys-bait-tackle-shack-2/](https://findyourselfinwaldport.com/business/shrimpdaddys-bait-tackle-shack-2/)  
-> 86. 1475 NE Alsea Hwy, Waldport, OR 97394 \- Realtor.com, [https://www.realtor.com/realestateandhomes-detail/1475-NE-Alsea-Hwy\_Waldport\_OR\_97394\_M21315-15568](https://www.realtor.com/realestateandhomes-detail/1475-NE-Alsea-Hwy_Waldport_OR_97394_M21315-15568)  
-> 87. Shopping in Cannon Beach | Best Places to Shop on the Oregon Coast, [https://www.beachcombervacationhomes.com/oregon-coast-shopping/](https://www.beachcombervacationhomes.com/oregon-coast-shopping/)  
-> 88. PIERCE ARMS | Henry Dealers in TILLAMOOK, OR, [https://www.henryusa.com/dealer-location/pierce-arms/](https://www.henryusa.com/dealer-location/pierce-arms/)  
-> 89. Tillamook County organizations, [https://www.tillamookcountypioneer.net/wp-content/uploads/2024/11/Tillamook-County-Orgs-Directory-alphabetized-1.pdf](https://www.tillamookcountypioneer.net/wp-content/uploads/2024/11/Tillamook-County-Orgs-Directory-alphabetized-1.pdf)  
-> 90. Retail Locations | Sunrise Bait \- Cured and Uncured Salmon Eggs, [https://sunrisebait.com/retail-locations/](https://sunrisebait.com/retail-locations/)  
-> 91. Bradbury's Gun-N-Tackle | Henry Dealers in Grants Pass, OR \- Henry Repeating Arms, [https://www.henryusa.com/dealer-location/bradburys-gun-n-tackle/](https://www.henryusa.com/dealer-location/bradburys-gun-n-tackle/)  
-> 92. Bradbury's Gun-N-Tackle 97527 \- Locally, [https://www.locally.com/store/162024/bradburys-gun-n-tackle](https://www.locally.com/store/162024/bradburys-gun-n-tackle)  
-> 93. Black Birds | Henry Dealers in Medford, OR, [https://www.henryusa.com/dealer-location/black-birds/](https://www.henryusa.com/dealer-location/black-birds/)  
-> 94. Find ODFW licensed agents or vendors | Oregon Department of Fish & Wildlife, [https://myodfw.com/articles/find-odfw-licensed-agents-or-vendors](https://myodfw.com/articles/find-odfw-licensed-agents-or-vendors)  
-> 95. Sports & Recreation Category | Grants Pass & Josephine County Chamber of Commerce, [http://grantspasschamber.chambermaster.com/list/category/sports-recreation-1381?o=\&dm=True](http://grantspasschamber.chambermaster.com/list/category/sports-recreation-1381?o&dm=True)  
-> 96. Waldron's Outdoor Sports \- Experience Roseburg, [https://www.experienceroseburg.com/listing/waldrons-outdoor-sports/220/](https://www.experienceroseburg.com/listing/waldrons-outdoor-sports/220/)  
-> 97. Sportsman's Warehouse – Roseburg | Henry Dealers in Roseburg, OR \- Henry Repeating Arms, [https://www.henryusa.com/dealer-location/sportsmans-warehouse-73/](https://www.henryusa.com/dealer-location/sportsmans-warehouse-73/)  
-> 98. Joseph Hardware, Inc. \- Visit Eastern Oregon, [https://visiteasternoregon.com/poi/joseph-hardware-inc/](https://visiteasternoregon.com/poi/joseph-hardware-inc/)  
-> 99. Frequently Asked Questions I Mountain View Motel & RV Park I Joseph, OR, [https://www.mtviewmotel-rvpark.com/faqs.htm](https://www.mtviewmotel-rvpark.com/faqs.htm)  
-> 100. About Us | Joseph Hardware \- Do it Best, [https://www.doitbest.com/joseph-hardware/about-us/](https://www.doitbest.com/joseph-hardware/about-us/)  
-> 101. Joseph Hardware | Shop Hardware & Home Improvement \- Do it Best, [https://www.doitbest.com/joseph-hardware/](https://www.doitbest.com/joseph-hardware/)  
-> 102. Josephs' Hardware and Home Center | BBB Business Profile, [https://www.bbb.org/us/co/fort-collins/profile/hardware-and-tools/josephs-hardware-and-home-center-0805-46113481](https://www.bbb.org/us/co/fort-collins/profile/hardware-and-tools/josephs-hardware-and-home-center-0805-46113481)  
-> 103. Wallowa Lake Marina | Boat Rentals | Explore | Fishing Supplies & Services | Gift Shops, [https://business.wallowacountychamber.com/list/member/wallowa-lake-marina-joseph-5024](https://business.wallowacountychamber.com/list/member/wallowa-lake-marina-joseph-5024)  
-> 104. Getting Here | Winding Waters River Expeditions, [https://www.windingwatersrafting.com/getting-here](https://www.windingwatersrafting.com/getting-here)  
-> 105. Wallowa Lake State Park \- Oregon State Parks, [https://stateparks.oregon.gov/index.cfm?do=park.profile\&parkId=20](https://stateparks.oregon.gov/index.cfm?do=park.profile&parkId=20)  
-> 106. Marina Paddle Sports \- Wallowa Lake Tourism Guide, [https://www.wallowalake.net/index.php/recreation/paddle-sports](https://www.wallowalake.net/index.php/recreation/paddle-sports)  
-> 107. Riverbend | Riverfront Wallowa Lake rental near tramway, large yard, deck & family-friendly walkable location \- Google, [https://www.google.com.ng/travel/hotels/entity/CiUIuKqAj9K0qKe1ARCMsuGi3J2SyLUBGg0vZy8xMXl4N2xsMjhtEAI?ei=eKsMauT9Kbz50L4PnYHniQI\&sa=X\&utm\_campaign=sharing\&utm\_medium=link\&utm\_source=htls\&ts=CAEaIgoCGgASHBIUCgcI6g8QBhgPEgcI6g8QBhgSGAMyAhAAOAEqCQoFOgNVU0QaAA\&ved=2ahUKEwiSsZD5-8eUAxXBTn8AHZ81HKgQv6wDKAN6BAgEEFQ](https://www.google.com.ng/travel/hotels/entity/CiUIuKqAj9K0qKe1ARCMsuGi3J2SyLUBGg0vZy8xMXl4N2xsMjhtEAI?ei=eKsMauT9Kbz50L4PnYHniQI&sa=X&utm_campaign=sharing&utm_medium=link&utm_source=htls&ts=CAEaIgoCGgASHBIUCgcI6g8QBhgPEgcI6g8QBhgSGAMyAhAAOAEqCQoFOgNVU0QaAA&ved=2ahUKEwiSsZD5-8eUAxXBTn8AHZ81HKgQv6wDKAN6BAgEEFQ)  
-> 108. A Piece of Pendleton \- Travel Oregon, [https://traveloregon.com/things-to-do/oregon-attractions/shopping/a-piece-of-pendleton/](https://traveloregon.com/things-to-do/oregon-attractions/shopping/a-piece-of-pendleton/)  
-> 109. Things to Do in Pendleton, Oregon | Via, [https://mwg.aaa.com/via/things-do/pendleton-oregon](https://mwg.aaa.com/via/things-do/pendleton-oregon)  
-> 110. Prison Blues \- A Piece Of Pendleton, [https://www.apieceofpendleton.com/copy-of-birchtree-mittens-2](https://www.apieceofpendleton.com/copy-of-birchtree-mittens-2)  
-> 111. Contact Us \- Ashland Fly Shop, [https://www.ashlandflyshop.com/pages/contact-us](https://www.ashlandflyshop.com/pages/contact-us)  
-> 112. Perpetrator Fly Pattern \- Ashland Fly Shop, [https://www.ashlandflyshop.com/products/perpetrator-fly-pattern](https://www.ashlandflyshop.com/products/perpetrator-fly-pattern)  
-> 113. Bandon Dunes Golf Resort \- Facility Profile | PGA.org, [https://directory.pga.org/facility/detail/766812913](https://directory.pga.org/facility/detail/766812913)  
-> 114. Contact Us \- Heron Glen Golf Course, [https://www.heronglen.com/contact-us/](https://www.heronglen.com/contact-us/)  
-> 115. Meet the Staff \- Rolling Hills Country Club, [https://www.rollinghillscountryclub.org/Our-Story/Meet-the-Staff-(1)](https://www.rollinghillscountryclub.org/Our-Story/Meet-the-Staff-\(1\))  
-> 116. WGC Newsletter \#2, [https://irp.cdn-website.com/e492b24d/files/uploaded/WGC-Newsletter-March-2020.pdf](https://irp.cdn-website.com/e492b24d/files/uploaded/WGC-Newsletter-March-2020.pdf)  
+> 1. deep-research-report (1).md
+> 2. ODFW License Agents, [https://dfw.state.or.us/resources/licenses\_regs/agents.asp](https://dfw.state.or.us/resources/licenses_regs/agents.asp)
+> 3. Oregon entity search: How to find your business information \- Discern, [https://www.discern.com/resources/how-to-find-oregon-entity-information](https://www.discern.com/resources/how-to-find-oregon-entity-information)
+> 4. Bandon Area Business Directory, [https://directory.bandon.com/list](https://directory.bandon.com/list)
+> 5. Oregon Business Registry Search — OR Entity Data API \- Apify, [https://apify.com/nexgendata/oregon-business-registry-scraper/api/openapi](https://apify.com/nexgendata/oregon-business-registry-scraper/api/openapi)
+> 6. Search Active Business Registration Records | Oregon Secretary of State, [https://sos.oregon.gov/business/public-information-data/pages/active-business-registration-search.aspx](https://sos.oregon.gov/business/public-information-data/pages/active-business-registration-search.aspx)
+> 7. Perform Oregon Business Entity Search: Guide for LLC Owners \- EasyFiling, [https://easyfiling.com/blog/oregon-business-entity-search/](https://easyfiling.com/blog/oregon-business-entity-search/)
+> 8. Oregon Business Entity Search \- Commenda, [https://www.commenda.io/blog/oregon-business-entity-search](https://www.commenda.io/blog/oregon-business-entity-search)
+> 9. Oregon Business Registry Search — OR Entity Data API \- Apify, [https://apify.com/nexgendata/oregon-business-registry-scraper/api](https://apify.com/nexgendata/oregon-business-registry-scraper/api)
+> 10. Oregon Secretary of State Business Search Scraper API · Apify, [https://apify.com/crawlerbros/oregon-sos-scraper/api](https://apify.com/crawlerbros/oregon-sos-scraper/api)
+> 11. Oregon Secretary of State Business Search Scraper OpenAPI definition \- Apify, [https://apify.com/crawlerbros/oregon-sos-scraper/api/openapi](https://apify.com/crawlerbros/oregon-sos-scraper/api/openapi)
+> 12. Active Businesses \- County Data | data.oregon.gov, [https://data.oregon.gov/Business/Active-Businesses-County-Data/6g49-bcrm](https://data.oregon.gov/Business/Active-Businesses-County-Data/6g49-bcrm)
+> 13. Active Nonprofit Corporations \- Oregon's Open Data Portal, [https://data.oregon.gov/Business/Active-Nonprofit-Corporations/8kyv-b2kw](https://data.oregon.gov/Business/Active-Nonprofit-Corporations/8kyv-b2kw)
+> 14. Assumed Business Name (DBA) Registration Forms | Oregon Secretary of State, [https://sos.oregon.gov/business/register/pages/assumed-business-name-registration-dba.aspx](https://sos.oregon.gov/business/register/pages/assumed-business-name-registration-dba.aspx)
+> 15. Answers to Business Registration Questions \- Oregon Secretary of State, [https://sos.oregon.gov/business/pages/faq.aspx](https://sos.oregon.gov/business/pages/faq.aspx)
+> 16. 2021-12-06 ODFW license agents | State Library of Oregon Digital, [https://digitalcollections.library.oregon.gov/nodes/view/113732](https://digitalcollections.library.oregon.gov/nodes/view/113732)
+> 17. Washington Shore, Dallesport o the Bar \- the NOAA Institutional Repository, [https://repository.library.noaa.gov/view/noaa/42050/noaa\_42050\_DS1.pdf](https://repository.library.noaa.gov/view/noaa/42050/noaa_42050_DS1.pdf)
+> 18. OGA Golf Course \- Woodburn, OR, [https://www.ogagolfcourse.com/](https://www.ogagolfcourse.com/)
+> 19. Join an OGA Member Club at Your Favorite Golf Course \- Oregon Golf Association, [https://oga.org/directory/join\_oga\_\_club\_golf\_course](https://oga.org/directory/join_oga__club_golf_course)
+> 20. Contact Us \- Deschutes River Fly Shop & Camp, [https://deschutescamp.com/contact-us/](https://deschutescamp.com/contact-us/)
+> 21. About Us \- Deschutes River Fly Shop & Camp, [https://deschutescamp.com/about-us/](https://deschutescamp.com/about-us/)
+> 22. Deschutes River Fly Shop & Camp, [https://deschutescamp.com/](https://deschutescamp.com/)
+> 23. Warm Springs, Oregon \- Deschutes River Fly Shop & Camp, [https://deschutescamp.com/fly-shop/](https://deschutescamp.com/fly-shop/)
+> 24. Labor of Love: Deschutes Fly Shop and Camp, [https://www.deschutesriveralliance.org/deschutes-river-alliance-blog/river-borne](https://www.deschutesriveralliance.org/deschutes-river-alliance-blog/river-borne)
+> 25. Fly & Field Outfitters | Visit Central Oregon, [https://visitcentraloregon.com/poi/fly-field-outfitters/](https://visitcentraloregon.com/poi/fly-field-outfitters/)
+> 26. Fly and Field Outfitters: Bend, OR Fly Shop & Fly Fishing Outfitter, [https://www.flyandfield.com/](https://www.flyandfield.com/)
+> 27. Fishing in and Near Sunriver, [https://www.village-properties.com/things\_to\_do\_main/fishing/](https://www.village-properties.com/things_to_do_main/fishing/)
+> 28. Meet The Crew \- Fly and Field Outfitters, [https://www.flyandfield.com/pages/meet-the-crew-official](https://www.flyandfield.com/pages/meet-the-crew-official)
+> 29. Fishing for the Soul: Central Oregon's Allure for Fly Fishing \- Bend Magazine, [https://bendmagazine.com/central-oregons-allure-for-fly-fishing/](https://bendmagazine.com/central-oregons-allure-for-fly-fishing/)
+> 30. Meet the Guides \- The Fly Fishers Place, [https://flyfishersplace.com/guide-service/meet-the-guides/](https://flyfishersplace.com/guide-service/meet-the-guides/)
+> 31. Contact Us \- Fly and Field Outfitters in Bend, OR, [https://www.flyandfield.com/pages/contact-us](https://www.flyandfield.com/pages/contact-us)
+> 32. Fly & Field Outfitters | The Best Fly Fishing Experience in Bend \- Bend Vacation Rentals, [https://bendvacationrentals.com/bend-activity-providers/fly-field-outfitters.html](https://bendvacationrentals.com/bend-activity-providers/fly-field-outfitters.html)
+> 33. The Fly Fisher's Place \- Sisters Oregon \- Explore Sisters, [https://exploresisters.com/retailer/fly-fishers-place/](https://exploresisters.com/retailer/fly-fishers-place/)
+> 34. The Fly Fishers Place – Central Oregon's Destination Fly Shop specializing in Euro Nymphing, Tenkara, and the Deschutes, [https://flyfishersplace.com/](https://flyfishersplace.com/)
+> 35. Jeff Perin \- Oregon Culture Keepers Roster, [https://ofn.uoregon.edu/profile/jeff-perin](https://ofn.uoregon.edu/profile/jeff-perin)
+> 36. About \- The Fly Fishers Place, [https://flyfishersplace.com/about/](https://flyfishersplace.com/about/)
+> 37. Central Oregon Guide Service and River Guided Trips \- The Fly Fishers Place, [https://flyfishersplace.com/guide-service/](https://flyfishersplace.com/guide-service/)
+> 38. Jeff's Blog \- The Fly Fishers Place, [https://flyfishersplace.com/category/jeffs-blog/](https://flyfishersplace.com/category/jeffs-blog/)
+> 39. Joe's Tackle Box | Ochoco Fishing Gear & Bait, Prineville \- Trippin' Central Oregon, [https://trippincentraloregon.com/joes-tackle-box/](https://trippincentraloregon.com/joes-tackle-box/)
+> 40. Contact \- The Bend Store, [https://bendstore.com/pages/contact](https://bendstore.com/pages/contact)
+> 41. The Bend Store | Visit Central Oregon, [https://visitcentraloregon.com/poi/the-bend-store/](https://visitcentraloregon.com/poi/the-bend-store/)
+> 42. The Bend Store Gift Shop in Bend, Oregon, [https://bendstore.com/](https://bendstore.com/)
+> 43. Search \- The Bend Store, [https://bendstore.com/search](https://bendstore.com/search)
+> 44. The Bend Store \- Travel Oregon, [https://traveloregon.com/things-to-do/oregon-attractions/shopping/the-bend-store/](https://traveloregon.com/things-to-do/oregon-attractions/shopping/the-bend-store/)
+> 45. Return Policy \- The Bend Store, [https://bendstore.com/pages/return-policy](https://bendstore.com/pages/return-policy)
+> 46. Shipping & returns \- Outside In Bend, [https://www.outsideinbend.com/service/shipping-returns/](https://www.outsideinbend.com/service/shipping-returns/)
+> 47. Customer support \- Outside In Bend, [https://www.outsideinbend.com/service/](https://www.outsideinbend.com/service/)
+> 48. Contact Us \- Outside In, [https://outsidein.org/about-us/contact-us/](https://outsidein.org/about-us/contact-us/)
+> 49. OutsideIn \- About Us \- Outside In Bend, [https://www.outsideinbend.com/service/about/](https://www.outsideinbend.com/service/about/)
+> 50. Second Street Gallery | Gift Shops \- Bandon Chamber of Commerce, [https://directory.bandon.com/list/member/second-street-gallery-47](https://directory.bandon.com/list/member/second-street-gallery-47)
+> 51. Shopping in the Bandon Oregon Area | The Inn at Old Town, [https://innatoldtown.com/shopping/](https://innatoldtown.com/shopping/)
+> 52. The Loft on 2nd | Clothing \- Member \- Bandon Chamber of Commerce, [https://directory.bandon.com/list/member/the-loft-on-2nd-424](https://directory.bandon.com/list/member/the-loft-on-2nd-424)
+> 53. The Toy Room \- Bandon \- Oregon Coast Visitors Association, [https://visittheoregoncoast.com/cities/bandon/activities/the-toy-room/](https://visittheoregoncoast.com/cities/bandon/activities/the-toy-room/)
+> 54. Galleries \- Art through Nature \- Steven Thor Johanneson, [http://www.steventhorjohanneson.com/galleries.html](http://www.steventhorjohanneson.com/galleries.html)
+> 55. Peter Bauer / Candace Kreitlow \- Oregon Coast Council for the Arts, [https://coastarts.org/artists/peter-bauer-candace-kreitlow/](https://coastarts.org/artists/peter-bauer-candace-kreitlow/)
+> 56. Second Street Art Gallery \- Oregon Coast Visitors Association, [https://visittheoregoncoast.com/cities/bandon/activities/second-street-art-gallery/](https://visittheoregoncoast.com/cities/bandon/activities/second-street-art-gallery/)
+> 57. Second Street Gallery \- Visit Charlottesville, [https://www.visitcharlottesville.org/directory/second-street-gallery/](https://www.visitcharlottesville.org/directory/second-street-gallery/)
+> 58. Art by the Sea Gallery and Studio Archives \- Oregon Coast Council for the Arts, [https://coastarts.org/venues/art-by-the-sea-gallery-and-studio/](https://coastarts.org/venues/art-by-the-sea-gallery-and-studio/)
+> 59. Contact Us | Abts Gallery, [https://www.artbytheseagallery.com/contact-us](https://www.artbytheseagallery.com/contact-us)
+> 60. Art by the Sea Gallery \- Oregon Coast Council for the Arts, [https://coastarts.org/presenters/art-by-the-sea-gallery-and-studio/](https://coastarts.org/presenters/art-by-the-sea-gallery-and-studio/)
+> 61. Art Gallery | Art Gallery Bandon Oregon | 145 Fillmore Ave SE, Bandon, OR, USA, [https://www.artbytheseagallery.com/](https://www.artbytheseagallery.com/)
+> 62. 2026 Spring Has Sprung Community Show | Abts Gallery, [https://www.artbytheseagallery.com/2026-spring-has-sprung-community-show](https://www.artbytheseagallery.com/2026-spring-has-sprung-community-show)
+> 63. Bandon Card & Gift | Gift Shops \- Member, [https://directory.bandon.com/list/member/bandon-card-gift-60](https://directory.bandon.com/list/member/bandon-card-gift-60)
+> 64. Gift & Boutique Buyers – BuyersDirect™, [https://buyersdirect.co/gift-boutique-buyers/](https://buyersdirect.co/gift-boutique-buyers/)
+> 65. Spirit Of Oregon | Clothing | Gift Shops \- Member \- Bandon Chamber of Commerce, [https://directory.bandon.com/list/member/spirit-of-oregon-bandon-122](https://directory.bandon.com/list/member/spirit-of-oregon-bandon-122)
+> 66. The Loft on 2nd, [https://theloftonsecond.com/](https://theloftonsecond.com/)
+> 67. Sweet Pea's Home and Garden \- Bandon Chamber of Commerce, [https://directory.bandon.com/list/member/sweet-pea-s-home-and-garden-396](https://directory.bandon.com/list/member/sweet-pea-s-home-and-garden-396)
+> 68. Sweet Peas Home and Garden, [https://sweetpeashomeandgarden.com/](https://sweetpeashomeandgarden.com/)
+> 69. As I See It by Mary Schamehorn \- Bandon.tv, [http://www.bandon.tv/html/MaryDecember2021.html](http://www.bandon.tv/html/MaryDecember2021.html)
+> 70. The Toy Room | Gift Shops \- Member \- Bandon Chamber of Commerce, [https://directory.bandon.com/list/member/the-toy-room-129](https://directory.bandon.com/list/member/the-toy-room-129)
+> 71. Privacy Policy \- steveprottsman.com, [https://steveprottsman.com/privacy-policy/](https://steveprottsman.com/privacy-policy/)
+> 72. Accessibility Statement | WinterRiver Books & Gallery, [https://winterriverbooks.com/accessibility-statement](https://winterriverbooks.com/accessibility-statement)
+> 73. Contact \- Misty Meadows Jams, [https://gotjam.com/contact/](https://gotjam.com/contact/)
+> 74. Misty Meadows Jams 2026 Company Profile: Valuation, Funding & Investors | PitchBook, [https://pitchbook.com/profiles/company/278626-60](https://pitchbook.com/profiles/company/278626-60)
+> 75. Misty Meadows Jams \- Oregon Coast Visitors Association, [https://visittheoregoncoast.com/cities/bandon/activities/misty-meadows-jams/](https://visittheoregoncoast.com/cities/bandon/activities/misty-meadows-jams/)
+> 76. Contact information \- Sassy Seagull, [https://www.sassyseagull.co.uk/policies/contact-information](https://www.sassyseagull.co.uk/policies/contact-information)
+> 77. Sassy Seagull FAQ | Sizing, Shipping & Returns, [https://www.sassyseagull.co.uk/pages/faq](https://www.sassyseagull.co.uk/pages/faq)
+> 78. Englund Marine Supply Co. Inc \- Greater Eureka Chamber of Commerce, [https://business.eurekachamber.com/member-directory/Details/englund-marine-supply-co-inc-1819775](https://business.eurekachamber.com/member-directory/Details/englund-marine-supply-co-inc-1819775)
+> 79. Englund Marine Supply \- Fishing Status, [https://fishingstatus.com/places/directory/groupid/10011](https://fishingstatus.com/places/directory/groupid/10011)
+> 80. Englund Marine Supply | California State Parks \- Division of Boating and Waterways, [https://dbw.parks.ca.gov/BoatingFacilities/f/973](https://dbw.parks.ca.gov/BoatingFacilities/f/973)
+> 81. Where to Buy \- Icom America, [https://www.icomamerica.com/where\_to\_buy/](https://www.icomamerica.com/where_to_buy/)
+> 82. Trade \- National Marine Electronics Association, [https://web.nmea.org/directory/results/results.aspx?affcode=Trade](https://web.nmea.org/directory/results/results.aspx?affcode=Trade)
+> 83. US DISTRIBUTING, INC \- Marine Wholesale Inc., [https://store.englundmarinegroup.com/downloads/WholesaleAccountCreditApp2022.pdf](https://store.englundmarinegroup.com/downloads/WholesaleAccountCreditApp2022.pdf)
+> 84. Rogue Outdoor Store \- Oregon Coast Visitors Association, [https://visittheoregoncoast.com/cities/gold-beach/activities/rogue-outdoor-store/](https://visittheoregoncoast.com/cities/gold-beach/activities/rogue-outdoor-store/)
+> 85. Shrimp Daddy's Bait & Tackle Shack \- Waldport Chamber of Commerce, [https://findyourselfinwaldport.com/business/shrimpdaddys-bait-tackle-shack-2/](https://findyourselfinwaldport.com/business/shrimpdaddys-bait-tackle-shack-2/)
+> 86. 1475 NE Alsea Hwy, Waldport, OR 97394 \- Realtor.com, [https://www.realtor.com/realestateandhomes-detail/1475-NE-Alsea-Hwy\_Waldport\_OR\_97394\_M21315-15568](https://www.realtor.com/realestateandhomes-detail/1475-NE-Alsea-Hwy_Waldport_OR_97394_M21315-15568)
+> 87. Shopping in Cannon Beach | Best Places to Shop on the Oregon Coast, [https://www.beachcombervacationhomes.com/oregon-coast-shopping/](https://www.beachcombervacationhomes.com/oregon-coast-shopping/)
+> 88. PIERCE ARMS | Henry Dealers in TILLAMOOK, OR, [https://www.henryusa.com/dealer-location/pierce-arms/](https://www.henryusa.com/dealer-location/pierce-arms/)
+> 89. Tillamook County organizations, [https://www.tillamookcountypioneer.net/wp-content/uploads/2024/11/Tillamook-County-Orgs-Directory-alphabetized-1.pdf](https://www.tillamookcountypioneer.net/wp-content/uploads/2024/11/Tillamook-County-Orgs-Directory-alphabetized-1.pdf)
+> 90. Retail Locations | Sunrise Bait \- Cured and Uncured Salmon Eggs, [https://sunrisebait.com/retail-locations/](https://sunrisebait.com/retail-locations/)
+> 91. Bradbury's Gun-N-Tackle | Henry Dealers in Grants Pass, OR \- Henry Repeating Arms, [https://www.henryusa.com/dealer-location/bradburys-gun-n-tackle/](https://www.henryusa.com/dealer-location/bradburys-gun-n-tackle/)
+> 92. Bradbury's Gun-N-Tackle 97527 \- Locally, [https://www.locally.com/store/162024/bradburys-gun-n-tackle](https://www.locally.com/store/162024/bradburys-gun-n-tackle)
+> 93. Black Birds | Henry Dealers in Medford, OR, [https://www.henryusa.com/dealer-location/black-birds/](https://www.henryusa.com/dealer-location/black-birds/)
+> 94. Find ODFW licensed agents or vendors | Oregon Department of Fish & Wildlife, [https://myodfw.com/articles/find-odfw-licensed-agents-or-vendors](https://myodfw.com/articles/find-odfw-licensed-agents-or-vendors)
+> 95. Sports & Recreation Category | Grants Pass & Josephine County Chamber of Commerce, [http://grantspasschamber.chambermaster.com/list/category/sports-recreation-1381?o=\&dm=True](http://grantspasschamber.chambermaster.com/list/category/sports-recreation-1381?o&dm=True)
+> 96. Waldron's Outdoor Sports \- Experience Roseburg, [https://www.experienceroseburg.com/listing/waldrons-outdoor-sports/220/](https://www.experienceroseburg.com/listing/waldrons-outdoor-sports/220/)
+> 97. Sportsman's Warehouse – Roseburg | Henry Dealers in Roseburg, OR \- Henry Repeating Arms, [https://www.henryusa.com/dealer-location/sportsmans-warehouse-73/](https://www.henryusa.com/dealer-location/sportsmans-warehouse-73/)
+> 98. Joseph Hardware, Inc. \- Visit Eastern Oregon, [https://visiteasternoregon.com/poi/joseph-hardware-inc/](https://visiteasternoregon.com/poi/joseph-hardware-inc/)
+> 99. Frequently Asked Questions I Mountain View Motel & RV Park I Joseph, OR, [https://www.mtviewmotel-rvpark.com/faqs.htm](https://www.mtviewmotel-rvpark.com/faqs.htm)
+> 100. About Us | Joseph Hardware \- Do it Best, [https://www.doitbest.com/joseph-hardware/about-us/](https://www.doitbest.com/joseph-hardware/about-us/)
+> 101. Joseph Hardware | Shop Hardware & Home Improvement \- Do it Best, [https://www.doitbest.com/joseph-hardware/](https://www.doitbest.com/joseph-hardware/)
+> 102. Josephs' Hardware and Home Center | BBB Business Profile, [https://www.bbb.org/us/co/fort-collins/profile/hardware-and-tools/josephs-hardware-and-home-center-0805-46113481](https://www.bbb.org/us/co/fort-collins/profile/hardware-and-tools/josephs-hardware-and-home-center-0805-46113481)
+> 103. Wallowa Lake Marina | Boat Rentals | Explore | Fishing Supplies & Services | Gift Shops, [https://business.wallowacountychamber.com/list/member/wallowa-lake-marina-joseph-5024](https://business.wallowacountychamber.com/list/member/wallowa-lake-marina-joseph-5024)
+> 104. Getting Here | Winding Waters River Expeditions, [https://www.windingwatersrafting.com/getting-here](https://www.windingwatersrafting.com/getting-here)
+> 105. Wallowa Lake State Park \- Oregon State Parks, [https://stateparks.oregon.gov/index.cfm?do=park.profile\&parkId=20](https://stateparks.oregon.gov/index.cfm?do=park.profile&parkId=20)
+> 106. Marina Paddle Sports \- Wallowa Lake Tourism Guide, [https://www.wallowalake.net/index.php/recreation/paddle-sports](https://www.wallowalake.net/index.php/recreation/paddle-sports)
+> 107. Riverbend | Riverfront Wallowa Lake rental near tramway, large yard, deck & family-friendly walkable location \- Google, [https://www.google.com.ng/travel/hotels/entity/CiUIuKqAj9K0qKe1ARCMsuGi3J2SyLUBGg0vZy8xMXl4N2xsMjhtEAI?ei=eKsMauT9Kbz50L4PnYHniQI\&sa=X\&utm\_campaign=sharing\&utm\_medium=link\&utm\_source=htls\&ts=CAEaIgoCGgASHBIUCgcI6g8QBhgPEgcI6g8QBhgSGAMyAhAAOAEqCQoFOgNVU0QaAA\&ved=2ahUKEwiSsZD5-8eUAxXBTn8AHZ81HKgQv6wDKAN6BAgEEFQ](https://www.google.com.ng/travel/hotels/entity/CiUIuKqAj9K0qKe1ARCMsuGi3J2SyLUBGg0vZy8xMXl4N2xsMjhtEAI?ei=eKsMauT9Kbz50L4PnYHniQI&sa=X&utm_campaign=sharing&utm_medium=link&utm_source=htls&ts=CAEaIgoCGgASHBIUCgcI6g8QBhgPEgcI6g8QBhgSGAMyAhAAOAEqCQoFOgNVU0QaAA&ved=2ahUKEwiSsZD5-8eUAxXBTn8AHZ81HKgQv6wDKAN6BAgEEFQ)
+> 108. A Piece of Pendleton \- Travel Oregon, [https://traveloregon.com/things-to-do/oregon-attractions/shopping/a-piece-of-pendleton/](https://traveloregon.com/things-to-do/oregon-attractions/shopping/a-piece-of-pendleton/)
+> 109. Things to Do in Pendleton, Oregon | Via, [https://mwg.aaa.com/via/things-do/pendleton-oregon](https://mwg.aaa.com/via/things-do/pendleton-oregon)
+> 110. Prison Blues \- A Piece Of Pendleton, [https://www.apieceofpendleton.com/copy-of-birchtree-mittens-2](https://www.apieceofpendleton.com/copy-of-birchtree-mittens-2)
+> 111. Contact Us \- Ashland Fly Shop, [https://www.ashlandflyshop.com/pages/contact-us](https://www.ashlandflyshop.com/pages/contact-us)
+> 112. Perpetrator Fly Pattern \- Ashland Fly Shop, [https://www.ashlandflyshop.com/products/perpetrator-fly-pattern](https://www.ashlandflyshop.com/products/perpetrator-fly-pattern)
+> 113. Bandon Dunes Golf Resort \- Facility Profile | PGA.org, [https://directory.pga.org/facility/detail/766812913](https://directory.pga.org/facility/detail/766812913)
+> 114. Contact Us \- Heron Glen Golf Course, [https://www.heronglen.com/contact-us/](https://www.heronglen.com/contact-us/)
+> 115. Meet the Staff \- Rolling Hills Country Club, [https://www.rollinghillscountryclub.org/Our-Story/Meet-the-Staff-(1)](<https://www.rollinghillscountryclub.org/Our-Story/Meet-the-Staff-(1)>)
+> 116. WGC Newsletter \#2, [https://irp.cdn-website.com/e492b24d/files/uploaded/WGC-Newsletter-March-2020.pdf](https://irp.cdn-website.com/e492b24d/files/uploaded/WGC-Newsletter-March-2020.pdf)
 > 117. Oregon Golf Association Golf Course in Woodburn, OR \- Reviews & Course Info | GolfNow, [https://www.golfnow.com/courses/1047112-oregon-golf-association-golf-course-details](https://www.golfnow.com/courses/1047112-oregon-golf-association-golf-course-details)

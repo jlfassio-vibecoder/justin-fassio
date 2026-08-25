@@ -41,6 +41,16 @@ vi.mock('@/lib/supabase', () => ({
   },
 }));
 
+vi.mock('@/lib/operationalTerritories/fetchOperationalTerritories', () => ({
+  fetchOperationalTerritories: vi.fn().mockResolvedValue({
+    data: [
+      { id: 'ops-pnw-west', code: 'pnw-west', name: 'PNW West' },
+      { id: 'ops-pnw-east', code: 'pnw-east', name: 'PNW East' },
+    ],
+    error: null,
+  }),
+}));
+
 const PRODUCT_ID = 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
 const DRAFT_ID = 'draft-abc-123';
 const catalogItem = catalogItemStub({

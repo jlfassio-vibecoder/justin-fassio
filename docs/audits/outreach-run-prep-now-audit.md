@@ -52,17 +52,17 @@ flowchart TD
   Brief --> Tab
 ```
 
-| Step | Artifact |
-| --- | --- |
-| UI | [`src/components/tabs/AgentBriefingTab.tsx`](../../src/components/tabs/AgentBriefingTab.tsx) — `runPrepNow()` → `staffPost('/api/staff/outreach/prep', {})` |
-| Manual API | [`src/pages/api/staff/outreach/prep.ts`](../../src/pages/api/staff/outreach/prep.ts) — `requireApprovedStaffClient`, `maxDuration = 300`, optional `preparationDate` |
-| Cron API | [`src/pages/api/cron/outreach-nightly-prep.ts`](../../src/pages/api/cron/outreach-nightly-prep.ts) — `requireCronSecret` + service role |
-| Schedule | [`vercel.json`](../../vercel.json) — `0 5 * * *` → `/api/cron/outreach-nightly-prep` |
-| Orchestrator | [`src/lib/outreachNightlyPrep.ts`](../../src/lib/outreachNightlyPrep.ts) — `runOutreachNightlyPrep` / `continuePrep` |
-| Selection | [`src/lib/outreachSelectTargets.ts`](../../src/lib/outreachSelectTargets.ts) — hardcoded `lines.code = 'ogr'` |
-| Drafts | [`src/lib/generateOgrProductOutreachDraft.ts`](../../src/lib/generateOgrProductOutreachDraft.ts) — insert/update; stamps `automation_run_id` **on insert only** |
-| Briefing | [`src/lib/outreachBriefing.ts`](../../src/lib/outreachBriefing.ts) — on-read assembly; no snapshot table |
-| Schema | [`supabase/migrations/20260812140000_outreach_automation_runs.sql`](../../supabase/migrations/20260812140000_outreach_automation_runs.sql) — unique `(kind, run_date)` |
+| Step         | Artifact                                                                                                                                                               |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UI           | [`src/components/tabs/AgentBriefingTab.tsx`](../../src/components/tabs/AgentBriefingTab.tsx) — `runPrepNow()` → `staffPost('/api/staff/outreach/prep', {})`            |
+| Manual API   | [`src/pages/api/staff/outreach/prep.ts`](../../src/pages/api/staff/outreach/prep.ts) — `requireApprovedStaffClient`, `maxDuration = 300`, optional `preparationDate`   |
+| Cron API     | [`src/pages/api/cron/outreach-nightly-prep.ts`](../../src/pages/api/cron/outreach-nightly-prep.ts) — `requireCronSecret` + service role                                |
+| Schedule     | [`vercel.json`](../../vercel.json) — `0 5 * * *` → `/api/cron/outreach-nightly-prep`                                                                                   |
+| Orchestrator | [`src/lib/outreachNightlyPrep.ts`](../../src/lib/outreachNightlyPrep.ts) — `runOutreachNightlyPrep` / `continuePrep`                                                   |
+| Selection    | [`src/lib/outreachSelectTargets.ts`](../../src/lib/outreachSelectTargets.ts) — hardcoded `lines.code = 'ogr'`                                                          |
+| Drafts       | [`src/lib/generateOgrProductOutreachDraft.ts`](../../src/lib/generateOgrProductOutreachDraft.ts) — insert/update; stamps `automation_run_id` **on insert only**        |
+| Briefing     | [`src/lib/outreachBriefing.ts`](../../src/lib/outreachBriefing.ts) — on-read assembly; no snapshot table                                                               |
+| Schema       | [`supabase/migrations/20260812140000_outreach_automation_runs.sql`](../../supabase/migrations/20260812140000_outreach_automation_runs.sql) — unique `(kind, run_date)` |
 
 **Invariant:** prep never imports send/Resend helpers (enforced by unit test).
 
@@ -72,28 +72,28 @@ flowchart TD
 
 ## Component responsibilities
 
-| Function / surface | Responsibility |
-| --- | --- |
-| `runPrepNow` (UI) | Escape hatch; empty body; reload briefing token on success |
-| Staff prep route | Auth; resolve `preparationDate` (default next selling day); `trigger: 'manual'` |
-| Cron route | Secret; service role; `trigger: 'cron'`; default next selling day |
-| `runOutreachNightlyPrep` | Idempotency gate; capacity from pace as-of noon on `run_date` |
-| `continuePrep` | Lead-rules refresh → pending count → channel allocate → select → chunked generate → finalize status |
-| `finalizeStatus` | Map counts → `succeeded` / `empty_pool` / `partial` / `failed` |
-| `defaultNightlyPrepRunDate` | **Next** selling day **after** today |
-| `briefingSellingDate` | Today if weekday, else next (`nextSellingDayOnOrAfter`) |
-| `selectOutreachTargets` | OGR RLA pool → eligibility → channel fill/spill → product pick |
-| `assembleOutreachBriefing` | Prep banner + goals + drafts + Hot/Call/Warm + learning slices |
+| Function / surface          | Responsibility                                                                                      |
+| --------------------------- | --------------------------------------------------------------------------------------------------- |
+| `runPrepNow` (UI)           | Escape hatch; empty body; reload briefing token on success                                          |
+| Staff prep route            | Auth; resolve `preparationDate` (default next selling day); `trigger: 'manual'`                     |
+| Cron route                  | Secret; service role; `trigger: 'cron'`; default next selling day                                   |
+| `runOutreachNightlyPrep`    | Idempotency gate; capacity from pace as-of noon on `run_date`                                       |
+| `continuePrep`              | Lead-rules refresh → pending count → channel allocate → select → chunked generate → finalize status |
+| `finalizeStatus`            | Map counts → `succeeded` / `empty_pool` / `partial` / `failed`                                      |
+| `defaultNightlyPrepRunDate` | **Next** selling day **after** today                                                                |
+| `briefingSellingDate`       | Today if weekday, else next (`nextSellingDayOnOrAfter`)                                             |
+| `selectOutreachTargets`     | OGR RLA pool → eligibility → channel fill/spill → product pick                                      |
+| `assembleOutreachBriefing`  | Prep banner + goals + drafts + Hot/Call/Warm + learning slices                                      |
 
 ---
 
 ## Auth matrix
 
-| Path | Auth | DB client | Actor |
-| --- | --- | --- | --- |
-| Manual prep | Approved staff JWT | User-scoped (RLS) | `triggeredBy = userId`; drafts `sent_by` = that user |
-| Cron | `Authorization: Bearer CRON_SECRET` | Service role | `triggeredBy = null`; drafts use `OUTREACH_PREP_ACTOR_USER_ID` or null |
-| Briefing GET | Staff JWT (+ optional `sales_line_id` query) | User client | N/A |
+| Path         | Auth                                         | DB client         | Actor                                                                  |
+| ------------ | -------------------------------------------- | ----------------- | ---------------------------------------------------------------------- |
+| Manual prep  | Approved staff JWT                           | User-scoped (RLS) | `triggeredBy = userId`; drafts `sent_by` = that user                   |
+| Cron         | `Authorization: Bearer CRON_SECRET`          | Service role      | `triggeredBy = null`; drafts use `OUTREACH_PREP_ACTOR_USER_ID` or null |
+| Briefing GET | Staff JWT (+ optional `sales_line_id` query) | User client       | N/A                                                                    |
 
 ---
 
@@ -130,15 +130,15 @@ Absent from prep orchestrator, staff prep route, cron, and automation-run schema
 
 ## Failure modes
 
-| Mode | Behavior |
-| --- | --- |
-| Goal / lead-rules / select hard fail | Run → `failed` |
-| Selection empty with capacity | `empty_pool` (terminal for that date) |
-| Per-target draft insert errors | Counted; mid-loop progress; final `partial` if any produced |
-| Stub drafts (no AI) | Expected for prep; personalized copy is staff **Add copy** |
-| All selected fail | `failed` |
-| Concurrent run | 409 |
-| Already pending draft | `skippedCount` (not failure) |
+| Mode                                 | Behavior                                                    |
+| ------------------------------------ | ----------------------------------------------------------- |
+| Goal / lead-rules / select hard fail | Run → `failed`                                              |
+| Selection empty with capacity        | `empty_pool` (terminal for that date)                       |
+| Per-target draft insert errors       | Counted; mid-loop progress; final `partial` if any produced |
+| Stub drafts (no AI)                  | Expected for prep; personalized copy is staff **Add copy**  |
+| All selected fail                    | `failed`                                                    |
+| Concurrent run                       | 409                                                         |
+| Already pending draft                | `skippedCount` (not failure)                                |
 
 **Partial-retry nuance:** retry resets `produced_count` to 0; banner metrics reflect the retry batch, not cumulative day drafts.
 
@@ -148,11 +148,11 @@ Absent from prep orchestrator, staff prep route, cron, and automation-run schema
 
 ## Multi-line constraints
 
-| Concern | Current behavior |
-| --- | --- |
-| Prep / selection | OGR-only |
-| Briefing on EP / Big Fish | Empty book: “No outreach book for {lineCode} yet.” |
-| Empty-book TZ | Hardcoded `America/Vancouver` (ignores goal settings) |
+| Concern                     | Current behavior                                                                |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| Prep / selection            | OGR-only                                                                        |
+| Briefing on EP / Big Fish   | Empty book: “No outreach book for {lineCode} yet.”                              |
+| Empty-book TZ               | Hardcoded `America/Vancouver` (ignores goal settings)                           |
 | **Run prep now** visibility | Always shown; no line gate — can still fire OGR prep while viewing another line |
 
 ---
@@ -161,21 +161,21 @@ Absent from prep orchestrator, staff prep route, cron, and automation-run schema
 
 ### P0 — Product / date mismatch (recovery)
 
-| Issue | Impact |
-| --- | --- |
-| Overnight cron preps **tomorrow**; morning briefing shows **today** | Aligned after a successful overnight run |
-| Daytime **Run prep now** also defaults to **tomorrow** | After a **missed** overnight run, staff still see “No prep for today” while prep creates tomorrow’s run |
-| API supports `preparationDate: today`; UI posts `{}` | Escape hatch incomplete without a catch-up control |
+| Issue                                                               | Impact                                                                                                  |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Overnight cron preps **tomorrow**; morning briefing shows **today** | Aligned after a successful overnight run                                                                |
+| Daytime **Run prep now** also defaults to **tomorrow**              | After a **missed** overnight run, staff still see “No prep for today” while prep creates tomorrow’s run |
+| API supports `preparationDate: today`; UI posts `{}`                | Escape hatch incomplete without a catch-up control                                                      |
 
 **Recommended direction:** When briefing `sellingDate` has no successful run, “Run prep now” should target that same `sellingDate` (or offer explicit Today / Next day).
 
 ### P1 — Multi-line UX / data model
 
-| Issue | Impact |
-| --- | --- |
-| Prep has no `sales_line_id` | EP/BF cannot have their own book |
-| Prep button on all lines | Operator can mutate OGR prep while viewing another line |
-| Single global `(kind, run_date)` | Future multi-line prep needs a line-scoped unique key |
+| Issue                            | Impact                                                  |
+| -------------------------------- | ------------------------------------------------------- |
+| Prep has no `sales_line_id`      | EP/BF cannot have their own book                        |
+| Prep button on all lines         | Operator can mutate OGR prep while viewing another line |
+| Single global `(kind, run_date)` | Future multi-line prep needs a line-scoped unique key   |
 
 ### P1 — `empty_pool` permanence
 
@@ -183,21 +183,21 @@ Once a date is `empty_pool`, same-day refill is impossible even if the eligible 
 
 ### P2 — Observability
 
-| Gap | Notes |
-| --- | --- |
-| No step timestamps | Only run start/finish |
-| `target_errors` in DB | Not surfaced in staff UI beyond banner counts |
-| No external alert | Epic treated alerts as optional; in-app banner only |
-| Mid-chunk crash | Leaves `running` until 15-minute stale reclaim |
-| Cron actor unset | Drafts may have null `sent_by` if `OUTREACH_PREP_ACTOR_USER_ID` missing |
+| Gap                   | Notes                                                                   |
+| --------------------- | ----------------------------------------------------------------------- |
+| No step timestamps    | Only run start/finish                                                   |
+| `target_errors` in DB | Not surfaced in staff UI beyond banner counts                           |
+| No external alert     | Epic treated alerts as optional; in-app banner only                     |
+| Mid-chunk crash       | Leaves `running` until 15-minute stale reclaim                          |
+| Cron actor unset      | Drafts may have null `sent_by` if `OUTREACH_PREP_ACTOR_USER_ID` missing |
 
 ### P2 — Epic / doc drift
 
-| Phase 5 doc claim | Live reality |
-| --- | --- |
-| `agent_briefing_runs` / `agent_briefing_items` | **Not in codebase** |
-| Optional `outreach_briefing_snapshots` | Not implemented; briefing is on-read |
-| Account research before product pick | Explicitly **out of** prep loop today ([account-research epic](../epics/agentic-outreach/account-research-before-product-selection.md)) |
+| Phase 5 doc claim                              | Live reality                                                                                                                            |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_briefing_runs` / `agent_briefing_items` | **Not in codebase**                                                                                                                     |
+| Optional `outreach_briefing_snapshots`         | Not implemented; briefing is on-read                                                                                                    |
+| Account research before product pick           | Explicitly **out of** prep loop today ([account-research epic](../epics/agentic-outreach/account-research-before-product-selection.md)) |
 
 ### P3 — Test holes
 
@@ -256,15 +256,15 @@ Shipped first slice for coastal/road-trip books:
 
 ## Key file index
 
-| Path | Why it matters |
-| --- | --- |
-| `src/components/tabs/AgentBriefingTab.tsx` | Run prep now UX |
-| `src/pages/api/staff/outreach/prep.ts` | Manual prep + date rules |
-| `src/pages/api/cron/outreach-nightly-prep.ts` | Scheduled prep |
-| `src/lib/outreachNightlyPrep.ts` | Orchestrator + date helpers |
-| `src/lib/outreachSelectTargets.ts` | OGR selection |
-| `src/lib/outreachBriefing.ts` | Morning surface |
-| `src/lib/generateOgrProductOutreachDraft.ts` | Draft create/skip |
-| `vercel.json` | Cron schedule |
-| `docs/epics/agentic-outreach/phase-5-nightly-briefing.md` | Intent (partially drifted) |
+| Path                                                                       | Why it matters               |
+| -------------------------------------------------------------------------- | ---------------------------- |
+| `src/components/tabs/AgentBriefingTab.tsx`                                 | Run prep now UX              |
+| `src/pages/api/staff/outreach/prep.ts`                                     | Manual prep + date rules     |
+| `src/pages/api/cron/outreach-nightly-prep.ts`                              | Scheduled prep               |
+| `src/lib/outreachNightlyPrep.ts`                                           | Orchestrator + date helpers  |
+| `src/lib/outreachSelectTargets.ts`                                         | OGR selection                |
+| `src/lib/outreachBriefing.ts`                                              | Morning surface              |
+| `src/lib/generateOgrProductOutreachDraft.ts`                               | Draft create/skip            |
+| `vercel.json`                                                              | Cron schedule                |
+| `docs/epics/agentic-outreach/phase-5-nightly-briefing.md`                  | Intent (partially drifted)   |
 | `docs/epics/agentic-outreach/account-research-before-product-selection.md` | Accurate live pipeline notes |

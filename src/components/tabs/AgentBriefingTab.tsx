@@ -392,7 +392,9 @@ export function AgentBriefingTab({
                 className="w-auto min-w-[7rem]"
                 value={storeTerritoryCode}
                 onChange={(e) =>
-                  setStoreTerritoryCode(e.target.value === 'wa' || e.target.value === 'or' ? e.target.value : '')
+                  setStoreTerritoryCode(
+                    e.target.value === 'wa' || e.target.value === 'or' ? e.target.value : '',
+                  )
                 }
                 disabled={prepBusy || loading}
               >

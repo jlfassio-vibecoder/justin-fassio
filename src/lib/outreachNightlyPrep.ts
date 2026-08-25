@@ -39,8 +39,7 @@ export const OUTREACH_REGIONAL_PREP_DEFAULT_LIMIT = 25;
 export const OUTREACH_REGIONAL_PREP_MAX_LIMIT = 25;
 
 export type OutreachPrepKind =
-  | typeof OUTREACH_NIGHTLY_PREP_KIND
-  | typeof OUTREACH_MANUAL_REGIONAL_PREP_KIND;
+  typeof OUTREACH_NIGHTLY_PREP_KIND | typeof OUTREACH_MANUAL_REGIONAL_PREP_KIND;
 
 export type OutreachAutomationRunStatus =
   'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
@@ -368,8 +367,7 @@ export async function runOutreachNightlyPrep(
 
   if (existing.run) {
     const run = existing.run;
-    const terminalNoop =
-      run.status === 'succeeded' || (run.status === 'empty_pool' && !isRegional);
+    const terminalNoop = run.status === 'succeeded' || (run.status === 'empty_pool' && !isRegional);
     if (terminalNoop) {
       return { ok: true, run, noop: true };
     }
@@ -456,10 +454,7 @@ export async function runOutreachNightlyPrep(
       storeTerritoryCode,
     });
     if (again.ok && again.run) {
-      if (
-        again.run.status === 'succeeded' ||
-        (again.run.status === 'empty_pool' && !isRegional)
-      ) {
+      if (again.run.status === 'succeeded' || (again.run.status === 'empty_pool' && !isRegional)) {
         return { ok: true, run: again.run, noop: true };
       }
       if (again.run.status === 'running') {

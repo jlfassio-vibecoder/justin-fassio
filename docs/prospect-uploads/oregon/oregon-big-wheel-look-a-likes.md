@@ -7,10 +7,10 @@ I treated **Big Wheel General Store** in Bandon as the seed account and used the
 The research produced **270 named Oregon prospects** across 46 cities and 23 counties, plus Big Wheel itself as the seed-reference record. Of those prospects:
 
 | Confidence | Count |
-| --- | ---: |
-| High | 163 |
-| Medium | 100 |
-| Low | 7 |
+| ---------- | ----: |
+| High       |   163 |
+| Medium     |   100 |
+| Low        |     7 |
 
 The scoring model identified **31 Tier A/A+** prospects (1 A+ and 30 Tier A).
 
@@ -44,13 +44,13 @@ Discovery therefore expanded beyond businesses literally named “General Store�
 
 ### Tier definitions (retained from seed model)
 
-| Tier | Score range |
-| --- | --- |
-| A+ | 85–100 |
-| A | 70–84 |
-| B | 55–69 |
-| C | 40–54 |
-| Disqualify / very weak | &lt; 40 |
+| Tier                   | Score range |
+| ---------------------- | ----------- |
+| A+                     | 85–100      |
+| A                      | 70–84       |
+| B                      | 55–69       |
+| C                      | 40–54       |
+| Disqualify / very weak | &lt; 40     |
 
 The automatic score is sales prioritization, not a prediction of purchasing volume. A buyer with modest similarity but strong relationship, route fit, or category opening can still outperform a higher-scoring account.
 
@@ -85,12 +85,12 @@ The research references a Top 50 High-confidence table and downloadable CSV with
 
 **That structured table and CSV are not included in this file.** Narrative callouts for strategically interesting accounts include:
 
-| Store | City / area | Note |
-| --- | --- | --- |
-| Paddington Station | Ashland | &gt;8,000 sq ft, opposite OSF [[40]](#works-cited) |
-| Hamley & Co. | Pendleton | Saddles, leather, silver, Western wear [[41]](#works-cited) |
-| Montana Peaks | Pendleton | Handmade Western hats |
-| Pendleton / Hamley cluster | Pendleton | Tourism + Western/men's/heritage/gift |
+| Store                      | City / area | Note                                                        |
+| -------------------------- | ----------- | ----------------------------------------------------------- |
+| Paddington Station         | Ashland     | &gt;8,000 sq ft, opposite OSF [[40]](#works-cited)          |
+| Hamley & Co.               | Pendleton   | Saddles, leather, silver, Western wear [[41]](#works-cited) |
+| Montana Peaks              | Pendleton   | Handmade Western hats                                       |
+| Pendleton / Hamley cluster | Pendleton   | Tourism + Western/men's/heritage/gift                       |
 
 ---
 
@@ -143,53 +143,53 @@ Big Wheel represents a repeatable Oregon retail archetype. Highest-probability a
 
 Stores named in narrative/citations. **Do not invent address/phone.** Prefer Travel Oregon / official pages linked in Works cited before CRM insert.
 
-| Store | Area (from narrative) | CRM status (2026-08-25) |
-| --- | --- | --- |
-| Big Wheel General Store | Bandon | **Already in CRM** — Active Account `613` |
-| Port O' Call | Bandon | **Already in CRM** — prospect `649` |
-| Bandon Card & Gift Shoppe | Bandon | **Already in CRM** — prospect `673` |
-| A Piece of Pendleton | Pendleton | **Already in CRM** — prospect `685` |
-| The Ruddy Duck | Hood River | **Not in CRM** — candidate |
-| Doug's Sports | Hood River | **Not in CRM** — candidate |
-| The Wy'East Store | Government Camp / Timberline | **Not in CRM** — candidate |
-| Safari Town Surf Shop | Lincoln City | **Not in CRM** — candidate |
-| By the Sea Treasures | Bandon | **Not in CRM** — candidate |
-| The Market Place | Brookings | **Not in CRM** — candidate |
-| Paddington Station | Ashland | **Not in CRM** — candidate |
-| Hamley & Co. | Pendleton | **Not in CRM** — candidate |
-| Montana Peaks | Pendleton | **Not in CRM** — candidate |
-| Salty Raven | Cannon Beach | **Not in CRM** — candidate |
-| Cap'n Gull's | Coast | **Not in CRM** — candidate |
-| Jerry's Rogue River Museum & Gift Shop | Rogue River tourism | **Not in CRM** — candidate |
-| Semi Aquatic | Coast | **Not in CRM** — candidate |
-| a.ell | Coast | **Not in CRM** — candidate |
-| River's End Collective | Coast | **Not in CRM** — candidate |
-| Cleanline Surf | Coast | **Not in CRM** — candidate |
-| Wind Drift Gallery | Florence | **Not in CRM** — candidate |
-| Moxie Fair Trade | — | **Not in CRM** — candidate |
-| Finders Keepers Unique Boutique | — | **Not in CRM** — candidate |
-| Top Drawer Upscale Resale | — | **Not in CRM** — candidate |
-| Seaside Surf Shop | Seaside | **Not in CRM** — candidate |
-| Pendleton Woolen Mills | Pendleton | **Not in CRM** — candidate |
-| Feather Your Nest | — | **Not in CRM** — candidate |
-| Pithitude Gift Shop | — | **Not in CRM** — candidate |
-| Gorge Dog | Hood River | **Not in CRM** — candidate |
-| Parts Labour | — | **Not in CRM** — candidate |
-| Superette | — | **Not in CRM** — candidate |
-| Rags to Riches Consignment | — | **Not in CRM** — candidate |
-| Gorge Fly Shop | Hood River | **Not in CRM** — candidate |
-| Matterhorn Village | — | **Not in CRM** — candidate |
-| American Trails Gallery | — | **Not in CRM** — candidate |
-| The Duck Store | — | **Not in CRM** — candidate |
-| The Sheep Shed | — | **Not in CRM** — candidate |
-| Pendleton Round-Up Happy Canyon Gift Shop | Pendleton | **Not in CRM** — candidate |
-| toZion | Joseph | **Not in CRM** — candidate |
-| Copper Creek Mercantile | Eastern Oregon | **Not in CRM** — candidate |
-| 4 Seasons Recreational Outfitters | Sunriver | **Not in CRM** — candidate |
-| The Red Canary Mercantile | Southern Oregon | **Not in CRM** — candidate |
-| Gallop 'n Glitz | Grants Pass area | **Not in CRM** — candidate |
-| Big Winds | Hood River | **Not in CRM** — candidate |
-| Made in the Gorge | Hood River | **Not in CRM** — candidate |
+| Store                                     | Area (from narrative)        | CRM status (2026-08-25)                   |
+| ----------------------------------------- | ---------------------------- | ----------------------------------------- |
+| Big Wheel General Store                   | Bandon                       | **Already in CRM** — Active Account `613` |
+| Port O' Call                              | Bandon                       | **Already in CRM** — prospect `649`       |
+| Bandon Card & Gift Shoppe                 | Bandon                       | **Already in CRM** — prospect `673`       |
+| A Piece of Pendleton                      | Pendleton                    | **Already in CRM** — prospect `685`       |
+| The Ruddy Duck                            | Hood River                   | **Not in CRM** — candidate                |
+| Doug's Sports                             | Hood River                   | **Not in CRM** — candidate                |
+| The Wy'East Store                         | Government Camp / Timberline | **Not in CRM** — candidate                |
+| Safari Town Surf Shop                     | Lincoln City                 | **Not in CRM** — candidate                |
+| By the Sea Treasures                      | Bandon                       | **Not in CRM** — candidate                |
+| The Market Place                          | Brookings                    | **Not in CRM** — candidate                |
+| Paddington Station                        | Ashland                      | **Not in CRM** — candidate                |
+| Hamley & Co.                              | Pendleton                    | **Not in CRM** — candidate                |
+| Montana Peaks                             | Pendleton                    | **Not in CRM** — candidate                |
+| Salty Raven                               | Cannon Beach                 | **Not in CRM** — candidate                |
+| Cap'n Gull's                              | Coast                        | **Not in CRM** — candidate                |
+| Jerry's Rogue River Museum & Gift Shop    | Rogue River tourism          | **Not in CRM** — candidate                |
+| Semi Aquatic                              | Coast                        | **Not in CRM** — candidate                |
+| a.ell                                     | Coast                        | **Not in CRM** — candidate                |
+| River's End Collective                    | Coast                        | **Not in CRM** — candidate                |
+| Cleanline Surf                            | Coast                        | **Not in CRM** — candidate                |
+| Wind Drift Gallery                        | Florence                     | **Not in CRM** — candidate                |
+| Moxie Fair Trade                          | —                            | **Not in CRM** — candidate                |
+| Finders Keepers Unique Boutique           | —                            | **Not in CRM** — candidate                |
+| Top Drawer Upscale Resale                 | —                            | **Not in CRM** — candidate                |
+| Seaside Surf Shop                         | Seaside                      | **Not in CRM** — candidate                |
+| Pendleton Woolen Mills                    | Pendleton                    | **Not in CRM** — candidate                |
+| Feather Your Nest                         | —                            | **Not in CRM** — candidate                |
+| Pithitude Gift Shop                       | —                            | **Not in CRM** — candidate                |
+| Gorge Dog                                 | Hood River                   | **Not in CRM** — candidate                |
+| Parts Labour                              | —                            | **Not in CRM** — candidate                |
+| Superette                                 | —                            | **Not in CRM** — candidate                |
+| Rags to Riches Consignment                | —                            | **Not in CRM** — candidate                |
+| Gorge Fly Shop                            | Hood River                   | **Not in CRM** — candidate                |
+| Matterhorn Village                        | —                            | **Not in CRM** — candidate                |
+| American Trails Gallery                   | —                            | **Not in CRM** — candidate                |
+| The Duck Store                            | —                            | **Not in CRM** — candidate                |
+| The Sheep Shed                            | —                            | **Not in CRM** — candidate                |
+| Pendleton Round-Up Happy Canyon Gift Shop | Pendleton                    | **Not in CRM** — candidate                |
+| toZion                                    | Joseph                       | **Not in CRM** — candidate                |
+| Copper Creek Mercantile                   | Eastern Oregon               | **Not in CRM** — candidate                |
+| 4 Seasons Recreational Outfitters         | Sunriver                     | **Not in CRM** — candidate                |
+| The Red Canary Mercantile                 | Southern Oregon              | **Not in CRM** — candidate                |
+| Gallop 'n Glitz                           | Grants Pass area             | **Not in CRM** — candidate                |
+| Big Winds                                 | Hood River                   | **Not in CRM** — candidate                |
+| Made in the Gorge                         | Hood River                   | **Not in CRM** — candidate                |
 
 **Import readiness:** ~41 named stores are **not** in CRM, but this file has **no addresses/phones** for them (Top 50 / 270 CSVs missing). Do not insert name-only rows. Next step: enrich from Travel Oregon links in Works cited (or attach the research CSV), then import non-duplicates.
 
@@ -216,7 +216,7 @@ Stores named in narrative/citations. **Do not invent address/phone.** Prefer Tra
 17. [Wind Drift Gallery Florence — Travel Oregon](https://traveloregon.com/things-to-do/oregon-attractions/art-galleries-studios/wind-drift-gallery-florence/)
 18. [River's End Collective — Travel Oregon](https://traveloregon.com/things-to-do/oregon-attractions/shopping/rivers-end-collective/)
 19. [Cap'n Gull's Gift Place — Travel Oregon](https://traveloregon.com/things-to-do/oregon-attractions/shopping/capn-gulls-gift-place/)
-20. [Mo's Lincoln City — Travel Oregon](https://traveloregon.com/things-to-do/eat-drink/restaurants/mos-lincoln-city-on-the-siletz-bay/) *(restaurant — not a look-alike retail target)*
+20. [Mo's Lincoln City — Travel Oregon](https://traveloregon.com/things-to-do/eat-drink/restaurants/mos-lincoln-city-on-the-siletz-bay/) _(restaurant — not a look-alike retail target)_
 21. [Moxie Fair Trade — Travel Oregon](https://traveloregon.com/things-to-do/oregon-attractions/shopping/moxie-fair-trade/)
 22. [Finders Keepers Unique Boutique — Travel Oregon](https://traveloregon.com/things-to-do/oregon-attractions/shopping/finders-keepers-unique-boutique/)
 23. [Top Drawer Upscale Resale — Travel Oregon](https://traveloregon.com/things-to-do/oregon-attractions/shopping/top-drawer-upscale-resale-boutique/)

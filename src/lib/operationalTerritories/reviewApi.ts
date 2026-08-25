@@ -167,3 +167,61 @@ export async function leaveOperationalTerritoryUnassigned(
   if (!resolved.ok) return { ok: false, error: resolved.error, status: 500 };
   return { ok: true };
 }
+
+/**
+ * Apply ZIP/address suggestions for store-geo prospects missing operational_territory_id.
+ * Uses the same suggest → updateProspectAccountDetails path as single apply (no silent SQL).
+ */
+export async function applyResolvableOperationalTerritorySuggestionsForStore(
+  supabase: AgentSupabase,
+  storeTerritoryCode: string,
+  actorId: string,
+): Promise<
+  | {
+      ok: true;
+      applied: number;
+      skipped: number;
+      failures: Array<{ prospectId: number; error: string }>;
+    }
+  | { ok: false; error: string }
+> {
+  const code = storeTerritoryCode.trim().toLowerCase();
+  if (code !== 'or' && code !== 'wa' && code !== 'ca') {
+    return { ok: false, error: 'storeTerritoryCode must be or, wa, or ca' };
+  }
+
+  const { data: storeTerr, error: terrError } = await supabase
+    .from('territories')
+    .select('id')
+    .eq('code', code)
+    .maybeSingle();
+  if (terrError) return { ok: false, error: terrError.message };
+  if (!storeTerr) return { ok: false, error: `Store territory ${code} not found` };
+
+  const { data: rows, error } = await supabase
+    .from('prospects')
+    .select('id')
+    .eq('territory_id', storeTerr.id)
+    .is('operational_territory_id', null)
+    .order('id', { ascending: true });
+  if (error) return { ok: false, error: error.message };
+
+  let applied = 0;
+  let skipped = 0;
+  const failures: Array<{ prospectId: number; error: string }> = [];
+
+  for (const row of rows ?? []) {
+    const result = await applyOperationalTerritorySuggestion(supabase, row.id, actorId);
+    if (!result.ok) {
+      if (result.status === 409) {
+        skipped += 1;
+        continue;
+      }
+      failures.push({ prospectId: row.id, error: result.error });
+      continue;
+    }
+    applied += 1;
+  }
+
+  return { ok: true, applied, skipped, failures };
+}
