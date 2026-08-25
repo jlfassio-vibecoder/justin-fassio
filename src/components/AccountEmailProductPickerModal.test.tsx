@@ -194,6 +194,35 @@ describe('AccountEmailProductPickerModal', () => {
     expect(await screen.findByText(NO_SAVED_RECIPIENT_EMAIL_HINT)).toBeInTheDocument();
     expect(screen.queryByLabelText('Recipient')).not.toBeInTheDocument();
   });
+
+  it('replaceProduct mode skips recipients and uses Use this', async () => {
+    const user = userEvent.setup();
+    const onPick = vi.fn();
+    render(
+      <AccountEmailProductPickerModal
+        open
+        intent="replaceProduct"
+        accountId={7}
+        salesLineId={LINE_ID}
+        lineSlug="ogr"
+        onClose={vi.fn()}
+        onPick={onPick}
+      />,
+    );
+
+    expect(await screen.findByText('Replace product')).toBeInTheDocument();
+    expect(fetchContactsForAccountMock).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText('Recipient')).not.toBeInTheDocument();
+    expect(screen.queryByText(NO_SAVED_RECIPIENT_EMAIL_HINT)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Use this' }));
+    expect(onPick).toHaveBeenCalledWith(
+      expect.objectContaining({
+        item: expect.objectContaining({ id: 'pub-1', sku: 'OG2511' }),
+        accountContactId: null,
+        to: '',
+      }),
+    );
+  });
 });
 
 describe('CatalogTab Line Sheet contract', () => {

@@ -237,4 +237,28 @@ describe('OgrProductEmailComposerModal', () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByText('Email Product')).toBeInTheDocument();
   });
+
+  it('shows Change product only for draft review with onProductReplaced', () => {
+    renderModal();
+    expect(screen.queryByRole('button', { name: 'Change product' })).not.toBeInTheDocument();
+
+    renderModal({
+      draft: {
+        id: 'a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        to: 'buyer@example.com',
+        toName: 'Tony',
+        subject: 'Old Guys Rule — American Revival',
+        introText: OGR_PRODUCT_EMAIL_DEFAULT_INTRO,
+        closingText: OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
+        prospectId: 42,
+        accountContactId: 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+        catalogItemId: PRODUCT_ID,
+        prospectName: 'Paddington Station',
+      },
+      onProductReplaced: vi.fn(),
+      accountId: 42,
+    });
+    expect(screen.getByText('Review Product Email')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change product' })).toBeInTheDocument();
+  });
 });

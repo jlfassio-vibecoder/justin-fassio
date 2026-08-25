@@ -152,6 +152,9 @@ export async function updateAgentProductOutreachDraftClient(
     subject?: string;
     introText?: string;
     closingText?: string;
+    /** Swap published catalog item; server rebuilds payload + subject, keeps intro/closing. */
+    productId?: string;
+    salesLineId?: string | null;
   },
 ): Promise<{ ok: true; draft: AgentProductOutreachDraftDto } | ApiFail> {
   const result = await staffFetch(`/api/staff/ogr-product-email/drafts/${id}`, {

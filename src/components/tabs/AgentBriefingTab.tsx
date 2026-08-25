@@ -833,10 +833,34 @@ export function AgentBriefingTab({
             closeComposer();
             setReloadToken((n) => n + 1);
           }}
+          onProductReplaced={({ item, draft: nextDraft }) => {
+            setComposerProduct(item);
+            setComposerDraft(nextDraft);
+            setBriefing((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                drafts: prev.drafts.map((row) =>
+                  row.draftId === nextDraft.id
+                    ? {
+                        ...row,
+                        catalogItemId: item.id,
+                        productName: item.name,
+                        productSku: item.sku,
+                        productSlug: item.publicSlug ?? row.productSlug,
+                      }
+                    : row,
+                ),
+              };
+            });
+          }}
           productId={composerProduct.id}
           productName={composerProduct.name.trim()}
           cardHtml={composerCardHtml}
           draft={composerDraft}
+          accountId={composerDraft.prospectId}
+          salesLineId={lineCtx.salesLineId}
+          lineSlug={lineCtx.lineSlug}
           publicMarket="ca"
         />
       ) : null}
