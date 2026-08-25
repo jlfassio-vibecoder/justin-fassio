@@ -833,6 +833,9 @@ export function AgentBriefingTab({
             closeComposer();
             setReloadToken((n) => n + 1);
           }}
+          onDraftSaved={(nextDraft) => {
+            setComposerDraft(nextDraft);
+          }}
           onProductReplaced={({ item, draft: nextDraft }) => {
             setComposerProduct(item);
             setComposerDraft(nextDraft);

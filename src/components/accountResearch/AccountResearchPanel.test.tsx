@@ -318,4 +318,124 @@ describe('AccountResearchPanel', () => {
     expect(await screen.findByText(/Awaiting staff URL/i)).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /Spallumcheen Golf/i })).toBeInTheDocument();
   });
+
+  it('shows manual URL lock when website search has no candidates', async () => {
+    const user = userEvent.setup();
+    fetchLatestMock.mockResolvedValue({
+      ok: true,
+      outcome: 'found',
+      run: {
+        id: 'run-empty-web',
+        status: 'needs_identity_review',
+        requested_scope: 'website',
+        identity_confidence: 'unresolved',
+        completed_at: new Date().toISOString(),
+      },
+      sources: [
+        {
+          id: 'src-web',
+          source_type: 'website',
+          status: 'none_indexed',
+          resolved_public_url: null,
+          provider_metadata: { candidates: [] },
+        },
+      ],
+      citationsBySourceId: { 'src-web': [] },
+      sourceFreshness: { 'src-web': true },
+      locksBySourceType: {},
+    });
+    lockResearchMock.mockResolvedValue({
+      ok: true,
+      run: {
+        id: 'run-empty-web',
+        status: 'succeeded',
+        identity_confidence: 'high',
+        completed_at: new Date().toISOString(),
+      },
+      sources: [
+        {
+          id: 'src-web',
+          source_type: 'website',
+          status: 'succeeded',
+          resolved_public_url: 'https://bradburysguns.com',
+          provider_metadata: { candidates: [] },
+        },
+      ],
+      citationsBySourceId: { 'src-web': [] },
+      sourceFreshness: { 'src-web': true },
+      locksBySourceType: {
+        website: {
+          retailer_id: 7,
+          source_type: 'website',
+          locked_url: 'https://bradburysguns.com',
+          locked_url_normalized: 'https://bradburysguns.com',
+          locked_by: null,
+          locked_at: new Date().toISOString(),
+        },
+      },
+    });
+
+    render(<AccountResearchPanel prospect={prospect} />);
+
+    expect(await screen.findByText(/No recent public indexed activity found/i)).toBeInTheDocument();
+    expect(screen.getByText(/Enter the official website URL to lock/i)).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    const urlInput = screen.getByRole('textbox', { name: /Official website URL/i });
+    expect(screen.getByRole('button', { name: /Lock in/i })).toBeDisabled();
+
+    await user.type(urlInput, 'https://bradburysguns.com');
+    await user.click(screen.getByRole('button', { name: /Lock in/i }));
+
+    await waitFor(() => expect(lockResearchMock).toHaveBeenCalled());
+    expect(lockResearchMock).toHaveBeenCalledWith({
+      retailerId: 7,
+      sourceType: 'website',
+      url: 'https://bradburysguns.com',
+    });
+    expect(await screen.findByText(/^Locked$/i)).toBeInTheDocument();
+  });
+
+  it('does not show manual URL input when website candidates exist', async () => {
+    fetchLatestMock.mockResolvedValue({
+      ok: true,
+      outcome: 'found',
+      run: {
+        id: 'run-web-cands',
+        status: 'needs_identity_review',
+        requested_scope: 'website',
+        identity_confidence: 'unresolved',
+        completed_at: new Date().toISOString(),
+      },
+      sources: [
+        {
+          id: 'src-web',
+          source_type: 'website',
+          status: 'succeeded',
+          resolved_public_url: null,
+          provider_metadata: {
+            candidates: [
+              {
+                rank: 1,
+                url: 'https://trailoutfitters.com',
+                title: 'Trail Outfitters',
+                snippet: 'Official site',
+              },
+            ],
+          },
+        },
+      ],
+      citationsBySourceId: { 'src-web': [] },
+      sourceFreshness: { 'src-web': true },
+      locksBySourceType: {},
+    });
+
+    render(<AccountResearchPanel prospect={prospect} />);
+
+    expect(await screen.findByText(/Awaiting staff URL/i)).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Trail Outfitters/i })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: /Official website URL/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Enter the official website URL to lock/i)).not.toBeInTheDocument();
+  });
 });

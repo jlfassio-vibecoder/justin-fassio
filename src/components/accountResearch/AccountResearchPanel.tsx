@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { AccountResearchContactPickModal } from '@/components/accountResearch/AccountResearchContactPickModal';
 import type { OgrProductEmailComposerDraft } from '@/components/OgrProductEmailComposerModal';
@@ -395,9 +396,9 @@ export function AccountResearchPanel({
   }
 
   async function handleLockSource(source: AccountResearchSourceSearch) {
-    const url = selectedCandidateBySource[source.id];
+    const url = selectedCandidateBySource[source.id]?.trim();
     if (!url) {
-      setError('Select a URL to lock in.');
+      setError('Enter a URL to lock in.');
       return;
     }
     setBusyAction(`lock-${source.id}`);
@@ -597,6 +598,35 @@ export function AccountResearchPanel({
                           <Button
                             variant="primary"
                             disabled={busyAction != null || !selected}
+                            onClick={() => void handleLockSource(source)}
+                          >
+                            {busyAction === `lock-${source.id}` ? 'Locking…' : 'Lock in'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : source.source_type === 'website' ? (
+                      <div className="mt-2 flex flex-col gap-2">
+                        <p className="text-ink/55 m-0 text-xs">
+                          Enter the official website URL to lock.
+                        </p>
+                        <Input
+                          type="url"
+                          inputMode="url"
+                          placeholder="https://example.com"
+                          aria-label="Official website URL"
+                          value={selected}
+                          disabled={busyAction != null}
+                          onChange={(e) =>
+                            setSelectedCandidateBySource((prev) => ({
+                              ...prev,
+                              [source.id]: e.target.value,
+                            }))
+                          }
+                        />
+                        <div>
+                          <Button
+                            variant="primary"
+                            disabled={busyAction != null || !selected.trim()}
                             onClick={() => void handleLockSource(source)}
                           >
                             {busyAction === `lock-${source.id}` ? 'Locking…' : 'Lock in'}

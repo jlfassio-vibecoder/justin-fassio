@@ -12,13 +12,42 @@ import {
 import { NO_SAVED_RECIPIENT_EMAIL_HINT } from '@/lib/accountProductEmailRecipient';
 
 const sendOgrProductEmailMock = vi.fn();
+const updateAgentProductOutreachDraftClientMock = vi.fn();
+const sendAgentProductOutreachDraftMock = vi.fn();
+const cancelAgentProductOutreachDraftClientMock = vi.fn();
+const generateAgentProductOutreachDraftMock = vi.fn();
 
 vi.mock('@/lib/sendOgrProductEmailClient', () => ({
   sendOgrProductEmail: (...args: unknown[]) => sendOgrProductEmailMock(...args),
 }));
 
+vi.mock('@/lib/agentProductOutreachDraftClient', () => ({
+  updateAgentProductOutreachDraftClient: (...args: unknown[]) =>
+    updateAgentProductOutreachDraftClientMock(...args),
+  sendAgentProductOutreachDraft: (...args: unknown[]) => sendAgentProductOutreachDraftMock(...args),
+  cancelAgentProductOutreachDraftClient: (...args: unknown[]) =>
+    cancelAgentProductOutreachDraftClientMock(...args),
+  generateAgentProductOutreachDraft: (...args: unknown[]) =>
+    generateAgentProductOutreachDraftMock(...args),
+}));
+
 const PRODUCT_ID = 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
+const DRAFT_ID = 'a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+const CONTACT_ID = 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
 const CARD_HTML = '<table data-ogr-card="1"><tr><td>American Revival</td></tr></table>';
+
+const REVIEW_DRAFT = {
+  id: DRAFT_ID,
+  to: 'buyer@example.com',
+  toName: 'Tony',
+  subject: 'Old Guys Rule — American Revival',
+  introText: OGR_PRODUCT_EMAIL_DEFAULT_INTRO,
+  closingText: OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
+  prospectId: 42,
+  accountContactId: CONTACT_ID,
+  catalogItemId: PRODUCT_ID,
+  prospectName: 'Paddington Station',
+};
 
 function renderModal(overrides: Partial<OgrProductEmailComposerModalProps> = {}) {
   const onClose = vi.fn();
@@ -243,22 +272,107 @@ describe('OgrProductEmailComposerModal', () => {
     expect(screen.queryByRole('button', { name: 'Change product' })).not.toBeInTheDocument();
 
     renderModal({
-      draft: {
-        id: 'a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-        to: 'buyer@example.com',
-        toName: 'Tony',
-        subject: 'Old Guys Rule — American Revival',
-        introText: OGR_PRODUCT_EMAIL_DEFAULT_INTRO,
-        closingText: OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
-        prospectId: 42,
-        accountContactId: 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
-        catalogItemId: PRODUCT_ID,
-        prospectName: 'Paddington Station',
-      },
+      draft: REVIEW_DRAFT,
       onProductReplaced: vi.fn(),
       accountId: 42,
     });
     expect(screen.getByText('Review Product Email')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Change product' })).toBeInTheDocument();
+  });
+
+  it('shows Save draft in draft review mode', () => {
+    renderModal({ draft: REVIEW_DRAFT });
+    expect(screen.getByRole('button', { name: 'Save draft' })).toBeInTheDocument();
+  });
+
+  it('does not show Save draft outside draft review', () => {
+    renderModal();
+    expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
+  });
+
+  it('saves draft fields without sending and keeps modal open', async () => {
+    const user = userEvent.setup();
+    const onDraftSaved = vi.fn();
+    const onClose = vi.fn();
+    const onSent = vi.fn();
+    updateAgentProductOutreachDraftClientMock.mockResolvedValue({
+      ok: true,
+      draft: {
+        id: DRAFT_ID,
+        toEmail: 'buyer@example.com',
+        toName: 'Tony',
+        subject: 'Old Guys Rule — Beach Cruiser',
+        introText: 'Custom intro for Tony.',
+        closingText: 'Custom closing.',
+        prospectId: 42,
+        accountContactId: CONTACT_ID,
+        catalogItemId: PRODUCT_ID,
+        payload: { sku: 'OG1', name: 'American Revival', slug: 'american-revival' },
+      },
+    });
+
+    render(
+      <OgrProductEmailComposerModal
+        open
+        onClose={onClose}
+        onSent={onSent}
+        onDraftSaved={onDraftSaved}
+        productId={PRODUCT_ID}
+        productName="American Revival"
+        cardHtml={CARD_HTML}
+        draft={REVIEW_DRAFT}
+      />,
+    );
+
+    const intro = document.getElementById('ogr-email-intro') as HTMLTextAreaElement;
+    await user.clear(intro);
+    await user.type(intro, 'Custom intro for Tony.');
+    const closing = document.getElementById('ogr-email-closing') as HTMLTextAreaElement;
+    await user.clear(closing);
+    await user.type(closing, 'Custom closing.');
+    const subject = document.getElementById('ogr-email-subject') as HTMLInputElement;
+    await user.clear(subject);
+    await user.type(subject, 'Old Guys Rule — Beach Cruiser');
+
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    await waitFor(() => {
+      expect(updateAgentProductOutreachDraftClientMock).toHaveBeenCalledOnce();
+    });
+    expect(updateAgentProductOutreachDraftClientMock).toHaveBeenCalledWith(DRAFT_ID, {
+      to: 'buyer@example.com',
+      toName: 'Tony',
+      subject: 'Old Guys Rule — Beach Cruiser',
+      introText: 'Custom intro for Tony.',
+      closingText: 'Custom closing.',
+    });
+    expect(sendAgentProductOutreachDraftMock).not.toHaveBeenCalled();
+    expect(sendOgrProductEmailMock).not.toHaveBeenCalled();
+    expect(onSent).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onDraftSaved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: DRAFT_ID,
+        introText: 'Custom intro for Tony.',
+        closingText: 'Custom closing.',
+        subject: 'Old Guys Rule — Beach Cruiser',
+      }),
+    );
+    expect(screen.getByText('Review Product Email')).toBeInTheDocument();
+  });
+
+  it('blocks save draft when recipient email is invalid', async () => {
+    const user = userEvent.setup();
+    const onDraftSaved = vi.fn();
+    renderModal({ draft: REVIEW_DRAFT, onDraftSaved });
+
+    const to = screen.getByPlaceholderText('buyer@store.com');
+    await user.clear(to);
+    await user.type(to, 'not-an-email');
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    expect(updateAgentProductOutreachDraftClientMock).not.toHaveBeenCalled();
+    expect(onDraftSaved).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(/recipient email/i);
   });
 });

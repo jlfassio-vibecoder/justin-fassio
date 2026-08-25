@@ -65,6 +65,8 @@ export type OgrProductEmailComposerModalProps = {
   onSent: () => void;
   /** Called after cancel draft so parent can refresh history. */
   onDraftCancelled?: () => void;
+  /** After Save draft persists intro/closing (and related fields) without sending. */
+  onDraftSaved?: (draft: OgrProductEmailComposerDraft) => void;
   /** After Change product persists a new catalog item on the draft. */
   onProductReplaced?: (payload: OgrProductReplacedPayload) => void;
   productId: string;
@@ -121,6 +123,7 @@ function OgrProductEmailComposerForm({
   onClose,
   onSent,
   onDraftCancelled,
+  onDraftSaved,
   onProductReplaced,
   productId,
   productName,
@@ -159,12 +162,13 @@ function OgrProductEmailComposerForm({
     draft?.closingText ?? OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
   );
   const [submitting, setSubmitting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [replacingProduct, setReplacingProduct] = useState(false);
   const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const busy = submitting || regenerating || replacingProduct;
+  const busy = submitting || saving || regenerating || replacingProduct;
   const canChangeProduct =
     isDraftReview &&
     onProductReplaced != null &&
@@ -305,6 +309,70 @@ function OgrProductEmailComposerForm({
       onClose();
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleSaveDraft() {
+    if (!isDraftReview || !draft || busy) return;
+
+    const trimmedTo = to.trim();
+    if (!isValidOgrProductEmailRecipient(trimmedTo)) {
+      setError('A valid recipient email is required');
+      return;
+    }
+    if (!recipientName.trim()) {
+      setError('Recipient name is required for agent drafts');
+      return;
+    }
+    if (recipientName.trim().length > MAX_RECIPIENT_NAME) {
+      setError('Recipient name is too long');
+      return;
+    }
+    if (subject.trim().length > MAX_SUBJECT) {
+      setError('Subject is too long');
+      return;
+    }
+    if (introText.trim().length > MAX_PROSE) {
+      setError('Intro is too long');
+      return;
+    }
+    if (closingText.trim().length > MAX_PROSE) {
+      setError('Closing is too long');
+      return;
+    }
+
+    setError(null);
+    setSaving(true);
+    try {
+      const updated = await updateAgentProductOutreachDraftClient(draft.id, {
+        to: trimmedTo,
+        toName: recipientName.trim(),
+        subject: subject.trim(),
+        introText: introText.trim(),
+        closingText: closingText.trim(),
+      });
+      if (!updated.ok) {
+        setError(updated.error);
+        return;
+      }
+      const d = updated.draft;
+      onDraftSaved?.({
+        id: d.id,
+        to: d.toEmail,
+        toName: d.toName,
+        subject: d.subject,
+        introText: d.introText,
+        closingText: d.closingText,
+        prospectId: d.prospectId,
+        accountContactId: d.accountContactId,
+        catalogItemId: d.catalogItemId,
+        prospectName: draft.prospectName,
+        productSku: d.payload.sku,
+        productSlug: d.payload.slug,
+        productIsNew: draft.productIsNew,
+      });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -567,6 +635,14 @@ function OgrProductEmailComposerForm({
               <Button
                 type="button"
                 variant="secondary"
+                onClick={() => void handleSaveDraft()}
+                disabled={busy}
+              >
+                {saving ? 'Saving…' : 'Save draft'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
                 onClick={() => void handleAddCopy()}
                 disabled={busy}
               >
@@ -605,6 +681,7 @@ export function OgrProductEmailComposerModal({
   onClose,
   onSent,
   onDraftCancelled,
+  onDraftSaved,
   onProductReplaced,
   productId,
   productName,
@@ -630,6 +707,7 @@ export function OgrProductEmailComposerModal({
       onClose={onClose}
       onSent={onSent}
       onDraftCancelled={onDraftCancelled}
+      onDraftSaved={onDraftSaved}
       onProductReplaced={onProductReplaced}
       productId={productId}
       productName={productName}
