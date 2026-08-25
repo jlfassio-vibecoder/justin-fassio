@@ -467,6 +467,14 @@ async function loadProspectContext(
  * Latest completed research run's accepted citation notes (plain text, no URLs).
  * Missing research is fine — returns [].
  */
+export function stripUrlsFromResearchNote(raw: string): string {
+  return raw
+    .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/\bwww\.\S+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export async function loadAcceptedResearchNotesForOutreach(
   client: DbClient,
   prospectId: number,
@@ -496,7 +504,7 @@ export async function loadAcceptedResearchNotesForOutreach(
     const platform = typeof row.platform === 'string' ? row.platform.trim() : '';
     const title = typeof row.title === 'string' ? row.title.trim() : '';
     const excerpt = typeof row.excerpt === 'string' ? row.excerpt.trim() : '';
-    const body = excerpt || title;
+    const body = stripUrlsFromResearchNote(excerpt || title);
     if (!body) continue;
     const clipped = body.slice(0, 180);
     notes.push(platform ? `${platform}: ${clipped}` : clipped);

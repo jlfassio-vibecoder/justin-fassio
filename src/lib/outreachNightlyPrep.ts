@@ -533,7 +533,7 @@ async function continuePrep(params: {
   }
 
   const pendingBefore = pending.count;
-  // Regional mode: fixed limit is the capacity; still subtract pending so we don't overshoot.
+  // Regional mode: fixed limit is the capacity (pending is skipped at generate time, not subtracted here).
   const netCapacity = Math.max(0, capacity - (isRegional ? 0 : pendingBefore));
   // For regional, capacity is the hard 25; pending accounts are skipped at generate time.
   const selectCapacity = isRegional ? capacity : netCapacity;

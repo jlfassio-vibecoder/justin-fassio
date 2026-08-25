@@ -34,7 +34,7 @@ alter table outreach_automation_runs
 alter table outreach_automation_runs
   add constraint outreach_automation_runs_regional_ops_required
   check (
-    (kind = 'nightly_prep' and operational_territory_id is null)
+    (kind = 'nightly_prep' and operational_territory_id is null and store_territory_code is null)
     or (kind = 'manual_regional_prep' and operational_territory_id is not null)
   );
 

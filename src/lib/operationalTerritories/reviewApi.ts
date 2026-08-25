@@ -171,24 +171,31 @@ export async function leaveOperationalTerritoryUnassigned(
 /**
  * Apply ZIP/address suggestions for store-geo prospects missing operational_territory_id.
  * Uses the same suggest → updateProspectAccountDetails path as single apply (no silent SQL).
+ * Caps each request so the staff route stays within maxDuration; call again for remaining rows.
  */
+export const OPS_APPLY_RESOLVABLE_BATCH_MAX = 100;
+
 export async function applyResolvableOperationalTerritorySuggestionsForStore(
   supabase: AgentSupabase,
   storeTerritoryCode: string,
   actorId: string,
+  limit = OPS_APPLY_RESOLVABLE_BATCH_MAX,
 ): Promise<
   | {
       ok: true;
       applied: number;
       skipped: number;
       failures: Array<{ prospectId: number; error: string }>;
+      truncated: boolean;
     }
   | { ok: false; error: string }
 > {
   const code = storeTerritoryCode.trim().toLowerCase();
   if (code !== 'or' && code !== 'wa' && code !== 'ca') {
-    return { ok: false, error: 'storeTerritoryCode must be or, wa, or ca' };
+    return { ok: false, error: 'storeTerritoryCode must be "or", "wa", or "ca"' };
   }
+
+  const batchLimit = Math.max(1, Math.min(Math.floor(limit), OPS_APPLY_RESOLVABLE_BATCH_MAX));
 
   const { data: storeTerr, error: terrError } = await supabase
     .from('territories')
@@ -203,14 +210,18 @@ export async function applyResolvableOperationalTerritorySuggestionsForStore(
     .select('id')
     .eq('territory_id', storeTerr.id)
     .is('operational_territory_id', null)
-    .order('id', { ascending: true });
+    .order('id', { ascending: true })
+    .limit(batchLimit + 1);
   if (error) return { ok: false, error: error.message };
+
+  const truncated = (rows?.length ?? 0) > batchLimit;
+  const batch = truncated ? (rows ?? []).slice(0, batchLimit) : (rows ?? []);
 
   let applied = 0;
   let skipped = 0;
   const failures: Array<{ prospectId: number; error: string }> = [];
 
-  for (const row of rows ?? []) {
+  for (const row of batch) {
     const result = await applyOperationalTerritorySuggestion(supabase, row.id, actorId);
     if (!result.ok) {
       if (result.status === 409) {
@@ -223,5 +234,5 @@ export async function applyResolvableOperationalTerritorySuggestionsForStore(
     applied += 1;
   }
 
-  return { ok: true, applied, skipped, failures };
+  return { ok: true, applied, skipped, failures, truncated };
 }

@@ -35,5 +35,6 @@ export const POST: APIRoute = async ({ request }) => {
     applied: result.applied,
     skipped: result.skipped,
     failures: result.failures,
+    truncated: result.truncated,
   });
 };

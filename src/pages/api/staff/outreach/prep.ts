@@ -48,7 +48,7 @@ export const POST: APIRoute = async ({ request }) => {
   const storeTerritoryCode = storeRaw || null;
 
   if (storeTerritoryCode && !['or', 'wa'].includes(storeTerritoryCode)) {
-    return json({ error: 'storeTerritoryCode must be or or wa when set' }, 400);
+    return json({ error: 'storeTerritoryCode must be "or" or "wa" when set' }, 400);
   }
 
   if (operationalTerritoryId) {

@@ -38,6 +38,7 @@ import {
   proseLooksUnsafe,
   sanitizeOutreachProse,
   stripLeadingOutreachGreeting,
+  stripUrlsFromResearchNote,
 } from '@/lib/generateOgrProductOutreachDraft';
 import type { SelectedOutreachTarget } from '@/lib/outreachSelectTargets';
 import { PUBLIC_PRESENTATION_FORBIDDEN_KEYS } from '@/lib/publicProductPresentation';
@@ -171,6 +172,15 @@ describe('hostnameFromWebsite', () => {
     expect(hostnameFromWebsite('example.com')).toBe('example.com');
     expect(hostnameFromWebsite('')).toBeNull();
     expect(hostnameFromWebsite(null)).toBeNull();
+  });
+});
+
+describe('stripUrlsFromResearchNote', () => {
+  it('removes http(s) and www URLs from citation text', () => {
+    expect(
+      stripUrlsFromResearchNote('Family shop since 1998 https://example.com/about more notes'),
+    ).toBe('Family shop since 1998 more notes');
+    expect(stripUrlsFromResearchNote('See www.example.com for hours')).toBe('See for hours');
   });
 });
 
