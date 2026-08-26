@@ -1,6 +1,6 @@
 # Epic: Yelp Business Verification & Contact Enrichment
 
-**Status:** Phase 0 implemented (Aug 2026) — pilot script ready; manual CSV review pending Fusion API key.  
+**Status:** Phase 0 pilot complete (Aug 2026) — live dry-run validated; #624 and #631 phone applied.  
 **Branch:** `feature/yelp-contact-finder`  
 **Related epics:** [Agentic Outreach](./agentic-outreach/README.md), [Account Research Before Product Selection](./agentic-outreach/account-research-before-product-selection.md)  
 **Oregon context:** [Oregon Business Contact Enrichment](../prospect-uploads/oregon/Oregon%20Business%20Contact%20Enrichment.md), [Oregon prospect uploads README](../prospect-uploads/oregon/README.md)
@@ -363,6 +363,22 @@ npx tsx --env-file=.env scripts/yelp-enrich-oregon-prospects.ts --apply   # high
 
 Unit tests: `npm run test -- src/lib/yelp`
 
+#### Phase 0 pilot results (2026-08-26)
+
+First live dry-run (`--limit 5`, Oregon Coast):
+
+| retailer_id | CRM name                     | Result                                                                                                    | Action                                 |
+| ----------- | ---------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| 624         | Lincoln City Surf Shop       | **high** — correct                                                                                        | Applied blank `phone` (`541-996-7433`) |
+| 634         | Chetco Outdoor Store         | **high** — correct                                                                                        | No patch (CRM already populated)       |
+| 631         | FARM HOUSE FUNK              | **high** after scorer fix — [Farmhouse Funk](https://www.yelp.com/biz/farmhouse-funk-astoria) Astoria     | Applied blank `phone` (`503-325-4474`) |
+| 674         | Sassy Seagull (Bandon Store) | **high** after scorer fix — [The Sassy Seagull](https://www.yelp.com/biz/the-sassy-seagull-bandon) Bandon | Verified; CRM already populated        |
+| 643         | U Save Gas & Tackle          | **low** — wrong Yelp hit (Black Bird, Medford)                                                            | **Do not apply** — manual research     |
+
+Scorer follow-up: `normalizeYelpMatchName` strips parentheticals and leading `The`; `compactYelpNameKey` matches spaced variants (`FARM HOUSE FUNK` ↔ `Farmhouse Funk`).
+
+Report archive: `docs/prospect-uploads/oregon/yelp-enrichment-pilot-report.csv`
+
 ### Phase 1 — Contact discovery preview
 
 Chain existing `researchCompany` with Yelp (+ optional locked website) context. Preview contact via `createEnrichedContact` **attach** semantics — staff confirms in UI before insert.
@@ -459,8 +475,8 @@ Update this section as work lands.
 - [x] `YELP_FUSION_API_KEY` documented in `.env.example`
 - [x] `src/lib/yelp/businessMatch.ts` + `mapYelpToProspectPatch.ts` + unit tests
 - [x] `scripts/yelp-enrich-oregon-prospects.ts` (dry-run default, `--apply` with audit)
-- [ ] Manual review of pilot report (requires `YELP_FUSION_API_KEY` in `.env`; run dry-run then open CSV `yelp_url` column)
-- [ ] Optional `--apply` with audit rows (after manual CSV review)
+- [x] Manual review of pilot report (2026-08-26 — 4/5 correct Yelp listings; #643 rejected)
+- [x] `--apply` with audit rows (#624, #631 phone applied; provider `yelp_fusion_enrichment`)
 
 ### Phase 1 — Contact preview
 
@@ -513,3 +529,4 @@ Update this section as work lands.
 | 2026-08-26 | Initial epic drafted from codebase audit on `feature/yelp-contact-finder`                      |
 | 2026-08-26 | Locked §1.1 verification methodology (LinkedIn confirmation layer, Verified/Partial/Not found) |
 | 2026-08-26 | Phase 0 shipped: Fusion API lib, pilot script, §7.1 implementation spec                        |
+| 2026-08-26 | Live pilot: apply #624/#631 phone; scorer compact/parenthetical fix; §7.1 results table        |

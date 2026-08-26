@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  compactYelpNameKey,
   confidenceFromScore,
   mapRawYelpBusiness,
   matchProspectToYelp,
+  normalizeYelpMatchName,
   normalizeYelpPhone,
   scoreYelpMatch,
   type YelpFetchFn,
@@ -67,6 +69,47 @@ describe('scoreYelpMatch', () => {
   it('downgrades ambiguous multi-candidate matches', () => {
     const scored = scoreYelpMatch({ name: 'Newport Ace Hardware', city: 'Newport' }, business);
     expect(confidenceFromScore(scored.score, scored.reasons, 2)).toBe('low');
+  });
+
+  it('matches compact names after stripping spaces (Farmhouse Funk)', () => {
+    const scored = scoreYelpMatch(
+      { name: 'FARM HOUSE FUNK', city: 'Astoria' },
+      mapRawYelpBusiness({
+        id: 'ff',
+        name: 'Farmhouse Funk',
+        location: { city: 'Astoria', state: 'OR' },
+      })!,
+    );
+    expect(scored.reasons).toContain('compact_name');
+    expect(confidenceFromScore(scored.score, scored.reasons, 1)).toBe('high');
+  });
+
+  it('matches after stripping parenthetical and leading The (Sassy Seagull)', () => {
+    expect(normalizeYelpMatchName('Sassy Seagull (Bandon Store)')).toBe('sassy seagull');
+    expect(normalizeYelpMatchName('The Sassy Seagull')).toBe('sassy seagull');
+    const scored = scoreYelpMatch(
+      { name: 'Sassy Seagull (Bandon Store)', city: 'Bandon' },
+      mapRawYelpBusiness({
+        id: 'ss',
+        name: 'The Sassy Seagull',
+        location: { city: 'Bandon', state: 'OR' },
+      })!,
+    );
+    expect(scored.reasons).toContain('exact_name');
+    expect(confidenceFromScore(scored.score, scored.reasons, 1)).toBe('high');
+  });
+
+  it('rejects unrelated business with name mismatch (U Save Gas & Tackle vs Black Bird)', () => {
+    const scored = scoreYelpMatch(
+      { name: 'U Save Gas & Tackle', city: 'Grants Pass' },
+      mapRawYelpBusiness({
+        id: 'bb',
+        name: 'Black Bird',
+        location: { city: 'Medford', state: 'OR' },
+      })!,
+    );
+    expect(scored.reasons).toContain('name_mismatch');
+    expect(confidenceFromScore(scored.score, scored.reasons, 1)).toBe('low');
   });
 });
 

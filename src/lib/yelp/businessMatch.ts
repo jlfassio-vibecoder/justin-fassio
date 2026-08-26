@@ -45,6 +45,22 @@ function normalizeCity(value: string | null | undefined): string {
   return normalizeProspectName(value ?? '');
 }
 
+/** Strip location/store parentheticals from CRM names, e.g. "Sassy Seagull (Bandon Store)". */
+export function stripParentheticalName(name: string): string {
+  return name.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+}
+
+/** Normalize business names for Yelp matching (CRM import quirks + leading "The"). */
+export function normalizeYelpMatchName(name: string): string {
+  const stripped = stripParentheticalName(name.replace(/^\d+\s+/, ''));
+  const normalized = normalizeProspectName(stripped);
+  return normalized.replace(/^the\s+/, '');
+}
+
+export function compactYelpNameKey(name: string): string {
+  return normalizeYelpMatchName(name).replace(/\s+/g, '');
+}
+
 function phoneDigits(value: string | null | undefined): string {
   return (value ?? '').replace(/\D/g, '');
 }
@@ -114,14 +130,19 @@ export function scoreYelpMatch(
   const reasons: string[] = [];
   let score = 0;
 
-  const inputName = normalizeProspectName(input.name);
-  const yelpName = normalizeProspectName(business.name);
+  const inputName = normalizeYelpMatchName(input.name);
+  const yelpName = normalizeYelpMatchName(business.name);
+  const inputCompact = compactYelpNameKey(input.name);
+  const yelpCompact = compactYelpNameKey(business.name);
   const inputCity = normalizeCity(input.city);
   const yelpCity = normalizeCity(business.city);
 
   if (inputName && yelpName && inputName === yelpName) {
     score += 50;
     reasons.push('exact_name');
+  } else if (inputCompact && yelpCompact && inputCompact === yelpCompact) {
+    score += 50;
+    reasons.push('compact_name');
   } else if (
     inputName &&
     yelpName &&
@@ -129,6 +150,13 @@ export function scoreYelpMatch(
   ) {
     score += 30;
     reasons.push('partial_name');
+  } else if (
+    inputCompact &&
+    yelpCompact &&
+    (inputCompact.includes(yelpCompact) || yelpCompact.includes(inputCompact))
+  ) {
+    score += 30;
+    reasons.push('partial_compact_name');
   } else {
     reasons.push('name_mismatch');
   }
@@ -162,7 +190,7 @@ export function confidenceFromScore(
   reasons: string[],
   candidateCount: number,
 ): YelpMatchConfidence {
-  const hasExactName = reasons.includes('exact_name');
+  const hasExactName = reasons.includes('exact_name') || reasons.includes('compact_name');
   const hasCityMatch = reasons.includes('city_match');
   const hasNameMismatch = reasons.includes('name_mismatch');
 
