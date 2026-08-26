@@ -16,8 +16,10 @@ export type OutreachPoolDiagnostics = {
   inRegion: number;
   /** Accounts with a valid OGR outreach email on file. */
   withUsableEmail: number;
-  /** Passed cooldown and product-fit — ready for draft generation today. */
+  /** Selected and ready for draft generation today (has email, passed cooldown/product-fit). */
   sendableNow: number;
+  /** Selected for outreach but still need a contact email (regional prep). */
+  queuedWithoutEmail?: number;
   excluded: {
     noUsableEmail: number;
     pendingDraft: number;
@@ -26,6 +28,17 @@ export type OutreachPoolDiagnostics = {
     noProduct: number;
     other: number;
   };
+};
+
+export type OutreachBriefingIdentifiedTargetRow = {
+  prospectId: number;
+  prospectName: string;
+  catalogItemId: string;
+  productName: string;
+  productSku: string;
+  productSlug: string;
+  primaryChannel: string | null;
+  needsEmail: boolean;
 };
 
 export type OutreachAutomationRunPublic = {
@@ -79,6 +92,8 @@ export type OutreachBriefingDto = {
     goalMet: boolean;
   };
   drafts: OutreachBriefingDraftRow[];
+  /** Regional prep queue: ranked accounts awaiting email research before drafting. */
+  identifiedTargets: OutreachBriefingIdentifiedTargetRow[];
   channelAllocation: AllocateChannelsForDayResult | null;
   callToday: OutreachLeadRow[];
   hot: OutreachLeadRow[];
@@ -105,12 +120,65 @@ export type OutreachBriefingDto = {
   regionalPool?: OutreachPoolDiagnostics | null;
 };
 
+export function identifiedTargetRowsFromSelected(
+  targets: Array<{
+    prospectId: number;
+    prospectName: string;
+    catalogItemId: string;
+    productName: string;
+    productSku: string;
+    productSlug: string;
+    primaryChannel: string | null;
+    needsEmail?: boolean;
+  }>,
+): OutreachBriefingIdentifiedTargetRow[] {
+  return targets.map((t) => ({
+    prospectId: t.prospectId,
+    prospectName: t.prospectName,
+    catalogItemId: t.catalogItemId,
+    productName: t.productName,
+    productSku: t.productSku,
+    productSlug: t.productSlug,
+    primaryChannel: t.primaryChannel,
+    needsEmail: Boolean(t.needsEmail),
+  }));
+}
+
+export function parseIdentifiedTargetsFromPrepAllocation(
+  allocation: unknown,
+): OutreachBriefingIdentifiedTargetRow[] {
+  if (!allocation || typeof allocation !== 'object') return [];
+  const raw = (allocation as Record<string, unknown>).identifiedTargets;
+  if (!Array.isArray(raw)) return [];
+  const rows: OutreachBriefingIdentifiedTargetRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const r = item as Record<string, unknown>;
+    if (typeof r.prospectId !== 'number' || !Number.isFinite(r.prospectId)) continue;
+    if (typeof r.prospectName !== 'string') continue;
+    if (typeof r.catalogItemId !== 'string') continue;
+    rows.push({
+      prospectId: r.prospectId,
+      prospectName: r.prospectName,
+      catalogItemId: r.catalogItemId,
+      productName: String(r.productName ?? ''),
+      productSku: String(r.productSku ?? ''),
+      productSlug: String(r.productSlug ?? ''),
+      primaryChannel: typeof r.primaryChannel === 'string' ? r.primaryChannel : null,
+      needsEmail: Boolean(r.needsEmail),
+    });
+  }
+  return rows;
+}
+
 export function formatRegionalPoolMessage(
   pool: OutreachPoolDiagnostics,
   regionLabel: string,
 ): string {
   const parts = [`${pool.inRegion} in ${regionLabel} (same as Prospect Directory)`];
-  if (pool.excluded.noUsableEmail > 0) {
+  if (pool.queuedWithoutEmail && pool.queuedWithoutEmail > 0) {
+    parts.push(`${pool.queuedWithoutEmail} queued — research email next`);
+  } else if (pool.excluded.noUsableEmail > 0) {
     parts.push(`${pool.excluded.noUsableEmail} need a contact email`);
   }
   if (pool.excluded.pendingDraft > 0) {
@@ -125,10 +193,14 @@ export function formatRegionalPoolMessage(
   if (pool.excluded.contactSuppressed > 0) {
     parts.push(`${pool.excluded.contactSuppressed} suppressed`);
   }
-  if (pool.sendableNow > 0) {
-    parts.push(`${pool.sendableNow} ready to draft now`);
+  const selected = pool.sendableNow + (pool.queuedWithoutEmail ?? 0);
+  if (selected > 0) {
+    parts.push(`${selected} selected for outreach`);
+    if (pool.sendableNow > 0) {
+      parts.push(`${pool.sendableNow} draft-ready now`);
+    }
   } else if (pool.inRegion > 0) {
-    parts.push('0 ready to draft today');
+    parts.push('0 selected today');
   }
   return parts.join(' · ');
 }

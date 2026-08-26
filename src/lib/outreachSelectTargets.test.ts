@@ -283,6 +283,53 @@ describe('selectOutreachTargets', () => {
     );
   });
 
+  it('queues prospects without email when allowMissingEmail is set', async () => {
+    const client = mockSelectClient({
+      prospects: [prospectRow(3, 'Needs Research')],
+      contacts: [],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+      pendingProspectIds: [],
+      suppressed: [],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 25,
+      preparationDate: '2026-08-12',
+      allowMissingEmail: true,
+      skipChannelAllocation: true,
+      rankMode: 'fit_score',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets).toHaveLength(1);
+    expect(result.targets[0]).toEqual(
+      expect.objectContaining({
+        prospectId: 3,
+        prospectName: 'Needs Research',
+        toEmail: '',
+        needsEmail: true,
+      }),
+    );
+    expect(result.excluded).not.toEqual(
+      expect.arrayContaining([{ prospectId: 3, reason: 'no_usable_email' }]),
+    );
+  });
+
   it('excludes prospects with suppressed email or prospect id', async () => {
     const client = mockSelectClient({
       prospects: [prospectRow(10, 'Bounced Shop'), prospectRow(11, 'Clean Shop')],

@@ -88,6 +88,7 @@ const briefingPayload: { briefing: OutreachBriefingDto } = {
         createdAt: '2026-08-22T12:00:00Z',
       },
     ],
+    identifiedTargets: [],
     channelAllocation: null,
     callToday: [],
     hot: [],

@@ -87,6 +87,7 @@ describe('staff outreach briefing + prep', () => {
             createdAt: '2026-08-12T00:00:00.000Z',
           },
         ],
+        identifiedTargets: [],
         channelAllocation: null,
         callToday: [],
         hot: [],

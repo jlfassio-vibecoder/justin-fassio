@@ -199,8 +199,28 @@ describe('runOutreachNightlyPrep', () => {
     selectOutreachTargetsMock.mockResolvedValue({
       ok: true,
       targets: [
-        { prospectId: 1, preparationDate: '2026-08-13' },
-        { prospectId: 2, preparationDate: '2026-08-13' },
+        {
+          prospectId: 1,
+          preparationDate: '2026-08-13',
+          prospectName: 'Store One',
+          toEmail: 'one@example.com',
+          catalogItemId: 'p-1',
+          productName: 'Hat',
+          productSku: 'SKU-1',
+          productSlug: 'hat',
+          primaryChannel: 'grocery',
+        },
+        {
+          prospectId: 2,
+          preparationDate: '2026-08-13',
+          prospectName: 'Store Two',
+          toEmail: 'two@example.com',
+          catalogItemId: 'p-2',
+          productName: 'Tee',
+          productSku: 'SKU-2',
+          productSlug: 'tee',
+          primaryChannel: 'golf_retail',
+        },
       ],
       excluded: [],
     });
@@ -496,6 +516,7 @@ describe('runOutreachNightlyPrep', () => {
         storeTerritoryCode: 'or',
         rankMode: 'fit_score',
         skipChannelAllocation: true,
+        allowMissingEmail: true,
       }),
     );
   });

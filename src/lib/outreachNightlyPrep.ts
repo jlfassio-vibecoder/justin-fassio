@@ -18,6 +18,7 @@ import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
 import type { OutreachGoalSettings } from '@/lib/outreachGoals';
 import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
 import { refreshPersistedLeadRules } from '@/lib/refreshPersistedLeadRules';
+import { identifiedTargetRowsFromSelected } from '@/lib/outreachBriefingShared';
 import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outreachSelectTargets';
 import { AGENT_OUTREACH_PENDING_DRAFT_STATUSES } from '@/lib/outreachSelectionConstants';
 import {
@@ -650,6 +651,7 @@ async function continuePrep(params: {
     crmRegion: crmRegion ?? undefined,
     rankMode: isRegional ? 'fit_score' : 'default',
     skipChannelAllocation: isRegional,
+    allowMissingEmail: isRegional,
   });
   if (!selected.ok) {
     await updateRun(client, runId, {
@@ -662,10 +664,15 @@ async function continuePrep(params: {
 
   const selectedCount = selected.targets.length;
   const shortfall = Math.max(0, selectCapacity - selectedCount);
+  const identifiedTargets = identifiedTargetRowsFromSelected(selected.targets);
+  const prepAllocation = {
+    ...channelAllocation,
+    identifiedTargets,
+  };
   await updateRun(client, runId, {
     selected_count: selectedCount,
     shortfall,
-    channel_allocation: channelAllocation,
+    channel_allocation: prepAllocation,
   });
 
   if (selectedCount === 0) {
@@ -690,7 +697,7 @@ async function continuePrep(params: {
   let failedCount = 0;
   const targetErrors: Array<{ prospectId: number; error: string }> = [];
 
-  const targets = selected.targets;
+  const targets = selected.targets.filter((t) => !t.needsEmail && (t.toEmail ?? '').trim());
   for (let i = 0; i < targets.length; i += OUTREACH_NIGHTLY_PREP_CHUNK) {
     const chunk = targets.slice(i, i + OUTREACH_NIGHTLY_PREP_CHUNK);
     const generated = await generateOgrProductOutreachDrafts(client, {

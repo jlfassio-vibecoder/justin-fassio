@@ -11,6 +11,7 @@ import {
   briefingSellingDate,
   getLatestOutreachAutomationRunForDate,
   getRegionalOutreachPrepRun,
+  OUTREACH_MANUAL_REGIONAL_PREP_KIND,
   type OutreachAutomationRunRow,
 } from '@/lib/outreachNightlyPrep';
 import { normalizePrepCrmRegion, prospectMatchesCrmRegion } from '@/lib/geoCatalog';
@@ -18,6 +19,7 @@ import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outr
 import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
 import {
   formatRegionalPoolMessage,
+  parseIdentifiedTargetsFromPrepAllocation,
   type OutreachAutomationRunPublic,
   type OutreachBriefingDraftRow,
   type OutreachBriefingDto,
@@ -72,12 +74,26 @@ export function prepBannerMessage(params: {
     };
   }
   const n = run.producedCount;
+  const identified = run.selectedCount;
   switch (run.status) {
     case 'succeeded':
       if (run.reason === 'already_at_pace') {
         return {
           status: 'succeeded',
           message: "Pending drafts already meet today's pace.",
+        };
+      }
+      if (run.kind === OUTREACH_MANUAL_REGIONAL_PREP_KIND && identified > 0 && n === 0) {
+        return {
+          status: 'succeeded',
+          message: `${identified} account${identified === 1 ? '' : 's'} identified for outreach — research emails, then re-run prep to draft.`,
+        };
+      }
+      if (run.kind === OUTREACH_MANUAL_REGIONAL_PREP_KIND && identified > n) {
+        const needResearch = identified - n;
+        return {
+          status: 'succeeded',
+          message: `${identified} identified · ${n} draft${n === 1 ? '' : 's'} ready · ${needResearch} need email research`,
         };
       }
       return {
@@ -230,6 +246,7 @@ export async function assembleOutreachBriefing(params: {
         goalMet: false,
       },
       drafts: [],
+      identifiedTargets: [],
       channelAllocation: null,
       callToday: [],
       hot: [],
@@ -280,6 +297,7 @@ export async function assembleOutreachBriefing(params: {
       crmRegion: scopedCrmRegion,
       rankMode: 'fit_score',
       skipChannelAllocation: true,
+      allowMissingEmail: true,
       asOf,
     });
     if (poolDiag.ok && poolDiag.diagnostics) {
@@ -352,6 +370,8 @@ export async function assembleOutreachBriefing(params: {
     }
   }
 
+  const identifiedTargets = parseIdentifiedTargetsFromPrepAllocation(run?.channelAllocation);
+
   const channelAllocation =
     run?.channelAllocation &&
     typeof run.channelAllocation === 'object' &&
@@ -398,6 +418,7 @@ export async function assembleOutreachBriefing(params: {
       goalMet: snap.snapshot.pace.goalMet,
     },
     drafts: filteredDrafts,
+    identifiedTargets,
     channelAllocation,
     callToday,
     hot,

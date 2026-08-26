@@ -36,6 +36,7 @@ import {
   AGENT_OUTREACH_PREP_TZ,
   AGENT_OUTREACH_PRODUCT_DEDUP_DAYS,
 } from '@/lib/outreachSelectionConstants';
+import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
 import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
 import {
   fetchPendingAgentProductOutreachProspectIds,
@@ -54,6 +55,8 @@ export type SelectedOutreachTarget = {
   accountContactId: string;
   toEmail: string;
   toName: string;
+  /** Regional prep: selected for outreach; staff should research email before drafting. */
+  needsEmail?: boolean;
   primaryChannel: PrimaryRetailChannel | null;
   secondaryChannels: PrimaryRetailChannel[];
   catalogItemId: string;
@@ -106,9 +109,12 @@ export type SelectOutreachTargetsInput = {
   skipChannelAllocation?: boolean;
   /** When true, return pipeline counts (regional briefing diagnostics). */
   includeDiagnostics?: boolean;
+  /**
+   * Regional prep: rank prospects without a contact email instead of excluding them.
+   * Draft generation is deferred until staff adds an email (via Research).
+   */
+  allowMissingEmail?: boolean;
 };
-
-import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
 
 export type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
 
@@ -348,8 +354,9 @@ function latestSentAt(
 
 type EligibleCandidate = {
   prospect: Prospect;
-  contact: AccountContact;
-  toEmail: string;
+  contact: AccountContact | null;
+  toEmail: string | null;
+  needsEmail: boolean;
   primaryChannel: PrimaryRetailChannel | null;
   secondaryChannels: PrimaryRetailChannel[];
   allChannels: PrimaryRetailChannel[];
@@ -406,6 +413,7 @@ export async function selectOutreachTargets(
   const crmRegion = input.crmRegion?.trim() || null;
   const rankMode = input.rankMode ?? 'default';
   const skipChannelAllocation = Boolean(input.skipChannelAllocation);
+  const allowMissingEmail = Boolean(input.allowMissingEmail);
 
   const prospects = prospectsResult.prospects.filter((p) => {
     // Copilot suggestion ignored: load already drops inactive RLAs; renaming this leftover gate would expand the exclusion union without a consumer.
@@ -442,13 +450,15 @@ export async function selectOutreachTargets(
 
   type Picked = {
     prospect: Prospect;
-    contact: AccountContact;
-    toEmail: string;
+    contact: AccountContact | null;
+    toEmail: string | null;
+    needsEmail: boolean;
   };
   const pickedRows: Picked[] = [];
   let pendingDraftCount = 0;
   let noUsableEmailCount = 0;
   let contactSuppressedCount = 0;
+  let needsEmailQueuedCount = 0;
   for (const prospect of prospects) {
     if (pendingResult.prospectIds.has(prospect.id)) {
       excluded.push({ prospectId: prospect.id, reason: 'pending_agent_draft' });
@@ -458,6 +468,11 @@ export async function selectOutreachTargets(
 
     const picked = pickOutreachContact(contactsResult.byAccountId.get(prospect.id) ?? []);
     if (!picked) {
+      if (allowMissingEmail) {
+        pickedRows.push({ prospect, contact: null, toEmail: null, needsEmail: true });
+        needsEmailQueuedCount += 1;
+        continue;
+      }
       excluded.push({ prospectId: prospect.id, reason: 'no_usable_email' });
       noUsableEmailCount += 1;
       continue;
@@ -472,13 +487,22 @@ export async function selectOutreachTargets(
       continue;
     }
 
-    pickedRows.push({ prospect, contact: picked.contact, toEmail: picked.toEmail });
+    pickedRows.push({
+      prospect,
+      contact: picked.contact,
+      toEmail: picked.toEmail,
+      needsEmail: false,
+    });
   }
 
   const sendsResult = await loadLatestSends(
     client,
     pickedRows.map((row) => row.prospect.id),
-    [...new Set(pickedRows.map((row) => row.toEmail))],
+    [
+      ...new Set(
+        pickedRows.map((row) => row.toEmail).filter((email): email is string => Boolean(email)),
+      ),
+    ],
   );
   if (!sendsResult.ok) return { ok: false, error: sendsResult.error };
 
@@ -486,12 +510,9 @@ export async function selectOutreachTargets(
   let cooldownCount = 0;
 
   for (const row of pickedRows) {
-    const lastSentAt = latestSentAt(
-      row.prospect.id,
-      row.toEmail,
-      sendsResult.byProspectId,
-      sendsResult.byEmail,
-    );
+    const lastSentAt = row.toEmail
+      ? latestSentAt(row.prospect.id, row.toEmail, sendsResult.byProspectId, sendsResult.byEmail)
+      : (sendsResult.byProspectId.get(row.prospect.id) ?? null);
     if (
       isWithinOutreachCooldown(lastSentAt, {
         asOf,
@@ -508,6 +529,7 @@ export async function selectOutreachTargets(
       prospect: row.prospect,
       contact: row.contact,
       toEmail: row.toEmail,
+      needsEmail: row.needsEmail,
       primaryChannel: channels.primaryChannel,
       secondaryChannels: channels.secondaryChannels,
       allChannels: channels.allChannels,
@@ -572,7 +594,7 @@ export async function selectOutreachTargets(
       excluded.push({ prospectId: candidate.prospect.id, reason: 'prospect_already_selected' });
       return false;
     }
-    if (claimedEmails.has(candidate.toEmail)) {
+    if (candidate.toEmail && claimedEmails.has(candidate.toEmail)) {
       excluded.push({ prospectId: candidate.prospect.id, reason: 'email_already_selected' });
       return false;
     }
@@ -606,14 +628,15 @@ export async function selectOutreachTargets(
     const channelMatch = candidate.allChannels.some((ch) => allocatedWithSlots.has(ch));
 
     claimedProspects.add(candidate.prospect.id);
-    claimedEmails.add(candidate.toEmail);
+    if (candidate.toEmail) claimedEmails.add(candidate.toEmail);
     targets.push({
       preparationDate,
       prospectId: candidate.prospect.id,
       prospectName: candidate.prospect.name,
-      accountContactId: candidate.contact.id,
-      toEmail: candidate.toEmail,
-      toName: candidate.contact.fullName,
+      accountContactId: candidate.contact?.id ?? '',
+      toEmail: candidate.toEmail ?? '',
+      toName: candidate.contact?.fullName?.trim() || candidate.prospect.name,
+      needsEmail: candidate.needsEmail,
       primaryChannel: candidate.primaryChannel,
       secondaryChannels: candidate.secondaryChannels,
       catalogItemId: productPick.product.id,
@@ -642,7 +665,7 @@ export async function selectOutreachTargets(
       !skipChannelAllocation &&
       !matched &&
       !claimedProspects.has(candidate.prospect.id) &&
-      !claimedEmails.has(candidate.toEmail)
+      (!candidate.toEmail || !claimedEmails.has(candidate.toEmail))
     ) {
       // Only spill if not already excluded inside trySelect for product/email reasons
       const alreadyExcluded = excluded.some((e) => e.prospectId === candidate.prospect.id);
@@ -662,10 +685,11 @@ export async function selectOutreachTargets(
   const diagnostics: OutreachPoolDiagnostics | undefined = includeDiagnostics
     ? {
         inRegion: prospects.length,
-        withUsableEmail: pickedRows.length,
-        sendableNow: targets.length,
+        withUsableEmail: pickedRows.filter((row) => !row.needsEmail).length,
+        sendableNow: targets.filter((t) => !t.needsEmail && t.toEmail).length,
+        queuedWithoutEmail: targets.filter((t) => t.needsEmail).length,
         excluded: {
-          noUsableEmail: noUsableEmailCount,
+          noUsableEmail: allowMissingEmail ? 0 : noUsableEmailCount,
           pendingDraft: pendingDraftCount,
           cooldown: cooldownCount,
           contactSuppressed: contactSuppressedCount,
@@ -673,7 +697,8 @@ export async function selectOutreachTargets(
           other: Math.max(
             0,
             prospects.length -
-              noUsableEmailCount -
+              (allowMissingEmail ? needsEmailQueuedCount : noUsableEmailCount) -
+              pickedRows.filter((row) => !row.needsEmail).length -
               pendingDraftCount -
               contactSuppressedCount -
               cooldownCount -

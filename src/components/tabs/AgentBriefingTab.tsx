@@ -514,6 +514,78 @@ export function AgentBriefingTab({
           </div>
 
           <Card>
+            <CardTitle className="text-[15px]">Outreach queue — research email</CardTitle>
+            <CardMeta className="mb-2">
+              {briefing.identifiedTargets.length} identified · use Research to find a contact email,
+              then re-run prep to generate drafts
+            </CardMeta>
+            {briefing.identifiedTargets.length === 0 ? (
+              <p className="text-ink/50 m-0 text-sm">
+                No identified accounts for this region yet. Run prep to rank up to 25 accounts.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="text-ink/50 text-xs uppercase">
+                      <th className="border-ink/10 border-b p-2 font-medium">Prospect</th>
+                      <th className="border-ink/10 border-b p-2 font-medium">Product</th>
+                      <th className="border-ink/10 border-b p-2 font-medium">Channel</th>
+                      <th className="border-ink/10 border-b p-2 font-medium">Email</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {briefing.identifiedTargets.map((t) => (
+                      <tr key={`${t.prospectId}-${t.catalogItemId}`} className="hover:bg-bg/80">
+                        <td className="border-ink/[0.06] border-b p-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              className="text-accent-800 font-medium hover:underline"
+                              onClick={() =>
+                                onOpenProspect({
+                                  prospectId: t.prospectId,
+                                  accountStatus: 'prospect',
+                                })
+                              }
+                            >
+                              {t.prospectName}
+                            </button>
+                            <button
+                              type="button"
+                              className="text-ink/55 hover:text-accent-800 text-xs hover:underline"
+                              onClick={() =>
+                                onOpenProspect({
+                                  prospectId: t.prospectId,
+                                  accountStatus: 'prospect',
+                                  openResearch: true,
+                                })
+                              }
+                            >
+                              Research
+                            </button>
+                          </div>
+                        </td>
+                        <td className="border-ink/[0.06] border-b p-2">{t.productName}</td>
+                        <td className="border-ink/[0.06] border-b p-2">
+                          {t.primaryChannel ?? '—'}
+                        </td>
+                        <td className="border-ink/[0.06] border-b p-2">
+                          {t.needsEmail ? (
+                            <span className="text-accent-800">Needs research</span>
+                          ) : (
+                            <span className="text-ink/60">On file</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          <Card>
             <CardTitle className="text-[15px]">Drafts ready for review</CardTitle>
             <CardMeta className="mb-2">
               {briefing.drafts.length} pending · open a draft and use Add copy for personalized

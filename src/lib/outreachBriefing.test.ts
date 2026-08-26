@@ -64,13 +64,27 @@ describe('prepBannerMessage', () => {
     expect(b.message).toContain('shortfall 4');
   });
 
+  it('regional identified-only success', () => {
+    const b = prepBannerMessage({
+      sellingDate: '2026-08-13',
+      run: run({
+        kind: 'manual_regional_prep',
+        selectedCount: 25,
+        producedCount: 0,
+      }),
+    });
+    expect(b.message).toContain('25 accounts identified');
+    expect(b.message).toContain('research emails');
+  });
+
   it('formatRegionalPoolMessage explains directory vs sendable gap', () => {
     const pool: OutreachPoolDiagnostics = {
       inRegion: 35,
       withUsableEmail: 3,
-      sendableNow: 0,
+      sendableNow: 2,
+      queuedWithoutEmail: 23,
       excluded: {
-        noUsableEmail: 32,
+        noUsableEmail: 0,
         pendingDraft: 1,
         cooldown: 2,
         contactSuppressed: 0,
@@ -80,7 +94,7 @@ describe('prepBannerMessage', () => {
     };
     const msg = formatRegionalPoolMessage(pool, 'Oregon Coast');
     expect(msg).toContain('35 in Oregon Coast');
-    expect(msg).toContain('32 need a contact email');
-    expect(msg).toContain('0 ready to draft today');
+    expect(msg).toContain('23 queued — research email next');
+    expect(msg).toContain('25 selected for outreach');
   });
 });
