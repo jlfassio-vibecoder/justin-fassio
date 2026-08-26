@@ -326,7 +326,11 @@ for (const prospect of cohort) {
           confidence: match.confidence,
           sourceUrls: [match.business.url, match.business.businessUrl].filter(Boolean),
         }));
-        await insertRetailerFieldChanges(client, auditRows);
+        const auditResult = await insertRetailerFieldChanges(client, auditRows);
+        if (!auditResult.ok) {
+          applyStatus = 'error';
+          console.error(`ERROR audit ${prospect.id}: ${auditResult.error}`);
+        }
       }
     }
   }

@@ -295,6 +295,7 @@ function pickBestMatch(
     matchMethod,
     score: best.score,
     reasons: best.reasons,
+    candidateCount: scored.length,
   };
 }
 
@@ -322,10 +323,11 @@ export async function matchProspectToYelp(
     const rescored = scoreYelpMatch(input, details);
     match = {
       business: details,
-      confidence: confidenceFromScore(rescored.score, rescored.reasons, 1),
+      confidence: confidenceFromScore(rescored.score, rescored.reasons, match.candidateCount),
       matchMethod: match.matchMethod,
       score: rescored.score,
       reasons: rescored.reasons,
+      candidateCount: match.candidateCount,
     };
   }
 

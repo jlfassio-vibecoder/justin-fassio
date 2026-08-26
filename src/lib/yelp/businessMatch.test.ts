@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   confidenceFromScore,
   mapRawYelpBusiness,
@@ -8,6 +8,13 @@ import {
   scoreYelpMatch,
   type YelpFetchFn,
 } from '@/lib/yelp/businessMatch';
+
+const ORIGINAL_YELP_KEY = process.env.YELP_FUSION_API_KEY;
+
+afterEach(() => {
+  if (ORIGINAL_YELP_KEY === undefined) delete process.env.YELP_FUSION_API_KEY;
+  else process.env.YELP_FUSION_API_KEY = ORIGINAL_YELP_KEY;
+});
 
 describe('normalizeYelpPhone', () => {
   it('formats 10-digit US numbers', () => {
@@ -201,5 +208,49 @@ describe('matchProspectToYelp', () => {
 
     expect(result?.matchMethod).toBe('business_search');
     expect(result?.business.city).toBe('Florence');
+  });
+
+  it('does not upgrade ambiguous multi-candidate match to high after details enrichment', async () => {
+    const fetchFn: YelpFetchFn = vi.fn(async (url: string) => {
+      if (url.includes('/businesses/matches')) {
+        return new Response(
+          JSON.stringify({
+            businesses: [
+              {
+                id: 'store-a',
+                name: 'Coastal Outfitters',
+                location: { city: 'Newport', state: 'OR' },
+              },
+              {
+                id: 'store-b',
+                name: 'Coastal Outfitters Plus',
+                location: { city: 'Newport', state: 'OR' },
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/businesses/store-a')) {
+        return new Response(
+          JSON.stringify({
+            id: 'store-a',
+            name: 'Coastal Outfitters',
+            location: { city: 'Newport', state: 'OR', zip_code: '97365' },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ businesses: [] }), { status: 200 });
+    });
+
+    process.env.YELP_FUSION_API_KEY = 'test-key';
+    const result = await matchProspectToYelp(
+      { name: 'Coastal Outfitters', city: 'Newport' },
+      { fetchFn },
+    );
+
+    expect(result?.candidateCount).toBe(2);
+    expect(result?.confidence).toBe('low');
   });
 });

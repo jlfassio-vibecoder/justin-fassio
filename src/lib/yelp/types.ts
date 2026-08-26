@@ -23,6 +23,8 @@ export type YelpMatchResult = {
   matchMethod: YelpMatchMethod;
   score: number;
   reasons: string[];
+  /** Raw Yelp candidates scored before picking the best match. */
+  candidateCount: number;
 };
 
 /** Blank-only prospect scalar patch from Yelp directory data. */
