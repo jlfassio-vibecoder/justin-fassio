@@ -56,6 +56,8 @@ export async function researchContactDiscovery(
     ? `Focus on contact "${input.candidateName.trim()}" only if clearly tied to this business.`
     : 'Find the likely purchasing contact (owner, buyer, general manager, or store manager).';
 
+  const searchDomains = [...(yelpUrl ? ['yelp.com'] : []), ...(hostname ? [hostname] : [])];
+
   try {
     const result = await generateText({
       model: 'openai/gpt-4o',
@@ -63,8 +65,7 @@ export async function researchContactDiscovery(
       tools: {
         perplexity_search: gateway.tools.perplexitySearch({
           maxResults: 5,
-          ...(hostname ? { searchDomainFilter: [hostname] } : {}),
-          ...(yelpUrl && !hostname ? { searchDomainFilter: ['yelp.com'] } : {}),
+          ...(searchDomains.length > 0 ? { searchDomainFilter: searchDomains } : {}),
         }),
       },
       prompt: [

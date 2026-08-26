@@ -106,7 +106,9 @@ export function ActiveAccountsTab({
   const prefillLine = { multiLineAi: lineCtx.multiLineAi, lineName: lineCtx.name };
   const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const ogrSelected = !lineCtx.multiLineUi || lineCtx.lineSlug === 'ogr';
-  const [territoryCode, setTerritoryCode] = useState(deepLinkTerritory ?? ALL_TERRITORIES_FILTER);
+  const [territoryCode, setTerritoryCode] = useState<string>(
+    deepLinkTerritory ?? ALL_TERRITORIES_FILTER,
+  );
   const [reactivation, setReactivation] = useState(deepLinkReactivation);
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);

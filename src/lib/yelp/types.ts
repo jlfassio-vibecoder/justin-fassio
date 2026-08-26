@@ -21,7 +21,7 @@ export type YelpBusiness = {
 
 export type YelpMatchConfidence = 'high' | 'medium' | 'low';
 
-export type YelpMatchMethod = 'business_match' | 'business_search';
+export type YelpMatchMethod = 'business_match' | 'business_search' | 'phone_search';
 
 export type YelpMatchResult = {
   business: YelpBusiness;

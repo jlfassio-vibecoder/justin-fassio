@@ -98,7 +98,7 @@ export function ProspectsTab({
   const [importOpen, setImportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [lookalikeOpen, setLookalikeOpen] = useState(false);
-  const [territoryCode, setTerritoryCode] = useState(ALL_TERRITORIES_FILTER);
+  const [territoryCode, setTerritoryCode] = useState<string>(ALL_TERRITORIES_FILTER);
   const [highlightedProspectId, setHighlightedProspectId] = useState<number | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [detailProspect, setDetailProspect] = useState<Prospect | null>(null);

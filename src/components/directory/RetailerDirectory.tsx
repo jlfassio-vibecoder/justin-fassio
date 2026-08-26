@@ -97,7 +97,8 @@ export function RetailerDirectory({
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
-  const [territoryCodeInternal, setTerritoryCodeInternal] = useState(ALL_TERRITORIES_FILTER);
+  const [territoryCodeInternal, setTerritoryCodeInternal] =
+    useState<string>(ALL_TERRITORIES_FILTER);
   const territoryCode = territoryCodeProp ?? territoryCodeInternal;
   const [badgesByRetailer, setBadgesByRetailer] = useState<Map<number, CrossLineBadge[]>>(
     () => new Map(),

@@ -382,9 +382,9 @@ export async function matchProspectToYelp(
 
   if (!match || match.confidence === 'low') {
     const phoneHits = await businessPhoneSearch(fetchFn, input.phone);
-    const phoneMatch = pickBestMatch(input, phoneHits, 'business_search');
+    const phoneMatch = pickBestMatch(input, phoneHits, 'phone_search');
     if (phoneMatch && (!match || phoneMatch.score > match.score)) {
-      match = { ...phoneMatch, matchMethod: 'business_search' };
+      match = phoneMatch;
     }
   }
 
