@@ -12,8 +12,12 @@ import {
 } from '@/lib/accountResearch/context';
 import type { AccountResearchPlatformScope } from '@/lib/accountResearch/constants';
 import { ACCOUNT_RESEARCH_PROVIDER } from '@/lib/accountResearch/constants';
-import { fetchOfficialWebsiteEvidence } from '@/lib/accountResearch/officialWebsiteSocialLinks';
+import {
+  fetchOfficialWebsiteEvidence,
+  socialPlatformForUrl,
+} from '@/lib/accountResearch/officialWebsiteSocialLinks';
 import { normalizeSourceUrl } from '@/lib/accountResearch/normalizeUrl';
+import { extractHandleFromProfileUrl } from '@/lib/accountResearch/socialProfile';
 import { computeFinalRunStatus } from '@/lib/accountResearch/orchestrate';
 import { executeAccountResearchSourceSearch } from '@/lib/accountResearch/provider';
 import {
@@ -174,6 +178,22 @@ async function applyWebsiteLockIdentity(args: {
 }): Promise<void> {
   const lockedHost = hostnameFromUrl(args.lockedUrl);
   let runProviderMetadata = (args.run.provider_metadata as Record<string, unknown> | null) ?? {};
+  const socialPlatform = socialPlatformForUrl(args.lockedUrl);
+  const isSocialPrimary = socialPlatform === 'facebook' || socialPlatform === 'instagram';
+  let socialLinks = readWebsiteSocialCache(runProviderMetadata);
+
+  if (socialPlatform && isSocialPrimary) {
+    const handle = extractHandleFromProfileUrl(socialPlatform, args.lockedUrl) ?? '';
+    socialLinks = {
+      ...socialLinks,
+      [socialPlatform]: {
+        url: args.lockedUrl,
+        handle,
+        source: 'staff_lock',
+      },
+    };
+    runProviderMetadata = mergeWebsiteSocialCache(runProviderMetadata, socialLinks);
+  }
 
   if (lockedHost) {
     try {
@@ -181,7 +201,8 @@ async function applyWebsiteLockIdentity(args: {
         officialHostname: lockedHost,
         websiteUrl: args.lockedUrl,
       });
-      runProviderMetadata = mergeWebsiteSocialCache(runProviderMetadata, fetched.links);
+      socialLinks = { ...socialLinks, ...fetched.links };
+      runProviderMetadata = mergeWebsiteSocialCache(runProviderMetadata, socialLinks);
       runProviderMetadata = mergeWebsiteShopifyEvidence(
         runProviderMetadata,
         fetched.shopifyEvidence,
@@ -198,7 +219,9 @@ async function applyWebsiteLockIdentity(args: {
     .update({
       identity_confidence: 'high',
       identity_review_status: 'staff_confirmed',
-      identity_resolution: 'Staff locked official website',
+      identity_resolution: isSocialPrimary
+        ? 'Staff locked social profile as primary web presence'
+        : 'Staff locked official website',
       resolved_website: args.lockedUrl,
       provider_metadata: runProviderMetadata,
     })

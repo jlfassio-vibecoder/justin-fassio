@@ -38,7 +38,7 @@ import type {
 } from '@/types/database';
 
 export type StartOrReuseResult =
-  | { ok: true; outcome: 'cached' | 'started'; snapshot: AccountResearchSnapshot }
+  | { ok: true; outcome: 'cached' | 'started' | 'resumed'; snapshot: AccountResearchSnapshot }
   | {
       ok: false;
       outcome: 'active_conflict' | 'rate_limited' | 'not_found' | 'website_not_locked' | 'error';
@@ -129,6 +129,95 @@ async function findLatestUsableRun(
   return null;
 }
 
+/** Only one pending/running run is allowed per retailer (unique index). */
+export async function findActiveAccountResearchRun(
+  supabase: AgentSupabase,
+  retailerId: number,
+): Promise<AccountResearchSnapshot | null> {
+  const { data: runs, error } = await supabase
+    .from('account_research_runs')
+    .select('*')
+    .eq('retailer_id', retailerId)
+    .in('status', ['pending', 'running'])
+    .order('started_at', { ascending: false })
+    .limit(1);
+  if (error || !runs || runs.length === 0) return null;
+  const run = runs[0] as AccountResearchRun;
+  return loadAccountResearchSnapshot(supabase, run.id);
+}
+
+function isStaleActiveRun(run: Pick<AccountResearchRun, 'started_at'>): boolean {
+  if (!run.started_at) return false;
+  const startedMs = Date.parse(run.started_at);
+  if (Number.isNaN(startedMs)) return false;
+  return Date.now() - startedMs >= ACCOUNT_RESEARCH_STALE_RUNNING_MS;
+}
+
+async function failNonTerminalSources(
+  supabase: AgentSupabase,
+  runId: string,
+  errorMessage: string,
+): Promise<void> {
+  await supabase
+    .from('account_research_source_searches')
+    .update({
+      status: 'failed',
+      error: errorMessage,
+      completed_at: new Date().toISOString(),
+    })
+    .eq('research_run_id', runId)
+    .in('status', ['pending', 'running']);
+}
+
+/**
+ * Fail leftover sources and mark the run terminal so a new start can proceed.
+ * Returns the finalized snapshot when successful.
+ */
+export async function finalizeStaleActiveRun(
+  supabase: AgentSupabase,
+  runId: string,
+): Promise<AccountResearchSnapshot | null> {
+  await failNonTerminalSources(supabase, runId, 'Timed out while running');
+  // finalizeAccountResearchRun only transitions from `running`; bump pending first.
+  await supabase
+    .from('account_research_runs')
+    .update({ status: 'running' })
+    .eq('id', runId)
+    .eq('status', 'pending');
+  return finalizeAccountResearchRun(supabase, runId);
+}
+
+async function resolveActiveRunConflict(
+  supabase: AgentSupabase,
+  retailerId: number,
+): Promise<
+  | { ok: true; outcome: 'resumed'; snapshot: AccountResearchSnapshot }
+  | { ok: true; retry: true }
+  | {
+      ok: false;
+      outcome: 'active_conflict';
+      error: string;
+      status: number;
+    }
+> {
+  const active = await findActiveAccountResearchRun(supabase, retailerId);
+  if (!active) {
+    return {
+      ok: false,
+      outcome: 'active_conflict',
+      error: 'An active research run already exists for this retailer',
+      status: 409,
+    };
+  }
+
+  if (isStaleActiveRun(active.run)) {
+    await finalizeStaleActiveRun(supabase, active.run.id);
+    return { ok: true, retry: true };
+  }
+
+  return { ok: true, outcome: 'resumed', snapshot: active };
+}
+
 export async function startOrReuseAccountResearch(args: {
   supabase: AgentSupabase;
   userId: string;
@@ -189,12 +278,72 @@ export async function startOrReuseAccountResearch(args: {
 
   if (rpcError) {
     if (/ACTIVE_RUN_CONFLICT/i.test(rpcError.message)) {
-      return {
-        ok: false,
-        outcome: 'active_conflict',
-        error: 'An active research run already exists for this retailer',
-        status: 409,
-      };
+      const resolved = await resolveActiveRunConflict(args.supabase, args.retailerId);
+      if (!resolved.ok) return resolved;
+      if ('outcome' in resolved) {
+        return resolved;
+      }
+      // Stale active run was finalized — retry start once.
+      const retry = await args.supabase.rpc('start_account_research_run', {
+        p_retailer_id: args.retailerId,
+        p_scope: args.scope,
+        p_trigger: trigger,
+        p_supersedes_run_id: supersedesRunId,
+      });
+      if (retry.error) {
+        if (/ACTIVE_RUN_CONFLICT/i.test(retry.error.message)) {
+          const again = await findActiveAccountResearchRun(args.supabase, args.retailerId);
+          if (again) return { ok: true, outcome: 'resumed', snapshot: again };
+          return {
+            ok: false,
+            outcome: 'active_conflict',
+            error: 'An active research run already exists for this retailer',
+            status: 409,
+          };
+        }
+        if (/WEBSITE_NOT_LOCKED/i.test(retry.error.message)) {
+          return {
+            ok: false,
+            outcome: 'website_not_locked',
+            error: 'Lock the official website before running the rest of the search.',
+            status: 409,
+          };
+        }
+        return { ok: false, outcome: 'error', error: retry.error.message, status: 500 };
+      }
+      const retryRunId =
+        retry.data && typeof retry.data === 'object' && 'run_id' in retry.data
+          ? String((retry.data as { run_id: string }).run_id)
+          : null;
+      if (!retryRunId) {
+        return {
+          ok: false,
+          outcome: 'error',
+          error: 'Start RPC returned no run_id',
+          status: 500,
+        };
+      }
+      const identity = resolveAccountIdentity({
+        businessName: prospectMapped.name,
+        city: prospectMapped.city,
+        region: prospectMapped.region,
+        phone: prospectMapped.phone,
+        website: prospectMapped.website,
+      });
+      await args.supabase
+        .from('account_research_runs')
+        .update({
+          identity_confidence: identity.identity_confidence,
+          identity_review_status: identity.identity_review_status,
+          identity_resolution: identity.identity_resolution,
+          resolved_website: identity.resolved_website,
+        })
+        .eq('id', retryRunId);
+      const snapshot = await loadAccountResearchSnapshot(args.supabase, retryRunId);
+      if (!snapshot) {
+        return { ok: false, outcome: 'error', error: 'Failed to load started run', status: 500 };
+      }
+      return { ok: true, outcome: 'started', snapshot };
     }
     if (/WEBSITE_NOT_LOCKED/i.test(rpcError.message)) {
       return {
@@ -642,5 +791,9 @@ export async function findLatestAccountResearch(
   retailerId: number,
   scope: AccountResearchV1Scope,
 ): Promise<AccountResearchSnapshot | null> {
+  // Prefer an in-flight run so hydrate can resume (and show sources) instead of
+  // looking empty while the unique active-run index blocks new starts.
+  const active = await findActiveAccountResearchRun(supabase, retailerId);
+  if (active) return active;
   return findLatestUsableRun(supabase, retailerId, scope);
 }

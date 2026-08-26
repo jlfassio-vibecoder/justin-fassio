@@ -68,6 +68,11 @@ function matchSocialPlatform(url: string): SocialPlatform | null {
   return null;
 }
 
+/** Returns the social platform for a profile URL, if any. */
+export function socialPlatformForUrl(url: string): SocialPlatform | null {
+  return matchSocialPlatform(url);
+}
+
 function parseAnchorLinks(html: string): string[] {
   const urls: string[] = [];
   const re = /href\s*=\s*["']([^"']+)["']/gi;
