@@ -134,6 +134,9 @@ export function AccountResearchPanel({
   const [selectedCandidateBySource, setSelectedCandidateBySource] = useState<
     Record<string, string>
   >({});
+  const [dismissedCandidatesBySource, setDismissedCandidatesBySource] = useState<
+    Record<string, boolean>
+  >({});
   // Locks are retailer-wide, not run-scoped, but the panel's main `snapshot`
   // only hydrates from the latest 'all'-scope run. Right after the dedicated
   // website flow (a 'website'-scope run) locks the site, there may be no
@@ -144,6 +147,10 @@ export function AccountResearchPanel({
   useEffect(() => {
     latestSalesLineIdRef.current = line.salesLineId;
   }, [line.salesLineId]);
+
+  useEffect(() => {
+    setDismissedCandidatesBySource({});
+  }, [snapshot?.run.id]);
 
   const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
   const bigFishOutreachBlocked = line.lineSlug === 'big-fish' && !line.bigFishOutreach;
@@ -615,6 +622,8 @@ export function AccountResearchPanel({
                 const candidates = readSearchCandidates(
                   source.provider_metadata as Record<string, unknown> | null,
                 );
+                const candidatesDismissed = Boolean(dismissedCandidatesBySource[source.id]);
+                const effectiveCandidates = candidatesDismissed ? [] : candidates;
                 const selected = selectedCandidateBySource[source.id] ?? '';
                 const manualLock = manualSourceLockConfig(source.source_type);
                 return (
@@ -649,10 +658,10 @@ export function AccountResearchPanel({
                           </Button>
                         </div>
                       </div>
-                    ) : candidates.length > 0 ? (
+                    ) : effectiveCandidates.length > 0 ? (
                       <div className="mt-2 flex flex-col gap-2">
                         <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                          {candidates.map((candidate) => (
+                          {effectiveCandidates.map((candidate) => (
                             <li key={candidate.url}>
                               <label className="flex cursor-pointer items-start gap-2">
                                 <input
@@ -685,7 +694,7 @@ export function AccountResearchPanel({
                             </li>
                           ))}
                         </ul>
-                        <div>
+                        <div className="flex flex-wrap gap-2">
                           <Button
                             variant="primary"
                             disabled={busyAction != null || !selected}
@@ -693,24 +702,62 @@ export function AccountResearchPanel({
                           >
                             {busyAction === `lock-${source.id}` ? 'Locking…' : 'Lock in'}
                           </Button>
+                          {manualLock ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              disabled={busyAction != null}
+                              onClick={() => {
+                                setDismissedCandidatesBySource((prev) => ({
+                                  ...prev,
+                                  [source.id]: true,
+                                }));
+                                setSelectedCandidateBySource((prev) => {
+                                  const next = { ...prev };
+                                  delete next[source.id];
+                                  return next;
+                                });
+                              }}
+                            >
+                              No match
+                            </Button>
+                          ) : null}
                         </div>
                       </div>
                     ) : manualLock ? (
-                      <ManualSourceLockFields
-                        hint={manualLock.hint}
-                        placeholder={manualLock.placeholder}
-                        ariaLabel={manualLock.ariaLabel}
-                        value={selected}
-                        disabled={busyAction != null}
-                        locking={busyAction === `lock-${source.id}`}
-                        onChange={(value) =>
-                          setSelectedCandidateBySource((prev) => ({
-                            ...prev,
-                            [source.id]: value,
-                          }))
-                        }
-                        onLock={() => void handleLockSource(source)}
-                      />
+                      <div className="mt-2 flex flex-col gap-2">
+                        {candidatesDismissed && candidates.length > 0 ? (
+                          <button
+                            type="button"
+                            className="text-accent-800 self-start border-0 bg-transparent p-0 text-xs underline"
+                            disabled={busyAction != null}
+                            onClick={() =>
+                              setDismissedCandidatesBySource((prev) => {
+                                const next = { ...prev };
+                                delete next[source.id];
+                                return next;
+                              })
+                            }
+                          >
+                            Show search results
+                          </button>
+                        ) : null}
+                        <ManualSourceLockFields
+                          hint={manualLock.hint}
+                          placeholder={manualLock.placeholder}
+                          ariaLabel={manualLock.ariaLabel}
+                          value={selected}
+                          disabled={busyAction != null}
+                          locking={busyAction === `lock-${source.id}`}
+                          onChange={(value) =>
+                            setSelectedCandidateBySource((prev) => ({
+                              ...prev,
+                              [source.id]: value,
+                            }))
+                          }
+                          onLock={() => void handleLockSource(source)}
+                        />
+                      </div>
                     ) : null}
                   </li>
                 );

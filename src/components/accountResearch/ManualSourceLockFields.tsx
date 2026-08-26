@@ -23,7 +23,7 @@ export function ManualSourceLockFields({
   onLock,
 }: ManualSourceLockFieldsProps) {
   return (
-    <div className="mt-2 flex flex-col gap-2">
+    <div className="flex flex-col gap-2">
       <p className="text-ink/55 m-0 text-xs">{hint}</p>
       <Input
         type="url"

@@ -469,6 +469,66 @@ describe('AccountResearchPanel', () => {
     expect(
       screen.queryByText(/No website\? Paste their Facebook or Instagram page URL/i),
     ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /No match/i })).toBeInTheDocument();
+  });
+
+  it('No match dismisses website candidates and shows manual URL entry', async () => {
+    const user = userEvent.setup();
+    fetchLatestMock.mockResolvedValue({
+      ok: true,
+      outcome: 'found',
+      run: {
+        id: 'run-web-nomatch',
+        status: 'needs_identity_review',
+        requested_scope: 'website',
+        identity_confidence: 'unresolved',
+        completed_at: new Date().toISOString(),
+      },
+      sources: [
+        {
+          id: 'src-web',
+          source_type: 'website',
+          status: 'succeeded',
+          resolved_public_url: null,
+          provider_metadata: {
+            candidates: [
+              {
+                rank: 1,
+                url: 'https://toy-room.com/',
+                title: 'Toy Room Club',
+                snippet: 'Wrong match',
+              },
+              {
+                rank: 2,
+                url: 'https://thesteamroom.com/',
+                title: 'The STEAM Room',
+                snippet: 'Also wrong',
+              },
+            ],
+          },
+        },
+      ],
+      citationsBySourceId: { 'src-web': [] },
+      sourceFreshness: { 'src-web': true },
+      locksBySourceType: {},
+    });
+
+    render(<AccountResearchPanel prospect={prospect} />);
+
+    expect(await screen.findByRole('radio', { name: /Toy Room Club/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /No match/i }));
+
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/No website\? Paste their Facebook or Instagram page URL/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Official website URL/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Show search results/i }));
+    expect(screen.getByRole('radio', { name: /Toy Room Club/i })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: /Official website URL/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows manual URL lock when facebook search has no candidates', async () => {
