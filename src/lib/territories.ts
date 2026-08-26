@@ -5,6 +5,9 @@ import type { Database } from '@/types/database';
 
 export const BC_TERRITORY_CODE = 'bc';
 
+/** Directory filter sentinel — show every store territory (not a real territory row). */
+export const ALL_TERRITORIES_FILTER = 'ALL' as const;
+
 /** Province/state store geos only — excludes child regions like Northern California. */
 export const STORE_TERRITORY_CODES = ['bc', 'ab', 'ca', 'or', 'wa'] as const;
 

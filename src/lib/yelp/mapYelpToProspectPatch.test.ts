@@ -4,6 +4,7 @@ import type { YelpBusiness } from '@/lib/yelp/types';
 
 const YELP_BUSINESS: YelpBusiness = {
   id: 'newport-ace-newport',
+  alias: 'newport-ace-newport',
   name: 'Newport Ace Hardware',
   url: 'https://www.yelp.com/biz/newport-ace-newport',
   phone: '541-265-1234',
@@ -12,6 +13,10 @@ const YELP_BUSINESS: YelpBusiness = {
   state: 'OR',
   postalCode: '97365',
   businessUrl: 'https://newportace.com',
+  categories: ['Hardware Stores'],
+  isClaimed: true,
+  reviewCount: 12,
+  rating: 4.5,
 };
 
 describe('buildBlankOnlyProspectPatch', () => {

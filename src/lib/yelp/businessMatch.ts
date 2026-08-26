@@ -1,4 +1,5 @@
 import { normalizeProspectName } from '@/lib/prospectListImport';
+import { ensureYelpFusionApiKey } from '@/lib/yelp/yelpFusionEnv';
 import type {
   YelpBusiness,
   YelpMatchConfidence,
@@ -19,18 +20,28 @@ type RawYelpLocation = {
   country?: string | null;
 };
 
+type RawYelpCategory = {
+  alias?: string | null;
+  title?: string | null;
+};
+
 type RawYelpBusiness = {
   id?: string;
+  alias?: string | null;
   name?: string;
   url?: string | null;
   phone?: string | null;
   location?: RawYelpLocation | null;
+  categories?: RawYelpCategory[] | null;
+  is_claimed?: boolean | null;
+  review_count?: number | null;
+  rating?: number | null;
   /** Some Fusion responses expose an official site here. */
   business_url?: string | null;
 };
 
 function getYelpApiKey(): string {
-  const key = process.env.YELP_FUSION_API_KEY?.trim();
+  const key = ensureYelpFusionApiKey();
   if (!key) {
     throw new Error('YELP_FUSION_API_KEY is required');
   }
@@ -96,16 +107,33 @@ function normalizeBusinessUrl(raw: RawYelpBusiness): string | null {
   return null;
 }
 
+function mapYelpCategories(raw: RawYelpBusiness): string[] {
+  return (raw.categories ?? []).map((c) => c.title?.trim()).filter((t): t is string => Boolean(t));
+}
+
+/** Canonical yelp.com/biz URL without tracking params. */
+export function yelpBizSearchUrl(business: YelpBusiness): string {
+  const alias = business.alias?.trim();
+  if (alias) return `https://www.yelp.com/biz/${alias}`;
+  const match = business.url.match(/yelp\.com\/biz\/([^?/#]+)/i);
+  if (match?.[1]) return `https://www.yelp.com/biz/${match[1]}`;
+  return business.url;
+}
+
 export function mapRawYelpBusiness(raw: RawYelpBusiness): YelpBusiness | null {
   const id = (raw.id ?? '').trim();
   const name = (raw.name ?? '').trim();
   if (!id || !name) return null;
 
   const location = raw.location ?? {};
-  const yelpUrl = (raw.url ?? '').trim() || `https://www.yelp.com/biz/${id}`;
+  const alias = (raw.alias ?? '').trim() || null;
+  const yelpUrl =
+    (raw.url ?? '').trim() ||
+    (alias ? `https://www.yelp.com/biz/${alias}` : `https://www.yelp.com/biz/${id}`);
 
   return {
     id,
+    alias,
     name,
     url: yelpUrl,
     phone: normalizeYelpPhone(raw.phone),
@@ -114,6 +142,13 @@ export function mapRawYelpBusiness(raw: RawYelpBusiness): YelpBusiness | null {
     state: (location.state ?? '').trim() || null,
     postalCode: (location.zip_code ?? '').trim() || null,
     businessUrl: normalizeBusinessUrl(raw),
+    categories: mapYelpCategories(raw),
+    isClaimed: typeof raw.is_claimed === 'boolean' ? raw.is_claimed : null,
+    reviewCount:
+      typeof raw.review_count === 'number' && Number.isFinite(raw.review_count)
+        ? raw.review_count
+        : null,
+    rating: typeof raw.rating === 'number' && Number.isFinite(raw.rating) ? raw.rating : null,
   };
 }
 
@@ -201,6 +236,19 @@ export function confidenceFromScore(
   return 'low';
 }
 
+/** Count Yelp candidates that could plausibly match after scoring (excludes clear mismatches). */
+export function countViableYelpCandidates(scored: ScoredCandidate[]): number {
+  if (scored.length <= 1) return scored.length;
+  const top = scored[0];
+  return scored.filter((candidate) => {
+    if (candidate.score < top.score - 25) return false;
+    if (candidate.reasons.includes('name_mismatch') && !top.reasons.includes('name_mismatch')) {
+      return false;
+    }
+    return true;
+  }).length;
+}
+
 function buildYelpUrl(path: string, params: Record<string, string | undefined>): string {
   const url = new URL(`${YELP_API_BASE}${path}`);
   for (const [key, value] of Object.entries(params)) {
@@ -232,8 +280,9 @@ async function businessMatch(
   input: YelpProspectMatchInput,
 ): Promise<RawYelpBusiness[]> {
   const address1 = parseStreetAddress(input.address);
+  const matchName = stripParentheticalName(input.name) || input.name;
   const payload = await yelpGet(fetchFn, '/businesses/matches', {
-    name: input.name,
+    name: matchName,
     address1: address1 || '',
     city: input.city ?? undefined,
     state: 'OR',
@@ -252,10 +301,23 @@ async function businessSearch(
   input: YelpProspectMatchInput,
 ): Promise<RawYelpBusiness[]> {
   const location = input.city?.trim() ? `${input.city.trim()}, OR` : 'Oregon';
+  const term = stripParentheticalName(input.name) || input.name;
   const payload = await yelpGet(fetchFn, '/businesses/search', {
-    term: input.name,
+    term,
     location,
     limit: '3',
+  });
+  return (payload as { businesses?: RawYelpBusiness[] }).businesses ?? [];
+}
+
+async function businessPhoneSearch(
+  fetchFn: YelpFetchFn,
+  phone: string | null | undefined,
+): Promise<RawYelpBusiness[]> {
+  const digits = phoneDigits(phone);
+  if (digits.length < 10) return [];
+  const payload = await yelpGet(fetchFn, '/businesses/search/phone', {
+    phone: digits.length === 11 && digits.startsWith('1') ? `+${digits}` : `+1${digits}`,
   });
   return (payload as { businesses?: RawYelpBusiness[] }).businesses ?? [];
 }
@@ -287,7 +349,8 @@ function pickBestMatch(
   if (scored.length === 0) return null;
 
   const best = scored[0];
-  const confidence = confidenceFromScore(best.score, best.reasons, scored.length);
+  const viableCount = countViableYelpCandidates(scored);
+  const confidence = confidenceFromScore(best.score, best.reasons, viableCount);
 
   return {
     business: best.business,
@@ -296,6 +359,7 @@ function pickBestMatch(
     score: best.score,
     reasons: best.reasons,
     candidateCount: scored.length,
+    viableCandidateCount: viableCount,
   };
 }
 
@@ -316,6 +380,14 @@ export async function matchProspectToYelp(
     }
   }
 
+  if (!match || match.confidence === 'low') {
+    const phoneHits = await businessPhoneSearch(fetchFn, input.phone);
+    const phoneMatch = pickBestMatch(input, phoneHits, 'phone_search');
+    if (phoneMatch && (!match || phoneMatch.score > match.score)) {
+      match = phoneMatch;
+    }
+  }
+
   if (!match) return null;
 
   if (enrichDetails) {
@@ -323,11 +395,12 @@ export async function matchProspectToYelp(
     const rescored = scoreYelpMatch(input, details);
     match = {
       business: details,
-      confidence: confidenceFromScore(rescored.score, rescored.reasons, match.candidateCount),
+      confidence: confidenceFromScore(rescored.score, rescored.reasons, match.viableCandidateCount),
       matchMethod: match.matchMethod,
       score: rescored.score,
       reasons: rescored.reasons,
       candidateCount: match.candidateCount,
+      viableCandidateCount: match.viableCandidateCount,
     };
   }
 

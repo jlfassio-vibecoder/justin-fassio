@@ -1,7 +1,8 @@
 import { hostnameFromUrl } from '@/lib/enrichGuidance';
 import { isDirectoryCitationHost } from '@/lib/companyWebResearch';
 import type { Prospect } from '@/lib/prospects';
-import { matchProspectToYelp } from '@/lib/yelp/businessMatch';
+import { matchProspectToYelp, yelpBizSearchUrl } from '@/lib/yelp/businessMatch';
+import { hasYelpFusionApiKey, LOCAL_YELP_FUSION_KEY_HELP } from '@/lib/yelp/yelpFusionEnv';
 import type { YelpMatchConfidence, YelpMatchResult } from '@/lib/yelp/types';
 
 export type ContactResearchBriefInput = {
@@ -13,6 +14,7 @@ export type ContactResearchBriefInput = {
 export type ContactResearchBriefResult = {
   seedBlock: string;
   yelpMatch: YelpMatchResult | null;
+  yelpMatchError: string | null;
   websiteUrl: string | null;
   researchBrief: string | null;
 };
@@ -53,12 +55,25 @@ function buildSeedBlock(input: {
 
   if (input.yelpMatch) {
     const y = input.yelpMatch.business;
+    const listingUrl = yelpBizSearchUrl(y);
     lines.push(
-      `Yelp directory listing (verification only): ${y.url}`,
-      y.phone ? `Yelp phone: ${y.phone}` : '',
-      y.address1 ? `Yelp address: ${y.address1}` : '',
-      y.city ? `Yelp city: ${y.city}` : '',
+      'Yelp-verified business (directory evidence, not official website):',
+      `Listing: ${listingUrl}`,
+      `Yelp name: ${y.name}`,
+      y.categories.length > 0 ? `Categories: ${y.categories.join(', ')}` : '',
+      y.address1 || y.city
+        ? `Address: ${[y.address1, y.city, y.state, y.postalCode].filter(Boolean).join(', ')}`
+        : '',
+      y.phone ? `Phone: ${y.phone}` : '',
+      y.isClaimed != null ? `Claimed: ${y.isClaimed ? 'yes' : 'unclaimed'}` : '',
+      y.reviewCount != null ? `Review count: ${y.reviewCount}` : '',
+      y.rating != null ? `Rating: ${y.rating}` : '',
     );
+    if (input.yelpMatch.viableCandidateCount > 1) {
+      lines.push(
+        `Note: ${input.yelpMatch.viableCandidateCount} plausible Yelp candidates — using best match above.`,
+      );
+    }
   }
 
   const candidate = input.candidateName?.trim();
@@ -90,7 +105,8 @@ export async function buildContactResearchBrief(
   const websiteUrl = resolveOfficialWebsiteUrl(prospect, input.resolvedWebsite);
 
   let yelpMatch: YelpMatchResult | null = null;
-  if (process.env.YELP_FUSION_API_KEY?.trim()) {
+  let yelpMatchError: string | null = null;
+  if (hasYelpFusionApiKey()) {
     try {
       const matched = await matchProspectToYelp({
         name: prospect.name,
@@ -101,10 +117,17 @@ export async function buildContactResearchBrief(
       });
       if (matched && yelpUsableForSeed(matched.confidence)) {
         yelpMatch = matched;
+      } else if (matched) {
+        yelpMatchError = `Yelp match confidence too low (${matched.confidence})`;
+      } else {
+        yelpMatchError = 'No Yelp directory match found';
       }
-    } catch {
+    } catch (err) {
       yelpMatch = null;
+      yelpMatchError = err instanceof Error ? err.message : 'Yelp match failed';
     }
+  } else {
+    yelpMatchError = LOCAL_YELP_FUSION_KEY_HELP;
   }
 
   const seedBlock = buildSeedBlock({
@@ -117,6 +140,7 @@ export async function buildContactResearchBrief(
   return {
     seedBlock,
     yelpMatch,
+    yelpMatchError,
     websiteUrl,
     researchBrief: null,
   };

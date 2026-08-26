@@ -159,7 +159,7 @@ export function ContactDiscoverPreview({
       </div>
 
       <Field>
-        <FieldLabel>Candidate name (optional)</FieldLabel>
+        <FieldLabel>Contact name (optional)</FieldLabel>
         <Input
           value={candidateName}
           onChange={(e) => setCandidateName(e.target.value)}
@@ -174,17 +174,33 @@ export function ContactDiscoverPreview({
         </Button>
       </div>
 
-      {preview?.yelpListingUrl ? (
-        <p className="text-ink/60 m-0 text-xs">
-          Yelp directory evidence:{' '}
-          <a
-            href={preview.yelpListingUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent-700 underline"
-          >
-            {preview.yelpListingUrl}
-          </a>
+      {preview?.yelpVerifiedName || preview?.yelpListingUrl ? (
+        <div className="text-ink/60 m-0 flex flex-col gap-0.5 text-xs">
+          {preview.yelpVerifiedName ? (
+            <p className="m-0">
+              Yelp verified:{' '}
+              <span className="text-ink/80 font-medium">{preview.yelpVerifiedName}</span>
+              {preview.yelpCategories.length > 0 ? ` · ${preview.yelpCategories.join(', ')}` : null}
+            </p>
+          ) : null}
+          {preview.yelpListingUrl ? (
+            <p className="m-0">
+              Directory listing:{' '}
+              <a
+                href={preview.yelpListingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent-700 underline"
+              >
+                {preview.yelpListingUrl}
+              </a>
+            </p>
+          ) : null}
+        </div>
+      ) : preview?.yelpMatchError ? (
+        <p className="text-ink/55 m-0 text-xs" role="status">
+          Yelp directory match not available — relying on open web search.
+          {preview.yelpMatchError ? ` (${preview.yelpMatchError})` : null}
         </p>
       ) : null}
 

@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   confidenceFromScore,
+  countViableYelpCandidates,
   mapRawYelpBusiness,
   matchProspectToYelp,
   normalizeYelpMatchName,
   normalizeYelpPhone,
   scoreYelpMatch,
+  yelpBizSearchUrl,
   type YelpFetchFn,
 } from '@/lib/yelp/businessMatch';
 
@@ -48,6 +50,39 @@ describe('mapRawYelpBusiness', () => {
       businessUrl: 'https://newportace.com',
     });
   });
+
+  it('maps alias, categories, claimed, review count, and rating', () => {
+    const mapped = mapRawYelpBusiness({
+      id: 'the-sassy-seagull-bandon',
+      alias: 'the-sassy-seagull-bandon',
+      name: 'The Sassy Seagull',
+      url: 'https://www.yelp.com/biz/the-sassy-seagull-bandon?osq=Gift+Shop',
+      categories: [{ title: 'Gift Shop' }, { title: 'Souvenir Shop' }],
+      is_claimed: true,
+      review_count: 42,
+      rating: 4.5,
+      location: { city: 'Bandon', state: 'OR' },
+    });
+    expect(mapped).toMatchObject({
+      alias: 'the-sassy-seagull-bandon',
+      categories: ['Gift Shop', 'Souvenir Shop'],
+      isClaimed: true,
+      reviewCount: 42,
+      rating: 4.5,
+    });
+  });
+});
+
+describe('yelpBizSearchUrl', () => {
+  it('prefers alias for clean listing URL', () => {
+    const business = mapRawYelpBusiness({
+      id: 'the-sassy-seagull-bandon',
+      alias: 'the-sassy-seagull-bandon',
+      name: 'The Sassy Seagull',
+      url: 'https://www.yelp.com/biz/the-sassy-seagull-bandon?osq=Gift+Shop',
+    })!;
+    expect(yelpBizSearchUrl(business)).toBe('https://www.yelp.com/biz/the-sassy-seagull-bandon');
+  });
 });
 
 describe('scoreYelpMatch', () => {
@@ -75,6 +110,39 @@ describe('scoreYelpMatch', () => {
   it('downgrades ambiguous multi-candidate matches', () => {
     const scored = scoreYelpMatch({ name: 'Newport Ace Hardware', city: 'Newport' }, business);
     expect(confidenceFromScore(scored.score, scored.reasons, 2)).toBe('low');
+  });
+
+  it('treats clear winner as single viable when Yelp returns unrelated second match', () => {
+    const input = {
+      name: 'Sassy Seagull (Bandon Store)',
+      city: 'Bandon',
+      postalCode: '97411',
+      phone: '541-777-7147',
+    };
+    const scored = [
+      scoreYelpMatch(
+        input,
+        mapRawYelpBusiness({
+          id: 'sassy',
+          name: 'The Sassy Seagull',
+          phone: '541-777-7147',
+          location: { address1: '198 2nd St SE', city: 'Bandon', state: 'OR', zip_code: '97411' },
+        })!,
+      ),
+      scoreYelpMatch(
+        input,
+        mapRawYelpBusiness({
+          id: 'bakery',
+          name: 'Bandon Baking Company',
+          phone: '541-347-9440',
+          location: { address1: '160 2nd St SE', city: 'Bandon', state: 'OR', zip_code: '97411' },
+        })!,
+      ),
+    ].sort((a, b) => b.score - a.score);
+
+    expect(scored[0]?.score).toBe(100);
+    expect(countViableYelpCandidates(scored)).toBe(1);
+    expect(confidenceFromScore(scored[0]!.score, scored[0]!.reasons, 1)).toBe('high');
   });
 
   it('matches compact names after stripping spaces (Farmhouse Funk)', () => {
@@ -251,6 +319,78 @@ describe('matchProspectToYelp', () => {
     );
 
     expect(result?.candidateCount).toBe(2);
+    expect(result?.viableCandidateCount).toBe(2);
     expect(result?.confidence).toBe('low');
+  });
+
+  it('matches Sassy Seagull when Yelp returns an unrelated second business match', async () => {
+    const fetchFn: YelpFetchFn = vi.fn(async (url: string) => {
+      if (url.includes('/businesses/matches')) {
+        return new Response(
+          JSON.stringify({
+            businesses: [
+              {
+                id: 'sassy-seagull-bandon',
+                name: 'The Sassy Seagull',
+                phone: '+15417777147',
+                location: {
+                  address1: '198 2nd St SE',
+                  city: 'Bandon',
+                  state: 'OR',
+                  zip_code: '97411',
+                },
+              },
+              {
+                id: 'bandon-baking',
+                name: 'Bandon Baking Company',
+                phone: '+15413479440',
+                location: {
+                  address1: '160 2nd St SE',
+                  city: 'Bandon',
+                  state: 'OR',
+                  zip_code: '97411',
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/businesses/sassy-seagull-bandon')) {
+        return new Response(
+          JSON.stringify({
+            id: 'sassy-seagull-bandon',
+            name: 'The Sassy Seagull',
+            url: 'https://www.yelp.com/biz/the-sassy-seagull-bandon',
+            phone: '+15417777147',
+            location: {
+              address1: '198 2nd St SE',
+              city: 'Bandon',
+              state: 'OR',
+              zip_code: '97411',
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ businesses: [] }), { status: 200 });
+    });
+
+    process.env.YELP_FUSION_API_KEY = 'test-key';
+    const result = await matchProspectToYelp(
+      {
+        name: 'Sassy Seagull (Bandon Store)',
+        address: '198 2nd St SE, Bandon, OR 97411',
+        city: 'Bandon',
+        postalCode: '97411',
+        phone: '541-777-7147',
+      },
+      { fetchFn },
+    );
+
+    expect(result?.business.name).toBe('The Sassy Seagull');
+    expect(result?.candidateCount).toBe(2);
+    expect(result?.viableCandidateCount).toBe(1);
+    expect(result?.confidence).toBe('high');
   });
 });

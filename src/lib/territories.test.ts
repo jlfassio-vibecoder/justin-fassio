@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ALL_TERRITORIES_FILTER,
   BC_TERRITORY_CODE,
   isStoreTerritoryCode,
   suggestTerritoryCodeFromRegion,
   territoryCodeFromProvince,
 } from '@/lib/territories';
+
+describe('ALL_TERRITORIES_FILTER', () => {
+  it('is the directory-wide filter sentinel', () => {
+    expect(ALL_TERRITORIES_FILTER).toBe('ALL');
+  });
+});
 
 describe('territoryCodeFromProvince', () => {
   it('maps known provinces and states', () => {

@@ -11,7 +11,7 @@ import { filterProspects } from '@/lib/prospectFilters';
 import { primaryRetailChannelLabel } from '@/lib/crmRetailTaxonomy';
 import type { Prospect } from '@/lib/prospects';
 import { fetchCrossLineBadgesForRetailers, type CrossLineBadge } from '@/lib/retailerLineAccounts';
-import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
+import { ALL_TERRITORIES_FILTER, type Territory } from '@/lib/territories';
 
 const channelTagVariant: Partial<
   Record<Prospect['category'], 'accent-2' | 'accent' | 'neutral' | 'outline'>
@@ -56,9 +56,9 @@ export interface RetailerDirectoryProps {
   toolbarExtra?: ReactNode;
   /** Briefly highlight a row (e.g. after AI add). */
   highlightedId?: number | null;
-  /** Active territories for the directory filter (defaults to BC when empty). */
+  /** Active territories for the directory filter. */
   territories?: Territory[];
-  /** Controlled territory code; defaults to British Columbia. */
+  /** Controlled territory code; defaults to all territories. */
   territoryCode?: string;
   onTerritoryCodeChange?: (code: string) => void;
   /** Phase 2: when set, show empty-safe cross-line badge chips. */
@@ -97,7 +97,8 @@ export function RetailerDirectory({
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
-  const [territoryCodeInternal, setTerritoryCodeInternal] = useState(BC_TERRITORY_CODE);
+  const [territoryCodeInternal, setTerritoryCodeInternal] =
+    useState<string>(ALL_TERRITORIES_FILTER);
   const territoryCode = territoryCodeProp ?? territoryCodeInternal;
   const [badgesByRetailer, setBadgesByRetailer] = useState<Map<number, CrossLineBadge[]>>(
     () => new Map(),

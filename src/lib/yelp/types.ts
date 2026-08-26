@@ -2,6 +2,8 @@
 export type YelpBusiness = {
   id: string;
   name: string;
+  /** Yelp business alias for yelp.com/biz/{alias} URLs. */
+  alias: string | null;
   /** Yelp listing page URL. */
   url: string;
   phone: string | null;
@@ -11,11 +13,15 @@ export type YelpBusiness = {
   postalCode: string | null;
   /** Official business website when Yelp exposes one (not the Yelp listing URL). */
   businessUrl: string | null;
+  categories: string[];
+  isClaimed: boolean | null;
+  reviewCount: number | null;
+  rating: number | null;
 };
 
 export type YelpMatchConfidence = 'high' | 'medium' | 'low';
 
-export type YelpMatchMethod = 'business_match' | 'business_search';
+export type YelpMatchMethod = 'business_match' | 'business_search' | 'phone_search';
 
 export type YelpMatchResult = {
   business: YelpBusiness;
@@ -25,6 +31,8 @@ export type YelpMatchResult = {
   reasons: string[];
   /** Raw Yelp candidates scored before picking the best match. */
   candidateCount: number;
+  /** Scored candidates that remain plausible after filtering mismatches. */
+  viableCandidateCount: number;
 };
 
 /** Blank-only prospect scalar patch from Yelp directory data. */

@@ -36,6 +36,14 @@ vi.mock('@/lib/lineContext', () => ({
   }),
 }));
 
+vi.mock('@/components/accountResearch/ContactDiscoverPreview', () => ({
+  ContactDiscoverPreview: () => <div>Contact discovery panel</div>,
+}));
+
+vi.mock('@/components/accountResearch/AccountResearchContactPickModal', () => ({
+  AccountResearchContactPickModal: () => null,
+}));
+
 const prospect = prospectFixture({
   id: 7,
   name: 'Test Shop',
@@ -135,7 +143,7 @@ describe('AccountResearchPanel', () => {
 
     render(<AccountResearchPanel prospect={prospect} />);
 
-    expect(await screen.findByText(/No run yet/i)).toBeInTheDocument();
+    expect(await screen.findByText('Contact discovery panel')).toBeInTheDocument();
     expect(screen.queryByText(/Identity must be high confidence/i)).not.toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /Run Search All/i })).toBeEnabled(),
