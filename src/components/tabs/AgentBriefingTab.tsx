@@ -11,7 +11,7 @@ import { getAgentProductOutreachDraftClient } from '@/lib/agentProductOutreachDr
 import type { CatalogItem } from '@/lib/catalog';
 import { buildCatalogItemEmailCardHtml } from '@/lib/catalogItemEmailCardHtml';
 import { useOptionalLineContext } from '@/lib/lineContext';
-import type { OutreachBriefingDto } from '@/lib/outreachBriefing';
+import { formatRegionalPoolMessage, type OutreachBriefingDto } from '@/lib/outreachBriefingShared';
 import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
 import {
   fetchOperationalTerritories,
@@ -223,33 +223,6 @@ export function AgentBriefingTab({
   );
 
   useEffect(() => {
-    let active = true;
-    async function load() {
-      setLoading(true);
-      setError(null);
-      const qs =
-        lineCtx.multiLineUi && lineCtx.salesLineId
-          ? `?sales_line_id=${encodeURIComponent(lineCtx.salesLineId)}`
-          : '';
-      const result = await staffGet(`/api/staff/outreach/briefing${qs}`);
-      if (!active) return;
-      if (!result.ok) {
-        setBriefing(null);
-        setError(result.error);
-        setLoading(false);
-        return;
-      }
-      const payload = result.data as { briefing?: OutreachBriefingDto };
-      setBriefing(payload.briefing ?? null);
-      setLoading(false);
-    }
-    void load();
-    return () => {
-      active = false;
-    };
-  }, [reloadToken, briefingReloadToken, lineCtx.multiLineUi, lineCtx.salesLineId]);
-
-  useEffect(() => {
     if (!isOgrLine) return;
     let active = true;
     void fetchOperationalTerritories().then((result) => {
@@ -273,6 +246,52 @@ export function AgentBriefingTab({
     if (!opsCode) return '';
     return opsOptions.find((row) => row.code === opsCode)?.id ?? '';
   }, [opsOptions, storeTerritoryCode, briefingRegion]);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      const qsParams = new URLSearchParams();
+      if (lineCtx.multiLineUi && lineCtx.salesLineId) {
+        qsParams.set('sales_line_id', lineCtx.salesLineId);
+      }
+      if (isOgrLine && storeTerritoryCode) {
+        qsParams.set('store_territory_code', storeTerritoryCode);
+      }
+      if (isOgrLine && resolvedOpsTerritoryId) {
+        qsParams.set('operational_territory_id', resolvedOpsTerritoryId);
+      }
+      if (isOgrLine && briefingRegion && briefingRegion !== 'ALL') {
+        qsParams.set('crm_region', briefingRegion);
+      }
+      const qs = qsParams.toString() ? `?${qsParams.toString()}` : '';
+      const result = await staffGet(`/api/staff/outreach/briefing${qs}`);
+      if (!active) return;
+      if (!result.ok) {
+        setBriefing(null);
+        setError(result.error);
+        setLoading(false);
+        return;
+      }
+      const payload = result.data as { briefing?: OutreachBriefingDto };
+      setBriefing(payload.briefing ?? null);
+      setLoading(false);
+    }
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [
+    reloadToken,
+    briefingReloadToken,
+    lineCtx.multiLineUi,
+    lineCtx.salesLineId,
+    isOgrLine,
+    storeTerritoryCode,
+    resolvedOpsTerritoryId,
+    briefingRegion,
+  ]);
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   // Copilot suggestion ignored: a new event/token deep-link protocol is out of scope; drawer close now clears its applied deep-link state.
@@ -318,6 +337,9 @@ export function AgentBriefingTab({
       storeTerritoryCode,
       limit: REGIONAL_PREP_LIMIT,
     };
+    if (briefingRegion && briefingRegion !== 'ALL') {
+      body.crmRegion = briefingRegion;
+    }
     if (briefing?.sellingDate) body.preparationDate = briefing.sellingDate;
     const result = await staffPost('/api/staff/outreach/prep', body);
     setPrepBusy(false);
@@ -333,7 +355,7 @@ export function AgentBriefingTab({
       setPrepMessage('Prep already complete for that region and selling day.');
     } else if (data.run?.status === 'empty_pool') {
       setPrepMessage(
-        'No sendable accounts in that region yet. Lookalikes need a usable contact email (and product-fit). Add emails, then retry.',
+        'No sendable accounts today — see the regional pool breakdown on the prep card.',
       );
     } else {
       setPrepMessage(
@@ -449,6 +471,16 @@ export function AgentBriefingTab({
               {prep?.run
                 ? ` · capacity ${prep.run.capacity} · pending before ${prep.run.pendingBefore} · produced ${prep.run.producedCount}`
                 : null}
+              {briefing.regionalPool && briefingRegion !== 'ALL' ? (
+                <>
+                  <br />
+                  {formatRegionalPoolMessage(
+                    briefing.regionalPool,
+                    briefingRegionOptions.find((o) => o.value === briefingRegion)?.label ??
+                      briefingRegion,
+                  )}
+                </>
+              ) : null}
             </CardMeta>
           </Card>
 

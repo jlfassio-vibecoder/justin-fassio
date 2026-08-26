@@ -13,6 +13,7 @@ import { computeChannelAllocationWeights } from '@/lib/outreachChannelWeights';
 import { computeProductSelectionWeights } from '@/lib/outreachProductWeights';
 import { computeFitBandRankingWeights } from '@/lib/outreachFitBandWeights';
 import { generateOgrProductOutreachDrafts } from '@/lib/generateOgrProductOutreachDraft';
+import { normalizePrepCrmRegion } from '@/lib/geoCatalog';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
 import type { OutreachGoalSettings } from '@/lib/outreachGoals';
 import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
@@ -64,6 +65,7 @@ export type OutreachAutomationRunRow = {
   reason: string | null;
   operationalTerritoryId: string | null;
   storeTerritoryCode: string | null;
+  crmRegion: string | null;
   startedAt: string;
   finishedAt: string | null;
   triggeredBy: string | null;
@@ -103,6 +105,7 @@ function mapRunRow(row: DbRunRow): OutreachAutomationRunRow {
     reason: row.reason,
     operationalTerritoryId: row.operational_territory_id,
     storeTerritoryCode: row.store_territory_code,
+    crmRegion: row.crm_region,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
     triggeredBy: row.triggered_by,
@@ -158,6 +161,7 @@ async function findPrepRun(params: {
   runDate: string;
   operationalTerritoryId?: string | null;
   storeTerritoryCode?: string | null;
+  crmRegion?: string | null;
 }): Promise<{ ok: true; run: OutreachAutomationRunRow | null } | { ok: false; error: string }> {
   const { client, kind, runDate } = params;
   if (kind === OUTREACH_NIGHTLY_PREP_KIND) {
@@ -174,9 +178,32 @@ async function findPrepRun(params: {
   const store = params.storeTerritoryCode?.trim().toLowerCase() || null;
   query = store ? query.eq('store_territory_code', store) : query.is('store_territory_code', null);
 
+  const crmRegion = normalizePrepCrmRegion(params.crmRegion);
+  query = crmRegion ? query.eq('crm_region', crmRegion) : query.is('crm_region', null);
+
   const { data, error } = await query.maybeSingle();
   if (error) return { ok: false, error: error.message };
   return { ok: true, run: data ? mapRunRow(data) : null };
+}
+
+/** Regional prep run for a selling day + ops/store/CRM region scope (briefing banner). */
+export async function getRegionalOutreachPrepRun(
+  client: Client,
+  params: {
+    runDate: string;
+    operationalTerritoryId: string;
+    storeTerritoryCode?: string | null;
+    crmRegion?: string | null;
+  },
+): Promise<{ ok: true; run: OutreachAutomationRunRow | null } | { ok: false; error: string }> {
+  return findPrepRun({
+    client,
+    kind: OUTREACH_MANUAL_REGIONAL_PREP_KIND,
+    runDate: params.runDate,
+    operationalTerritoryId: params.operationalTerritoryId,
+    storeTerritoryCode: params.storeTerritoryCode,
+    crmRegion: params.crmRegion,
+  });
 }
 
 async function updateRun(
@@ -263,6 +290,8 @@ export type RunOutreachNightlyPrepInput = {
   operationalTerritoryId?: string;
   /** Optional store-geo filter within the ops region (or / wa). */
   storeTerritoryCode?: string | null;
+  /** Driveable CRM region (e.g. Oregon Coast); ALL/null = whole store territory. */
+  crmRegion?: string | null;
   /** Regional capacity override (default/max 25). Ignored for nightly. */
   limit?: number;
 };
@@ -323,6 +352,7 @@ export async function runOutreachNightlyPrep(
 
   const operationalTerritoryId = input.operationalTerritoryId?.trim() || null;
   const storeTerritoryCode = input.storeTerritoryCode?.trim().toLowerCase() || null;
+  const crmRegion = normalizePrepCrmRegion(input.crmRegion);
   const isRegional = Boolean(operationalTerritoryId);
   const kind: OutreachPrepKind = isRegional
     ? OUTREACH_MANUAL_REGIONAL_PREP_KIND
@@ -362,6 +392,7 @@ export async function runOutreachNightlyPrep(
     runDate,
     operationalTerritoryId,
     storeTerritoryCode,
+    crmRegion,
   });
   if (!existing.ok) return { ok: false, error: existing.error };
 
@@ -426,6 +457,7 @@ export async function runOutreachNightlyPrep(
         isRegional,
         operationalTerritoryId,
         storeTerritoryCode,
+        crmRegion,
       });
     }
   }
@@ -441,6 +473,7 @@ export async function runOutreachNightlyPrep(
       triggered_by: input.triggeredBy ?? null,
       operational_territory_id: isRegional ? operationalTerritoryId : null,
       store_territory_code: isRegional ? storeTerritoryCode : null,
+      crm_region: isRegional ? crmRegion : null,
     })
     .select('*')
     .single();
@@ -452,6 +485,7 @@ export async function runOutreachNightlyPrep(
       runDate,
       operationalTerritoryId,
       storeTerritoryCode,
+      crmRegion,
     });
     if (again.ok && again.run) {
       if (again.run.status === 'succeeded' || (again.run.status === 'empty_pool' && !isRegional)) {
@@ -482,6 +516,7 @@ export async function runOutreachNightlyPrep(
     isRegional,
     operationalTerritoryId,
     storeTerritoryCode,
+    crmRegion,
   });
 }
 
@@ -498,6 +533,7 @@ async function continuePrep(params: {
   isRegional: boolean;
   operationalTerritoryId: string | null;
   storeTerritoryCode: string | null;
+  crmRegion: string | null;
 }): Promise<RunOutreachNightlyPrepResult> {
   const {
     client,
@@ -510,6 +546,7 @@ async function continuePrep(params: {
     isRegional,
     operationalTerritoryId,
     storeTerritoryCode,
+    crmRegion,
   } = params;
 
   const leadRulesRefresh = await refreshPersistedLeadRules({ client, performance });
@@ -610,6 +647,7 @@ async function continuePrep(params: {
     fitBandWeightSource: isRegional ? undefined : fitBandWeightResult.source,
     operationalTerritoryId: operationalTerritoryId ?? undefined,
     storeTerritoryCode: storeTerritoryCode ?? undefined,
+    crmRegion: crmRegion ?? undefined,
     rankMode: isRegional ? 'fit_score' : 'default',
     skipChannelAllocation: isRegional,
   });

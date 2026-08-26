@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
 import { catalogItemStub } from '@/lib/catalog';
 import { aggregateProspectOutreachEngagement } from '@/lib/outreachEngagementAggregate';
-import type { OutreachBriefingDto } from '@/lib/outreachBriefing';
+import type { OutreachBriefingDto } from '@/lib/outreachBriefingShared';
 import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
 
 const getAgentProductOutreachDraftClientMock = vi.fn();

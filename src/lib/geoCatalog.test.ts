@@ -4,7 +4,9 @@ import {
   UNASSIGNED_REGION_VALUE,
   allDriveableRegionOptions,
   isStatewideRegionLabel,
+  normalizePrepCrmRegion,
   opsCodeForBriefingRegion,
+  prospectMatchesCrmRegion,
   regionOptionsForTerritory,
   territoryCodeFromDriveableRegion,
 } from '@/lib/geoCatalog';
@@ -60,5 +62,16 @@ describe('geoCatalog', () => {
     expect(opsCodeForBriefingRegion('wa', 'Puget Sound')).toBe('pnw-west');
     expect(opsCodeForBriefingRegion('wa', 'Eastern Washington')).toBe('pnw-east');
     expect(opsCodeForBriefingRegion('', 'ALL')).toBeNull();
+  });
+
+  it('normalizes prep CRM region and matches prospects to filters', () => {
+    expect(normalizePrepCrmRegion('ALL')).toBeNull();
+    expect(normalizePrepCrmRegion(' Oregon Coast ')).toBe('Oregon Coast');
+    expect(normalizePrepCrmRegion(UNASSIGNED_REGION_VALUE)).toBe(UNASSIGNED_REGION_VALUE);
+
+    expect(prospectMatchesCrmRegion('Oregon Coast', 'Oregon Coast')).toBe(true);
+    expect(prospectMatchesCrmRegion('Willamette Valley', 'Oregon Coast')).toBe(false);
+    expect(prospectMatchesCrmRegion('Oregon', UNASSIGNED_REGION_VALUE, 'or')).toBe(true);
+    expect(prospectMatchesCrmRegion('Oregon Coast', UNASSIGNED_REGION_VALUE, 'or')).toBe(false);
   });
 });

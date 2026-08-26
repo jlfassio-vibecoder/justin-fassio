@@ -25,10 +25,21 @@ export const GET: APIRoute = async ({ request, url }) => {
     return json({ error: resolved.error }, resolved.status);
   }
 
+  const operationalTerritoryId = search.get('operational_territory_id')?.trim() || '';
+  const storeTerritoryCode = search.get('store_territory_code')?.trim().toLowerCase() || '';
+  const crmRegion = search.get('crm_region')?.trim() || '';
+
   const assembled = await assembleOutreachBriefing({
     client: gate.supabase,
     salesLineId: resolved.line?.id ?? null,
     salesLineCode: resolved.line?.code ?? null,
+    regionalPrepScope: operationalTerritoryId
+      ? {
+          operationalTerritoryId,
+          storeTerritoryCode: storeTerritoryCode || null,
+          crmRegion: crmRegion || null,
+        }
+      : undefined,
   });
   if (!assembled.ok) return json({ error: assembled.error }, 500);
 

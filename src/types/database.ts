@@ -1899,6 +1899,7 @@ export interface Database {
           reason: string | null;
           operational_territory_id: string | null;
           store_territory_code: string | null;
+          crm_region: string | null;
           started_at: string;
           finished_at: string | null;
           triggered_by: string | null;
@@ -1925,6 +1926,7 @@ export interface Database {
           reason?: string | null;
           operational_territory_id?: string | null;
           store_territory_code?: string | null;
+          crm_region?: string | null;
           started_at?: string;
           finished_at?: string | null;
           triggered_by?: string | null;
@@ -1951,6 +1953,7 @@ export interface Database {
           reason?: string | null;
           operational_territory_id?: string | null;
           store_territory_code?: string | null;
+          crm_region?: string | null;
           started_at?: string;
           finished_at?: string | null;
           triggered_by?: string | null;

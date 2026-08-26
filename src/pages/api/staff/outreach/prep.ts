@@ -9,6 +9,7 @@ import {
   OUTREACH_REGIONAL_PREP_MAX_LIMIT,
   runOutreachNightlyPrep,
 } from '@/lib/outreachNightlyPrep';
+import { normalizePrepCrmRegion } from '@/lib/geoCatalog';
 import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { isWeekdayIso } from '@/lib/outreachSellingDays';
 
@@ -46,6 +47,7 @@ export const POST: APIRoute = async ({ request }) => {
   const storeRaw =
     typeof body.storeTerritoryCode === 'string' ? body.storeTerritoryCode.trim().toLowerCase() : '';
   const storeTerritoryCode = storeRaw || null;
+  const crmRegionRaw = typeof body.crmRegion === 'string' ? body.crmRegion.trim() : '';
 
   if (storeTerritoryCode && !['or', 'wa'].includes(storeTerritoryCode)) {
     return json({ error: 'storeTerritoryCode must be "or" or "wa" when set' }, 400);
@@ -103,6 +105,7 @@ export const POST: APIRoute = async ({ request }) => {
     asOf,
     operationalTerritoryId: operationalTerritoryId || undefined,
     storeTerritoryCode,
+    crmRegion: normalizePrepCrmRegion(crmRegionRaw || null),
     limit,
   });
 

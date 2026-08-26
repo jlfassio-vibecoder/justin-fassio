@@ -6,22 +6,31 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import type { AllocateChannelsForDayResult } from '@/lib/outreachChannelAllocation';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
-import {
-  listCallToday,
-  listHotLeads,
-  listWarmLeads,
-  type OutreachLeadRow,
-} from '@/lib/outreachLeadLists';
+import { listCallToday, listHotLeads, listWarmLeads } from '@/lib/outreachLeadLists';
 import {
   briefingSellingDate,
   getLatestOutreachAutomationRunForDate,
+  getRegionalOutreachPrepRun,
   type OutreachAutomationRunRow,
 } from '@/lib/outreachNightlyPrep';
-import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
-import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
+import { normalizePrepCrmRegion, prospectMatchesCrmRegion } from '@/lib/geoCatalog';
+import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outreachSelectTargets';
+import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
+import {
+  formatRegionalPoolMessage,
+  type OutreachAutomationRunPublic,
+  type OutreachBriefingDraftRow,
+  type OutreachBriefingDto,
+} from '@/lib/outreachBriefingShared';
+
+export type {
+  OutreachAutomationRunPublic,
+  OutreachBriefingDraftRow,
+  OutreachBriefingDto,
+  OutreachPoolDiagnostics,
+} from '@/lib/outreachBriefingShared';
+export { formatRegionalPoolMessage } from '@/lib/outreachBriefingShared';
 import { AGENT_OUTREACH_PENDING_DRAFT_STATUSES } from '@/lib/outreachSelectionConstants';
-import type { LeadRuleSource } from '@/lib/outreachLeadRuleCalibration';
-import type { OutreachLeadRulesVersion } from '@/lib/outreachLeadRules';
 import { resolveOutreachLeadRules } from '@/lib/resolveOutreachLeadRules';
 import {
   listAgentProductOutreachDrafts,
@@ -29,81 +38,6 @@ import {
 } from '@/lib/systemMessages';
 
 type Client = SupabaseClient<Database>;
-
-export type OutreachAutomationRunPublic = {
-  id: string;
-  runDate: string;
-  status: OutreachAutomationRunRow['status'];
-  trigger: OutreachAutomationRunRow['trigger'];
-  capacity: number;
-  pendingBefore: number;
-  netCapacity: number;
-  selectedCount: number;
-  producedCount: number;
-  skippedCount: number;
-  failedCount: number;
-  shortfall: number;
-  reason: string | null;
-  error: string | null;
-  startedAt: string;
-  finishedAt: string | null;
-};
-
-export type OutreachBriefingDraftRow = {
-  draftId: string;
-  prospectId: number;
-  prospectName: string;
-  catalogItemId: string;
-  productName: string;
-  productSku: string;
-  productSlug: string;
-  toEmail: string;
-  accountStatus?: string;
-  primaryChannel: string | null;
-  createdAt: string;
-};
-
-export type OutreachBriefingDto = {
-  asOfDate: string;
-  sellingDate: string;
-  prep: {
-    run: OutreachAutomationRunPublic | null;
-    status: 'missing' | OutreachAutomationRunRow['status'];
-    message: string;
-  };
-  goal: {
-    monthlyTarget: number;
-    mtdAccounts: number;
-    remainingGoal: number;
-    projectedAttainment: number;
-    recommendedDailySends: number;
-    rateSource: string;
-    goalMet: boolean;
-  };
-  drafts: OutreachBriefingDraftRow[];
-  channelAllocation: AllocateChannelsForDayResult | null;
-  callToday: OutreachLeadRow[];
-  hot: OutreachLeadRow[];
-  warm: OutreachLeadRow[];
-  recentEngagement: Array<{
-    prospectId: number;
-    prospectName: string;
-    lastClickedAt: string;
-    clickCount: number;
-  }>;
-  recentConversions: Array<{
-    prospectId: number;
-    prospectName: string;
-    convertedAt: string;
-  }>;
-  performance: OutreachPerformanceReport | null;
-  leadRules: {
-    source: LeadRuleSource;
-    version: OutreachLeadRulesVersion;
-    adjustedFields: string[];
-  };
-  adaptiveWeightsEnabled: boolean;
-};
 
 function toPublicRun(run: OutreachAutomationRunRow): OutreachAutomationRunPublic {
   return {
@@ -263,6 +197,12 @@ export async function assembleOutreachBriefing(params: {
   /** Phase 2: when set to a non-OGR represented line, return empty book lists. */
   salesLineId?: string | null;
   salesLineCode?: string | null;
+  /** When set, prep banner + drafts use this regional scope instead of latest run. */
+  regionalPrepScope?: {
+    operationalTerritoryId: string;
+    storeTerritoryCode?: string | null;
+    crmRegion?: string | null;
+  };
 }): Promise<{ ok: true; briefing: OutreachBriefingDto } | { ok: false; error: string }> {
   const client = params.client;
   const asOf = params.asOf ?? new Date();
@@ -299,6 +239,7 @@ export async function assembleOutreachBriefing(params: {
       performance: null,
       leadRules: { source: 'provisional', version: 'v1-provisional', adjustedFields: [] },
       adaptiveWeightsEnabled: true,
+      regionalPool: null,
     };
     return { ok: true, briefing: empty };
   }
@@ -310,10 +251,41 @@ export async function assembleOutreachBriefing(params: {
   const asOfDate = formatOutreachPreparationDate(asOf, timeZone);
   const sellingDate = briefingSellingDate(asOf, timeZone);
 
-  const runLookup = await getLatestOutreachAutomationRunForDate(client, sellingDate);
+  const runLookup = params.regionalPrepScope?.operationalTerritoryId
+    ? await getRegionalOutreachPrepRun(client, {
+        runDate: sellingDate,
+        operationalTerritoryId: params.regionalPrepScope.operationalTerritoryId,
+        storeTerritoryCode: params.regionalPrepScope.storeTerritoryCode,
+        crmRegion: params.regionalPrepScope.crmRegion,
+      })
+    : await getLatestOutreachAutomationRunForDate(client, sellingDate);
   if (!runLookup.ok) return { ok: false, error: runLookup.error };
   const run = runLookup.run;
   const banner = prepBannerMessage({ sellingDate, run });
+
+  const scopedCrmRegion = normalizePrepCrmRegion(params.regionalPrepScope?.crmRegion);
+
+  let regionalPool: OutreachPoolDiagnostics | null = null;
+  if (
+    params.regionalPrepScope?.operationalTerritoryId &&
+    scopedCrmRegion &&
+    params.regionalPrepScope.storeTerritoryCode
+  ) {
+    const poolDiag = await selectOutreachTargets(client, {
+      preparationDate: sellingDate,
+      capacity: 0,
+      includeDiagnostics: true,
+      operationalTerritoryId: params.regionalPrepScope.operationalTerritoryId,
+      storeTerritoryCode: params.regionalPrepScope.storeTerritoryCode,
+      crmRegion: scopedCrmRegion,
+      rankMode: 'fit_score',
+      skipChannelAllocation: true,
+      asOf,
+    });
+    if (poolDiag.ok && poolDiag.diagnostics) {
+      regionalPool = poolDiag.diagnostics;
+    }
+  }
 
   // Only filter by automationRunId when a run exists; otherwise preparationDate alone.
   // Querying without either returns unrelated pending drafts and skips the fallback.
@@ -357,10 +329,11 @@ export async function assembleOutreachBriefing(params: {
 
   // Enrich prospect names
   const draftProspectIds = [...new Set(drafts.map((d) => d.prospectId))];
+  let filteredDrafts = drafts;
   if (draftProspectIds.length > 0) {
     const { data: names } = await client
       .from('prospects')
-      .select('id, name, account_status')
+      .select('id, name, account_status, region')
       .in('id', draftProspectIds);
     const prospectById = new Map((names ?? []).map((p) => [p.id, p] as const));
     for (const d of drafts) {
@@ -368,6 +341,14 @@ export async function assembleOutreachBriefing(params: {
       const name = prospect?.name?.trim();
       if (name) d.prospectName = name;
       if (prospect?.account_status) d.accountStatus = prospect.account_status;
+    }
+    if (scopedCrmRegion) {
+      const storeCode = params.regionalPrepScope?.storeTerritoryCode?.trim().toLowerCase() || null;
+      filteredDrafts = drafts.filter((d) => {
+        const prospect = prospectById.get(d.prospectId);
+        if (!prospect) return false;
+        return prospectMatchesCrmRegion(prospect.region ?? '', scopedCrmRegion, storeCode);
+      });
     }
   }
 
@@ -394,13 +375,18 @@ export async function assembleOutreachBriefing(params: {
     loadRecentConversions(client, since),
   ]);
 
+  const prepMessage =
+    regionalPool && banner.status === 'empty_pool' && scopedCrmRegion
+      ? formatRegionalPoolMessage(regionalPool, scopedCrmRegion)
+      : banner.message;
+
   const briefing: OutreachBriefingDto = {
     asOfDate,
     sellingDate,
     prep: {
       run: run ? toPublicRun(run) : null,
       status: banner.status,
-      message: banner.message,
+      message: prepMessage,
     },
     goal: {
       monthlyTarget: snap.snapshot.progress.monthlyTarget,
@@ -411,7 +397,7 @@ export async function assembleOutreachBriefing(params: {
       rateSource: snap.snapshot.pace.rateSource,
       goalMet: snap.snapshot.pace.goalMet,
     },
-    drafts,
+    drafts: filteredDrafts,
     channelAllocation,
     callToday,
     hot,
@@ -425,6 +411,7 @@ export async function assembleOutreachBriefing(params: {
       adjustedFields: resolvedLeadRules.meta.adjustedFields,
     },
     adaptiveWeightsEnabled: snap.snapshot.settings.adaptiveWeightsEnabled,
+    regionalPool,
   };
 
   return { ok: true, briefing };

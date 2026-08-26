@@ -67,6 +67,27 @@ export function isUnassignedRegionFilter(region: string): boolean {
   return region === UNASSIGNED_REGION_VALUE;
 }
 
+/** Normalize briefing region for prep run identity (ALL → null). */
+export function normalizePrepCrmRegion(region: string | null | undefined): string | null {
+  const trimmed = region?.trim();
+  if (!trimmed || trimmed === 'ALL') return null;
+  return trimmed;
+}
+
+/** Whether a prospect's CRM region matches a directory/briefing region filter. */
+export function prospectMatchesCrmRegion(
+  prospectRegion: string,
+  filterRegion: string,
+  territoryCode?: string | null,
+): boolean {
+  const filter = filterRegion.trim();
+  if (!filter || filter === 'ALL') return true;
+  if (isUnassignedRegionFilter(filter)) {
+    return isStatewideRegionLabel(prospectRegion, territoryCode);
+  }
+  return prospectRegion === filter;
+}
+
 /** True when region text is a whole-territory leftover (case-insensitive). */
 export function isStatewideRegionLabel(region: string, territoryCode?: string | null): boolean {
   const trimmed = region.trim();
@@ -122,11 +143,7 @@ export function regionSuggestionsForTerritory(territoryCode: string | null | und
     .map((o) => o.value);
 }
 
-/**
- * Interim OGR prep: map a driveable region to pnw-west / pnw-east.
- * All regions / Unassigned still need an ops id for the prep API; default west
- * and rely on storeTerritoryCode to scope the state (full region-scoped prep is follow-up).
- */
+/** Map a driveable region to pnw-west / pnw-east for the prep API ops territory. */
 export function opsCodeForBriefingRegion(
   storeTerritoryCode: 'or' | 'wa' | '',
   region: string,

@@ -153,7 +153,7 @@ describe('staff outreach briefing + prep', () => {
     );
   });
 
-  it('POST regional prep passes ops territory, store geo, limit, and selling date', async () => {
+  it('POST regional prep passes ops territory, store geo, CRM region, limit, and selling date', async () => {
     const res = await POST_PREP({
       request: new Request('http://localhost/api/staff/outreach/prep', {
         method: 'POST',
@@ -161,6 +161,7 @@ describe('staff outreach briefing + prep', () => {
         body: JSON.stringify({
           operationalTerritoryId: 'ops-pnw-west',
           storeTerritoryCode: 'or',
+          crmRegion: 'Oregon Coast',
           limit: 25,
         }),
       }),
@@ -172,6 +173,7 @@ describe('staff outreach briefing + prep', () => {
         triggeredBy: 'staff-1',
         operationalTerritoryId: 'ops-pnw-west',
         storeTerritoryCode: 'or',
+        crmRegion: 'Oregon Coast',
         limit: 25,
         preparationDate: '2026-08-12',
       }),

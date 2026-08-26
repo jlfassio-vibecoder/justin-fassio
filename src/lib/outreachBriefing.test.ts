@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { formatRegionalPoolMessage } from '@/lib/outreachBriefingShared';
 import { prepBannerMessage } from '@/lib/outreachBriefing';
+import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
 import type { OutreachAutomationRunRow } from '@/lib/outreachNightlyPrep';
 
 function run(partial: Partial<OutreachAutomationRunRow>): OutreachAutomationRunRow {
@@ -23,6 +25,7 @@ function run(partial: Partial<OutreachAutomationRunRow>): OutreachAutomationRunR
     reason: null,
     operationalTerritoryId: null,
     storeTerritoryCode: null,
+    crmRegion: null,
     startedAt: '2026-08-12T05:00:00.000Z',
     finishedAt: '2026-08-12T05:01:00.000Z',
     triggeredBy: null,
@@ -59,5 +62,25 @@ describe('prepBannerMessage', () => {
       run: run({ status: 'empty_pool', shortfall: 4, producedCount: 0 }),
     });
     expect(b.message).toContain('shortfall 4');
+  });
+
+  it('formatRegionalPoolMessage explains directory vs sendable gap', () => {
+    const pool: OutreachPoolDiagnostics = {
+      inRegion: 35,
+      withUsableEmail: 3,
+      sendableNow: 0,
+      excluded: {
+        noUsableEmail: 32,
+        pendingDraft: 1,
+        cooldown: 2,
+        contactSuppressed: 0,
+        noProduct: 0,
+        other: 0,
+      },
+    };
+    const msg = formatRegionalPoolMessage(pool, 'Oregon Coast');
+    expect(msg).toContain('35 in Oregon Coast');
+    expect(msg).toContain('32 need a contact email');
+    expect(msg).toContain('0 ready to draft today');
   });
 });

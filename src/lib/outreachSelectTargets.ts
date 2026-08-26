@@ -13,6 +13,7 @@ import {
   type AccountContact,
 } from '@/lib/accountContacts';
 import type { PrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
+import { prospectMatchesCrmRegion } from '@/lib/geoCatalog';
 import {
   allocateChannelsForDay,
   type AllocateChannelsForDayResult,
@@ -91,6 +92,8 @@ export type SelectOutreachTargetsInput = {
   operationalTerritoryId?: string;
   /** Optional store-geo filter (e.g. or / wa) within the ops region. */
   storeTerritoryCode?: string;
+  /** Driveable CRM region within the store territory (e.g. Oregon Coast). */
+  crmRegion?: string;
   /**
    * Ranking mode. `fit_score` = fit desc (nulls last), then id.
    * `default` = priority / fit / fit-band / channel soft rank (nightly).
@@ -101,13 +104,20 @@ export type SelectOutreachTargetsInput = {
    * Used with regional fit_score prep.
    */
   skipChannelAllocation?: boolean;
+  /** When true, return pipeline counts (regional briefing diagnostics). */
+  includeDiagnostics?: boolean;
 };
+
+import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
+
+export type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
 
 export type SelectOutreachTargetsResult =
   | {
       ok: true;
       targets: SelectedOutreachTarget[];
       excluded: { prospectId: number; reason: OutreachExclusionReason | string }[];
+      diagnostics?: OutreachPoolDiagnostics;
     }
   | { ok: false; error: string };
 
@@ -356,18 +366,21 @@ export async function selectOutreachTargets(
 ): Promise<SelectOutreachTargetsResult> {
   const asOf = input.asOf ?? new Date();
   const preparationDate = input.preparationDate ?? formatOutreachPreparationDate(asOf);
+  const includeDiagnostics = Boolean(input.includeDiagnostics);
   const capacity = Math.max(0, Math.floor(input.capacity));
   const excluded: { prospectId: number; reason: OutreachExclusionReason | string }[] = [];
 
-  if (capacity === 0) {
+  if (capacity === 0 && !includeDiagnostics) {
     return { ok: true, targets: [], excluded };
   }
+
+  const runCapacity = includeDiagnostics && capacity === 0 ? 9999 : capacity;
 
   const allocation =
     input.channelAllocation ??
     allocateChannelsForDay({
       preparationDate,
-      capacity,
+      capacity: runCapacity,
       weights: input.weights,
     });
   const allocatedWithSlots = new Set(
@@ -390,6 +403,7 @@ export async function selectOutreachTargets(
 
   const opsTerritoryId = input.operationalTerritoryId?.trim() || null;
   const storeTerritoryCode = input.storeTerritoryCode?.trim().toLowerCase() || null;
+  const crmRegion = input.crmRegion?.trim() || null;
   const rankMode = input.rankMode ?? 'default';
   const skipChannelAllocation = Boolean(input.skipChannelAllocation);
 
@@ -410,6 +424,13 @@ export async function selectOutreachTargets(
       excluded.push({ prospectId: p.id, reason: 'outside_store_territory' });
       return false;
     }
+    if (
+      crmRegion &&
+      !prospectMatchesCrmRegion(p.region, crmRegion, storeTerritoryCode ?? p.territoryCode)
+    ) {
+      excluded.push({ prospectId: p.id, reason: 'outside_crm_region' });
+      return false;
+    }
     return true;
   });
 
@@ -425,15 +446,20 @@ export async function selectOutreachTargets(
     toEmail: string;
   };
   const pickedRows: Picked[] = [];
+  let pendingDraftCount = 0;
+  let noUsableEmailCount = 0;
+  let contactSuppressedCount = 0;
   for (const prospect of prospects) {
     if (pendingResult.prospectIds.has(prospect.id)) {
       excluded.push({ prospectId: prospect.id, reason: 'pending_agent_draft' });
+      pendingDraftCount += 1;
       continue;
     }
 
     const picked = pickOutreachContact(contactsResult.byAccountId.get(prospect.id) ?? []);
     if (!picked) {
       excluded.push({ prospectId: prospect.id, reason: 'no_usable_email' });
+      noUsableEmailCount += 1;
       continue;
     }
 
@@ -442,6 +468,7 @@ export async function selectOutreachTargets(
       suppressedResult.prospectIds.has(prospect.id)
     ) {
       excluded.push({ prospectId: prospect.id, reason: 'contact_suppressed' });
+      contactSuppressedCount += 1;
       continue;
     }
 
@@ -456,6 +483,7 @@ export async function selectOutreachTargets(
   if (!sendsResult.ok) return { ok: false, error: sendsResult.error };
 
   const eligible: EligibleCandidate[] = [];
+  let cooldownCount = 0;
 
   for (const row of pickedRows) {
     const lastSentAt = latestSentAt(
@@ -471,6 +499,7 @@ export async function selectOutreachTargets(
       })
     ) {
       excluded.push({ prospectId: row.prospect.id, reason: 'cooldown' });
+      cooldownCount += 1;
       continue;
     }
 
@@ -535,9 +564,10 @@ export async function selectOutreachTargets(
   const claimedProspects = new Set<number>();
   const targets: SelectedOutreachTarget[] = [];
   const spill: EligibleCandidate[] = [];
+  let noProductCount = 0;
 
   const trySelect = (candidate: EligibleCandidate, preferChannelSlot: boolean): boolean => {
-    if (targets.length >= capacity) return false;
+    if (targets.length >= runCapacity) return false;
     if (claimedProspects.has(candidate.prospect.id)) {
       excluded.push({ prospectId: candidate.prospect.id, reason: 'prospect_already_selected' });
       return false;
@@ -569,6 +599,7 @@ export async function selectOutreachTargets(
           ? 'no_product_after_dedup'
           : 'no_product_in_pool';
       excluded.push({ prospectId: candidate.prospect.id, reason });
+      noProductCount += 1;
       return false;
     }
 
@@ -605,7 +636,7 @@ export async function selectOutreachTargets(
   };
 
   for (const candidate of eligible) {
-    if (targets.length >= capacity) break;
+    if (targets.length >= runCapacity) break;
     const matched = trySelect(candidate, !skipChannelAllocation);
     if (
       !skipChannelAllocation &&
@@ -623,10 +654,35 @@ export async function selectOutreachTargets(
 
   if (!skipChannelAllocation) {
     for (const candidate of spill) {
-      if (targets.length >= capacity) break;
+      if (targets.length >= runCapacity) break;
       trySelect(candidate, false);
     }
   }
 
-  return { ok: true, targets, excluded };
+  const diagnostics: OutreachPoolDiagnostics | undefined = includeDiagnostics
+    ? {
+        inRegion: prospects.length,
+        withUsableEmail: pickedRows.length,
+        sendableNow: targets.length,
+        excluded: {
+          noUsableEmail: noUsableEmailCount,
+          pendingDraft: pendingDraftCount,
+          cooldown: cooldownCount,
+          contactSuppressed: contactSuppressedCount,
+          noProduct: noProductCount,
+          other: Math.max(
+            0,
+            prospects.length -
+              noUsableEmailCount -
+              pendingDraftCount -
+              contactSuppressedCount -
+              cooldownCount -
+              noProductCount -
+              targets.length,
+          ),
+        },
+      }
+    : undefined;
+
+  return { ok: true, targets, excluded, diagnostics };
 }
