@@ -148,10 +148,6 @@ export function AccountResearchPanel({
     latestSalesLineIdRef.current = line.salesLineId;
   }, [line.salesLineId]);
 
-  useEffect(() => {
-    setDismissedCandidatesBySource({});
-  }, [snapshot?.run.id]);
-
   const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
   const bigFishOutreachBlocked = line.lineSlug === 'big-fish' && !line.bigFishOutreach;
   const outreachBlocked = eaglePeakOutreachBlocked || bigFishOutreachBlocked;
@@ -206,6 +202,7 @@ export function AccountResearchPanel({
     if (!latest.ok) {
       setError(latest.error);
       setSnapshot(null);
+      setDismissedCandidatesBySource({});
       setSuggestions([]);
       setMatchResult(null);
       setLoading(false);
@@ -213,6 +210,7 @@ export function AccountResearchPanel({
     }
     if (latest.outcome === 'none') {
       setSnapshot(null);
+      setDismissedCandidatesBySource({});
       setSuggestions([]);
       setMatchResult(null);
       const websiteLatest = await fetchLatestAccountResearch(prospect.id, 'website');
@@ -230,6 +228,7 @@ export function AccountResearchPanel({
         };
         setWebsiteLockFallback(Boolean(websiteLatest.locksBySourceType?.website));
         setSnapshot(snap);
+        setDismissedCandidatesBySource({});
         setLoading(false);
         return snap;
       }
@@ -250,6 +249,7 @@ export function AccountResearchPanel({
       locksBySourceType: latest.locksBySourceType ?? {},
     };
     setSnapshot(snap);
+    setDismissedCandidatesBySource({});
     if (latest.run.status !== 'pending' && latest.run.status !== 'running') {
       await Promise.all([hydrateSuggestions(latest.run.id), hydrateMatch(latest.run.id)]);
     }
@@ -339,6 +339,7 @@ export function AccountResearchPanel({
     );
     setSuggestions([]);
     setMatchResult(null);
+    setDismissedCandidatesBySource({});
 
     runInFlightRef.current = true;
     const controller = new AbortController();
@@ -378,6 +379,7 @@ export function AccountResearchPanel({
       sourceFreshness: started.sourceFreshness,
       locksBySourceType: started.locksBySourceType ?? {},
     });
+    setDismissedCandidatesBySource({});
 
     if (started.run.status === 'pending' || started.run.status === 'running') {
       // processRunUntilDone owns the in-flight flag from here
@@ -492,7 +494,7 @@ export function AccountResearchPanel({
   async function handleLockSource(source: AccountResearchSourceSearch) {
     const url = selectedCandidateBySource[source.id]?.trim();
     if (!url) {
-      setError('Enter a URL to lock in.');
+      setError('Select a candidate or enter a URL to lock in.');
       return;
     }
     setBusyAction(`lock-${source.id}`);
@@ -510,6 +512,7 @@ export function AccountResearchPanel({
       return;
     }
     setSnapshot(result);
+    setDismissedCandidatesBySource({});
     await Promise.all([hydrateSuggestions(result.run.id), hydrateMatch(result.run.id)]);
   }
 
@@ -526,6 +529,7 @@ export function AccountResearchPanel({
       return;
     }
     setSnapshot(result);
+    setDismissedCandidatesBySource({});
     if (source.source_type === 'website') setWebsiteLockFallback(false);
     setSelectedCandidateBySource((prev) => {
       const next = { ...prev };

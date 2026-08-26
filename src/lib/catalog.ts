@@ -106,7 +106,9 @@ export function resolveCatalogThumbSrc(
 ): string | null {
   const src = resolvePrimaryImageSrc(item);
   if (!src) return null;
-  if (/^https?:\/\//i.test(src) || src.startsWith('/')) return src;
+  if (/^https?:\/\//i.test(src)) return src;
+  // Site-root only — reject protocol-relative `//host/...` (loads as external).
+  if (src.startsWith('/') && !src.startsWith('//')) return src;
   return null;
 }
 
