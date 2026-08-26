@@ -33,6 +33,7 @@ export const POST: APIRoute = async ({ request }) => {
     phone?: unknown;
     email?: unknown;
     role?: unknown;
+    notes?: unknown;
     confirmDuplicateEmail?: unknown;
     salesLineId?: unknown;
     retailerLineAccountId?: unknown;
@@ -78,6 +79,7 @@ export const POST: APIRoute = async ({ request }) => {
   const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : null;
   const phone = typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null;
   const email = typeof body.email === 'string' && body.email.trim() ? body.email.trim() : null;
+  const notes = typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim() : null;
   const confirmDuplicateEmail = body.confirmDuplicateEmail === true;
 
   const result = await applyEnrichedContactAttach(gate.supabase, {
@@ -87,6 +89,7 @@ export const POST: APIRoute = async ({ request }) => {
     phone,
     email,
     role,
+    notes,
     confirmDuplicateEmail,
     salesLineId: gated.ctx?.salesLineId,
     lineCode: gated.ctx?.code,

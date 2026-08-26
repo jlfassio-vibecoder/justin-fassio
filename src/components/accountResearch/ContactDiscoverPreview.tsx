@@ -1,14 +1,17 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
+import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
 import {
   ACCOUNT_CONTACT_ROLES,
   accountContactRoleLabel,
   type AccountContact,
   type AccountContactDuplicateMatch,
 } from '@/lib/accountContacts';
-import type { ContactEnrichPreview } from '@/lib/createEnrichedContact';
+import type {
+  ContactEnrichPreview,
+  ContactRoleVerificationPreview,
+} from '@/lib/createEnrichedContact';
 import { applyContactEnrich, previewContactEnrich } from '@/lib/enrichContactPreview';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { staffAiPostFields } from '@/lib/staffAiClientContext';
@@ -26,6 +29,19 @@ type ProposedForm = {
   phone: string;
   email: string;
   role: AccountContactRole;
+  notes: string;
+};
+
+const ROLE_VERIFICATION_LABELS: Record<ContactRoleVerificationPreview['status'], string> = {
+  verified: 'Verified',
+  partial: 'Partial public match',
+  not_found: 'Not found',
+};
+
+const ROLE_VERIFICATION_BADGE_CLASS: Record<ContactRoleVerificationPreview['status'], string> = {
+  verified: 'bg-emerald-50 text-emerald-900 border-emerald-200',
+  partial: 'bg-amber-50 text-amber-900 border-amber-200',
+  not_found: 'bg-ink/5 text-ink/70 border-ink/15',
 };
 
 /** Keep duplicate UX in sync with edited form values, not stale preview fields. */
@@ -56,6 +72,7 @@ export function ContactDiscoverPreview({
   const [preview, setPreview] = useState<ContactEnrichPreview | null>(null);
   const [form, setForm] = useState<ProposedForm | null>(null);
   const [briefOpen, setBriefOpen] = useState(false);
+  const [verificationOpen, setVerificationOpen] = useState(false);
   const [busyPreview, setBusyPreview] = useState(false);
   const [busyApply, setBusyApply] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,7 +118,9 @@ export function ContactDiscoverPreview({
       phone: result.preview.proposed.phone ?? '',
       email: result.preview.proposed.email ?? '',
       role: result.preview.proposed.role,
+      notes: result.preview.roleVerification?.suggestedNotes ?? '',
     });
+    setVerificationOpen(Boolean(result.preview.roleVerification));
   }
 
   async function handleApply() {
@@ -130,6 +149,7 @@ export function ContactDiscoverPreview({
       phone: form.phone.trim() || null,
       email: form.email.trim() || null,
       role: form.role,
+      notes: form.notes.trim() || null,
       confirmDuplicateEmail,
       ...aiFields,
     });
@@ -202,6 +222,55 @@ export function ContactDiscoverPreview({
           Yelp directory match not available — relying on open web search.
           {preview.yelpMatchError ? ` (${preview.yelpMatchError})` : null}
         </p>
+      ) : null}
+
+      {preview?.roleVerification ? (
+        <div className="flex flex-col gap-2">
+          <span
+            className={`inline-flex w-fit items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${ROLE_VERIFICATION_BADGE_CLASS[preview.roleVerification.status]}`}
+          >
+            LinkedIn verification: {ROLE_VERIFICATION_LABELS[preview.roleVerification.status]}
+          </span>
+          <div className="border-ink/10 rounded-md border">
+            <button
+              type="button"
+              className="text-ink/70 flex w-full items-center gap-1.5 px-2.5 py-2 text-left text-xs font-semibold tracking-wider uppercase"
+              onClick={() => setVerificationOpen((open) => !open)}
+            >
+              {verificationOpen ? (
+                <ChevronDown className="size-3.5" />
+              ) : (
+                <ChevronRight className="size-3.5" />
+              )}
+              LinkedIn verification details
+            </button>
+            {verificationOpen ? (
+              <div className="text-ink/75 flex flex-col gap-2 px-2.5 pb-2 text-xs leading-relaxed">
+                {preview.roleVerification.excerpt ? (
+                  <p className="m-0 whitespace-pre-wrap">{preview.roleVerification.excerpt}</p>
+                ) : (
+                  <p className="text-ink/55 m-0">No public LinkedIn corroboration excerpt.</p>
+                )}
+                {preview.roleVerification.sourceUrls.length > 0 ? (
+                  <ul className="m-0 list-none space-y-1 p-0">
+                    {preview.roleVerification.sourceUrls.map((url) => (
+                      <li key={url}>
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent-700 break-all underline"
+                        >
+                          {url}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
       ) : null}
 
       {preview?.researchBrief ? (
@@ -333,6 +402,18 @@ export function ContactDiscoverPreview({
               />
             </Field>
           </div>
+          <Field>
+            <FieldLabel>Notes</FieldLabel>
+            <Textarea
+              value={form.notes}
+              onChange={(e) =>
+                setForm((current) => (current ? { ...current, notes: e.target.value } : current))
+              }
+              disabled={busy}
+              rows={4}
+              placeholder="Role verification evidence and other contact notes"
+            />
+          </Field>
           {preview?.proposed.isPrimary ? (
             <p className="text-ink/55 m-0 text-xs">
               Will be set as primary (first contact on account).

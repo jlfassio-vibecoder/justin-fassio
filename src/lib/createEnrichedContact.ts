@@ -14,6 +14,11 @@ import {
 import { extractOwnerFromYelpListing } from '@/lib/contactResearch/extractOwnerFromYelpListing';
 import { mapContactRole } from '@/lib/contactResearch/mapContactRole';
 import { researchContactDiscovery } from '@/lib/contactResearch/researchContactDiscovery';
+import {
+  formatRoleVerificationNotes,
+  verifyPublicContactRole,
+  type PublicRoleVerificationStatus,
+} from '@/lib/contactResearch/verifyPublicContactRole';
 import { researchCompany } from '@/lib/companyWebResearch';
 import { yelpBizSearchUrl } from '@/lib/yelp/businessMatch';
 import { createEnrichedProspect } from '@/lib/createEnrichedProspect';
@@ -68,6 +73,14 @@ export type CreateEnrichedContactInput = {
 export type CreateEnrichedContactResult =
   { ok: true; prospect: Prospect; contact: AccountContact } | { ok: false; error: string };
 
+export type ContactRoleVerificationPreview = {
+  status: PublicRoleVerificationStatus;
+  signals: { personName: boolean; company: boolean; role: boolean; location: boolean };
+  excerpt: string | null;
+  sourceUrls: string[];
+  suggestedNotes: string | null;
+};
+
 export type ContactEnrichPreview = {
   accountId: number;
   companyName: string;
@@ -76,6 +89,7 @@ export type ContactEnrichPreview = {
   yelpVerifiedName: string | null;
   yelpCategories: string[];
   yelpMatchError: string | null;
+  roleVerification: ContactRoleVerificationPreview | null;
   proposed: {
     fullName: string;
     title: string | null;
@@ -101,6 +115,7 @@ export type ApplyEnrichedContactAttachInput = {
   phone?: string | null;
   email?: string | null;
   role: AccountContactRole;
+  notes?: string | null;
   confirmDuplicateEmail?: boolean;
   salesLineId?: string;
   lineCode?: string;
@@ -153,6 +168,7 @@ async function insertContactForAccount(
     email: string | null;
     role: AccountContactRole;
     isPrimary: boolean;
+    notes: string | null;
   },
 ): Promise<{ data: AccountContact | null; error: string | null }> {
   const { data, error } = await supabase
@@ -165,6 +181,7 @@ async function insertContactForAccount(
       phone: input.phone,
       email: input.email,
       is_primary: input.isPrimary,
+      notes: input.notes,
     })
     .select(ACCOUNT_CONTACT_SELECT)
     .single();
@@ -388,7 +405,28 @@ export async function previewEnrichedContactAttach(
       })
     : { title: ownerFromYelp.title, phone: null, email: null };
 
-  const role = mapContactRole(gaps.title);
+  const yelpBusiness = briefContext.yelpMatch?.business ?? null;
+
+  const roleVerificationRaw = fullName.trim()
+    ? await verifyPublicContactRole({
+        candidateName: fullName,
+        businessName: yelpBusiness?.name ?? prospect.name,
+        city: prospect.city,
+        state: prospect.region ?? 'OR',
+        proposedTitle: gaps.title,
+      })
+    : null;
+
+  let title = gaps.title;
+  if (
+    !candidateName &&
+    roleVerificationRaw?.status === 'verified' &&
+    roleVerificationRaw.matchedRole
+  ) {
+    title = roleVerificationRaw.matchedRole;
+  }
+
+  const role = mapContactRole(title);
   const duplicate = fullName
     ? classifyAccountContactDuplicate(contactsResult.data, {
         fullName,
@@ -396,7 +434,15 @@ export async function previewEnrichedContactAttach(
       })
     : null;
 
-  const yelpBusiness = briefContext.yelpMatch?.business ?? null;
+  const roleVerification: ContactRoleVerificationPreview | null = roleVerificationRaw
+    ? {
+        status: roleVerificationRaw.status,
+        signals: roleVerificationRaw.signals,
+        excerpt: roleVerificationRaw.excerpt,
+        sourceUrls: roleVerificationRaw.sourceUrls,
+        suggestedNotes: formatRoleVerificationNotes(roleVerificationRaw),
+      }
+    : null;
 
   return {
     ok: true,
@@ -408,9 +454,10 @@ export async function previewEnrichedContactAttach(
       yelpVerifiedName: yelpBusiness?.name ?? null,
       yelpCategories: yelpBusiness?.categories ?? [],
       yelpMatchError: briefContext.yelpMatch ? null : briefContext.yelpMatchError,
+      roleVerification,
       proposed: {
         fullName,
-        title: gaps.title,
+        title,
         phone: gaps.phone,
         email: gaps.email,
         role,
@@ -468,6 +515,7 @@ export async function applyEnrichedContactAttach(
     email,
     role: input.role,
     isPrimary: contactsResult.data.length === 0,
+    notes: input.notes?.trim() || null,
   });
   if (contactResult.error || !contactResult.data) {
     return { ok: false, error: contactResult.error ?? 'Failed to create contact' };
@@ -557,6 +605,7 @@ export async function createEnrichedContact(
     email: gaps.email,
     role: 'buyer',
     isPrimary: true,
+    notes: null,
   });
   if (contactResult.error || !contactResult.data) {
     return { ok: false, error: contactResult.error ?? 'Failed to create contact' };
