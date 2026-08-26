@@ -1,0 +1,163 @@
+import { describe, expect, it, vi } from 'vitest';
+import {
+  confidenceFromScore,
+  mapRawYelpBusiness,
+  matchProspectToYelp,
+  normalizeYelpPhone,
+  scoreYelpMatch,
+  type YelpFetchFn,
+} from '@/lib/yelp/businessMatch';
+
+describe('normalizeYelpPhone', () => {
+  it('formats 10-digit US numbers', () => {
+    expect(normalizeYelpPhone('5412651234')).toBe('541-265-1234');
+    expect(normalizeYelpPhone('(541) 265-1234')).toBe('541-265-1234');
+  });
+});
+
+describe('mapRawYelpBusiness', () => {
+  it('maps Fusion API location fields', () => {
+    const mapped = mapRawYelpBusiness({
+      id: 'newport-ace-newport',
+      name: 'Newport Ace Hardware',
+      url: 'https://www.yelp.com/biz/newport-ace-newport',
+      phone: '+15412651234',
+      location: {
+        address1: '123 Main St',
+        city: 'Newport',
+        state: 'OR',
+        zip_code: '97365',
+      },
+      business_url: 'https://newportace.com',
+    });
+    expect(mapped).toMatchObject({
+      id: 'newport-ace-newport',
+      name: 'Newport Ace Hardware',
+      phone: '541-265-1234',
+      address1: '123 Main St',
+      city: 'Newport',
+      postalCode: '97365',
+      businessUrl: 'https://newportace.com',
+    });
+  });
+});
+
+describe('scoreYelpMatch', () => {
+  const business = mapRawYelpBusiness({
+    id: 'x',
+    name: 'Newport Ace Hardware',
+    location: { city: 'Newport', zip_code: '97365' },
+    phone: '5412651234',
+  })!;
+
+  it('scores exact name and city as high', () => {
+    const scored = scoreYelpMatch(
+      {
+        name: 'Newport Ace Hardware',
+        city: 'Newport',
+        postalCode: '97365',
+        phone: '541-265-1234',
+      },
+      business,
+    );
+    expect(scored.score).toBeGreaterThanOrEqual(80);
+    expect(confidenceFromScore(scored.score, scored.reasons, 1)).toBe('high');
+  });
+
+  it('downgrades ambiguous multi-candidate matches', () => {
+    const scored = scoreYelpMatch({ name: 'Newport Ace Hardware', city: 'Newport' }, business);
+    expect(confidenceFromScore(scored.score, scored.reasons, 2)).toBe('low');
+  });
+});
+
+describe('matchProspectToYelp', () => {
+  it('uses business match then enriches via details', async () => {
+    const fetchFn: YelpFetchFn = vi.fn(async (url: string) => {
+      if (url.includes('/businesses/matches')) {
+        return new Response(
+          JSON.stringify({
+            businesses: [
+              {
+                id: 'bandon-dunes-golf',
+                name: 'Bandon Dunes Golf Resort Pro Shop',
+                url: 'https://www.yelp.com/biz/bandon-dunes-golf',
+                location: { city: 'Bandon', state: 'OR' },
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/businesses/bandon-dunes-golf')) {
+        return new Response(
+          JSON.stringify({
+            id: 'bandon-dunes-golf',
+            name: 'Bandon Dunes Golf Resort Pro Shop',
+            url: 'https://www.yelp.com/biz/bandon-dunes-golf',
+            phone: '+15413471234',
+            location: {
+              address1: '57744 Round Lake Dr',
+              city: 'Bandon',
+              state: 'OR',
+              zip_code: '97411',
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ businesses: [] }), { status: 200 });
+    });
+
+    process.env.YELP_FUSION_API_KEY = 'test-key';
+    const result = await matchProspectToYelp(
+      { name: 'Bandon Dunes Golf Resort Pro Shop', city: 'Bandon' },
+      { fetchFn },
+    );
+
+    expect(result?.matchMethod).toBe('business_match');
+    expect(result?.business.phone).toBe('541-347-1234');
+    expect(result?.confidence).toBe('high');
+  });
+
+  it('falls back to business search when match is empty', async () => {
+    const fetchFn: YelpFetchFn = vi.fn(async (url: string) => {
+      if (url.includes('/businesses/matches')) {
+        return new Response(JSON.stringify({ businesses: [] }), { status: 200 });
+      }
+      if (url.includes('/businesses/search')) {
+        return new Response(
+          JSON.stringify({
+            businesses: [
+              {
+                id: 'winter-river-books',
+                name: 'WinterRiver Books',
+                location: { city: 'Florence', state: 'OR' },
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/businesses/winter-river-books')) {
+        return new Response(
+          JSON.stringify({
+            id: 'winter-river-books',
+            name: 'WinterRiver Books',
+            location: { city: 'Florence', state: 'OR', zip_code: '97439' },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ businesses: [] }), { status: 200 });
+    });
+
+    process.env.YELP_FUSION_API_KEY = 'test-key';
+    const result = await matchProspectToYelp(
+      { name: 'WinterRiver Books', city: 'Florence' },
+      { fetchFn },
+    );
+
+    expect(result?.matchMethod).toBe('business_search');
+    expect(result?.business.city).toBe('Florence');
+  });
+});

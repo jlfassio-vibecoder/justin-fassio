@@ -14,7 +14,9 @@ import { insertRetailerFieldChanges } from '../src/lib/retailerFieldChanges.ts';
 const apply = process.argv.includes('--apply');
 const fileArg = process.argv.find((a) => !a.startsWith('-') && a.endsWith('.xlsx'));
 if (!fileArg) {
-  console.error('Usage: npx tsx --env-file=.env scripts/apply-oregon-coast-contact-enrichment.ts <file.xlsx> [--apply]');
+  console.error(
+    'Usage: npx tsx --env-file=.env scripts/apply-oregon-coast-contact-enrichment.ts <file.xlsx> [--apply]',
+  );
   process.exit(1);
 }
 
@@ -251,7 +253,12 @@ function matchProspect(sheet: EnrichmentRow, prospects: ProspectRow[]): Prospect
   const contained = prospects.filter((p) => {
     const pn = normalizeMatchName(p.name);
     const pc = compactNameKey(p.name);
-    return pn.includes(sheetNorm) || sheetNorm.includes(pn) || pc.includes(sheetCompact) || sheetCompact.includes(pc);
+    return (
+      pn.includes(sheetNorm) ||
+      sheetNorm.includes(pn) ||
+      pc.includes(sheetCompact) ||
+      sheetCompact.includes(pc)
+    );
   });
   if (contained.length === 1) return contained[0];
   if (contained.length > 1) {
@@ -310,7 +317,10 @@ const matchedIds = new Set<number>();
 const report: string[] = [];
 
 for (const row of enrichmentRows) {
-  const prospect = matchProspect(row, pool.filter((p) => !matchedIds.has(p.id)));
+  const prospect = matchProspect(
+    row,
+    pool.filter((p) => !matchedIds.has(p.id)),
+  );
   if (!prospect) {
     report.push(`UNMATCHED\t${row.store}\t${row.city}`);
     continue;
@@ -335,7 +345,10 @@ for (const row of enrichmentRows) {
   else if (website && prospect.website?.trim() !== website) prospectPatch.website = website;
   if (address && !(prospect.address ?? '').trim()) prospectPatch.address = address;
   if (postalCode && !(prospect.postal_code ?? '').trim()) prospectPatch.postal_code = postalCode;
-  if (row.city.trim() && normalizeProspectName(prospect.city ?? '') !== normalizeProspectName(row.city)) {
+  if (
+    row.city.trim() &&
+    normalizeProspectName(prospect.city ?? '') !== normalizeProspectName(row.city)
+  ) {
     prospectPatch.city = row.city.trim();
   }
 
@@ -346,7 +359,10 @@ for (const row of enrichmentRows) {
   if (!apply) continue;
 
   if (Object.keys(prospectPatch).length > 0) {
-    const { error: updErr } = await client.from('prospects').update(prospectPatch).eq('id', prospect.id);
+    const { error: updErr } = await client
+      .from('prospects')
+      .update(prospectPatch)
+      .eq('id', prospect.id);
     if (updErr) {
       report.push(`  ERROR prospect ${prospect.id}: ${updErr.message}`);
       continue;
@@ -436,7 +452,9 @@ for (const row of enrichmentRows) {
 
 const unmatchedProspects = pool.filter((p) => !matchedIds.has(p.id));
 console.log(`Mode: ${apply ? 'APPLY' : 'DRY-RUN'}`);
-console.log(`Sheet rows: ${enrichmentRows.length}, matched: ${matchedIds.size}, unmatched sheet: ${enrichmentRows.length - matchedIds.size}`);
+console.log(
+  `Sheet rows: ${enrichmentRows.length}, matched: ${matchedIds.size}, unmatched sheet: ${enrichmentRows.length - matchedIds.size}`,
+);
 console.log(`Oregon Coast CRM prospects not in sheet: ${unmatchedProspects.length}`);
 if (unmatchedProspects.length > 0 && unmatchedProspects.length <= 10) {
   for (const p of unmatchedProspects) console.log(`  CRM only: ${p.id} ${p.name} (${p.city})`);
