@@ -25,6 +25,8 @@ export type YelpMatchResult = {
   reasons: string[];
   /** Raw Yelp candidates scored before picking the best match. */
   candidateCount: number;
+  /** Scored candidates that remain plausible after filtering mismatches. */
+  viableCandidateCount: number;
 };
 
 /** Blank-only prospect scalar patch from Yelp directory data. */

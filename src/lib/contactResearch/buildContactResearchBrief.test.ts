@@ -85,6 +85,7 @@ describe('buildContactResearchBrief', () => {
       score: 100,
       reasons: ['exact_name'],
       candidateCount: 1,
+      viableCandidateCount: 1,
     };
     matchProspectToYelpMock.mockResolvedValue(yelpMatch);
 
@@ -117,6 +118,7 @@ describe('buildContactResearchBrief', () => {
       score: 0,
       reasons: ['name_mismatch'],
       candidateCount: 1,
+      viableCandidateCount: 1,
     });
 
     const result = await buildContactResearchBrief({ prospect: BASE_PROSPECT });

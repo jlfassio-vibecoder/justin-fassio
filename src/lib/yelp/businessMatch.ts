@@ -201,6 +201,19 @@ export function confidenceFromScore(
   return 'low';
 }
 
+/** Count Yelp candidates that could plausibly match after scoring (excludes clear mismatches). */
+export function countViableYelpCandidates(scored: ScoredCandidate[]): number {
+  if (scored.length <= 1) return scored.length;
+  const top = scored[0];
+  return scored.filter((candidate) => {
+    if (candidate.score < top.score - 25) return false;
+    if (candidate.reasons.includes('name_mismatch') && !top.reasons.includes('name_mismatch')) {
+      return false;
+    }
+    return true;
+  }).length;
+}
+
 function buildYelpUrl(path: string, params: Record<string, string | undefined>): string {
   const url = new URL(`${YELP_API_BASE}${path}`);
   for (const [key, value] of Object.entries(params)) {
@@ -232,8 +245,9 @@ async function businessMatch(
   input: YelpProspectMatchInput,
 ): Promise<RawYelpBusiness[]> {
   const address1 = parseStreetAddress(input.address);
+  const matchName = stripParentheticalName(input.name) || input.name;
   const payload = await yelpGet(fetchFn, '/businesses/matches', {
-    name: input.name,
+    name: matchName,
     address1: address1 || '',
     city: input.city ?? undefined,
     state: 'OR',
@@ -252,10 +266,23 @@ async function businessSearch(
   input: YelpProspectMatchInput,
 ): Promise<RawYelpBusiness[]> {
   const location = input.city?.trim() ? `${input.city.trim()}, OR` : 'Oregon';
+  const term = stripParentheticalName(input.name) || input.name;
   const payload = await yelpGet(fetchFn, '/businesses/search', {
-    term: input.name,
+    term,
     location,
     limit: '3',
+  });
+  return (payload as { businesses?: RawYelpBusiness[] }).businesses ?? [];
+}
+
+async function businessPhoneSearch(
+  fetchFn: YelpFetchFn,
+  phone: string | null | undefined,
+): Promise<RawYelpBusiness[]> {
+  const digits = phoneDigits(phone);
+  if (digits.length < 10) return [];
+  const payload = await yelpGet(fetchFn, '/businesses/search/phone', {
+    phone: digits.length === 11 && digits.startsWith('1') ? `+${digits}` : `+1${digits}`,
   });
   return (payload as { businesses?: RawYelpBusiness[] }).businesses ?? [];
 }
@@ -287,7 +314,8 @@ function pickBestMatch(
   if (scored.length === 0) return null;
 
   const best = scored[0];
-  const confidence = confidenceFromScore(best.score, best.reasons, scored.length);
+  const viableCount = countViableYelpCandidates(scored);
+  const confidence = confidenceFromScore(best.score, best.reasons, viableCount);
 
   return {
     business: best.business,
@@ -296,6 +324,7 @@ function pickBestMatch(
     score: best.score,
     reasons: best.reasons,
     candidateCount: scored.length,
+    viableCandidateCount: viableCount,
   };
 }
 
@@ -316,6 +345,14 @@ export async function matchProspectToYelp(
     }
   }
 
+  if (!match || match.confidence === 'low') {
+    const phoneHits = await businessPhoneSearch(fetchFn, input.phone);
+    const phoneMatch = pickBestMatch(input, phoneHits, 'business_search');
+    if (phoneMatch && (!match || phoneMatch.score > match.score)) {
+      match = { ...phoneMatch, matchMethod: 'business_search' };
+    }
+  }
+
   if (!match) return null;
 
   if (enrichDetails) {
@@ -323,11 +360,12 @@ export async function matchProspectToYelp(
     const rescored = scoreYelpMatch(input, details);
     match = {
       business: details,
-      confidence: confidenceFromScore(rescored.score, rescored.reasons, match.candidateCount),
+      confidence: confidenceFromScore(rescored.score, rescored.reasons, match.viableCandidateCount),
       matchMethod: match.matchMethod,
       score: rescored.score,
       reasons: rescored.reasons,
       candidateCount: match.candidateCount,
+      viableCandidateCount: match.viableCandidateCount,
     };
   }
 
