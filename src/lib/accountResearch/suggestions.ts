@@ -67,7 +67,7 @@ const modelSuggestionSchema = z.object({
       suggested_value: z.union([z.string(), z.array(z.string())]),
       rationale: z.string().max(500),
       confidence: z.enum(['high', 'medium', 'low']),
-      citation_ids: z.array(z.string().uuid()).min(1),
+      citation_ids: z.array(z.uuid()).min(1),
     }),
   ),
 });

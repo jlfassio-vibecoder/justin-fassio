@@ -76,9 +76,9 @@ const modelMatchSchema = z.object({
   items: z
     .array(
       z.object({
-        catalog_item_id: z.string().uuid(),
+        catalog_item_id: z.uuid(),
         rationale: z.string().max(500),
-        citation_ids: z.array(z.string().uuid()).min(1),
+        citation_ids: z.array(z.uuid()).min(1),
       }),
     )
     .max(3),

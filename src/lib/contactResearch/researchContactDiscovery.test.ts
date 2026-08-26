@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const generateTextMock = vi.fn();
-const perplexitySearchMock = vi.fn(() => ({}));
+const { generateTextMock, perplexitySearchMock } = vi.hoisted(() => ({
+  generateTextMock: vi.fn(),
+  perplexitySearchMock: vi.fn(() => ({})),
+}));
 
 vi.mock('ai', () => ({
-  gateway: { tools: { perplexitySearch: (...args: unknown[]) => perplexitySearchMock(...args) } },
+  gateway: {
+    tools: {
+      perplexitySearch: perplexitySearchMock as (config: unknown) => object,
+    },
+  },
   generateText: (...args: unknown[]) => generateTextMock(...args),
   stepCountIs: (n: number) => n,
 }));
