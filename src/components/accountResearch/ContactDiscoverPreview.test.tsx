@@ -35,6 +35,9 @@ describe('ContactDiscoverPreview', () => {
         companyName: 'Sassy Seagull',
         researchBrief: 'Owner Jane Doe runs purchasing.',
         yelpListingUrl: 'https://www.yelp.com/biz/the-sassy-seagull-bandon',
+        yelpVerifiedName: 'The Sassy Seagull',
+        yelpCategories: ['Gift Shop'],
+        yelpMatchError: null,
         proposed: {
           fullName: 'Jane Doe',
           title: 'Owner',
@@ -67,6 +70,9 @@ describe('ContactDiscoverPreview', () => {
         companyName: 'Sassy Seagull',
         researchBrief: 'Brief',
         yelpListingUrl: null,
+        yelpVerifiedName: null,
+        yelpCategories: [],
+        yelpMatchError: 'No Yelp directory match found',
         proposed: {
           fullName: 'Jane Doe',
           title: 'Owner',
@@ -113,6 +119,9 @@ describe('ContactDiscoverPreview', () => {
         companyName: 'Sassy Seagull',
         researchBrief: 'Brief',
         yelpListingUrl: null,
+        yelpVerifiedName: null,
+        yelpCategories: [],
+        yelpMatchError: 'No Yelp directory match found',
         proposed: {
           fullName: 'Jane Doe',
           title: 'Owner',

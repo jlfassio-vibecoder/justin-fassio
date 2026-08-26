@@ -11,8 +11,11 @@ import {
   buildContactResearchBrief,
   composeContactResearchBrief,
 } from '@/lib/contactResearch/buildContactResearchBrief';
+import { extractOwnerFromYelpListing } from '@/lib/contactResearch/extractOwnerFromYelpListing';
 import { mapContactRole } from '@/lib/contactResearch/mapContactRole';
+import { researchContactDiscovery } from '@/lib/contactResearch/researchContactDiscovery';
 import { researchCompany } from '@/lib/companyWebResearch';
+import { yelpBizSearchUrl } from '@/lib/yelp/businessMatch';
 import { createEnrichedProspect } from '@/lib/createEnrichedProspect';
 import { isValidOgrProductEmailRecipient } from '@/lib/ogrProductEmailLimits';
 import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
@@ -70,6 +73,9 @@ export type ContactEnrichPreview = {
   companyName: string;
   researchBrief: string | null;
   yelpListingUrl: string | null;
+  yelpVerifiedName: string | null;
+  yelpCategories: string[];
+  yelpMatchError: string | null;
   proposed: {
     fullName: string;
     title: string | null;
@@ -339,18 +345,35 @@ export async function previewEnrichedContactAttach(
   });
 
   const candidateName = input.candidateName?.trim() || undefined;
-  const research = await researchCompany({
+
+  const contactResearch = await researchContactDiscovery({
     companyName: prospect.name,
-    websiteUrl: briefContext.websiteUrl ?? undefined,
-    contactName: candidateName,
-    city: prospect.city ?? undefined,
-    researchContextSeed: briefContext.seedBlock,
-    persona: input.aiPersona,
+    city: prospect.city,
+    state: prospect.region ?? 'OR',
+    websiteUrl: briefContext.websiteUrl,
+    yelpBusiness: briefContext.yelpMatch?.business ?? null,
+    seedBlock: briefContext.seedBlock,
+    candidateName,
   });
 
-  const researchBrief = composeContactResearchBrief(briefContext.seedBlock, research.brief);
+  let ownerFromYelp: { fullName: string | null; title: string | null; excerpt: string | null } = {
+    fullName: null,
+    title: null,
+    excerpt: null,
+  };
+  if (!candidateName && briefContext.yelpMatch) {
+    ownerFromYelp = await extractOwnerFromYelpListing({
+      yelpBusiness: briefContext.yelpMatch.business,
+      companyName: prospect.name,
+    });
+  }
 
-  let fullName = candidateName ?? '';
+  const researchBrief = composeContactResearchBrief(
+    briefContext.seedBlock,
+    [contactResearch.brief, ownerFromYelp.excerpt].filter(Boolean).join('\n\n'),
+  );
+
+  let fullName = candidateName ?? ownerFromYelp.fullName ?? '';
   if (!fullName && researchBrief) {
     fullName = (await inferContactNameFromBrief(researchBrief)) ?? '';
   }
@@ -361,8 +384,9 @@ export async function previewEnrichedContactAttach(
         brief: researchBrief,
         phone: null,
         email: null,
+        title: ownerFromYelp.title,
       })
-    : { title: null, phone: null, email: null };
+    : { title: ownerFromYelp.title, phone: null, email: null };
 
   const role = mapContactRole(gaps.title);
   const duplicate = fullName
@@ -372,13 +396,18 @@ export async function previewEnrichedContactAttach(
       })
     : null;
 
+  const yelpBusiness = briefContext.yelpMatch?.business ?? null;
+
   return {
     ok: true,
     preview: {
       accountId,
       companyName: prospect.name,
       researchBrief,
-      yelpListingUrl: briefContext.yelpMatch?.business.url ?? null,
+      yelpListingUrl: yelpBusiness ? yelpBizSearchUrl(yelpBusiness) : null,
+      yelpVerifiedName: yelpBusiness?.name ?? null,
+      yelpCategories: yelpBusiness?.categories ?? [],
+      yelpMatchError: briefContext.yelpMatch ? null : briefContext.yelpMatchError,
       proposed: {
         fullName,
         title: gaps.title,

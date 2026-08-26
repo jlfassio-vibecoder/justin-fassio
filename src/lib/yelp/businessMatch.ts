@@ -1,4 +1,5 @@
 import { normalizeProspectName } from '@/lib/prospectListImport';
+import { ensureYelpFusionApiKey } from '@/lib/yelp/yelpFusionEnv';
 import type {
   YelpBusiness,
   YelpMatchConfidence,
@@ -19,18 +20,28 @@ type RawYelpLocation = {
   country?: string | null;
 };
 
+type RawYelpCategory = {
+  alias?: string | null;
+  title?: string | null;
+};
+
 type RawYelpBusiness = {
   id?: string;
+  alias?: string | null;
   name?: string;
   url?: string | null;
   phone?: string | null;
   location?: RawYelpLocation | null;
+  categories?: RawYelpCategory[] | null;
+  is_claimed?: boolean | null;
+  review_count?: number | null;
+  rating?: number | null;
   /** Some Fusion responses expose an official site here. */
   business_url?: string | null;
 };
 
 function getYelpApiKey(): string {
-  const key = process.env.YELP_FUSION_API_KEY?.trim();
+  const key = ensureYelpFusionApiKey();
   if (!key) {
     throw new Error('YELP_FUSION_API_KEY is required');
   }
@@ -96,16 +107,33 @@ function normalizeBusinessUrl(raw: RawYelpBusiness): string | null {
   return null;
 }
 
+function mapYelpCategories(raw: RawYelpBusiness): string[] {
+  return (raw.categories ?? []).map((c) => c.title?.trim()).filter((t): t is string => Boolean(t));
+}
+
+/** Canonical yelp.com/biz URL without tracking params. */
+export function yelpBizSearchUrl(business: YelpBusiness): string {
+  const alias = business.alias?.trim();
+  if (alias) return `https://www.yelp.com/biz/${alias}`;
+  const match = business.url.match(/yelp\.com\/biz\/([^?/#]+)/i);
+  if (match?.[1]) return `https://www.yelp.com/biz/${match[1]}`;
+  return business.url;
+}
+
 export function mapRawYelpBusiness(raw: RawYelpBusiness): YelpBusiness | null {
   const id = (raw.id ?? '').trim();
   const name = (raw.name ?? '').trim();
   if (!id || !name) return null;
 
   const location = raw.location ?? {};
-  const yelpUrl = (raw.url ?? '').trim() || `https://www.yelp.com/biz/${id}`;
+  const alias = (raw.alias ?? '').trim() || null;
+  const yelpUrl =
+    (raw.url ?? '').trim() ||
+    (alias ? `https://www.yelp.com/biz/${alias}` : `https://www.yelp.com/biz/${id}`);
 
   return {
     id,
+    alias,
     name,
     url: yelpUrl,
     phone: normalizeYelpPhone(raw.phone),
@@ -114,6 +142,13 @@ export function mapRawYelpBusiness(raw: RawYelpBusiness): YelpBusiness | null {
     state: (location.state ?? '').trim() || null,
     postalCode: (location.zip_code ?? '').trim() || null,
     businessUrl: normalizeBusinessUrl(raw),
+    categories: mapYelpCategories(raw),
+    isClaimed: typeof raw.is_claimed === 'boolean' ? raw.is_claimed : null,
+    reviewCount:
+      typeof raw.review_count === 'number' && Number.isFinite(raw.review_count)
+        ? raw.review_count
+        : null,
+    rating: typeof raw.rating === 'number' && Number.isFinite(raw.rating) ? raw.rating : null,
   };
 }
 

@@ -40,7 +40,7 @@ import { setOutreachEligibleClient } from '@/lib/outreachOptInClient';
 import { setReactivationUnresponsiveClient } from '@/lib/reactivationUnresponsiveClient';
 import { accountStatusFromRelationship } from '@/lib/ogrCommercial';
 import { useOptionalLineContext } from '@/lib/lineContext';
-import type { Territory } from '@/lib/territories';
+import { ALL_TERRITORIES_FILTER, type Territory } from '@/lib/territories';
 
 interface ActiveAccountsTabProps {
   accounts: Prospect[];
@@ -106,7 +106,7 @@ export function ActiveAccountsTab({
   const prefillLine = { multiLineAi: lineCtx.multiLineAi, lineName: lineCtx.name };
   const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const ogrSelected = !lineCtx.multiLineUi || lineCtx.lineSlug === 'ogr';
-  const [territoryCode, setTerritoryCode] = useState(deepLinkTerritory ?? 'ALL');
+  const [territoryCode, setTerritoryCode] = useState(deepLinkTerritory ?? ALL_TERRITORIES_FILTER);
   const [reactivation, setReactivation] = useState(deepLinkReactivation);
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);

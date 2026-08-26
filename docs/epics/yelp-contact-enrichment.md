@@ -438,6 +438,54 @@ Existing `POST /api/contacts/enrich` unchanged (AddContactAiModal backward compa
 
 Pilot checklist: preview returns name + title from public sources (email optional); staff confirms role mapping; apply inserts without duplicate errors; re-run regional prep when email exists.
 
+### 7.3 Phase 1.5 implementation spec (shipped 2026-08-26)
+
+Yelp-first contact discovery: when Fusion match confidence is **high** or **medium**, treat Yelp-verified identity as ground truth and run contact-specific research (not prospect CRM category enrichment).
+
+#### Fusion API limits
+
+| Capability                        | Standard Fusion | Phase 1.5 approach                                  |
+| --------------------------------- | --------------- | --------------------------------------------------- |
+| Business Match / Search / Details | Yes             | `matchProspectToYelp`, `fetchYelpBusinessDetails`   |
+| Phone Search fallback             | Yes             | Used when match/search confidence is low            |
+| Owner name ("From the business")  | **No**          | Perplexity `site:yelp.com/biz/{alias}` owner search |
+| Reviews endpoint                  | Often 404       | Graceful skip — not required for contact discovery  |
+
+Owner names visible on Yelp web (e.g. Karen R. on #674) are **not** returned by Business Details. Phase 1.5 uses a constrained Perplexity pass against the matched `yelp.com/biz/{alias}` URL — no HTML scraping, no Places Enterprise tier.
+
+#### Enriched Yelp DTO
+
+`YelpBusiness` extended with `alias`, `categories[]`, `isClaimed`, `reviewCount`, `rating`. Helper: `yelpBizSearchUrl()` → clean listing URL without tracking params.
+
+#### Rich seed block
+
+`buildContactResearchBrief` seed includes Yelp-verified name, categories, address, phone, claimed status. Surfaces `yelpMatchError` when key missing, match fails, or confidence too low (UI shows fallback message).
+
+#### Contact research libs
+
+| Function                      | Path                                                     | Behavior                                                                     |
+| ----------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `researchContactDiscovery`    | `src/lib/contactResearch/researchContactDiscovery.ts`    | US retail contact prompt; Yelp URL as first search target; no CRM categories |
+| `extractOwnerFromYelpListing` | `src/lib/contactResearch/extractOwnerFromYelpListing.ts` | Perplexity yelp.com domain filter for Meet the Business Owner / owner name   |
+
+Preview attach path (`previewEnrichedContactAttach`) uses contact research + Yelp owner extraction instead of `researchCompany`. Create-prospect path unchanged.
+
+#### UI updates
+
+`ContactDiscoverPreview`: label **Contact name (optional)**; shows Yelp verified name + categories when match succeeds; warning when match unavailable.
+
+#### Phase 1.5 pilot — #674 Sassy Seagull
+
+| Field         | Expected preview                                          |
+| ------------- | --------------------------------------------------------- |
+| Yelp in seed  | The Sassy Seagull + Gift Shop categories + Bandon address |
+| Proposed name | Karen R. (from Perplexity yelp.com/biz snippet)           |
+| Title         | Business Owner                                            |
+| Role          | owner                                                     |
+| Email         | null (unless explicit elsewhere)                          |
+
+Ops: confirm `YELP_FUSION_API_KEY` on Vercel preview deployments — local `.env` alone does not guarantee server-side Yelp match.
+
 ### Phase 1 — Contact discovery preview (summary)
 
 Chain existing `researchCompany` with Yelp (+ optional locked website) context. Preview contact via `createEnrichedContact` **attach** semantics — staff confirms in UI before insert.
@@ -584,10 +632,11 @@ Update this section as work lands.
 
 ## 14. Revision log
 
-| Date       | Change                                                                                          |
-| ---------- | ----------------------------------------------------------------------------------------------- |
-| 2026-08-26 | Initial epic drafted from codebase audit on `feature/yelp-contact-finder`                       |
-| 2026-08-26 | Locked §1.1 verification methodology (LinkedIn confirmation layer, Verified/Partial/Not found)  |
-| 2026-08-26 | Phase 0 shipped: Fusion API lib, pilot script, §7.1 implementation spec                         |
-| 2026-08-26 | Live pilot: apply #624/#631 phone; scorer compact/parenthetical fix; §7.1 results table         |
-| 2026-08-26 | Phase 1 shipped: brief builder, preview/apply APIs, Account Research contact discovery UI; §7.2 |
+| Date       | Change                                                                                              |
+| ---------- | --------------------------------------------------------------------------------------------------- |
+| 2026-08-26 | Initial epic drafted from codebase audit on `feature/yelp-contact-finder`                           |
+| 2026-08-26 | Locked §1.1 verification methodology (LinkedIn confirmation layer, Verified/Partial/Not found)      |
+| 2026-08-26 | Phase 0 shipped: Fusion API lib, pilot script, §7.1 implementation spec                             |
+| 2026-08-26 | Live pilot: apply #624/#631 phone; scorer compact/parenthetical fix; §7.1 results table             |
+| 2026-08-26 | Phase 1 shipped: brief builder, preview/apply APIs, Account Research contact discovery UI; §7.2     |
+| 2026-08-26 | Phase 1.5 shipped: Yelp-first contact research, owner extraction from yelp.com URL, rich seed; §7.3 |

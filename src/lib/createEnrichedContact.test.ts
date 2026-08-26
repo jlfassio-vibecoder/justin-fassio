@@ -3,6 +3,8 @@ import type { AgentSupabase } from '@/lib/agentAuth';
 
 const createEnrichedProspectMock = vi.fn();
 const researchCompanyMock = vi.fn();
+const researchContactDiscoveryMock = vi.fn();
+const extractOwnerFromYelpListingMock = vi.fn();
 const generateObjectMock = vi.fn();
 const buildContactResearchBriefMock = vi.fn();
 const matchProspectToYelpMock = vi.fn();
@@ -15,6 +17,14 @@ vi.mock('@/lib/companyWebResearch', () => ({
   researchCompany: (...args: unknown[]) => researchCompanyMock(...args),
 }));
 
+vi.mock('@/lib/contactResearch/researchContactDiscovery', () => ({
+  researchContactDiscovery: (...args: unknown[]) => researchContactDiscoveryMock(...args),
+}));
+
+vi.mock('@/lib/contactResearch/extractOwnerFromYelpListing', () => ({
+  extractOwnerFromYelpListing: (...args: unknown[]) => extractOwnerFromYelpListingMock(...args),
+}));
+
 vi.mock('@/lib/contactResearch/buildContactResearchBrief', () => ({
   buildContactResearchBrief: (...args: unknown[]) => buildContactResearchBriefMock(...args),
   composeContactResearchBrief: (seed: string, brief: string | null) =>
@@ -23,6 +33,10 @@ vi.mock('@/lib/contactResearch/buildContactResearchBrief', () => ({
 
 vi.mock('@/lib/yelp/businessMatch', () => ({
   matchProspectToYelp: (...args: unknown[]) => matchProspectToYelpMock(...args),
+  yelpBizSearchUrl: (business: { alias?: string | null; url: string }) => {
+    if (business.alias?.trim()) return `https://www.yelp.com/biz/${business.alias.trim()}`;
+    return business.url;
+  },
 }));
 
 vi.mock('ai', () => ({
@@ -319,18 +333,35 @@ describe('previewEnrichedContactAttach', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     buildContactResearchBriefMock.mockResolvedValue({
-      seedBlock: 'Yelp directory listing',
-      yelpMatch: { business: { url: 'https://www.yelp.com/biz/test' } },
+      seedBlock: 'Yelp-verified business',
+      yelpMatch: {
+        business: {
+          id: 'sassy',
+          alias: 'the-sassy-seagull-bandon',
+          name: 'The Sassy Seagull',
+          url: 'https://www.yelp.com/biz/the-sassy-seagull-bandon',
+          categories: ['Gift Shop'],
+        },
+      },
+      yelpMatchError: null,
       websiteUrl: 'https://store.com',
       researchBrief: null,
     });
-    researchCompanyMock.mockResolvedValue({ brief: 'Perplexity brief', error: null });
+    researchContactDiscoveryMock.mockResolvedValue({
+      brief: 'Contact research brief',
+      error: null,
+    });
+    extractOwnerFromYelpListingMock.mockResolvedValue({
+      fullName: null,
+      title: null,
+      excerpt: null,
+    });
     generateObjectMock.mockResolvedValue({
       object: { title: 'General Manager', phone: '541-555-0100', email: null },
     });
   });
 
-  it('returns preview with mapped role', async () => {
+  it('returns preview with mapped role using contact research path', async () => {
     const supabase = mockSupabase({
       prospectSingle: prospectRow,
       contactCount: 1,
@@ -346,8 +377,37 @@ describe('previewEnrichedContactAttach', () => {
     if (result.ok) {
       expect(result.preview.proposed.role).toBe('manager');
       expect(result.preview.proposed.fullName).toBe('Sarah Jenkins');
-      expect(result.preview.yelpListingUrl).toBe('https://www.yelp.com/biz/test');
+      expect(result.preview.yelpListingUrl).toBe(
+        'https://www.yelp.com/biz/the-sassy-seagull-bandon',
+      );
+      expect(result.preview.yelpVerifiedName).toBe('The Sassy Seagull');
+      expect(result.preview.yelpCategories).toEqual(['Gift Shop']);
     }
+    expect(researchContactDiscoveryMock).toHaveBeenCalled();
+    expect(researchCompanyMock).not.toHaveBeenCalled();
+  });
+
+  it('uses Yelp owner extraction when no candidate name', async () => {
+    extractOwnerFromYelpListingMock.mockResolvedValue({
+      fullName: 'Karen R.',
+      title: 'Business Owner',
+      excerpt: 'Meet the Business Owner: Karen R.',
+    });
+
+    const supabase = mockSupabase({
+      prospectSingle: prospectRow,
+      contactCount: 1,
+      contactList: [],
+    });
+
+    const result = await previewEnrichedContactAttach(supabase, { accountId: 12 });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.preview.proposed.fullName).toBe('Karen R.');
+      expect(result.preview.proposed.title).toBe('Business Owner');
+    }
+    expect(extractOwnerFromYelpListingMock).toHaveBeenCalled();
   });
 });
 

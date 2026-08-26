@@ -224,6 +224,11 @@ describe('directory presentation', () => {
     expect(accountsTab).toMatch(/setReactivationUnresponsiveClient/);
     expect(accountsTab).not.toMatch(/from '@\/lib\/setReactivationUnresponsive'/);
     expect(directory).toMatch(/All territories/);
+    expect(prospectsTab).toMatch(/ALL_TERRITORIES_FILTER/);
+    expect(prospectsTab).not.toMatch(/useState\(BC_TERRITORY_CODE\)/);
+    expect(accountsTab).toMatch(/ALL_TERRITORIES_FILTER/);
+    expect(directory).toMatch(/ALL_TERRITORIES_FILTER/);
+    expect(directory).not.toMatch(/useState\(BC_TERRITORY_CODE\)/);
     expect(directory).toMatch(/formatAccountLocationLine/);
     expect(directory).toMatch(/regionOptionsForTerritory/);
     expect(directory).toMatch(/aria-label="Territory"/);

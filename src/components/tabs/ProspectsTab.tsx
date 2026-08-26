@@ -16,7 +16,7 @@ import type { Prospect } from '@/lib/prospects';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { isProspectsPipelineRow } from '@/lib/accountImport/directoryPresentation';
 import { isApprovedOwner } from '@/lib/auth';
-import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
+import { ALL_TERRITORIES_FILTER, type Territory } from '@/lib/territories';
 
 const PLANNING_COLUMN_HEADERS = [
   'External ID',
@@ -98,7 +98,7 @@ export function ProspectsTab({
   const [importOpen, setImportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [lookalikeOpen, setLookalikeOpen] = useState(false);
-  const [territoryCode, setTerritoryCode] = useState(BC_TERRITORY_CODE);
+  const [territoryCode, setTerritoryCode] = useState(ALL_TERRITORIES_FILTER);
   const [highlightedProspectId, setHighlightedProspectId] = useState<number | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [detailProspect, setDetailProspect] = useState<Prospect | null>(null);

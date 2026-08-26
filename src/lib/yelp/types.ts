@@ -2,6 +2,8 @@
 export type YelpBusiness = {
   id: string;
   name: string;
+  /** Yelp business alias for yelp.com/biz/{alias} URLs. */
+  alias: string | null;
   /** Yelp listing page URL. */
   url: string;
   phone: string | null;
@@ -11,6 +13,10 @@ export type YelpBusiness = {
   postalCode: string | null;
   /** Official business website when Yelp exposes one (not the Yelp listing URL). */
   businessUrl: string | null;
+  categories: string[];
+  isClaimed: boolean | null;
+  reviewCount: number | null;
+  rating: number | null;
 };
 
 export type YelpMatchConfidence = 'high' | 'medium' | 'low';

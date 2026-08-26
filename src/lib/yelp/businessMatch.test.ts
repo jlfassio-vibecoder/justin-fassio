@@ -7,6 +7,7 @@ import {
   normalizeYelpMatchName,
   normalizeYelpPhone,
   scoreYelpMatch,
+  yelpBizSearchUrl,
   type YelpFetchFn,
 } from '@/lib/yelp/businessMatch';
 
@@ -48,6 +49,39 @@ describe('mapRawYelpBusiness', () => {
       postalCode: '97365',
       businessUrl: 'https://newportace.com',
     });
+  });
+
+  it('maps alias, categories, claimed, review count, and rating', () => {
+    const mapped = mapRawYelpBusiness({
+      id: 'the-sassy-seagull-bandon',
+      alias: 'the-sassy-seagull-bandon',
+      name: 'The Sassy Seagull',
+      url: 'https://www.yelp.com/biz/the-sassy-seagull-bandon?osq=Gift+Shop',
+      categories: [{ title: 'Gift Shop' }, { title: 'Souvenir Shop' }],
+      is_claimed: true,
+      review_count: 42,
+      rating: 4.5,
+      location: { city: 'Bandon', state: 'OR' },
+    });
+    expect(mapped).toMatchObject({
+      alias: 'the-sassy-seagull-bandon',
+      categories: ['Gift Shop', 'Souvenir Shop'],
+      isClaimed: true,
+      reviewCount: 42,
+      rating: 4.5,
+    });
+  });
+});
+
+describe('yelpBizSearchUrl', () => {
+  it('prefers alias for clean listing URL', () => {
+    const business = mapRawYelpBusiness({
+      id: 'the-sassy-seagull-bandon',
+      alias: 'the-sassy-seagull-bandon',
+      name: 'The Sassy Seagull',
+      url: 'https://www.yelp.com/biz/the-sassy-seagull-bandon?osq=Gift+Shop',
+    })!;
+    expect(yelpBizSearchUrl(business)).toBe('https://www.yelp.com/biz/the-sassy-seagull-bandon');
   });
 });
 

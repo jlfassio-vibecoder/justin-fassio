@@ -85,7 +85,7 @@ function dotenvSearchRoots(): string[] {
   return roots;
 }
 
-function readKeyFromDotenvFiles(): string | null {
+function readKeyFromDotenvFiles(key: string): string | null {
   for (const root of dotenvSearchRoots()) {
     for (const name of ['.env.local', '.env']) {
       const file = resolve(root, name);
@@ -96,26 +96,38 @@ function readKeyFromDotenvFiles(): string | null {
       } catch {
         continue;
       }
-      const inspected = inspectDotenvKey(contents, GATEWAY_KEY);
+      const inspected = inspectDotenvKey(contents, key);
       if (inspected.value) return inspected.value;
     }
   }
   return null;
 }
 
-export function readAiGatewayApiKey(): string | null {
+/** Read a server-only env key from import.meta.env, process.env, or .env on disk. */
+export function readServerEnvKey(key: string): string | null {
   const fromMeta = trimEnv(
     typeof import.meta !== 'undefined'
-      ? (import.meta.env as unknown as { AI_GATEWAY_API_KEY?: string }).AI_GATEWAY_API_KEY
+      ? (import.meta.env as unknown as Record<string, string | undefined>)[key]
       : undefined,
   );
   if (fromMeta) return fromMeta;
-  const fromProcess = trimEnv(
-    typeof process !== 'undefined' ? process.env[GATEWAY_KEY] : undefined,
-  );
+  const fromProcess = trimEnv(typeof process !== 'undefined' ? process.env[key] : undefined);
   if (fromProcess) return fromProcess;
   if (isVercelOidcRuntime()) return null;
-  return readKeyFromDotenvFiles();
+  return readKeyFromDotenvFiles(key);
+}
+
+/** Copy the resolved key onto process.env for libraries that read process.env directly. */
+export function ensureServerEnvKey(key: string): string | null {
+  const value = readServerEnvKey(key);
+  if (value && typeof process !== 'undefined') {
+    process.env[key] = value;
+  }
+  return value;
+}
+
+export function readAiGatewayApiKey(): string | null {
+  return readServerEnvKey(GATEWAY_KEY);
 }
 
 /** Copy the resolved key onto process.env so default gateway() / tools can authenticate. */

@@ -12,9 +12,19 @@ import {
 import type { YelpMatchResult } from '@/lib/yelp/types';
 
 const matchProspectToYelpMock = vi.fn();
+const hasYelpFusionApiKeyMock = vi.fn(() => true);
 
 vi.mock('@/lib/yelp/businessMatch', () => ({
   matchProspectToYelp: (...args: unknown[]) => matchProspectToYelpMock(...args),
+  yelpBizSearchUrl: (business: { alias?: string | null; url: string }) => {
+    if (business.alias?.trim()) return `https://www.yelp.com/biz/${business.alias.trim()}`;
+    return business.url;
+  },
+}));
+
+vi.mock('@/lib/yelp/yelpFusionEnv', () => ({
+  hasYelpFusionApiKey: () => hasYelpFusionApiKeyMock(),
+  LOCAL_YELP_FUSION_KEY_HELP: 'YELP_FUSION_API_KEY not configured',
 }));
 
 const ORIGINAL_YELP_KEY = process.env.YELP_FUSION_API_KEY;
@@ -22,6 +32,7 @@ const ORIGINAL_YELP_KEY = process.env.YELP_FUSION_API_KEY;
 afterEach(() => {
   if (ORIGINAL_YELP_KEY === undefined) delete process.env.YELP_FUSION_API_KEY;
   else process.env.YELP_FUSION_API_KEY = ORIGINAL_YELP_KEY;
+  hasYelpFusionApiKeyMock.mockReturnValue(true);
 });
 
 const BASE_PROSPECT: Prospect = {
@@ -41,6 +52,23 @@ const BASE_PROSPECT: Prospect = {
   ...EMPTY_PROSPECT_TAXONOMY,
   ...BC_PROSPECT_TERRITORY,
   website: 'https://www.yelp.com/biz/the-sassy-seagull-bandon',
+};
+
+const SASSY_YELP_BUSINESS = {
+  id: 'sassy',
+  alias: 'the-sassy-seagull-bandon',
+  name: 'The Sassy Seagull',
+  url: 'https://www.yelp.com/biz/the-sassy-seagull-bandon',
+  phone: '541-777-7147',
+  address1: '198 2nd St SE',
+  city: 'Bandon',
+  state: 'OR',
+  postalCode: '97411',
+  businessUrl: null,
+  categories: ['Gift Shop', 'Souvenir Shop'],
+  isClaimed: true,
+  reviewCount: 42,
+  rating: 4.5,
 };
 
 describe('composeContactResearchBrief', () => {
@@ -64,22 +92,13 @@ describe('buildContactResearchBrief', () => {
     expect(result.websiteUrl).toBe('https://sassyseagull.com');
     expect(result.seedBlock).toContain('Official website hint: https://sassyseagull.com');
     expect(result.seedBlock).not.toContain('yelp.com/biz');
+    expect(result.yelpMatchError).toBe('No Yelp directory match found');
   });
 
-  it('includes high-confidence Yelp match in seed', async () => {
+  it('includes rich Yelp-verified facts in seed for high-confidence match', async () => {
     process.env.YELP_FUSION_API_KEY = 'test-key';
     const yelpMatch: YelpMatchResult = {
-      business: {
-        id: 'sassy',
-        name: 'The Sassy Seagull',
-        url: 'https://www.yelp.com/biz/the-sassy-seagull-bandon',
-        phone: '541-777-7147',
-        address1: '198 2nd St SE',
-        city: 'Bandon',
-        state: 'OR',
-        postalCode: '97411',
-        businessUrl: null,
-      },
+      business: SASSY_YELP_BUSINESS,
       confidence: 'high',
       matchMethod: 'business_match',
       score: 100,
@@ -95,15 +114,20 @@ describe('buildContactResearchBrief', () => {
     });
 
     expect(result.yelpMatch?.business.id).toBe('sassy');
-    expect(result.seedBlock).toContain('Yelp directory listing');
+    expect(result.yelpMatchError).toBeNull();
+    expect(result.seedBlock).toContain('Yelp-verified business');
+    expect(result.seedBlock).toContain('Yelp name: The Sassy Seagull');
+    expect(result.seedBlock).toContain('Categories: Gift Shop, Souvenir Shop');
+    expect(result.seedBlock).toContain('Claimed: yes');
     expect(result.seedBlock).toContain('yelp.com/biz/the-sassy-seagull-bandon');
   });
 
-  it('omits low-confidence Yelp match from seed', async () => {
+  it('omits low-confidence Yelp match from seed and surfaces error', async () => {
     process.env.YELP_FUSION_API_KEY = 'test-key';
     matchProspectToYelpMock.mockResolvedValue({
       business: {
         id: 'wrong',
+        alias: null,
         name: 'Black Bird',
         url: 'https://www.yelp.com/biz/black-bird',
         phone: null,
@@ -112,6 +136,10 @@ describe('buildContactResearchBrief', () => {
         state: 'OR',
         postalCode: null,
         businessUrl: null,
+        categories: [],
+        isClaimed: null,
+        reviewCount: null,
+        rating: null,
       },
       confidence: 'low',
       matchMethod: 'business_search',
@@ -123,6 +151,15 @@ describe('buildContactResearchBrief', () => {
 
     const result = await buildContactResearchBrief({ prospect: BASE_PROSPECT });
     expect(result.yelpMatch).toBeNull();
+    expect(result.yelpMatchError).toContain('confidence too low');
     expect(result.seedBlock).not.toContain('Black Bird');
+  });
+
+  it('surfaces missing API key error', async () => {
+    hasYelpFusionApiKeyMock.mockReturnValue(false);
+
+    const result = await buildContactResearchBrief({ prospect: BASE_PROSPECT });
+    expect(result.yelpMatch).toBeNull();
+    expect(result.yelpMatchError).toContain('YELP_FUSION_API_KEY');
   });
 });

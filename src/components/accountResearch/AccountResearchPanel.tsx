@@ -160,6 +160,8 @@ export function AccountResearchPanel({
   const identityBlocked = identityBlocksResearch(snapshot);
   const websiteLocked =
     Boolean(snapshot?.locksBySourceType?.website) || (snapshot == null && websiteLockFallback);
+  const contactDiscoveryWebsite =
+    snapshot?.run.resolved_website ?? snapshot?.locksBySourceType?.website?.locked_url ?? null;
   const running =
     snapshot?.run.status === 'pending' ||
     snapshot?.run.status === 'running' ||
@@ -218,23 +220,24 @@ export function AccountResearchPanel({
       setSuggestions([]);
       setMatchResult(null);
       const websiteLatest = await fetchLatestAccountResearch(prospect.id, 'website');
-      if (
-        websiteLatest.ok &&
-        websiteLatest.outcome !== 'none' &&
-        (websiteLatest.run.status === 'pending' || websiteLatest.run.status === 'running')
-      ) {
-        const snap: AccountResearchSnapshotDto = {
-          run: websiteLatest.run,
-          sources: websiteLatest.sources,
-          citationsBySourceId: websiteLatest.citationsBySourceId,
-          sourceFreshness: websiteLatest.sourceFreshness,
-          locksBySourceType: websiteLatest.locksBySourceType ?? {},
-        };
-        setWebsiteLockFallback(Boolean(websiteLatest.locksBySourceType?.website));
-        setSnapshot(snap);
-        setDismissedCandidatesBySource({});
-        setLoading(false);
-        return snap;
+      if (websiteLatest.ok && websiteLatest.outcome !== 'none') {
+        const hasWebsiteLock = Boolean(websiteLatest.locksBySourceType?.website);
+        const isActive =
+          websiteLatest.run.status === 'pending' || websiteLatest.run.status === 'running';
+        if (isActive || hasWebsiteLock) {
+          const snap: AccountResearchSnapshotDto = {
+            run: websiteLatest.run,
+            sources: websiteLatest.sources,
+            citationsBySourceId: websiteLatest.citationsBySourceId,
+            sourceFreshness: websiteLatest.sourceFreshness,
+            locksBySourceType: websiteLatest.locksBySourceType ?? {},
+          };
+          setWebsiteLockFallback(hasWebsiteLock);
+          setSnapshot(snap);
+          setDismissedCandidatesBySource({});
+          setLoading(false);
+          return snap;
+        }
       }
       setWebsiteLockFallback(
         websiteLatest.ok &&
@@ -517,6 +520,7 @@ export function AccountResearchPanel({
     }
     setSnapshot(result);
     setDismissedCandidatesBySource({});
+    if (source.source_type === 'website') setWebsiteLockFallback(true);
     await Promise.all([hydrateSuggestions(result.run.id), hydrateMatch(result.run.id)]);
   }
 
@@ -900,17 +904,6 @@ export function AccountResearchPanel({
           </section>
 
           <section>
-            <h4 className="text-ink/70 m-0 mb-2 text-xs font-semibold tracking-wider uppercase">
-              Contact discovery
-            </h4>
-            <ContactDiscoverPreview
-              accountId={prospect.id}
-              resolvedWebsite={snapshot.run.resolved_website}
-              onContactAdded={onContactAdded}
-            />
-          </section>
-
-          <section>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-ink/70 m-0 text-xs font-semibold tracking-wider uppercase">
                 Product match
@@ -988,6 +981,19 @@ export function AccountResearchPanel({
           social evidence before product match.
         </p>
       )}
+
+      {websiteLocked ? (
+        <section>
+          <h4 className="text-ink/70 m-0 mb-2 text-xs font-semibold tracking-wider uppercase">
+            Contact discovery
+          </h4>
+          <ContactDiscoverPreview
+            accountId={prospect.id}
+            resolvedWebsite={contactDiscoveryWebsite}
+            onContactAdded={onContactAdded}
+          />
+        </section>
+      ) : null}
 
       <AccountResearchContactPickModal
         open={contactPickItem != null}
