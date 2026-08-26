@@ -32,6 +32,12 @@ describe('suggestTerritoryCodeFromRegion', () => {
     expect(suggestTerritoryCodeFromRegion('British Columbia')).toBe('bc');
   });
 
+  it('maps driveable CRM regions to store territories', () => {
+    expect(suggestTerritoryCodeFromRegion('Portland Metro & Gorge')).toBe('or');
+    expect(suggestTerritoryCodeFromRegion('Puget Sound')).toBe('wa');
+    expect(suggestTerritoryCodeFromRegion('NorCal Coastal')).toBe('ca');
+  });
+
   it('returns null for empty and garbage (never BC-default)', () => {
     expect(suggestTerritoryCodeFromRegion('')).toBeNull();
     expect(suggestTerritoryCodeFromRegion(null)).toBeNull();

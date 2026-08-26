@@ -18,11 +18,16 @@ import {
   type OperationalTerritoryOption,
 } from '@/lib/operationalTerritories/fetchOperationalTerritories';
 import { OGR_OPERATIONAL_TERRITORY_CODES } from '@/lib/operationalTerritories/resolve';
+import { opsCodeForBriefingRegion, regionOptionsForTerritory } from '@/lib/geoCatalog';
 import { supabase } from '@/lib/supabase';
 
 const ICON_STROKE = 2.75;
 const OGR_OPS_SET = new Set<string>(OGR_OPERATIONAL_TERRITORY_CODES);
 const REGIONAL_PREP_LIMIT = 25;
+const OGR_BRIEFING_TERRITORIES = [
+  { code: 'or' as const, label: 'Oregon' },
+  { code: 'wa' as const, label: 'Washington' },
+];
 
 type DraftReviewTarget = {
   draftId: string;
@@ -161,8 +166,8 @@ export function AgentBriefingTab({
   const [composerError, setComposerError] = useState<string | null>(null);
   const [appliedDeepLinkKey, setAppliedDeepLinkKey] = useState('');
   const [opsOptions, setOpsOptions] = useState<OperationalTerritoryOption[]>([]);
-  const [opsTerritoryId, setOpsTerritoryId] = useState('');
-  const [storeTerritoryCode, setStoreTerritoryCode] = useState<'or' | 'wa' | ''>('or');
+  const [storeTerritoryCode, setStoreTerritoryCode] = useState<'or' | 'wa'>('or');
+  const [briefingRegion, setBriefingRegion] = useState('ALL');
 
   const pendingSku = deepLinkSku?.trim() || null;
   const pendingDraftId = deepLinkDraftId?.trim() || null;
@@ -252,16 +257,22 @@ export function AgentBriefingTab({
       if (result.error) return;
       const ogrOps = result.data.filter((row) => OGR_OPS_SET.has(row.code));
       setOpsOptions(ogrOps);
-      setOpsTerritoryId((prev) => {
-        if (prev && ogrOps.some((row) => row.id === prev)) return prev;
-        const pnwWest = ogrOps.find((row) => row.code === 'pnw-west');
-        return pnwWest?.id ?? ogrOps[0]?.id ?? '';
-      });
     });
     return () => {
       active = false;
     };
   }, [isOgrLine]);
+
+  const briefingRegionOptions = useMemo(
+    () => regionOptionsForTerritory(storeTerritoryCode),
+    [storeTerritoryCode],
+  );
+
+  const resolvedOpsTerritoryId = useMemo(() => {
+    const opsCode = opsCodeForBriefingRegion(storeTerritoryCode, briefingRegion);
+    if (!opsCode) return '';
+    return opsOptions.find((row) => row.code === opsCode)?.id ?? '';
+  }, [opsOptions, storeTerritoryCode, briefingRegion]);
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   // Copilot suggestion ignored: a new event/token deep-link protocol is out of scope; drawer close now clears its applied deep-link state.
@@ -296,17 +307,17 @@ export function AgentBriefingTab({
       setPrepMessage('Regional prep is available on OGR only.');
       return;
     }
-    if (!opsTerritoryId) {
-      setPrepMessage('Select an operational territory first.');
+    if (!resolvedOpsTerritoryId) {
+      setPrepMessage('Select a territory first.');
       return;
     }
     setPrepBusy(true);
     setPrepMessage(null);
     const body: Record<string, unknown> = {
-      operationalTerritoryId: opsTerritoryId,
+      operationalTerritoryId: resolvedOpsTerritoryId,
+      storeTerritoryCode,
       limit: REGIONAL_PREP_LIMIT,
     };
-    if (storeTerritoryCode) body.storeTerritoryCode = storeTerritoryCode;
     if (briefing?.sellingDate) body.preparationDate = briefing.sellingDate;
     const result = await staffPost('/api/staff/outreach/prep', body);
     setPrepBusy(false);
@@ -364,48 +375,49 @@ export function AgentBriefingTab({
           </Button>
           {isOgrLine ? (
             <>
-              <label className="sr-only" htmlFor="briefing-ops-territory">
-                Operational territory
+              <label className="sr-only" htmlFor="briefing-territory">
+                Territory
               </label>
               <Select
-                id="briefing-ops-territory"
-                className="w-auto min-w-[10rem]"
-                value={opsTerritoryId}
-                onChange={(e) => setOpsTerritoryId(e.target.value)}
-                disabled={prepBusy || loading || opsOptions.length === 0}
-              >
-                {opsOptions.length === 0 ? (
-                  <option value="">Loading territories…</option>
-                ) : (
-                  opsOptions.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {row.name}
-                    </option>
-                  ))
-                )}
-              </Select>
-              <label className="sr-only" htmlFor="briefing-store-territory">
-                Store geography
-              </label>
-              <Select
-                id="briefing-store-territory"
+                id="briefing-territory"
                 className="w-auto min-w-[7rem]"
                 value={storeTerritoryCode}
-                onChange={(e) =>
-                  setStoreTerritoryCode(
-                    e.target.value === 'wa' || e.target.value === 'or' ? e.target.value : '',
-                  )
-                }
+                onChange={(e) => {
+                  const next =
+                    e.target.value === 'wa' || e.target.value === 'or' ? e.target.value : 'or';
+                  setStoreTerritoryCode(next);
+                  setBriefingRegion('ALL');
+                }}
                 disabled={prepBusy || loading}
+                aria-label="Territory"
               >
-                <option value="or">Oregon</option>
-                <option value="wa">Washington</option>
-                <option value="">All store geos</option>
+                {OGR_BRIEFING_TERRITORIES.map((row) => (
+                  <option key={row.code} value={row.code}>
+                    {row.label}
+                  </option>
+                ))}
+              </Select>
+              <label className="sr-only" htmlFor="briefing-region">
+                Region
+              </label>
+              <Select
+                id="briefing-region"
+                className="w-auto min-w-[10rem]"
+                value={briefingRegion}
+                onChange={(e) => setBriefingRegion(e.target.value)}
+                disabled={prepBusy || loading || opsOptions.length === 0}
+                aria-label="Region"
+              >
+                {briefingRegionOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </Select>
               <Button
                 type="button"
                 onClick={() => void runPrepNow()}
-                disabled={prepBusy || loading || !opsTerritoryId}
+                disabled={prepBusy || loading || !resolvedOpsTerritoryId}
               >
                 {prepBusy ? 'Running prep…' : `Run prep now (${REGIONAL_PREP_LIMIT})`}
               </Button>

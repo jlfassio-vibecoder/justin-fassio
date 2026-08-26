@@ -38,7 +38,7 @@ import {
   surfaceLiveChatAsPill,
   type OpenLiveChatSlot,
 } from '@/lib/staffChatDockState';
-import { fetchTerritories, type Territory } from '@/lib/territories';
+import { fetchStoreTerritories, type Territory } from '@/lib/territories';
 import type { LineKey, TabKey } from '@/types';
 
 interface RepCommandCenterProps {
@@ -304,7 +304,7 @@ export function RepCommandCenter({
         fetchCatalogItems(catalogOpts),
         fetchCatalogSettings(catalogOpts),
         fetchProspects(scoped),
-        fetchTerritories(),
+        fetchStoreTerritories(),
         fetchAllContacts(scoped),
       ]);
 

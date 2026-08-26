@@ -200,7 +200,6 @@ describe('directory presentation', () => {
       resolve(root, 'src/components/directory/RetailerDirectory.tsx'),
       'utf8',
     );
-    const regions = readFileSync(resolve(root, 'src/lib/directoryOptions.ts'), 'utf8');
     const overlay = readFileSync(resolve(root, 'src/lib/prospects.ts'), 'utf8');
 
     expect(rcc).toMatch(/isProspectsPipelineRow/);
@@ -226,8 +225,16 @@ describe('directory presentation', () => {
     expect(accountsTab).not.toMatch(/from '@\/lib\/setReactivationUnresponsive'/);
     expect(directory).toMatch(/All territories/);
     expect(directory).toMatch(/formatAccountLocationLine/);
-    expect(regions).toMatch(/Oregon/);
-    expect(regions).toMatch(/Washington/);
+    expect(directory).toMatch(/regionOptionsForTerritory/);
+    expect(directory).toMatch(/aria-label="Territory"/);
+    expect(directory).toMatch(/aria-label="Region"/);
+    expect(rcc).toMatch(/fetchStoreTerritories/);
+    expect(rcc).not.toMatch(/fetchTerritories\(\)/);
+    const geo = readFileSync(resolve(root, 'src/lib/geoCatalog.ts'), 'utf8');
+    expect(geo).toMatch(/Portland Metro & Gorge/);
+    expect(geo).toMatch(/Puget Sound/);
+    expect(geo).not.toMatch(/value: 'Oregon'/);
+    expect(geo).not.toMatch(/value: 'Washington'/);
     expect(overlay).toMatch(/line_account_markers/);
     expect(overlay).toMatch(/lineAccountMarkers/);
     const historyModal = readFileSync(

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { territoryCodeFromDriveableRegion } from '@/lib/geoCatalog';
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/types/database';
 
@@ -77,6 +78,8 @@ export function suggestTerritoryCodeFromRegion(region: string | null | undefined
   if (p === 'WA' || p === 'WASHINGTON') return 'wa';
   const fromBcSubregion = territoryFromBcCrmRegion(region ?? '');
   if (fromBcSubregion) return fromBcSubregion;
+  const fromDriveable = territoryCodeFromDriveableRegion(region);
+  if (fromDriveable) return fromDriveable;
   return null;
 }
 

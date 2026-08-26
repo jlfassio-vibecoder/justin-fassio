@@ -1,4 +1,5 @@
 import type { ContactDirectoryRow } from '@/lib/accountContacts';
+import { isStatewideRegionLabel, isUnassignedRegionFilter } from '@/lib/geoCatalog';
 import type { AccountStatus } from '@/types/database';
 
 export interface ContactFilterOptions {
@@ -15,7 +16,13 @@ export function filterContacts(
 ): ContactDirectoryRow[] {
   const q = search.trim().toLowerCase();
   return contacts.filter((c) => {
-    if (region !== 'ALL' && c.accountRegion !== region) return false;
+    if (region !== 'ALL') {
+      if (isUnassignedRegionFilter(region)) {
+        if (!isStatewideRegionLabel(c.accountRegion)) return false;
+      } else if (c.accountRegion !== region) {
+        return false;
+      }
+    }
     if (channel !== 'ALL' && c.accountCategory !== channel) return false;
     if (accountStatus !== 'ALL' && c.accountStatus !== (accountStatus as AccountStatus)) {
       return false;

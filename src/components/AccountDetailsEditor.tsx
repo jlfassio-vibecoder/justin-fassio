@@ -16,6 +16,7 @@ import {
   suggestTerritoryCodeFromRegion,
   type Territory,
 } from '@/lib/territories';
+import { regionSuggestionsForTerritory } from '@/lib/geoCatalog';
 import {
   draftFromProspect,
   shouldConfirmProtectedIdentityEdit,
@@ -23,21 +24,6 @@ import {
   validateAccountDetailsDraft,
   type AccountDetailsDraft,
 } from '@/lib/updateProspectAccountDetails';
-
-/** Common region labels for datalist suggestions — free text still allowed. */
-const ACCOUNT_DETAILS_REGION_OPTIONS = [
-  'Okanagan',
-  'Shuswap',
-  'Vancouver Island',
-  'Sea-to-Sky',
-  'Kootenays',
-  'Fraser Valley',
-  'Oregon',
-  'Washington',
-  'Alberta',
-  'British Columbia',
-  'California',
-] as const;
 
 type Props = {
   prospect: Prospect;
@@ -99,6 +85,11 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
       ? (storeTerritories.find((t) => t.id === draft.territoryId)?.code ??
         (draft.territoryId === prospect.territoryId ? prospect.territoryCode : null))
       : null;
+
+  const regionSuggestions = useMemo(
+    () => regionSuggestionsForTerritory(draftTerritoryCode ?? prospect.territoryCode),
+    [draftTerritoryCode, prospect.territoryCode],
+  );
 
   const suggestedCode = draft ? suggestTerritoryCodeFromRegion(draft.region) : null;
   const suggestedTerritory =
@@ -347,7 +338,7 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
           disabled={busy}
         />
         <datalist id={regionListId}>
-          {ACCOUNT_DETAILS_REGION_OPTIONS.map((opt) => (
+          {regionSuggestions.map((opt) => (
             <option key={opt} value={opt} />
           ))}
         </datalist>

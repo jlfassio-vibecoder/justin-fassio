@@ -1,4 +1,5 @@
 import type { Prospect } from '@/lib/prospects';
+import { isStatewideRegionLabel, isUnassignedRegionFilter } from '@/lib/geoCatalog';
 
 export interface ProspectFilterOptions {
   search: string;
@@ -15,7 +16,20 @@ export function filterProspects(
   const q = search.trim().toLowerCase();
   return prospects.filter((p) => {
     if (territoryCode !== 'ALL' && p.territoryCode !== territoryCode) return false;
-    if (region !== 'ALL' && p.region !== region) return false;
+    if (region !== 'ALL') {
+      if (isUnassignedRegionFilter(region)) {
+        if (
+          !isStatewideRegionLabel(
+            p.region,
+            territoryCode === 'ALL' ? p.territoryCode : territoryCode,
+          )
+        ) {
+          return false;
+        }
+      } else if (p.region !== region) {
+        return false;
+      }
+    }
     if (channel !== 'ALL' && p.category !== channel) return false;
     if (q) {
       const hay =
