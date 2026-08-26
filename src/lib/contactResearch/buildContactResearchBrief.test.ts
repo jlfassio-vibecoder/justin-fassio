@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildContactResearchBrief,
   composeContactResearchBrief,
@@ -16,6 +16,13 @@ const matchProspectToYelpMock = vi.fn();
 vi.mock('@/lib/yelp/businessMatch', () => ({
   matchProspectToYelp: (...args: unknown[]) => matchProspectToYelpMock(...args),
 }));
+
+const ORIGINAL_YELP_KEY = process.env.YELP_FUSION_API_KEY;
+
+afterEach(() => {
+  if (ORIGINAL_YELP_KEY === undefined) delete process.env.YELP_FUSION_API_KEY;
+  else process.env.YELP_FUSION_API_KEY = ORIGINAL_YELP_KEY;
+});
 
 const BASE_PROSPECT: Prospect = {
   id: 674,

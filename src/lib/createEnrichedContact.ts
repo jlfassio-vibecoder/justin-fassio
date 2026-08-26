@@ -137,21 +137,6 @@ async function fetchContactsForAccountServer(
   };
 }
 
-async function countContactsForAccount(
-  supabase: AgentSupabase,
-  accountId: number,
-): Promise<{ count: number; error: string | null }> {
-  const { count, error } = await supabase
-    .from('account_contacts')
-    .select('id', { count: 'exact', head: true })
-    .eq('account_id', accountId);
-
-  if (error) {
-    return { count: 0, error: error.message };
-  }
-  return { count: count ?? 0, error: null };
-}
-
 async function insertContactForAccount(
   supabase: AgentSupabase,
   input: {
@@ -387,11 +372,6 @@ export async function previewEnrichedContactAttach(
       })
     : null;
 
-  const counted = await countContactsForAccount(supabase, accountId);
-  if (counted.error) {
-    return { ok: false, error: counted.error };
-  }
-
   return {
     ok: true,
     preview: {
@@ -405,7 +385,7 @@ export async function previewEnrichedContactAttach(
         phone: gaps.phone,
         email: gaps.email,
         role,
-        isPrimary: counted.count === 0,
+        isPrimary: contactsResult.data.length === 0,
       },
       duplicate,
     },
@@ -451,11 +431,6 @@ export async function applyEnrichedContactAttach(
     };
   }
 
-  const counted = await countContactsForAccount(supabase, accountId);
-  if (counted.error) {
-    return { ok: false, error: counted.error };
-  }
-
   const contactResult = await insertContactForAccount(supabase, {
     accountId,
     contactName: fullName,
@@ -463,7 +438,7 @@ export async function applyEnrichedContactAttach(
     phone: input.phone?.trim() || null,
     email,
     role: input.role,
-    isPrimary: counted.count === 0,
+    isPrimary: contactsResult.data.length === 0,
   });
   if (contactResult.error || !contactResult.data) {
     return { ok: false, error: contactResult.error ?? 'Failed to create contact' };

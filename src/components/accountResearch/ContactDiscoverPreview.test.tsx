@@ -104,4 +104,54 @@ describe('ContactDiscoverPreview', () => {
     await userEvent.click(screen.getByRole('checkbox'));
     expect(screen.getByRole('button', { name: 'Add contact' })).toBeEnabled();
   });
+
+  it('clears email duplicate block when staff edits email away from match', async () => {
+    previewContactEnrichMock.mockResolvedValue({
+      ok: true,
+      preview: {
+        accountId: 674,
+        companyName: 'Sassy Seagull',
+        researchBrief: 'Brief',
+        yelpListingUrl: null,
+        proposed: {
+          fullName: 'Jane Doe',
+          title: 'Owner',
+          phone: null,
+          email: 'jane@example.com',
+          role: 'owner',
+          isPrimary: false,
+        },
+        duplicate: {
+          kind: 'email',
+          contact: {
+            id: 'existing',
+            accountId: 674,
+            fullName: 'Jane D.',
+            email: 'jane@example.com',
+            phone: null,
+            title: null,
+            role: 'buyer',
+            isPrimary: true,
+            notes: null,
+            createdAt: '',
+            updatedAt: '',
+          },
+        },
+      },
+    });
+
+    render(<ContactDiscoverPreview accountId={674} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Preview' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add contact' })).toBeDisabled();
+    });
+
+    const emailInput = screen.getByDisplayValue('jane@example.com');
+    await userEvent.clear(emailInput);
+    await userEvent.type(emailInput, 'new@example.com');
+
+    expect(screen.getByRole('button', { name: 'Add contact' })).toBeEnabled();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
 });

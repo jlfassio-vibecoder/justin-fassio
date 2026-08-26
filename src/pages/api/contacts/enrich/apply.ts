@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
-import { ACCOUNT_CONTACT_ROLES, accountContactRoleLabel } from '@/lib/accountContacts';
+import { ACCOUNT_CONTACT_ROLES } from '@/lib/accountContacts';
 import { gateStaffAiContext, parseOptionalUuidField } from '@/lib/aiLineContext';
 import { applyEnrichedContactAttach } from '@/lib/createEnrichedContact';
 import type { AccountContactRole } from '@/types/database';
@@ -61,10 +61,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   const role = parseRole(body.role);
   if (!role) {
-    return jsonError(
-      `Role must be one of: ${ACCOUNT_CONTACT_ROLES.map(accountContactRoleLabel).join(', ')}`,
-      400,
-    );
+    return jsonError(`Role must be one of: ${ACCOUNT_CONTACT_ROLES.join(', ')}`, 400);
   }
 
   const gated = await gateStaffAiContext({

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
@@ -6,6 +6,7 @@ import {
   ACCOUNT_CONTACT_ROLES,
   accountContactRoleLabel,
   type AccountContact,
+  type AccountContactDuplicateMatch,
 } from '@/lib/accountContacts';
 import type { ContactEnrichPreview } from '@/lib/createEnrichedContact';
 import { applyContactEnrich, previewContactEnrich } from '@/lib/enrichContactPreview';
@@ -27,6 +28,24 @@ type ProposedForm = {
   role: AccountContactRole;
 };
 
+/** Keep duplicate UX in sync with edited form values, not stale preview fields. */
+function activeDuplicateMatch(
+  preview: ContactEnrichPreview | null,
+  form: ProposedForm | null,
+): AccountContactDuplicateMatch | null {
+  if (!preview?.duplicate || !form) return null;
+  const dup = preview.duplicate;
+  if (dup.kind === 'email') {
+    const email = form.email.trim();
+    const dupEmail = dup.contact.email?.trim() ?? '';
+    if (!email || email.toLowerCase() !== dupEmail.toLowerCase()) return null;
+    return dup;
+  }
+  const fullName = form.fullName.trim();
+  if (!fullName || fullName !== preview.proposed.fullName.trim()) return null;
+  return dup;
+}
+
 export function ContactDiscoverPreview({
   accountId,
   resolvedWebsite,
@@ -43,7 +62,7 @@ export function ContactDiscoverPreview({
   const [confirmDuplicateEmail, setConfirmDuplicateEmail] = useState(false);
   const [allowNameDuplicate, setAllowNameDuplicate] = useState(false);
 
-  const duplicate = preview?.duplicate ?? null;
+  const duplicate = useMemo(() => activeDuplicateMatch(preview, form), [preview, form]);
   const emailBlocked = duplicate?.kind === 'email' && !confirmDuplicateEmail;
   const nameWarning = duplicate?.kind === 'name' && !allowNameDuplicate;
   const busy = busyPreview || busyApply;
@@ -253,9 +272,12 @@ export function ContactDiscoverPreview({
             <FieldLabel>Full name</FieldLabel>
             <Input
               value={form.fullName}
-              onChange={(e) =>
-                setForm((current) => (current ? { ...current, fullName: e.target.value } : current))
-              }
+              onChange={(e) => {
+                setAllowNameDuplicate(false);
+                setForm((current) =>
+                  current ? { ...current, fullName: e.target.value } : current,
+                );
+              }}
               disabled={busy}
             />
           </Field>
@@ -276,9 +298,10 @@ export function ContactDiscoverPreview({
               <Input
                 type="email"
                 value={form.email}
-                onChange={(e) =>
-                  setForm((current) => (current ? { ...current, email: e.target.value } : current))
-                }
+                onChange={(e) => {
+                  setConfirmDuplicateEmail(false);
+                  setForm((current) => (current ? { ...current, email: e.target.value } : current));
+                }}
                 disabled={busy}
               />
             </Field>
