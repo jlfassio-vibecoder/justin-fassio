@@ -15,6 +15,7 @@
 | Marine & sporting      | `marine-sporting-20260825.csv`          | 3 new (Waldron’s, Bradbury’s, U Save Grants Pass)                                                          |
 | Eastern / resort       | `eastern-resort-20260825.csv`           | 5 new (Joseph Hardware, Wallowa Lake Marina, A Piece of Pendleton, Bandon Dunes Pro Shop, OGA Golf Course) |
 | Travel Oregon priority | `travel-oregon-priority-20260825.csv`   | 13 new look-alikes enriched from Works Cited links (`or-to-20260825-*`)                                    |
+| Oregon Coast contact enrichment | `oregon-coast-contact-enrichment-20260826.xlsx` | Applied 2026-08-26: 35 matched Oregon Coast prospects — websites, phones, and published contact emails (`scripts/apply-oregon-coast-contact-enrichment.ts`) |
 
 ## Notes
 
