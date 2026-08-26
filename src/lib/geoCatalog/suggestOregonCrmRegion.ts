@@ -125,7 +125,7 @@ const OR_CITY_ALIASES: Readonly<Record<string, OregonCrmRegion>> = {
 };
 
 function normalizeCityKey(city: string | null | undefined): string {
-  return (city ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return (city ?? '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[–—]/g, '-');
 }
 
 function regionFromCountyFips(fips: string): OregonCrmRegion | null {

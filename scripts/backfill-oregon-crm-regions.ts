@@ -2,7 +2,7 @@
  * Backfill Oregon CRM driveable regions for prospects still labeled statewide (Oregon).
  *
  * Usage:
- *   npx tsx --env-file=.env scripts/backfill-oregon-crm-regions.ts --dry-run
+ *   npx tsx --env-file=.env scripts/backfill-oregon-crm-regions.ts
  *   npx tsx --env-file=.env scripts/backfill-oregon-crm-regions.ts --apply
  */
 import { writeFileSync } from 'node:fs';

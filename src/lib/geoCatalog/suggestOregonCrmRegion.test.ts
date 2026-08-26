@@ -92,6 +92,23 @@ describe('suggestOregonCrmRegion', () => {
     });
   });
 
+  it('matches import overlay names with en dashes', () => {
+    const overlay = oregonImportOverlayFromMaps(
+      {},
+      {},
+      { 'salty raven - cannon beach': 'Oregon Coast' },
+    );
+    const result = suggestOregonCrmRegion({
+      name: 'Salty Raven \u2013 Cannon Beach',
+      importOverlay: overlay,
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      region: 'Oregon Coast',
+      matchedBy: 'import_csv',
+    });
+  });
+
   it('falls back to city alias when ZIP missing', () => {
     const result = suggestOregonCrmRegion({ city: 'Government Camp' });
     expect(result).toMatchObject({

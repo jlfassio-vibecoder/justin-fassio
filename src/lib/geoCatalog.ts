@@ -101,7 +101,8 @@ export function isStatewideRegionLabel(region: string, territoryCode?: string | 
 
 /**
  * Region options for a territory filter dropdown.
- * When territory is ALL or unknown, only "All regions" (no statewide siblings).
+ * When territory is ALL or empty, only "All regions".
+ * Unknown territory codes get All regions + Unassigned (no driveable clusters).
  */
 export function regionOptionsForTerritory(territoryCode: string): GeoRegionOption[] {
   const code = territoryCode.trim().toLowerCase();
