@@ -78,6 +78,7 @@ interface AccountDetailDrawerProps {
   onDemoted?: (prospect: Prospect) => void;
   /** Bump to refetch AccountContactsSection after Log Call creates a contact. */
   contactsReloadToken?: number;
+  onContactAdded?: () => void;
   /** Fired after a successful product email send from this drawer. */
   onProductEmailSent?: () => void;
   /** Scroll to this section when the drawer opens (e.g. Briefing research deep link). */
@@ -294,6 +295,7 @@ export function AccountDetailDrawer({
   onIdentitySaved,
   onDemoted,
   contactsReloadToken = 0,
+  onContactAdded,
   onProductEmailSent,
   initialSection,
 }: AccountDetailDrawerProps) {
@@ -625,6 +627,7 @@ export function AccountDetailDrawer({
                 onTaxonomySaved?.(next);
                 onIdentitySaved?.(next);
               }}
+              onContactAdded={() => onContactAdded?.()}
               onOpenDraftComposer={({ draft, catalogItem }) => {
                 if (currentAccountIdRef.current !== account.id) return;
                 setResearchDraftProduct(catalogItem);

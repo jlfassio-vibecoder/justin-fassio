@@ -69,6 +69,7 @@ interface ProspectsTabProps {
   deepLinkImport?: boolean;
   onImportDeepLinkConsumed?: () => void;
   contactsReloadToken?: number;
+  onContactAdded?: () => void;
 }
 
 export function ProspectsTab({
@@ -86,6 +87,7 @@ export function ProspectsTab({
   deepLinkImport = false,
   onImportDeepLinkConsumed,
   contactsReloadToken = 0,
+  onContactAdded,
 }: ProspectsTabProps) {
   const { openAssist } = useAiAssist();
   const { profile } = useAuth();
@@ -354,6 +356,7 @@ export function ProspectsTab({
         onLogCall={onLogCall}
         onConverted={onConverted}
         contactsReloadToken={contactsReloadToken}
+        onContactAdded={onContactAdded}
         onNotesSaved={(notes) => {
           if (!detailProspect) return;
           setDetailProspect({ ...detailProspect, notes });

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
 import { AccountResearchContactPickModal } from '@/components/accountResearch/AccountResearchContactPickModal';
+import { ContactDiscoverPreview } from '@/components/accountResearch/ContactDiscoverPreview';
 import { ManualSourceLockFields } from '@/components/accountResearch/ManualSourceLockFields';
 import { manualSourceLockConfig } from '@/components/accountResearch/manualSourceLockConfig';
 import type { OgrProductEmailComposerDraft } from '@/components/OgrProductEmailComposerModal';
@@ -29,6 +30,7 @@ import {
 import { readSearchCandidates } from '@/lib/accountResearch/candidates';
 import { generateDraftFromResearchMatch } from '@/lib/accountResearchDraftHandoff';
 import type { MatchItemResponse } from '@/lib/accountProductMatch';
+import type { AccountContact } from '@/lib/accountContacts';
 import type { CatalogItem } from '@/lib/catalog';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import type { Prospect } from '@/lib/prospects';
@@ -42,6 +44,7 @@ export type AccountResearchPanelProps = {
   prospect: Prospect;
   retailerLineAccountId?: string | null;
   onProspectUpdated?: (prospect: Prospect) => void;
+  onContactAdded?: (contact: AccountContact) => void;
   onOpenDraftComposer?: (input: {
     draft: OgrProductEmailComposerDraft;
     catalogItem: CatalogItem;
@@ -114,6 +117,7 @@ export function AccountResearchPanel({
   prospect,
   retailerLineAccountId = null,
   onProspectUpdated,
+  onContactAdded,
   onOpenDraftComposer,
 }: AccountResearchPanelProps) {
   const line = useOptionalLineContext();
@@ -893,6 +897,17 @@ export function AccountResearchPanel({
                 ))}
               </ul>
             )}
+          </section>
+
+          <section>
+            <h4 className="text-ink/70 m-0 mb-2 text-xs font-semibold tracking-wider uppercase">
+              Contact discovery
+            </h4>
+            <ContactDiscoverPreview
+              accountId={prospect.id}
+              resolvedWebsite={snapshot.run.resolved_website}
+              onContactAdded={onContactAdded}
+            />
           </section>
 
           <section>

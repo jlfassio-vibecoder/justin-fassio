@@ -9,6 +9,7 @@ import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { normalizeProspectName } from '../src/lib/prospectListImport.ts';
+import { mapContactRole } from '../src/lib/contactResearch/mapContactRole.ts';
 import { insertRetailerFieldChanges } from '../src/lib/retailerFieldChanges.ts';
 
 const apply = process.argv.includes('--apply');
@@ -93,14 +94,6 @@ function parseStreetAddress(full: string): string {
 function parsePostalCode(full: string): string | null {
   const m = full.match(/\b(\d{5})(?:-\d{4})?\b/);
   return m?.[1] ?? null;
-}
-
-function mapContactRole(roleText: string): 'owner' | 'buyer' | 'manager' {
-  const r = roleText.toLowerCase();
-  if (r.includes('owner') || r.includes('founder') || r.includes('president')) return 'owner';
-  if (r.includes('buyer') || r.includes('purchasing')) return 'buyer';
-  if (r.includes('manager') || r.includes('gm') || r.includes('general manager')) return 'manager';
-  return 'buyer';
 }
 
 function normalizeMatchName(name: string): string {

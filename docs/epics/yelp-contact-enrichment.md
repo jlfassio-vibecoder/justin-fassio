@@ -1,6 +1,6 @@
 # Epic: Yelp Business Verification & Contact Enrichment
 
-**Status:** Phase 0 pilot complete (Aug 2026) — live dry-run validated; #624 and #631 phone applied.  
+**Status:** Phase 1 implemented (Aug 2026) — contact discovery preview/apply in Account Research; pilot on #674, #634, #631 pending staff run.  
 **Branch:** `feature/yelp-contact-finder`  
 **Related epics:** [Agentic Outreach](./agentic-outreach/README.md), [Account Research Before Product Selection](./agentic-outreach/account-research-before-product-selection.md)  
 **Oregon context:** [Oregon Business Contact Enrichment](../prospect-uploads/oregon/Oregon%20Business%20Contact%20Enrichment.md), [Oregon prospect uploads README](../prospect-uploads/oregon/README.md)
@@ -379,7 +379,66 @@ Scorer follow-up: `normalizeYelpMatchName` strips parentheticals and leading `Th
 
 Report archive: `docs/prospect-uploads/oregon/yelp-enrichment-pilot-report.csv`
 
-### Phase 1 — Contact discovery preview
+### 7.2 Phase 1 implementation spec (shipped 2026-08-26)
+
+Contact discovery preview chains Yelp + CRM context into a research brief, then staff confirm before insert.
+
+#### Brief builder
+
+| Input                 | Source                                                                                                           |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Prospect identity     | `prospects` row (name, city, address, phone, website)                                                            |
+| Yelp directory match  | `matchProspectToYelp` — included when confidence is **high** or **medium**; omitted on low / missing key         |
+| Official website hint | Latest Account Research `resolved_website` when non-directory; else `prospect.website` when not a directory host |
+| Candidate name        | Optional staff override in preview UI                                                                            |
+
+Lib: `src/lib/contactResearch/buildContactResearchBrief.ts` — outputs `seedBlock`, `yelpMatch`, `websiteUrl`. Yelp listing URL is labeled **directory evidence** in the seed (never official website).
+
+Role mapping: `src/lib/contactResearch/mapContactRole.ts` — owner / manager / buyer from verified title text.
+
+#### Research + preview lib
+
+| Function                       | Path                               | Behavior                                              |
+| ------------------------------ | ---------------------------------- | ----------------------------------------------------- |
+| `researchContextSeed`          | `src/lib/companyWebResearch.ts`    | Optional seed prepended to Perplexity prompt          |
+| `previewEnrichedContactAttach` | `src/lib/createEnrichedContact.ts` | No DB write; returns `ContactEnrichPreview`           |
+| `applyEnrichedContactAttach`   | `src/lib/createEnrichedContact.ts` | Insert-only attach with staff-confirmed fields + role |
+
+Preview flow: load prospect + contacts → `buildContactResearchBrief` → `researchCompany` → `fillContactGapsFromBrief` → `mapContactRole` → `classifyAccountContactDuplicate`.
+
+Hard rules: null email/phone/title when not explicit in brief; reject invalid OGR recipient email; block apply on email duplicate unless `confirmDuplicateEmail: true`.
+
+#### Staff API routes
+
+| Route                               | Body                                                                                    |
+| ----------------------------------- | --------------------------------------------------------------------------------------- |
+| `POST /api/contacts/enrich/preview` | `{ accountId, candidateName?, resolvedWebsite?, salesLineId?, retailerLineAccountId? }` |
+| `POST /api/contacts/enrich/apply`   | `{ accountId, fullName, title?, phone?, email?, role, confirmDuplicateEmail? }`         |
+
+Client: `src/lib/enrichContactPreview.ts` — `previewContactEnrich`, `applyContactEnrich`.
+
+Existing `POST /api/contacts/enrich` unchanged (AddContactAiModal backward compat).
+
+#### UI
+
+`AccountResearchPanel` → **Contact discovery** section → `ContactDiscoverPreview.tsx`.
+
+- Optional candidate name input
+- Preview → collapsible research brief + Yelp directory link
+- Editable proposed fields (name, title, role, phone, email)
+- Email duplicate = block until acknowledged; name duplicate = soft warning
+
+#### Phase 1 pilot accounts (staff manual run pending)
+
+| retailer_id | Business                     | Rationale                                                |
+| ----------- | ---------------------------- | -------------------------------------------------------- |
+| 674         | Sassy Seagull (Bandon Store) | High Yelp match; CRM populated; likely needs contact row |
+| 634         | Chetco Outdoor Store         | High match score 100                                     |
+| 631         | FARM HOUSE FUNK              | High match after Phase 0 scorer fix                      |
+
+Pilot checklist: preview returns name + title from public sources (email optional); staff confirms role mapping; apply inserts without duplicate errors; re-run regional prep when email exists.
+
+### Phase 1 — Contact discovery preview (summary)
 
 Chain existing `researchCompany` with Yelp (+ optional locked website) context. Preview contact via `createEnrichedContact` **attach** semantics — staff confirms in UI before insert.
 
@@ -480,9 +539,10 @@ Update this section as work lands.
 
 ### Phase 1 — Contact preview
 
-- [ ] Research brief builder with Yelp context
-- [ ] Contact attach preview (staff confirm)
-- [ ] Pilot: 3 accounts with verified name + title (email optional)
+- [x] Research brief builder with Yelp context (`buildContactResearchBrief.ts`, `mapContactRole.ts`)
+- [x] Contact attach preview + apply APIs (`/api/contacts/enrich/preview`, `/apply`)
+- [x] Account Research UI — `ContactDiscoverPreview` with staff confirm
+- [ ] Pilot: 3 accounts with verified name + title (email optional) — #674, #634, #631 pending staff run
 
 ### Phase 2 — Role verification
 
@@ -524,9 +584,10 @@ Update this section as work lands.
 
 ## 14. Revision log
 
-| Date       | Change                                                                                         |
-| ---------- | ---------------------------------------------------------------------------------------------- |
-| 2026-08-26 | Initial epic drafted from codebase audit on `feature/yelp-contact-finder`                      |
-| 2026-08-26 | Locked §1.1 verification methodology (LinkedIn confirmation layer, Verified/Partial/Not found) |
-| 2026-08-26 | Phase 0 shipped: Fusion API lib, pilot script, §7.1 implementation spec                        |
-| 2026-08-26 | Live pilot: apply #624/#631 phone; scorer compact/parenthetical fix; §7.1 results table        |
+| Date       | Change                                                                                          |
+| ---------- | ----------------------------------------------------------------------------------------------- |
+| 2026-08-26 | Initial epic drafted from codebase audit on `feature/yelp-contact-finder`                       |
+| 2026-08-26 | Locked §1.1 verification methodology (LinkedIn confirmation layer, Verified/Partial/Not found)  |
+| 2026-08-26 | Phase 0 shipped: Fusion API lib, pilot script, §7.1 implementation spec                         |
+| 2026-08-26 | Live pilot: apply #624/#631 phone; scorer compact/parenthetical fix; §7.1 results table         |
+| 2026-08-26 | Phase 1 shipped: brief builder, preview/apply APIs, Account Research contact discovery UI; §7.2 |
