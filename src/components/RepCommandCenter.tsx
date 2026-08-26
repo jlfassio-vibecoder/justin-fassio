@@ -520,6 +520,7 @@ export function RepCommandCenter({
                   onLogCall={(prospect) => openModal(prospect)}
                   onConverted={reloadDirectory}
                   contactsReloadToken={contactsReloadToken}
+                  onContactAdded={reloadContacts}
                   onProspectCreated={(prospect) => {
                     setProspects((prev) =>
                       [...prev.filter((p) => p.id !== prospect.id), prospect].sort(
@@ -547,6 +548,7 @@ export function RepCommandCenter({
                   territories={territories}
                   onLogCall={(account) => openModal(account)}
                   contactsReloadToken={contactsReloadToken}
+                  onContactAdded={reloadContacts}
                   onProductEmailSent={() => setActivityHistoryReloadToken((n) => n + 1)}
                   onNotesSaved={(id, notes) => {
                     setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));

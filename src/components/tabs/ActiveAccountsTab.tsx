@@ -58,6 +58,7 @@ interface ActiveAccountsTabProps {
   onDirectoryDeepLinkConsumed?: () => void;
   onImported?: () => void;
   contactsReloadToken?: number;
+  onContactAdded?: () => void;
   /** Bump Log Call activity after a product email send. */
   onProductEmailSent?: () => void;
 }
@@ -96,6 +97,7 @@ export function ActiveAccountsTab({
   onDirectoryDeepLinkConsumed,
   onImported,
   contactsReloadToken = 0,
+  onContactAdded,
   onProductEmailSent,
 }: ActiveAccountsTabProps) {
   const { openAssist } = useAiAssist();
@@ -645,6 +647,7 @@ export function ActiveAccountsTab({
           detailAccount && openResearchAccountId === detailAccount.id ? 'research' : undefined
         }
         contactsReloadToken={contactsReloadToken}
+        onContactAdded={onContactAdded}
         onProductEmailSent={onProductEmailSent}
         summary={
           detailAccount

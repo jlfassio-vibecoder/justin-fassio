@@ -3,13 +3,24 @@ import { z } from 'zod';
 import type { AgentSupabase } from '@/lib/agentAuth';
 import {
   ACCOUNT_CONTACT_SELECT,
+  classifyAccountContactDuplicate,
   mapAccountContactRow,
   type AccountContact,
 } from '@/lib/accountContacts';
+import {
+  buildContactResearchBrief,
+  composeContactResearchBrief,
+} from '@/lib/contactResearch/buildContactResearchBrief';
+import { mapContactRole } from '@/lib/contactResearch/mapContactRole';
 import { researchCompany } from '@/lib/companyWebResearch';
 import { createEnrichedProspect } from '@/lib/createEnrichedProspect';
+import { isValidOgrProductEmailRecipient } from '@/lib/ogrProductEmailLimits';
 import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
-import type { AccountContact as AccountContactRow, ProspectRow } from '@/types/database';
+import type {
+  AccountContact as AccountContactRow,
+  AccountContactRole,
+  ProspectRow,
+} from '@/types/database';
 
 const contactGapsSchema = z.object({
   title: z
@@ -24,6 +35,15 @@ const contactGapsSchema = z.object({
     .string()
     .nullable()
     .describe('Email only if explicitly present in the brief for this person; otherwise null'),
+});
+
+const contactNameSchema = z.object({
+  fullName: z
+    .string()
+    .nullable()
+    .describe(
+      'Full name of the likely purchasing contact (owner, buyer, GM) only if explicitly named in the brief; otherwise null',
+    ),
 });
 
 export type CreateEnrichedContactMode = 'create_prospect' | 'attach';
@@ -45,6 +65,41 @@ export type CreateEnrichedContactInput = {
 export type CreateEnrichedContactResult =
   { ok: true; prospect: Prospect; contact: AccountContact } | { ok: false; error: string };
 
+export type ContactEnrichPreview = {
+  accountId: number;
+  companyName: string;
+  researchBrief: string | null;
+  yelpListingUrl: string | null;
+  proposed: {
+    fullName: string;
+    title: string | null;
+    phone: string | null;
+    email: string | null;
+    role: AccountContactRole;
+    isPrimary: boolean;
+  };
+  duplicate: { kind: 'email' | 'name'; contact: AccountContact } | null;
+};
+
+export type PreviewEnrichedContactAttachInput = {
+  accountId: number;
+  candidateName?: string | null;
+  resolvedWebsite?: string | null;
+  aiPersona?: string;
+};
+
+export type ApplyEnrichedContactAttachInput = {
+  accountId: number;
+  fullName: string;
+  title?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  role: AccountContactRole;
+  confirmDuplicateEmail?: boolean;
+  salesLineId?: string;
+  lineCode?: string;
+};
+
 async function fetchProspectById(
   supabase: AgentSupabase,
   id: number,
@@ -59,6 +114,27 @@ async function fetchProspectById(
     return { data: null, error: error.message };
   }
   return { data: mapProspectRow(data as ProspectRow), error: null };
+}
+
+async function fetchContactsForAccountServer(
+  supabase: AgentSupabase,
+  accountId: number,
+): Promise<{ data: AccountContact[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from('account_contacts')
+    .select(ACCOUNT_CONTACT_SELECT)
+    .eq('account_id', accountId)
+    .order('is_primary', { ascending: false })
+    .order('full_name', { ascending: true });
+
+  if (error) {
+    return { data: [], error: error.message };
+  }
+
+  return {
+    data: ((data ?? []) as AccountContactRow[]).map(mapAccountContactRow),
+    error: null,
+  };
 }
 
 async function countContactsForAccount(
@@ -84,6 +160,7 @@ async function insertContactForAccount(
     title: string | null;
     phone: string | null;
     email: string | null;
+    role: AccountContactRole;
     isPrimary: boolean;
   },
 ): Promise<{ data: AccountContact | null; error: string | null }> {
@@ -91,7 +168,7 @@ async function insertContactForAccount(
     .from('account_contacts')
     .insert({
       account_id: input.accountId,
-      role: 'buyer',
+      role: input.role,
       full_name: input.contactName,
       title: input.title,
       phone: input.phone,
@@ -185,6 +262,29 @@ async function stampLineContactIfNeeded(
   return { ok: true };
 }
 
+/** Infer a named purchasing contact from a research brief when staff did not seed a name. */
+export async function inferContactNameFromBrief(brief: string | null): Promise<string | null> {
+  if (!brief?.trim()) return null;
+
+  try {
+    const result = await generateObject({
+      model: 'openai/gpt-4o',
+      schema: contactNameSchema,
+      schemaName: 'ContactNameFromBrief',
+      prompt: [
+        'Extract the full name of one purchasing contact from the research brief only.',
+        'Return null if no person is explicitly named.',
+        'Do not invent names.',
+        'Research brief:',
+        brief,
+      ].join('\n'),
+    });
+    return result.object.fullName?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Fill blank contact fields from a research brief; form values always win. */
 export async function fillContactGapsFromBrief(input: {
   contactName: string;
@@ -226,6 +326,155 @@ export async function fillContactGapsFromBrief(input: {
   }
 }
 
+/** Preview contact attach for Account Research — no DB write. */
+export async function previewEnrichedContactAttach(
+  supabase: AgentSupabase,
+  input: PreviewEnrichedContactAttachInput,
+): Promise<{ ok: true; preview: ContactEnrichPreview } | { ok: false; error: string }> {
+  const accountId = input.accountId;
+  if (!Number.isFinite(accountId)) {
+    return { ok: false, error: 'Account id is required' };
+  }
+
+  const existing = await fetchProspectById(supabase, accountId);
+  if (existing.error || !existing.data) {
+    return { ok: false, error: existing.error ?? 'Store not found' };
+  }
+  const prospect = existing.data;
+
+  const contactsResult = await fetchContactsForAccountServer(supabase, accountId);
+  if (contactsResult.error) {
+    return { ok: false, error: contactsResult.error };
+  }
+
+  const briefContext = await buildContactResearchBrief({
+    prospect,
+    resolvedWebsite: input.resolvedWebsite,
+    candidateName: input.candidateName,
+  });
+
+  const candidateName = input.candidateName?.trim() || undefined;
+  const research = await researchCompany({
+    companyName: prospect.name,
+    websiteUrl: briefContext.websiteUrl ?? undefined,
+    contactName: candidateName,
+    city: prospect.city ?? undefined,
+    researchContextSeed: briefContext.seedBlock,
+    persona: input.aiPersona,
+  });
+
+  const researchBrief = composeContactResearchBrief(briefContext.seedBlock, research.brief);
+
+  let fullName = candidateName ?? '';
+  if (!fullName && researchBrief) {
+    fullName = (await inferContactNameFromBrief(researchBrief)) ?? '';
+  }
+
+  const gaps = fullName
+    ? await fillContactGapsFromBrief({
+        contactName: fullName,
+        brief: researchBrief,
+        phone: null,
+        email: null,
+      })
+    : { title: null, phone: null, email: null };
+
+  const role = mapContactRole(gaps.title);
+  const duplicate = fullName
+    ? classifyAccountContactDuplicate(contactsResult.data, {
+        fullName,
+        email: gaps.email,
+      })
+    : null;
+
+  const counted = await countContactsForAccount(supabase, accountId);
+  if (counted.error) {
+    return { ok: false, error: counted.error };
+  }
+
+  return {
+    ok: true,
+    preview: {
+      accountId,
+      companyName: prospect.name,
+      researchBrief,
+      yelpListingUrl: briefContext.yelpMatch?.business.url ?? null,
+      proposed: {
+        fullName,
+        title: gaps.title,
+        phone: gaps.phone,
+        email: gaps.email,
+        role,
+        isPrimary: counted.count === 0,
+      },
+      duplicate,
+    },
+  };
+}
+
+/** Apply staff-confirmed contact attach — insert-only. */
+export async function applyEnrichedContactAttach(
+  supabase: AgentSupabase,
+  input: ApplyEnrichedContactAttachInput,
+): Promise<CreateEnrichedContactResult> {
+  const accountId = input.accountId;
+  if (!Number.isFinite(accountId)) {
+    return { ok: false, error: 'Account id is required' };
+  }
+
+  const fullName = input.fullName.trim();
+  if (!fullName) {
+    return { ok: false, error: 'Contact name is required' };
+  }
+
+  const email = input.email?.trim() || null;
+  if (email && !isValidOgrProductEmailRecipient(email)) {
+    return { ok: false, error: 'Email address is not a valid recipient' };
+  }
+
+  const existing = await fetchProspectById(supabase, accountId);
+  if (existing.error || !existing.data) {
+    return { ok: false, error: existing.error ?? 'Store not found' };
+  }
+  const prospect = existing.data;
+
+  const contactsResult = await fetchContactsForAccountServer(supabase, accountId);
+  if (contactsResult.error) {
+    return { ok: false, error: contactsResult.error };
+  }
+
+  const duplicate = classifyAccountContactDuplicate(contactsResult.data, { fullName, email });
+  if (duplicate?.kind === 'email' && !input.confirmDuplicateEmail) {
+    return {
+      ok: false,
+      error: `A contact with email ${duplicate.contact.email} already exists (${duplicate.contact.fullName})`,
+    };
+  }
+
+  const counted = await countContactsForAccount(supabase, accountId);
+  if (counted.error) {
+    return { ok: false, error: counted.error };
+  }
+
+  const contactResult = await insertContactForAccount(supabase, {
+    accountId,
+    contactName: fullName,
+    title: input.title?.trim() || null,
+    phone: input.phone?.trim() || null,
+    email,
+    role: input.role,
+    isPrimary: counted.count === 0,
+  });
+  if (contactResult.error || !contactResult.data) {
+    return { ok: false, error: contactResult.error ?? 'Failed to create contact' };
+  }
+
+  const stamped = await stampLineContactIfNeeded(supabase, contactResult.data, input);
+  if (!stamped.ok) return stamped;
+
+  return { ok: true, prospect, contact: contactResult.data };
+}
+
 /**
  * Create a contact and optionally an AI-enriched prospect under the caller's JWT + RLS.
  * Known phone/email from the form are preferred; blank gaps may be filled from web research.
@@ -263,40 +512,22 @@ export async function createEnrichedContact(
     email: formEmail,
   });
 
-  let prospect: Prospect;
-
   if (input.mode === 'attach') {
     const accountId = input.accountId;
     if (accountId == null || !Number.isFinite(accountId)) {
       return { ok: false, error: 'Account id is required to attach a contact' };
     }
 
-    const existing = await fetchProspectById(supabase, accountId);
-    if (existing.error || !existing.data) {
-      return { ok: false, error: existing.error ?? 'Store not found' };
-    }
-    prospect = existing.data;
-
-    const counted = await countContactsForAccount(supabase, accountId);
-    if (counted.error) {
-      return { ok: false, error: counted.error };
-    }
-
-    const contactResult = await insertContactForAccount(supabase, {
+    return applyEnrichedContactAttach(supabase, {
       accountId,
-      contactName,
+      fullName: contactName,
       title: gaps.title,
       phone: gaps.phone,
       email: gaps.email,
-      isPrimary: counted.count === 0,
+      role: 'buyer',
+      salesLineId: input.salesLineId,
+      lineCode: input.lineCode,
     });
-    if (contactResult.error || !contactResult.data) {
-      return { ok: false, error: contactResult.error ?? 'Failed to create contact' };
-    }
-    const stamped = await stampLineContactIfNeeded(supabase, contactResult.data, input);
-    if (!stamped.ok) return stamped;
-
-    return { ok: true, prospect, contact: contactResult.data };
   }
 
   const prospectResult = await createEnrichedProspect(supabase, {
@@ -312,7 +543,7 @@ export async function createEnrichedContact(
   if (!prospectResult.ok) {
     return prospectResult;
   }
-  prospect = prospectResult.prospect;
+  const prospect = prospectResult.prospect;
 
   const contactResult = await insertContactForAccount(supabase, {
     accountId: prospect.id,
@@ -320,6 +551,7 @@ export async function createEnrichedContact(
     title: gaps.title,
     phone: gaps.phone,
     email: gaps.email,
+    role: 'buyer',
     isPrimary: true,
   });
   if (contactResult.error || !contactResult.data) {

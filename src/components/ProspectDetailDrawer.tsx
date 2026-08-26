@@ -36,6 +36,7 @@ interface ProspectDetailDrawerProps {
   onIdentitySaved?: (prospect: Prospect) => void;
   /** Bump to refetch AccountContactsSection after Log Call creates a contact. */
   contactsReloadToken?: number;
+  onContactAdded?: () => void;
   /** Scroll to research section when opened from Briefing. */
   initialScrollToResearch?: boolean;
 }
@@ -57,6 +58,7 @@ export function ProspectDetailDrawer({
   onTaxonomySaved,
   onIdentitySaved,
   contactsReloadToken = 0,
+  onContactAdded,
   initialScrollToResearch = false,
 }: ProspectDetailDrawerProps) {
   const line = useOptionalLineContext();
@@ -212,6 +214,7 @@ export function ProspectDetailDrawer({
                 onTaxonomySaved?.(next);
                 onIdentitySaved?.(next);
               }}
+              onContactAdded={() => onContactAdded?.()}
               onOpenDraftComposer={({ draft, catalogItem }) => {
                 if (currentProspectIdRef.current !== prospect.id) return;
                 setResearchDraftProduct(catalogItem);

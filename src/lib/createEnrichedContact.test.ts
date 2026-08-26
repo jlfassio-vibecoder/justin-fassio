@@ -4,6 +4,8 @@ import type { AgentSupabase } from '@/lib/agentAuth';
 const createEnrichedProspectMock = vi.fn();
 const researchCompanyMock = vi.fn();
 const generateObjectMock = vi.fn();
+const buildContactResearchBriefMock = vi.fn();
+const matchProspectToYelpMock = vi.fn();
 
 vi.mock('@/lib/createEnrichedProspect', () => ({
   createEnrichedProspect: (...args: unknown[]) => createEnrichedProspectMock(...args),
@@ -13,11 +15,26 @@ vi.mock('@/lib/companyWebResearch', () => ({
   researchCompany: (...args: unknown[]) => researchCompanyMock(...args),
 }));
 
+vi.mock('@/lib/contactResearch/buildContactResearchBrief', () => ({
+  buildContactResearchBrief: (...args: unknown[]) => buildContactResearchBriefMock(...args),
+  composeContactResearchBrief: (seed: string, brief: string | null) =>
+    [seed, brief].filter(Boolean).join('\n\n---\n\n') || null,
+}));
+
+vi.mock('@/lib/yelp/businessMatch', () => ({
+  matchProspectToYelp: (...args: unknown[]) => matchProspectToYelpMock(...args),
+}));
+
 vi.mock('ai', () => ({
   generateObject: (...args: unknown[]) => generateObjectMock(...args),
 }));
 
-import { createEnrichedContact, fillContactGapsFromBrief } from '@/lib/createEnrichedContact';
+import {
+  applyEnrichedContactAttach,
+  createEnrichedContact,
+  fillContactGapsFromBrief,
+  previewEnrichedContactAttach,
+} from '@/lib/createEnrichedContact';
 import {
   BC_PROSPECT_TERRITORY,
   EMPTY_PROSPECT_PLANNING,
@@ -27,6 +44,7 @@ import {
 function mockSupabase(handlers: {
   prospectSingle?: unknown;
   contactCount?: number;
+  contactList?: unknown[];
   contactInsert?: unknown;
   contactInsertError?: string | null;
 }) {
@@ -42,9 +60,23 @@ function mockSupabase(handlers: {
     }
     if (table === 'account_contacts') {
       return {
-        select: () => ({
-          eq: async () => ({ count: handlers.contactCount ?? 0, error: null }),
-        }),
+        select: (_cols?: string, opts?: { count?: string; head?: boolean }) => {
+          if (opts?.count === 'exact' && opts?.head) {
+            return {
+              eq: async () => ({ count: handlers.contactCount ?? 0, error: null }),
+            };
+          }
+          return {
+            eq: () => ({
+              order: () => ({
+                order: async () => ({
+                  data: handlers.contactList ?? [],
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        },
         insert: () => ({
           select: () => ({
             single: async () =>
@@ -192,6 +224,12 @@ describe('createEnrichedContact', () => {
     generateObjectMock.mockResolvedValue({
       object: { title: null, phone: null, email: null },
     });
+    buildContactResearchBriefMock.mockResolvedValue({
+      seedBlock: 'seed',
+      yelpMatch: null,
+      websiteUrl: null,
+      researchBrief: null,
+    });
   });
 
   it('requires contact and company name', async () => {
@@ -274,5 +312,97 @@ describe('createEnrichedContact', () => {
       expect(result.prospect.id).toBe(12);
       expect(result.contact.isPrimary).toBe(true);
     }
+  });
+});
+
+describe('previewEnrichedContactAttach', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    buildContactResearchBriefMock.mockResolvedValue({
+      seedBlock: 'Yelp directory listing',
+      yelpMatch: { business: { url: 'https://www.yelp.com/biz/test' } },
+      websiteUrl: 'https://store.com',
+      researchBrief: null,
+    });
+    researchCompanyMock.mockResolvedValue({ brief: 'Perplexity brief', error: null });
+    generateObjectMock.mockResolvedValue({
+      object: { title: 'General Manager', phone: '541-555-0100', email: null },
+    });
+  });
+
+  it('returns preview with mapped role', async () => {
+    const supabase = mockSupabase({
+      prospectSingle: prospectRow,
+      contactCount: 1,
+      contactList: [],
+    });
+
+    const result = await previewEnrichedContactAttach(supabase, {
+      accountId: 12,
+      candidateName: 'Sarah Jenkins',
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.preview.proposed.role).toBe('manager');
+      expect(result.preview.proposed.fullName).toBe('Sarah Jenkins');
+      expect(result.preview.yelpListingUrl).toBe('https://www.yelp.com/biz/test');
+    }
+  });
+});
+
+describe('applyEnrichedContactAttach', () => {
+  it('uses staff-confirmed role on insert', async () => {
+    const supabase = mockSupabase({
+      prospectSingle: prospectRow,
+      contactCount: 1,
+      contactList: [],
+      contactInsert: { ...contactRow, role: 'owner' },
+    });
+
+    const result = await applyEnrichedContactAttach(supabase, {
+      accountId: 12,
+      fullName: 'Sarah Jenkins',
+      title: 'Owner',
+      phone: null,
+      email: null,
+      role: 'owner',
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('blocks apply on email duplicate without confirm flag', async () => {
+    const supabase = mockSupabase({
+      prospectSingle: prospectRow,
+      contactCount: 1,
+      contactList: [
+        {
+          id: 'c-existing',
+          account_id: 12,
+          role: 'buyer',
+          full_name: 'Sarah J.',
+          title: null,
+          phone: null,
+          email: 'sarah@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '',
+          updated_at: '',
+        },
+      ],
+    });
+
+    const result = await applyEnrichedContactAttach(supabase, {
+      accountId: 12,
+      fullName: 'Sarah Jenkins',
+      email: 'sarah@example.com',
+      role: 'buyer',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'A contact with email sarah@example.com already exists (Sarah J.)',
+    });
   });
 });
