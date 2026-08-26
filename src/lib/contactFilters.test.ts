@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ContactDirectoryRow } from '@/lib/accountContacts';
 import { enrichContactsForDirectory } from '@/lib/accountContacts';
 import { filterContacts } from '@/lib/contactFilters';
+import { UNASSIGNED_REGION_VALUE } from '@/lib/geoCatalog';
 
 const BASE: ContactDirectoryRow = {
   id: 'c1',
@@ -170,5 +171,25 @@ describe('filterContacts', () => {
         accountStatus: 'ALL',
       }).map((c) => c.id),
     ).toEqual(['c2']);
+  });
+
+  it('matches Unassigned to statewide leftover account regions', () => {
+    const statewide: ContactDirectoryRow = {
+      ...BASE,
+      id: 'c3',
+      accountId: 3,
+      accountName: 'Portland Shop',
+      accountCity: 'Portland',
+      accountRegion: 'Oregon',
+      accountStatus: 'prospect',
+    };
+    expect(
+      filterContacts([BASE, statewide], {
+        search: '',
+        region: UNASSIGNED_REGION_VALUE,
+        channel: 'ALL',
+        accountStatus: 'ALL',
+      }).map((c) => c.id),
+    ).toEqual(['c3']);
   });
 });

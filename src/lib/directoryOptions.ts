@@ -1,16 +1,8 @@
 import { PRIMARY_RETAIL_CHANNELS } from '@/lib/crmRetailTaxonomy';
+import { REGION_OPTIONS as GEO_REGION_OPTIONS } from '@/lib/geoCatalog';
 
-export const REGION_OPTIONS: { value: string; label: string }[] = [
-  { value: 'ALL', label: 'All regions' },
-  { value: 'Okanagan', label: 'Okanagan Valley' },
-  { value: 'Shuswap', label: 'Shuswap & Thompson-Nicola' },
-  { value: 'Vancouver Island', label: 'Vancouver Island & Gulf Islands' },
-  { value: 'Sea-to-Sky', label: 'Sea-to-Sky & Sunshine Coast' },
-  { value: 'Kootenays', label: 'Kootenays & Columbia-Shuswap' },
-  { value: 'Fraser Valley', label: 'Lower Mainland / Fraser Valley' },
-  { value: 'Oregon', label: 'Oregon' },
-  { value: 'Washington', label: 'Washington' },
-];
+/** @deprecated Prefer regionOptionsForTerritory from geoCatalog. */
+export const REGION_OPTIONS = GEO_REGION_OPTIONS;
 
 export const CHANNEL_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All Retail Channels' },

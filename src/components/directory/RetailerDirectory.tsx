@@ -5,7 +5,8 @@ import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { hasMarker } from '@/lib/accountImport/classification';
 import { formatAccountLocationLine } from '@/lib/accountImport/directoryPresentation';
-import { CHANNEL_OPTIONS, REGION_OPTIONS } from '@/lib/directoryOptions';
+import { CHANNEL_OPTIONS } from '@/lib/directoryOptions';
+import { regionOptionsForTerritory } from '@/lib/geoCatalog';
 import { filterProspects } from '@/lib/prospectFilters';
 import { primaryRetailChannelLabel } from '@/lib/crmRetailTaxonomy';
 import type { Prospect } from '@/lib/prospects';
@@ -109,6 +110,10 @@ export function RetailerDirectory({
     onTerritoryCodeChange?.(code);
   }
 
+  const regionOptions = useMemo(() => regionOptionsForTerritory(territoryCode), [territoryCode]);
+  // Nested region list changes with territory; keep filter valid without an effect reset.
+  const effectiveRegion = regionOptions.some((o) => o.value === region) ? region : 'ALL';
+
   useEffect(() => {
     if (highlightedId == null) return;
     const timer = window.setTimeout(() => {
@@ -147,8 +152,8 @@ export function RetailerDirectory({
   }, [currentSalesLineId, retailerIdsKey]);
 
   const filtered = useMemo(
-    () => filterProspects(retailers, { search, region, channel, territoryCode }),
-    [retailers, search, region, channel, territoryCode],
+    () => filterProspects(retailers, { search, region: effectiveRegion, channel, territoryCode }),
+    [retailers, search, effectiveRegion, channel, territoryCode],
   );
 
   return (
@@ -175,8 +180,13 @@ export function RetailerDirectory({
             ))}
           </Select>
         ) : null}
-        <Select className="w-auto" value={region} onChange={(e) => setRegion(e.target.value)}>
-          {REGION_OPTIONS.map((opt) => (
+        <Select
+          className="w-auto"
+          value={effectiveRegion}
+          onChange={(e) => setRegion(e.target.value)}
+          aria-label="Region"
+        >
+          {regionOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>

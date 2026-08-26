@@ -11,18 +11,23 @@ import { getAgentProductOutreachDraftClient } from '@/lib/agentProductOutreachDr
 import type { CatalogItem } from '@/lib/catalog';
 import { buildCatalogItemEmailCardHtml } from '@/lib/catalogItemEmailCardHtml';
 import { useOptionalLineContext } from '@/lib/lineContext';
-import type { OutreachBriefingDto } from '@/lib/outreachBriefing';
+import { formatRegionalPoolMessage, type OutreachBriefingDto } from '@/lib/outreachBriefingShared';
 import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
 import {
   fetchOperationalTerritories,
   type OperationalTerritoryOption,
 } from '@/lib/operationalTerritories/fetchOperationalTerritories';
 import { OGR_OPERATIONAL_TERRITORY_CODES } from '@/lib/operationalTerritories/resolve';
+import { opsCodeForBriefingRegion, regionOptionsForTerritory } from '@/lib/geoCatalog';
 import { supabase } from '@/lib/supabase';
 
 const ICON_STROKE = 2.75;
 const OGR_OPS_SET = new Set<string>(OGR_OPERATIONAL_TERRITORY_CODES);
 const REGIONAL_PREP_LIMIT = 25;
+const OGR_BRIEFING_TERRITORIES = [
+  { code: 'or' as const, label: 'Oregon' },
+  { code: 'wa' as const, label: 'Washington' },
+];
 
 type DraftReviewTarget = {
   draftId: string;
@@ -161,8 +166,8 @@ export function AgentBriefingTab({
   const [composerError, setComposerError] = useState<string | null>(null);
   const [appliedDeepLinkKey, setAppliedDeepLinkKey] = useState('');
   const [opsOptions, setOpsOptions] = useState<OperationalTerritoryOption[]>([]);
-  const [opsTerritoryId, setOpsTerritoryId] = useState('');
-  const [storeTerritoryCode, setStoreTerritoryCode] = useState<'or' | 'wa' | ''>('or');
+  const [storeTerritoryCode, setStoreTerritoryCode] = useState<'or' | 'wa'>('or');
+  const [briefingRegion, setBriefingRegion] = useState('ALL');
 
   const pendingSku = deepLinkSku?.trim() || null;
   const pendingDraftId = deepLinkDraftId?.trim() || null;
@@ -218,14 +223,49 @@ export function AgentBriefingTab({
   );
 
   useEffect(() => {
+    if (!isOgrLine) return;
+    let active = true;
+    void fetchOperationalTerritories().then((result) => {
+      if (!active) return;
+      if (result.error) return;
+      const ogrOps = result.data.filter((row) => OGR_OPS_SET.has(row.code));
+      setOpsOptions(ogrOps);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isOgrLine]);
+
+  const briefingRegionOptions = useMemo(
+    () => regionOptionsForTerritory(storeTerritoryCode),
+    [storeTerritoryCode],
+  );
+
+  const resolvedOpsTerritoryId = useMemo(() => {
+    const opsCode = opsCodeForBriefingRegion(storeTerritoryCode, briefingRegion);
+    if (!opsCode) return '';
+    return opsOptions.find((row) => row.code === opsCode)?.id ?? '';
+  }, [opsOptions, storeTerritoryCode, briefingRegion]);
+
+  useEffect(() => {
     let active = true;
     async function load() {
       setLoading(true);
       setError(null);
-      const qs =
-        lineCtx.multiLineUi && lineCtx.salesLineId
-          ? `?sales_line_id=${encodeURIComponent(lineCtx.salesLineId)}`
-          : '';
+      const qsParams = new URLSearchParams();
+      if (lineCtx.multiLineUi && lineCtx.salesLineId) {
+        qsParams.set('sales_line_id', lineCtx.salesLineId);
+      }
+      if (isOgrLine && storeTerritoryCode) {
+        qsParams.set('store_territory_code', storeTerritoryCode);
+      }
+      if (isOgrLine && resolvedOpsTerritoryId) {
+        qsParams.set('operational_territory_id', resolvedOpsTerritoryId);
+      }
+      if (isOgrLine && briefingRegion && briefingRegion !== 'ALL') {
+        qsParams.set('crm_region', briefingRegion);
+      }
+      const qs = qsParams.toString() ? `?${qsParams.toString()}` : '';
       const result = await staffGet(`/api/staff/outreach/briefing${qs}`);
       if (!active) return;
       if (!result.ok) {
@@ -242,26 +282,16 @@ export function AgentBriefingTab({
     return () => {
       active = false;
     };
-  }, [reloadToken, briefingReloadToken, lineCtx.multiLineUi, lineCtx.salesLineId]);
-
-  useEffect(() => {
-    if (!isOgrLine) return;
-    let active = true;
-    void fetchOperationalTerritories().then((result) => {
-      if (!active) return;
-      if (result.error) return;
-      const ogrOps = result.data.filter((row) => OGR_OPS_SET.has(row.code));
-      setOpsOptions(ogrOps);
-      setOpsTerritoryId((prev) => {
-        if (prev && ogrOps.some((row) => row.id === prev)) return prev;
-        const pnwWest = ogrOps.find((row) => row.code === 'pnw-west');
-        return pnwWest?.id ?? ogrOps[0]?.id ?? '';
-      });
-    });
-    return () => {
-      active = false;
-    };
-  }, [isOgrLine]);
+  }, [
+    reloadToken,
+    briefingReloadToken,
+    lineCtx.multiLineUi,
+    lineCtx.salesLineId,
+    isOgrLine,
+    storeTerritoryCode,
+    resolvedOpsTerritoryId,
+    briefingRegion,
+  ]);
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   // Copilot suggestion ignored: a new event/token deep-link protocol is out of scope; drawer close now clears its applied deep-link state.
@@ -296,17 +326,20 @@ export function AgentBriefingTab({
       setPrepMessage('Regional prep is available on OGR only.');
       return;
     }
-    if (!opsTerritoryId) {
-      setPrepMessage('Select an operational territory first.');
+    if (!resolvedOpsTerritoryId) {
+      setPrepMessage('Select a territory first.');
       return;
     }
     setPrepBusy(true);
     setPrepMessage(null);
     const body: Record<string, unknown> = {
-      operationalTerritoryId: opsTerritoryId,
+      operationalTerritoryId: resolvedOpsTerritoryId,
+      storeTerritoryCode,
       limit: REGIONAL_PREP_LIMIT,
     };
-    if (storeTerritoryCode) body.storeTerritoryCode = storeTerritoryCode;
+    if (briefingRegion && briefingRegion !== 'ALL') {
+      body.crmRegion = briefingRegion;
+    }
     if (briefing?.sellingDate) body.preparationDate = briefing.sellingDate;
     const result = await staffPost('/api/staff/outreach/prep', body);
     setPrepBusy(false);
@@ -322,7 +355,7 @@ export function AgentBriefingTab({
       setPrepMessage('Prep already complete for that region and selling day.');
     } else if (data.run?.status === 'empty_pool') {
       setPrepMessage(
-        'No sendable accounts in that region yet. Lookalikes need a usable contact email (and product-fit). Add emails, then retry.',
+        'No sendable accounts today — see the regional pool breakdown on the prep card.',
       );
     } else {
       setPrepMessage(
@@ -364,48 +397,49 @@ export function AgentBriefingTab({
           </Button>
           {isOgrLine ? (
             <>
-              <label className="sr-only" htmlFor="briefing-ops-territory">
-                Operational territory
+              <label className="sr-only" htmlFor="briefing-territory">
+                Territory
               </label>
               <Select
-                id="briefing-ops-territory"
-                className="w-auto min-w-[10rem]"
-                value={opsTerritoryId}
-                onChange={(e) => setOpsTerritoryId(e.target.value)}
-                disabled={prepBusy || loading || opsOptions.length === 0}
-              >
-                {opsOptions.length === 0 ? (
-                  <option value="">Loading territories…</option>
-                ) : (
-                  opsOptions.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {row.name}
-                    </option>
-                  ))
-                )}
-              </Select>
-              <label className="sr-only" htmlFor="briefing-store-territory">
-                Store geography
-              </label>
-              <Select
-                id="briefing-store-territory"
+                id="briefing-territory"
                 className="w-auto min-w-[7rem]"
                 value={storeTerritoryCode}
-                onChange={(e) =>
-                  setStoreTerritoryCode(
-                    e.target.value === 'wa' || e.target.value === 'or' ? e.target.value : '',
-                  )
-                }
+                onChange={(e) => {
+                  const next =
+                    e.target.value === 'wa' || e.target.value === 'or' ? e.target.value : 'or';
+                  setStoreTerritoryCode(next);
+                  setBriefingRegion('ALL');
+                }}
                 disabled={prepBusy || loading}
+                aria-label="Territory"
               >
-                <option value="or">Oregon</option>
-                <option value="wa">Washington</option>
-                <option value="">All store geos</option>
+                {OGR_BRIEFING_TERRITORIES.map((row) => (
+                  <option key={row.code} value={row.code}>
+                    {row.label}
+                  </option>
+                ))}
+              </Select>
+              <label className="sr-only" htmlFor="briefing-region">
+                Region
+              </label>
+              <Select
+                id="briefing-region"
+                className="w-auto min-w-[10rem]"
+                value={briefingRegion}
+                onChange={(e) => setBriefingRegion(e.target.value)}
+                disabled={prepBusy || loading || opsOptions.length === 0}
+                aria-label="Region"
+              >
+                {briefingRegionOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </Select>
               <Button
                 type="button"
                 onClick={() => void runPrepNow()}
-                disabled={prepBusy || loading || !opsTerritoryId}
+                disabled={prepBusy || loading || !resolvedOpsTerritoryId}
               >
                 {prepBusy ? 'Running prep…' : `Run prep now (${REGIONAL_PREP_LIMIT})`}
               </Button>
@@ -437,6 +471,16 @@ export function AgentBriefingTab({
               {prep?.run
                 ? ` · capacity ${prep.run.capacity} · pending before ${prep.run.pendingBefore} · produced ${prep.run.producedCount}`
                 : null}
+              {briefing.regionalPool && briefingRegion !== 'ALL' ? (
+                <>
+                  <br />
+                  {formatRegionalPoolMessage(
+                    briefing.regionalPool,
+                    briefingRegionOptions.find((o) => o.value === briefingRegion)?.label ??
+                      briefingRegion,
+                  )}
+                </>
+              ) : null}
             </CardMeta>
           </Card>
 
@@ -468,6 +512,78 @@ export function AgentBriefingTab({
               </CardTitle>
             </Card>
           </div>
+
+          <Card>
+            <CardTitle className="text-[15px]">Outreach queue — research email</CardTitle>
+            <CardMeta className="mb-2">
+              {briefing.identifiedTargets.length} identified · use Research to find a contact email,
+              then re-run prep to generate drafts
+            </CardMeta>
+            {briefing.identifiedTargets.length === 0 ? (
+              <p className="text-ink/50 m-0 text-sm">
+                No identified accounts for this region yet. Run prep to rank up to 25 accounts.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="text-ink/50 text-xs uppercase">
+                      <th className="border-ink/10 border-b p-2 font-medium">Prospect</th>
+                      <th className="border-ink/10 border-b p-2 font-medium">Product</th>
+                      <th className="border-ink/10 border-b p-2 font-medium">Channel</th>
+                      <th className="border-ink/10 border-b p-2 font-medium">Email</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {briefing.identifiedTargets.map((t) => (
+                      <tr key={`${t.prospectId}-${t.catalogItemId}`} className="hover:bg-bg/80">
+                        <td className="border-ink/[0.06] border-b p-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              className="text-accent-800 font-medium hover:underline"
+                              onClick={() =>
+                                onOpenProspect({
+                                  prospectId: t.prospectId,
+                                  accountStatus: 'prospect',
+                                })
+                              }
+                            >
+                              {t.prospectName}
+                            </button>
+                            <button
+                              type="button"
+                              className="text-ink/55 hover:text-accent-800 text-xs hover:underline"
+                              onClick={() =>
+                                onOpenProspect({
+                                  prospectId: t.prospectId,
+                                  accountStatus: 'prospect',
+                                  openResearch: true,
+                                })
+                              }
+                            >
+                              Research
+                            </button>
+                          </div>
+                        </td>
+                        <td className="border-ink/[0.06] border-b p-2">{t.productName}</td>
+                        <td className="border-ink/[0.06] border-b p-2">
+                          {t.primaryChannel ?? '—'}
+                        </td>
+                        <td className="border-ink/[0.06] border-b p-2">
+                          {t.needsEmail ? (
+                            <span className="text-accent-800">Needs research</span>
+                          ) : (
+                            <span className="text-ink/60">On file</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
 
           <Card>
             <CardTitle className="text-[15px]">Drafts ready for review</CardTitle>

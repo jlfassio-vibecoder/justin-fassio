@@ -13,6 +13,7 @@ import {
   type AccountContact,
 } from '@/lib/accountContacts';
 import type { PrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
+import { prospectMatchesCrmRegion } from '@/lib/geoCatalog';
 import {
   allocateChannelsForDay,
   type AllocateChannelsForDayResult,
@@ -35,6 +36,7 @@ import {
   AGENT_OUTREACH_PREP_TZ,
   AGENT_OUTREACH_PRODUCT_DEDUP_DAYS,
 } from '@/lib/outreachSelectionConstants';
+import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
 import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
 import {
   fetchPendingAgentProductOutreachProspectIds,
@@ -53,6 +55,8 @@ export type SelectedOutreachTarget = {
   accountContactId: string;
   toEmail: string;
   toName: string;
+  /** Regional prep: selected for outreach; staff should research email before drafting. */
+  needsEmail?: boolean;
   primaryChannel: PrimaryRetailChannel | null;
   secondaryChannels: PrimaryRetailChannel[];
   catalogItemId: string;
@@ -91,6 +95,8 @@ export type SelectOutreachTargetsInput = {
   operationalTerritoryId?: string;
   /** Optional store-geo filter (e.g. or / wa) within the ops region. */
   storeTerritoryCode?: string;
+  /** Driveable CRM region within the store territory (e.g. Oregon Coast). */
+  crmRegion?: string;
   /**
    * Ranking mode. `fit_score` = fit desc (nulls last), then id.
    * `default` = priority / fit / fit-band / channel soft rank (nightly).
@@ -101,13 +107,23 @@ export type SelectOutreachTargetsInput = {
    * Used with regional fit_score prep.
    */
   skipChannelAllocation?: boolean;
+  /** When true, return pipeline counts (regional briefing diagnostics). */
+  includeDiagnostics?: boolean;
+  /**
+   * Regional prep: rank prospects without a contact email instead of excluding them.
+   * Draft generation is deferred until staff adds an email (via Research).
+   */
+  allowMissingEmail?: boolean;
 };
+
+export type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
 
 export type SelectOutreachTargetsResult =
   | {
       ok: true;
       targets: SelectedOutreachTarget[];
       excluded: { prospectId: number; reason: OutreachExclusionReason | string }[];
+      diagnostics?: OutreachPoolDiagnostics;
     }
   | { ok: false; error: string };
 
@@ -338,8 +354,9 @@ function latestSentAt(
 
 type EligibleCandidate = {
   prospect: Prospect;
-  contact: AccountContact;
-  toEmail: string;
+  contact: AccountContact | null;
+  toEmail: string | null;
+  needsEmail: boolean;
   primaryChannel: PrimaryRetailChannel | null;
   secondaryChannels: PrimaryRetailChannel[];
   allChannels: PrimaryRetailChannel[];
@@ -356,18 +373,21 @@ export async function selectOutreachTargets(
 ): Promise<SelectOutreachTargetsResult> {
   const asOf = input.asOf ?? new Date();
   const preparationDate = input.preparationDate ?? formatOutreachPreparationDate(asOf);
+  const includeDiagnostics = Boolean(input.includeDiagnostics);
   const capacity = Math.max(0, Math.floor(input.capacity));
   const excluded: { prospectId: number; reason: OutreachExclusionReason | string }[] = [];
 
-  if (capacity === 0) {
+  if (capacity === 0 && !includeDiagnostics) {
     return { ok: true, targets: [], excluded };
   }
+
+  const runCapacity = includeDiagnostics && capacity === 0 ? 9999 : capacity;
 
   const allocation =
     input.channelAllocation ??
     allocateChannelsForDay({
       preparationDate,
-      capacity,
+      capacity: runCapacity,
       weights: input.weights,
     });
   const allocatedWithSlots = new Set(
@@ -390,8 +410,10 @@ export async function selectOutreachTargets(
 
   const opsTerritoryId = input.operationalTerritoryId?.trim() || null;
   const storeTerritoryCode = input.storeTerritoryCode?.trim().toLowerCase() || null;
+  const crmRegion = input.crmRegion?.trim() || null;
   const rankMode = input.rankMode ?? 'default';
   const skipChannelAllocation = Boolean(input.skipChannelAllocation);
+  const allowMissingEmail = Boolean(input.allowMissingEmail);
 
   const prospects = prospectsResult.prospects.filter((p) => {
     // Copilot suggestion ignored: load already drops inactive RLAs; renaming this leftover gate would expand the exclusion union without a consumer.
@@ -410,6 +432,13 @@ export async function selectOutreachTargets(
       excluded.push({ prospectId: p.id, reason: 'outside_store_territory' });
       return false;
     }
+    if (
+      crmRegion &&
+      !prospectMatchesCrmRegion(p.region, crmRegion, storeTerritoryCode ?? p.territoryCode)
+    ) {
+      excluded.push({ prospectId: p.id, reason: 'outside_crm_region' });
+      return false;
+    }
     return true;
   });
 
@@ -421,19 +450,31 @@ export async function selectOutreachTargets(
 
   type Picked = {
     prospect: Prospect;
-    contact: AccountContact;
-    toEmail: string;
+    contact: AccountContact | null;
+    toEmail: string | null;
+    needsEmail: boolean;
   };
   const pickedRows: Picked[] = [];
+  let pendingDraftCount = 0;
+  let noUsableEmailCount = 0;
+  let contactSuppressedCount = 0;
+  let needsEmailQueuedCount = 0;
   for (const prospect of prospects) {
     if (pendingResult.prospectIds.has(prospect.id)) {
       excluded.push({ prospectId: prospect.id, reason: 'pending_agent_draft' });
+      pendingDraftCount += 1;
       continue;
     }
 
     const picked = pickOutreachContact(contactsResult.byAccountId.get(prospect.id) ?? []);
     if (!picked) {
+      if (allowMissingEmail) {
+        pickedRows.push({ prospect, contact: null, toEmail: null, needsEmail: true });
+        needsEmailQueuedCount += 1;
+        continue;
+      }
       excluded.push({ prospectId: prospect.id, reason: 'no_usable_email' });
+      noUsableEmailCount += 1;
       continue;
     }
 
@@ -442,28 +483,36 @@ export async function selectOutreachTargets(
       suppressedResult.prospectIds.has(prospect.id)
     ) {
       excluded.push({ prospectId: prospect.id, reason: 'contact_suppressed' });
+      contactSuppressedCount += 1;
       continue;
     }
 
-    pickedRows.push({ prospect, contact: picked.contact, toEmail: picked.toEmail });
+    pickedRows.push({
+      prospect,
+      contact: picked.contact,
+      toEmail: picked.toEmail,
+      needsEmail: false,
+    });
   }
 
   const sendsResult = await loadLatestSends(
     client,
     pickedRows.map((row) => row.prospect.id),
-    [...new Set(pickedRows.map((row) => row.toEmail))],
+    [
+      ...new Set(
+        pickedRows.map((row) => row.toEmail).filter((email): email is string => Boolean(email)),
+      ),
+    ],
   );
   if (!sendsResult.ok) return { ok: false, error: sendsResult.error };
 
   const eligible: EligibleCandidate[] = [];
+  let cooldownCount = 0;
 
   for (const row of pickedRows) {
-    const lastSentAt = latestSentAt(
-      row.prospect.id,
-      row.toEmail,
-      sendsResult.byProspectId,
-      sendsResult.byEmail,
-    );
+    const lastSentAt = row.toEmail
+      ? latestSentAt(row.prospect.id, row.toEmail, sendsResult.byProspectId, sendsResult.byEmail)
+      : (sendsResult.byProspectId.get(row.prospect.id) ?? null);
     if (
       isWithinOutreachCooldown(lastSentAt, {
         asOf,
@@ -471,6 +520,7 @@ export async function selectOutreachTargets(
       })
     ) {
       excluded.push({ prospectId: row.prospect.id, reason: 'cooldown' });
+      cooldownCount += 1;
       continue;
     }
 
@@ -479,6 +529,7 @@ export async function selectOutreachTargets(
       prospect: row.prospect,
       contact: row.contact,
       toEmail: row.toEmail,
+      needsEmail: row.needsEmail,
       primaryChannel: channels.primaryChannel,
       secondaryChannels: channels.secondaryChannels,
       allChannels: channels.allChannels,
@@ -535,14 +586,15 @@ export async function selectOutreachTargets(
   const claimedProspects = new Set<number>();
   const targets: SelectedOutreachTarget[] = [];
   const spill: EligibleCandidate[] = [];
+  let noProductCount = 0;
 
   const trySelect = (candidate: EligibleCandidate, preferChannelSlot: boolean): boolean => {
-    if (targets.length >= capacity) return false;
+    if (targets.length >= runCapacity) return false;
     if (claimedProspects.has(candidate.prospect.id)) {
       excluded.push({ prospectId: candidate.prospect.id, reason: 'prospect_already_selected' });
       return false;
     }
-    if (claimedEmails.has(candidate.toEmail)) {
+    if (candidate.toEmail && claimedEmails.has(candidate.toEmail)) {
       excluded.push({ prospectId: candidate.prospect.id, reason: 'email_already_selected' });
       return false;
     }
@@ -569,20 +621,22 @@ export async function selectOutreachTargets(
           ? 'no_product_after_dedup'
           : 'no_product_in_pool';
       excluded.push({ prospectId: candidate.prospect.id, reason });
+      noProductCount += 1;
       return false;
     }
 
     const channelMatch = candidate.allChannels.some((ch) => allocatedWithSlots.has(ch));
 
     claimedProspects.add(candidate.prospect.id);
-    claimedEmails.add(candidate.toEmail);
+    if (candidate.toEmail) claimedEmails.add(candidate.toEmail);
     targets.push({
       preparationDate,
       prospectId: candidate.prospect.id,
       prospectName: candidate.prospect.name,
-      accountContactId: candidate.contact.id,
-      toEmail: candidate.toEmail,
-      toName: candidate.contact.fullName,
+      accountContactId: candidate.contact?.id ?? '',
+      toEmail: candidate.toEmail ?? '',
+      toName: candidate.contact?.fullName?.trim() || candidate.prospect.name,
+      needsEmail: candidate.needsEmail,
       primaryChannel: candidate.primaryChannel,
       secondaryChannels: candidate.secondaryChannels,
       catalogItemId: productPick.product.id,
@@ -605,13 +659,13 @@ export async function selectOutreachTargets(
   };
 
   for (const candidate of eligible) {
-    if (targets.length >= capacity) break;
+    if (targets.length >= runCapacity) break;
     const matched = trySelect(candidate, !skipChannelAllocation);
     if (
       !skipChannelAllocation &&
       !matched &&
       !claimedProspects.has(candidate.prospect.id) &&
-      !claimedEmails.has(candidate.toEmail)
+      (!candidate.toEmail || !claimedEmails.has(candidate.toEmail))
     ) {
       // Only spill if not already excluded inside trySelect for product/email reasons
       const alreadyExcluded = excluded.some((e) => e.prospectId === candidate.prospect.id);
@@ -623,10 +677,37 @@ export async function selectOutreachTargets(
 
   if (!skipChannelAllocation) {
     for (const candidate of spill) {
-      if (targets.length >= capacity) break;
+      if (targets.length >= runCapacity) break;
       trySelect(candidate, false);
     }
   }
 
-  return { ok: true, targets, excluded };
+  const diagnostics: OutreachPoolDiagnostics | undefined = includeDiagnostics
+    ? {
+        inRegion: prospects.length,
+        withUsableEmail: pickedRows.filter((row) => !row.needsEmail).length,
+        sendableNow: targets.filter((t) => !t.needsEmail && t.toEmail).length,
+        queuedWithoutEmail: targets.filter((t) => t.needsEmail).length,
+        excluded: {
+          noUsableEmail: allowMissingEmail ? 0 : noUsableEmailCount,
+          pendingDraft: pendingDraftCount,
+          cooldown: cooldownCount,
+          contactSuppressed: contactSuppressedCount,
+          noProduct: noProductCount,
+          other: Math.max(
+            0,
+            prospects.length -
+              (allowMissingEmail ? needsEmailQueuedCount : noUsableEmailCount) -
+              pickedRows.filter((row) => !row.needsEmail).length -
+              pendingDraftCount -
+              contactSuppressedCount -
+              cooldownCount -
+              noProductCount -
+              targets.length,
+          ),
+        },
+      }
+    : undefined;
+
+  return { ok: true, targets, excluded, diagnostics };
 }

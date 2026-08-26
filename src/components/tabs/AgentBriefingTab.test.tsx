@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
 import { catalogItemStub } from '@/lib/catalog';
 import { aggregateProspectOutreachEngagement } from '@/lib/outreachEngagementAggregate';
-import type { OutreachBriefingDto } from '@/lib/outreachBriefing';
+import type { OutreachBriefingDto } from '@/lib/outreachBriefingShared';
 import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
 
 const getAgentProductOutreachDraftClientMock = vi.fn();
@@ -88,6 +88,7 @@ const briefingPayload: { briefing: OutreachBriefingDto } = {
         createdAt: '2026-08-22T12:00:00Z',
       },
     ],
+    identifiedTargets: [],
     channelAllocation: null,
     callToday: [],
     hot: [],
@@ -303,6 +304,57 @@ describe('AgentBriefingTab research entry', () => {
       prospectId: 12,
       accountStatus: 'prospect',
       openResearch: true,
+    });
+  });
+});
+
+describe('AgentBriefingTab regional prep controls', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockBriefingFetch(briefingPayload);
+  });
+
+  it('uses Territory + Region labels and posts mapped ops + storeTerritoryCode', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockImplementation(async (path: string) => {
+      if (typeof path === 'string' && path.includes('/api/staff/outreach/prep')) {
+        return {
+          ok: true,
+          json: async () => ({ ok: true, noop: true }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => briefingPayload,
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Territory')).toBeInTheDocument();
+      expect(screen.getByLabelText('Region')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByLabelText('Operational territory')).toBeNull();
+    expect(screen.queryByLabelText('Store geography')).toBeNull();
+
+    await user.selectOptions(screen.getByLabelText('Territory'), 'wa');
+    await user.selectOptions(screen.getByLabelText('Region'), 'Eastern Washington');
+    await user.click(screen.getByRole('button', { name: /Run prep now/ }));
+
+    await waitFor(() => {
+      const prepCall = fetchMock.mock.calls.find(
+        (call) => typeof call[0] === 'string' && call[0].includes('/api/staff/outreach/prep'),
+      );
+      expect(prepCall).toBeTruthy();
+      const body = JSON.parse(String((prepCall?.[1] as RequestInit)?.body ?? '{}')) as {
+        operationalTerritoryId?: string;
+        storeTerritoryCode?: string;
+      };
+      expect(body.storeTerritoryCode).toBe('wa');
+      expect(body.operationalTerritoryId).toBe('ops-pnw-east');
     });
   });
 });

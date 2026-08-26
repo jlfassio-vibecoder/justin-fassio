@@ -136,7 +136,7 @@ describe('filterProspects', () => {
     ).toEqual([2]);
   });
 
-  it('includes Oregon/Washington regions and territory ALL', () => {
+  it('matches Unassigned to statewide Oregon/Washington leftovers', () => {
     const portland: Prospect = {
       ...SAMPLE[0],
       id: 10,
@@ -155,13 +155,37 @@ describe('filterProspects', () => {
       territoryCode: 'wa',
       territoryName: 'Washington',
     };
-    const mixed = [...SAMPLE, portland, seattle];
+    const gorge: Prospect = {
+      ...portland,
+      id: 12,
+      name: 'Gorge Shop',
+      region: 'Portland Metro & Gorge',
+    };
+    const mixed = [...SAMPLE, portland, seattle, gorge];
     expect(
-      filterProspects(mixed, { search: '', region: 'Oregon', channel: 'ALL' }).map((p) => p.id),
+      filterProspects(mixed, {
+        search: '',
+        region: '__unassigned__',
+        channel: 'ALL',
+        territoryCode: 'or',
+      }).map((p) => p.id),
     ).toEqual([10]);
     expect(
-      filterProspects(mixed, { search: '', region: 'Washington', channel: 'ALL' }).map((p) => p.id),
+      filterProspects(mixed, {
+        search: '',
+        region: '__unassigned__',
+        channel: 'ALL',
+        territoryCode: 'wa',
+      }).map((p) => p.id),
     ).toEqual([11]);
+    expect(
+      filterProspects(mixed, {
+        search: '',
+        region: 'Portland Metro & Gorge',
+        channel: 'ALL',
+        territoryCode: 'or',
+      }).map((p) => p.id),
+    ).toEqual([12]);
     expect(
       filterProspects(mixed, {
         search: '',
@@ -169,6 +193,6 @@ describe('filterProspects', () => {
         channel: 'ALL',
         territoryCode: 'ALL',
       }).map((p) => p.id),
-    ).toEqual([1, 2, 3, 10, 11]);
+    ).toEqual([1, 2, 3, 10, 11, 12]);
   });
 });
