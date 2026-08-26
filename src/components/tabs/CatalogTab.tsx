@@ -6,7 +6,8 @@ import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Input';
 import { RowActionsMenu } from '@/components/ui/RowActionsMenu';
 import { Tag } from '@/components/ui/Tag';
-import { resolvePrimaryImageSrc, type CatalogItem } from '@/lib/catalog';
+import { ClickableCatalogProductThumbnail } from '@/components/catalog/ClickableCatalogProductThumbnail';
+import { resolveCatalogThumbSrc, type CatalogItem } from '@/lib/catalog';
 import {
   CATALOG_CATEGORY_FILTER_OPTIONS,
   filterCatalogItems,
@@ -38,12 +39,6 @@ import {
 } from '@/lib/systemMessages';
 
 const ENGAGEMENT_ALERT_POLL_MS = 60_000;
-function catalogThumbSrc(item: CatalogItem): string | null {
-  const src = resolvePrimaryImageSrc(item);
-  if (!src) return null;
-  if (/^https?:\/\//i.test(src) || src.startsWith('/')) return src;
-  return null;
-}
 
 function parseRatePctInput(raw: string, fallback: number): number {
   const n = parseFloat(raw);
@@ -777,7 +772,7 @@ export function CatalogTab({
             </thead>
             <tbody>
               {filteredCatalog.map((item) => {
-                const thumb = catalogThumbSrc(item);
+                const thumb = resolveCatalogThumbSrc(item);
                 return (
                   <tr
                     key={item.sku}
@@ -799,11 +794,11 @@ export function CatalogTab({
                     </td>
                     <td className="border-ink/[0.08] border-b p-2">
                       {thumb ? (
-                        <img
+                        <ClickableCatalogProductThumbnail
                           src={thumb}
-                          alt=""
-                          className="border-ink/10 h-10 w-10 rounded-sm border object-cover"
-                          loading="lazy"
+                          sku={item.sku}
+                          name={item.name}
+                          className="border-ink/10 h-10 w-10 rounded-sm border"
                         />
                       ) : null}
                     </td>

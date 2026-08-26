@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
 import { AccountResearchContactPickModal } from '@/components/accountResearch/AccountResearchContactPickModal';
+import { ManualSourceLockFields } from '@/components/accountResearch/ManualSourceLockFields';
+import { manualSourceLockConfig } from '@/components/accountResearch/manualSourceLockConfig';
 import type { OgrProductEmailComposerDraft } from '@/components/OgrProductEmailComposerModal';
 import {
   isAccountResearchV1Scope,
@@ -116,6 +118,7 @@ export function AccountResearchPanel({
 }: AccountResearchPanelProps) {
   const line = useOptionalLineContext();
   const abortRef = useRef<AbortController | null>(null);
+  const runInFlightRef = useRef(false);
   const latestSalesLineIdRef = useRef(line.salesLineId);
 
   const [snapshot, setSnapshot] = useState<AccountResearchSnapshotDto | null>(null);
@@ -130,6 +133,9 @@ export function AccountResearchPanel({
   const [contactPickItem, setContactPickItem] = useState<MatchItemResponse | null>(null);
   const [selectedCandidateBySource, setSelectedCandidateBySource] = useState<
     Record<string, string>
+  >({});
+  const [dismissedCandidatesBySource, setDismissedCandidatesBySource] = useState<
+    Record<string, boolean>
   >({});
   // Locks are retailer-wide, not run-scoped, but the panel's main `snapshot`
   // only hydrates from the latest 'all'-scope run. Right after the dedicated
@@ -189,63 +195,153 @@ export function AccountResearchPanel({
     [line.salesLineId, prospect.id],
   );
 
-  const hydrateAll = useCallback(async () => {
+  const hydrateAll = useCallback(async (): Promise<AccountResearchSnapshotDto | null> => {
     setLoading(true);
     setError(null);
     const latest = await fetchLatestAccountResearch(prospect.id, 'all');
     if (!latest.ok) {
       setError(latest.error);
       setSnapshot(null);
+      setDismissedCandidatesBySource({});
       setSuggestions([]);
       setMatchResult(null);
       setLoading(false);
-      return;
+      return null;
     }
     if (latest.outcome === 'none') {
       setSnapshot(null);
+      setDismissedCandidatesBySource({});
       setSuggestions([]);
       setMatchResult(null);
       const websiteLatest = await fetchLatestAccountResearch(prospect.id, 'website');
+      if (
+        websiteLatest.ok &&
+        websiteLatest.outcome !== 'none' &&
+        (websiteLatest.run.status === 'pending' || websiteLatest.run.status === 'running')
+      ) {
+        const snap: AccountResearchSnapshotDto = {
+          run: websiteLatest.run,
+          sources: websiteLatest.sources,
+          citationsBySourceId: websiteLatest.citationsBySourceId,
+          sourceFreshness: websiteLatest.sourceFreshness,
+          locksBySourceType: websiteLatest.locksBySourceType ?? {},
+        };
+        setWebsiteLockFallback(Boolean(websiteLatest.locksBySourceType?.website));
+        setSnapshot(snap);
+        setDismissedCandidatesBySource({});
+        setLoading(false);
+        return snap;
+      }
       setWebsiteLockFallback(
         websiteLatest.ok &&
           websiteLatest.outcome !== 'none' &&
           Boolean(websiteLatest.locksBySourceType?.website),
       );
       setLoading(false);
-      return;
+      return null;
     }
     setWebsiteLockFallback(false);
-    setSnapshot({
+    const snap: AccountResearchSnapshotDto = {
       run: latest.run,
       sources: latest.sources,
       citationsBySourceId: latest.citationsBySourceId,
       sourceFreshness: latest.sourceFreshness,
       locksBySourceType: latest.locksBySourceType ?? {},
-    });
-    await Promise.all([hydrateSuggestions(latest.run.id), hydrateMatch(latest.run.id)]);
+    };
+    setSnapshot(snap);
+    setDismissedCandidatesBySource({});
+    if (latest.run.status !== 'pending' && latest.run.status !== 'running') {
+      await Promise.all([hydrateSuggestions(latest.run.id), hydrateMatch(latest.run.id)]);
+    }
     setLoading(false);
+    return snap;
   }, [hydrateMatch, hydrateSuggestions, prospect.id]);
+
+  const processRunUntilDone = useCallback(
+    async (runId: string, busyKey: string, scopeHint?: AccountResearchV1Scope) => {
+      if (runInFlightRef.current) return;
+      runInFlightRef.current = true;
+      setBusyAction(busyKey);
+      setError(null);
+      setProgress(
+        scopeHint === 'website'
+          ? 'Searching for website… This can take a minute.'
+          : 'Processing sources… This can take a minute.',
+      );
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      try {
+        const done = await runAccountResearchUntilDone(runId, {
+          signal: controller.signal,
+          onProgress: (snap) => {
+            setSnapshot(snap);
+            const completed = snap.sources.filter(
+              (s) => s.status !== 'pending' && s.status !== 'running',
+            ).length;
+            const scopeLabel =
+              snap.run.requested_scope === 'website'
+                ? 'Searching for website'
+                : 'Processing sources';
+            setProgress(
+              `${scopeLabel} (${completed}/${snap.sources.length})… This can take a minute.`,
+            );
+          },
+        });
+        if (!done.ok) {
+          if (done.error !== 'Aborted') {
+            await hydrateAll();
+            setError(done.error);
+          }
+          return;
+        }
+        setSnapshot(done);
+        await Promise.all([hydrateSuggestions(runId), hydrateMatch(runId)]);
+      } finally {
+        runInFlightRef.current = false;
+        setBusyAction(null);
+        setProgress(null);
+      }
+    },
+    [hydrateAll, hydrateMatch, hydrateSuggestions],
+  );
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await hydrateAll();
-      if (cancelled) return;
+      const snap = await hydrateAll();
+      if (cancelled || !snap) return;
+      if (snap.run.status === 'pending' || snap.run.status === 'running') {
+        const scope = isAccountResearchV1Scope(snap.run.requested_scope)
+          ? snap.run.requested_scope
+          : undefined;
+        await processRunUntilDone(snap.run.id, 'process', scope);
+      }
     })();
     return () => {
       cancelled = true;
       abortRef.current?.abort();
     };
-  }, [hydrateAll]);
+  }, [hydrateAll, processRunUntilDone]);
 
   async function runResearch(scope: AccountResearchV1Scope, forceRefresh: boolean) {
+    if (runInFlightRef.current) return;
+
     setBusyAction(forceRefresh ? 'refresh' : `run-${scope}`);
     setError(null);
-    setProgress(forceRefresh ? 'Starting refresh…' : 'Starting research…');
+    setProgress(
+      forceRefresh
+        ? 'Starting refresh…'
+        : scope === 'website'
+          ? 'Searching for website… This can take a minute.'
+          : 'Starting research… This can take a minute.',
+    );
     setSuggestions([]);
     setMatchResult(null);
+    setDismissedCandidatesBySource({});
 
-    abortRef.current?.abort();
+    runInFlightRef.current = true;
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -255,6 +351,21 @@ export function AccountResearchPanel({
       forceRefresh,
     });
     if (!started.ok) {
+      runInFlightRef.current = false;
+      if (started.outcome === 'active_conflict') {
+        const snap = await hydrateAll();
+        setBusyAction(null);
+        setProgress(null);
+        if (snap && (snap.run.status === 'pending' || snap.run.status === 'running')) {
+          const resumeScope = isAccountResearchV1Scope(snap.run.requested_scope)
+            ? snap.run.requested_scope
+            : scope;
+          await processRunUntilDone(snap.run.id, 'process', resumeScope);
+          return;
+        }
+        setError(started.error);
+        return;
+      }
       setError(started.error);
       setBusyAction(null);
       setProgress(null);
@@ -268,30 +379,16 @@ export function AccountResearchPanel({
       sourceFreshness: started.sourceFreshness,
       locksBySourceType: started.locksBySourceType ?? {},
     });
+    setDismissedCandidatesBySource({});
 
     if (started.run.status === 'pending' || started.run.status === 'running') {
-      const done = await runAccountResearchUntilDone(started.run.id, {
-        signal: controller.signal,
-        onProgress: (snap) => {
-          setSnapshot(snap);
-          const completed = snap.sources.filter(
-            (s) => s.status !== 'pending' && s.status !== 'running',
-          ).length;
-          setProgress(`Processing sources (${completed}/${snap.sources.length})…`);
-        },
-      });
-      if (!done.ok) {
-        setBusyAction(null);
-        setProgress(null);
-        if (done.error !== 'Aborted') {
-          await hydrateAll();
-          setError(done.error);
-        }
-        return;
-      }
-      setSnapshot(done);
+      // processRunUntilDone owns the in-flight flag from here
+      runInFlightRef.current = false;
+      await processRunUntilDone(started.run.id, forceRefresh ? 'refresh' : `run-${scope}`, scope);
+      return;
     }
 
+    runInFlightRef.current = false;
     setProgress(null);
     setBusyAction(null);
     await Promise.all([hydrateSuggestions(started.run.id), hydrateMatch(started.run.id)]);
@@ -395,9 +492,9 @@ export function AccountResearchPanel({
   }
 
   async function handleLockSource(source: AccountResearchSourceSearch) {
-    const url = selectedCandidateBySource[source.id];
+    const url = selectedCandidateBySource[source.id]?.trim();
     if (!url) {
-      setError('Select a URL to lock in.');
+      setError('Select a candidate or enter a URL to lock in.');
       return;
     }
     setBusyAction(`lock-${source.id}`);
@@ -415,6 +512,7 @@ export function AccountResearchPanel({
       return;
     }
     setSnapshot(result);
+    setDismissedCandidatesBySource({});
     await Promise.all([hydrateSuggestions(result.run.id), hydrateMatch(result.run.id)]);
   }
 
@@ -431,6 +529,7 @@ export function AccountResearchPanel({
       return;
     }
     setSnapshot(result);
+    setDismissedCandidatesBySource({});
     if (source.source_type === 'website') setWebsiteLockFallback(false);
     setSelectedCandidateBySource((prev) => {
       const next = { ...prev };
@@ -473,7 +572,9 @@ export function AccountResearchPanel({
           disabled={running}
           onClick={() => void runResearch('website', false)}
         >
-          {busyAction === 'run-website' ? 'Running…' : 'Run Website Search'}
+          {busyAction === 'run-website' || busyAction === 'process'
+            ? 'Running…'
+            : 'Run Website Search'}
         </Button>
         <Button
           variant="secondary"
@@ -500,7 +601,8 @@ export function AccountResearchPanel({
       {!websiteLocked ? (
         <p className="text-ink/55 m-0 text-xs">
           Lock the official website first — Run Search All scrapes it for social channels and
-          Shopify evidence instead of guessing.
+          Shopify evidence instead of guessing. If they have no website, lock their Facebook or
+          Instagram page URL instead.
         </p>
       ) : null}
 
@@ -524,7 +626,10 @@ export function AccountResearchPanel({
                 const candidates = readSearchCandidates(
                   source.provider_metadata as Record<string, unknown> | null,
                 );
+                const candidatesDismissed = Boolean(dismissedCandidatesBySource[source.id]);
+                const effectiveCandidates = candidatesDismissed ? [] : candidates;
                 const selected = selectedCandidateBySource[source.id] ?? '';
+                const manualLock = manualSourceLockConfig(source.source_type);
                 return (
                   <li key={source.id} className="border-ink/10 rounded-md border px-3 py-2 text-sm">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -557,10 +662,10 @@ export function AccountResearchPanel({
                           </Button>
                         </div>
                       </div>
-                    ) : candidates.length > 0 ? (
+                    ) : effectiveCandidates.length > 0 ? (
                       <div className="mt-2 flex flex-col gap-2">
                         <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                          {candidates.map((candidate) => (
+                          {effectiveCandidates.map((candidate) => (
                             <li key={candidate.url}>
                               <label className="flex cursor-pointer items-start gap-2">
                                 <input
@@ -593,7 +698,7 @@ export function AccountResearchPanel({
                             </li>
                           ))}
                         </ul>
-                        <div>
+                        <div className="flex flex-wrap gap-2">
                           <Button
                             variant="primary"
                             disabled={busyAction != null || !selected}
@@ -601,7 +706,61 @@ export function AccountResearchPanel({
                           >
                             {busyAction === `lock-${source.id}` ? 'Locking…' : 'Lock in'}
                           </Button>
+                          {manualLock ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              disabled={busyAction != null}
+                              onClick={() => {
+                                setDismissedCandidatesBySource((prev) => ({
+                                  ...prev,
+                                  [source.id]: true,
+                                }));
+                                setSelectedCandidateBySource((prev) => {
+                                  const next = { ...prev };
+                                  delete next[source.id];
+                                  return next;
+                                });
+                              }}
+                            >
+                              No match
+                            </Button>
+                          ) : null}
                         </div>
+                      </div>
+                    ) : manualLock ? (
+                      <div className="mt-2 flex flex-col gap-2">
+                        {candidatesDismissed && candidates.length > 0 ? (
+                          <button
+                            type="button"
+                            className="text-accent-800 self-start border-0 bg-transparent p-0 text-xs underline"
+                            disabled={busyAction != null}
+                            onClick={() =>
+                              setDismissedCandidatesBySource((prev) => {
+                                const next = { ...prev };
+                                delete next[source.id];
+                                return next;
+                              })
+                            }
+                          >
+                            Show search results
+                          </button>
+                        ) : null}
+                        <ManualSourceLockFields
+                          hint={manualLock.hint}
+                          placeholder={manualLock.placeholder}
+                          ariaLabel={manualLock.ariaLabel}
+                          value={selected}
+                          disabled={busyAction != null}
+                          locking={busyAction === `lock-${source.id}`}
+                          onChange={(value) =>
+                            setSelectedCandidateBySource((prev) => ({
+                              ...prev,
+                              [source.id]: value,
+                            }))
+                          }
+                          onLock={() => void handleLockSource(source)}
+                        />
                       </div>
                     ) : null}
                   </li>

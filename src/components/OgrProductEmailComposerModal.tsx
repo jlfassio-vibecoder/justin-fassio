@@ -1,5 +1,9 @@
 import { useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
+import {
+  AccountEmailProductPickerModal,
+  type AccountEmailProductPick,
+} from '@/components/AccountEmailProductPickerModal';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
@@ -10,6 +14,7 @@ import {
   updateAgentProductOutreachDraftClient,
 } from '@/lib/agentProductOutreachDraftClient';
 import type { AccountProductEmailRecipientOption } from '@/lib/accountProductEmailRecipient';
+import type { CatalogItem } from '@/lib/catalog';
 import {
   defaultOgrProductEmailSubject,
   OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
@@ -49,12 +54,21 @@ export type OgrProductEmailComposerDraft = {
   productIsNew?: boolean;
 };
 
+export type OgrProductReplacedPayload = {
+  item: CatalogItem;
+  draft: OgrProductEmailComposerDraft;
+};
+
 export type OgrProductEmailComposerModalProps = {
   open: boolean;
   onClose: () => void;
   onSent: () => void;
   /** Called after cancel draft so parent can refresh history. */
   onDraftCancelled?: () => void;
+  /** After Save draft persists intro/closing (and related fields) without sending. */
+  onDraftSaved?: (draft: OgrProductEmailComposerDraft) => void;
+  /** After Change product persists a new catalog item on the draft. */
+  onProductReplaced?: (payload: OgrProductReplacedPayload) => void;
   productId: string;
   productName: string;
   /** Already-rendered Phase 5 card fragment (not the full outreach document). */
@@ -68,7 +82,10 @@ export type OgrProductEmailComposerModalProps = {
   recipientHint?: string | null;
   prospectId?: number;
   accountContactId?: string | null;
+  /** Prospect/retailer id for replace-product picker (defaults to draft.prospectId). */
+  accountId?: number | null;
   salesLineId?: string | null;
+  lineSlug?: string | null;
   retailerLineAccountId?: string | null;
   /** Line Sheet selector. Account flow omits this; server uses RLA when present. */
   publicMarket?: PublicMarket;
@@ -106,6 +123,8 @@ function OgrProductEmailComposerForm({
   onClose,
   onSent,
   onDraftCancelled,
+  onDraftSaved,
+  onProductReplaced,
   productId,
   productName,
   cardHtml,
@@ -116,7 +135,9 @@ function OgrProductEmailComposerForm({
   recipientHint,
   prospectId,
   accountContactId,
+  accountId,
   salesLineId,
+  lineSlug,
   retailerLineAccountId,
   publicMarket,
   recipientOptions,
@@ -125,6 +146,9 @@ function OgrProductEmailComposerForm({
   const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
   const bigFishOutreachBlocked = line.lineSlug === 'big-fish' && !line.bigFishOutreach;
   const isDraftReview = draft != null;
+  const resolvedAccountId = accountId ?? draft?.prospectId ?? prospectId ?? null;
+  const resolvedSalesLineId = salesLineId ?? line.salesLineId;
+  const resolvedLineSlug = lineSlug ?? line.lineSlug;
   const [to, setTo] = useState(draft?.to ?? defaultTo ?? '');
   const [recipientName, setRecipientName] = useState(draft?.toName ?? defaultRecipientName ?? '');
   const [selectedContactId, setSelectedContactId] = useState<string | null>(() =>
@@ -138,14 +162,65 @@ function OgrProductEmailComposerForm({
     draft?.closingText ?? OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
   );
   const [submitting, setSubmitting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [replacingProduct, setReplacingProduct] = useState(false);
+  const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const busy = submitting || regenerating;
+  const busy = submitting || saving || regenerating || replacingProduct;
+  const canChangeProduct =
+    isDraftReview &&
+    onProductReplaced != null &&
+    resolvedAccountId != null &&
+    Number.isFinite(resolvedAccountId);
 
   function handleClose() {
     if (busy) return;
     onClose();
+  }
+
+  async function handleReplaceProductPick(pick: AccountEmailProductPick) {
+    if (!draft || !onProductReplaced || busy) return;
+    if (pick.item.id === draft.catalogItemId) {
+      setProductPickerOpen(false);
+      return;
+    }
+    setError(null);
+    setReplacingProduct(true);
+    try {
+      const updated = await updateAgentProductOutreachDraftClient(draft.id, {
+        productId: pick.item.id,
+        salesLineId: resolvedSalesLineId,
+      });
+      if (!updated.ok) {
+        setError(updated.error);
+        return;
+      }
+      const d = updated.draft;
+      setSubject(d.subject || defaultOgrProductEmailSubject(pick.item.name));
+      setProductPickerOpen(false);
+      onProductReplaced({
+        item: pick.item,
+        draft: {
+          id: d.id,
+          to: d.toEmail,
+          toName: d.toName,
+          subject: d.subject,
+          introText: d.introText,
+          closingText: d.closingText,
+          prospectId: d.prospectId,
+          accountContactId: d.accountContactId,
+          catalogItemId: d.catalogItemId,
+          prospectName: draft.prospectName,
+          productSku: d.payload.sku,
+          productSlug: d.payload.slug,
+          productIsNew: pick.item.isNew,
+        },
+      });
+    } finally {
+      setReplacingProduct(false);
+    }
   }
 
   async function handleAddCopy() {
@@ -234,6 +309,70 @@ function OgrProductEmailComposerForm({
       onClose();
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleSaveDraft() {
+    if (!isDraftReview || !draft || busy) return;
+
+    const trimmedTo = to.trim();
+    if (!isValidOgrProductEmailRecipient(trimmedTo)) {
+      setError('A valid recipient email is required');
+      return;
+    }
+    if (!recipientName.trim()) {
+      setError('Recipient name is required for agent drafts');
+      return;
+    }
+    if (recipientName.trim().length > MAX_RECIPIENT_NAME) {
+      setError('Recipient name is too long');
+      return;
+    }
+    if (subject.trim().length > MAX_SUBJECT) {
+      setError('Subject is too long');
+      return;
+    }
+    if (introText.trim().length > MAX_PROSE) {
+      setError('Intro is too long');
+      return;
+    }
+    if (closingText.trim().length > MAX_PROSE) {
+      setError('Closing is too long');
+      return;
+    }
+
+    setError(null);
+    setSaving(true);
+    try {
+      const updated = await updateAgentProductOutreachDraftClient(draft.id, {
+        to: trimmedTo,
+        toName: recipientName.trim(),
+        subject: subject.trim(),
+        introText: introText.trim(),
+        closingText: closingText.trim(),
+      });
+      if (!updated.ok) {
+        setError(updated.error);
+        return;
+      }
+      const d = updated.draft;
+      onDraftSaved?.({
+        id: d.id,
+        to: d.toEmail,
+        toName: d.toName,
+        subject: d.subject,
+        introText: d.introText,
+        closingText: d.closingText,
+        prospectId: d.prospectId,
+        accountContactId: d.accountContactId,
+        catalogItemId: d.catalogItemId,
+        prospectName: draft.prospectName,
+        productSku: d.payload.sku,
+        productSlug: d.payload.slug,
+        productIsNew: draft.productIsNew,
+      });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -449,9 +588,21 @@ function OgrProductEmailComposerForm({
         </Field>
 
         <div>
-          <p className="text-ink/55 m-0 mb-2 text-xs font-medium tracking-wide uppercase">
-            Product card preview
-          </p>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-ink/55 m-0 text-xs font-medium tracking-wide uppercase">
+              Product card preview
+            </p>
+            {canChangeProduct ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setProductPickerOpen(true)}
+                disabled={busy}
+              >
+                {replacingProduct ? 'Updating…' : 'Change product'}
+              </Button>
+            ) : null}
+          </div>
           {cardHtml ? (
             <iframe
               title="Product card preview"
@@ -484,6 +635,14 @@ function OgrProductEmailComposerForm({
               <Button
                 type="button"
                 variant="secondary"
+                onClick={() => void handleSaveDraft()}
+                disabled={busy}
+              >
+                {saving ? 'Saving…' : 'Save draft'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
                 onClick={() => void handleAddCopy()}
                 disabled={busy}
               >
@@ -500,6 +659,19 @@ function OgrProductEmailComposerForm({
           </Button>
         </div>
       </form>
+      {canChangeProduct && resolvedAccountId != null ? (
+        <AccountEmailProductPickerModal
+          open={productPickerOpen}
+          intent="replaceProduct"
+          accountId={resolvedAccountId}
+          salesLineId={resolvedSalesLineId}
+          lineSlug={resolvedLineSlug}
+          onClose={() => {
+            if (!replacingProduct) setProductPickerOpen(false);
+          }}
+          onPick={(pick) => void handleReplaceProductPick(pick)}
+        />
+      ) : null}
     </DialogBackdrop>
   );
 }
@@ -509,6 +681,8 @@ export function OgrProductEmailComposerModal({
   onClose,
   onSent,
   onDraftCancelled,
+  onDraftSaved,
+  onProductReplaced,
   productId,
   productName,
   cardHtml,
@@ -519,7 +693,9 @@ export function OgrProductEmailComposerModal({
   recipientHint,
   prospectId,
   accountContactId,
+  accountId,
   salesLineId,
+  lineSlug,
   retailerLineAccountId,
   publicMarket,
   recipientOptions,
@@ -527,10 +703,12 @@ export function OgrProductEmailComposerModal({
   if (!open) return null;
   return (
     <OgrProductEmailComposerForm
-      key={`${draft?.id ?? productId}:${accountContactId ?? defaultTo ?? ''}`}
+      key={`${draft?.id ?? productId}:${productId}:${accountContactId ?? defaultTo ?? ''}`}
       onClose={onClose}
       onSent={onSent}
       onDraftCancelled={onDraftCancelled}
+      onDraftSaved={onDraftSaved}
+      onProductReplaced={onProductReplaced}
       productId={productId}
       productName={productName}
       cardHtml={cardHtml}
@@ -541,7 +719,9 @@ export function OgrProductEmailComposerModal({
       recipientHint={recipientHint}
       prospectId={prospectId}
       accountContactId={accountContactId}
+      accountId={accountId}
       salesLineId={salesLineId}
+      lineSlug={lineSlug}
       retailerLineAccountId={retailerLineAccountId}
       publicMarket={publicMarket}
       recipientOptions={recipientOptions}

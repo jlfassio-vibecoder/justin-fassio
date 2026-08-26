@@ -27,7 +27,7 @@ export function isSocialPlatform(
 export type WebsiteSocialLink = {
   url: string;
   handle: string;
-  source: 'html_anchor' | 'json_ld_sameAs';
+  source: 'html_anchor' | 'json_ld_sameAs' | 'staff_lock';
 };
 
 export type RunWebsiteSocialCache = Partial<Record<SocialPlatform, WebsiteSocialLink>>;

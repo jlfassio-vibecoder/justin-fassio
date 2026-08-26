@@ -13,7 +13,7 @@ import {
 import {
   catalogFetchOptionsForAccountEmail,
   fetchCatalogItems,
-  resolvePrimaryImageSrc,
+  resolveCatalogThumbSrc,
   type CatalogItem,
 } from '@/lib/catalog';
 import {
@@ -21,6 +21,9 @@ import {
   filterCatalogItems,
   type CatalogFlagFilter,
 } from '@/lib/catalogFilters';
+import { ClickableCatalogProductThumbnail } from '@/components/catalog/ClickableCatalogProductThumbnail';
+
+export type AccountEmailProductPickerIntent = 'email' | 'replaceProduct';
 
 export type AccountEmailProductPick = {
   item: CatalogItem;
@@ -38,17 +41,12 @@ export type AccountEmailProductPickerModalProps = {
   accountId: number;
   salesLineId: string | null;
   lineSlug: string | null;
+  /** `replaceProduct` hides recipients and uses “Use this” (Review Product Email). */
+  intent?: AccountEmailProductPickerIntent;
 };
 
 function isPublishedEmailableCatalogItem(item: CatalogItem): boolean {
   return item.isPubliclyPublished && Boolean(item.publicSlug?.trim());
-}
-
-function catalogThumbSrc(item: CatalogItem): string | null {
-  const src = resolvePrimaryImageSrc(item);
-  if (!src) return null;
-  if (/^https?:\/\//i.test(src) || src.startsWith('/')) return src;
-  return null;
 }
 
 export function AccountEmailProductPickerModal({
@@ -58,7 +56,9 @@ export function AccountEmailProductPickerModal({
   accountId,
   salesLineId,
   lineSlug,
+  intent = 'email',
 }: AccountEmailProductPickerModalProps) {
+  const replaceProduct = intent === 'replaceProduct';
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,14 +71,36 @@ export function AccountEmailProductPickerModal({
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [recipientHint, setRecipientHint] = useState<string | null>(null);
 
-  // Copilot suggestion ignored: the account drawer unmounts this picker when closed, so loading remounts at true.
   useEffect(() => {
     if (!open) return;
     let active = true;
-    void Promise.all([
-      fetchCatalogItems(catalogFetchOptionsForAccountEmail(salesLineId, lineSlug)),
-      fetchContactsForAccount(accountId),
-    ]).then(([catalogResult, contactsResult]) => {
+
+    void (async () => {
+      setLoading(true);
+      setError(null);
+
+      if (replaceProduct) {
+        const catalogResult = await fetchCatalogItems(
+          catalogFetchOptionsForAccountEmail(salesLineId, lineSlug),
+        );
+        if (!active) return;
+        setLoading(false);
+        if (catalogResult.error) {
+          setItems([]);
+          setError(catalogResult.error);
+          return;
+        }
+        setItems(catalogResult.data.filter(isPublishedEmailableCatalogItem));
+        setRecipientOptions([]);
+        setSelectedContactId(null);
+        setRecipientHint(null);
+        return;
+      }
+
+      const [catalogResult, contactsResult] = await Promise.all([
+        fetchCatalogItems(catalogFetchOptionsForAccountEmail(salesLineId, lineSlug)),
+        fetchContactsForAccount(accountId),
+      ]);
       if (!active) return;
       setLoading(false);
       if (catalogResult.error) {
@@ -99,11 +121,12 @@ export function AccountEmailProductPickerModal({
       setSelectedContactId(defaultContact?.id ?? null);
       setRecipientHint(accountProductEmailRecipientHint(contacts));
       setError(null);
-    });
+    })();
+
     return () => {
       active = false;
     };
-  }, [open, accountId, salesLineId, lineSlug]);
+  }, [open, accountId, salesLineId, lineSlug, replaceProduct]);
 
   const filtered = useMemo(
     () => filterCatalogItems(items, { search, category, flag }),
@@ -113,9 +136,9 @@ export function AccountEmailProductPickerModal({
   if (!open) return null;
 
   const selected = recipientOptions.find((option) => option.id === selectedContactId) ?? null;
-  const showRecipientSelect = recipientOptions.length >= 2;
+  const showRecipientSelect = !replaceProduct && recipientOptions.length >= 2;
 
-  function handleEmailThis(item: CatalogItem) {
+  function handlePick(item: CatalogItem) {
     onPick({
       item,
       to: selected?.email ?? '',
@@ -130,7 +153,7 @@ export function AccountEmailProductPickerModal({
     <DialogBackdrop open overlayClassName="z-[60]" panelClassName="max-w-[720px]" onClose={onClose}>
       <div className="bg-surface p-4.1 flex max-h-[min(90dvh,800px)] flex-col gap-3 overflow-hidden rounded-xl shadow-lg">
         <div className="flex items-center justify-between gap-3">
-          <DialogTitle>Email a product</DialogTitle>
+          <DialogTitle>{replaceProduct ? 'Replace product' : 'Email a product'}</DialogTitle>
           <button
             type="button"
             onClick={onClose}
@@ -142,33 +165,37 @@ export function AccountEmailProductPickerModal({
         </div>
 
         <p className="text-ink/65 m-0 text-sm">
-          Choose a published product to email from this account.
+          {replaceProduct
+            ? 'Choose a published product for this draft. Recipient and intro/closing stay as they are.'
+            : 'Choose a published product to email from this account.'}
         </p>
 
-        <div className="flex flex-col gap-2">
-          {showRecipientSelect ? (
-            <Field>
-              <FieldLabel>Recipient</FieldLabel>
-              <Select
-                aria-label="Recipient"
-                value={selectedContactId ?? ''}
-                onChange={(event) => setSelectedContactId(event.target.value || null)}
-              >
-                {recipientOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.name} ({option.email})
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          ) : null}
-          {!showRecipientSelect && selected ? (
-            <p className="text-ink/70 m-0 text-sm">
-              To: {selected.name} ({selected.email})
-            </p>
-          ) : null}
-          {recipientHint ? <p className="text-ink/55 m-0 text-xs">{recipientHint}</p> : null}
-        </div>
+        {!replaceProduct ? (
+          <div className="flex flex-col gap-2">
+            {showRecipientSelect ? (
+              <Field>
+                <FieldLabel>Recipient</FieldLabel>
+                <Select
+                  aria-label="Recipient"
+                  value={selectedContactId ?? ''}
+                  onChange={(event) => setSelectedContactId(event.target.value || null)}
+                >
+                  {recipientOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name} ({option.email})
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
+            {!showRecipientSelect && selected ? (
+              <p className="text-ink/70 m-0 text-sm">
+                To: {selected.name} ({selected.email})
+              </p>
+            ) : null}
+            {recipientHint ? <p className="text-ink/55 m-0 text-xs">{recipientHint}</p> : null}
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
           <Input
@@ -226,18 +253,24 @@ export function AccountEmailProductPickerModal({
                     Color
                   </th>
                   <th className="px-2 py-2">
-                    <span className="sr-only">Email</span>
+                    <span className="sr-only">{replaceProduct ? 'Select' : 'Email'}</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((item) => {
-                  const thumb = catalogThumbSrc(item);
+                  const thumb = resolveCatalogThumbSrc(item);
                   return (
                     <tr key={item.id} className="border-ink/10 border-t">
                       <td className="px-2 py-2">
                         {thumb ? (
-                          <img src={thumb} alt="" className="h-10 w-10 rounded-md object-cover" />
+                          <ClickableCatalogProductThumbnail
+                            src={thumb}
+                            sku={item.sku}
+                            name={item.name}
+                            className="h-10 w-10 rounded-md"
+                            overlayClassName="z-[70]"
+                          />
                         ) : (
                           <span className="bg-ink/10 block h-10 w-10 rounded-md" />
                         )}
@@ -246,12 +279,8 @@ export function AccountEmailProductPickerModal({
                       <td className="px-2 py-2">{item.name}</td>
                       <td className="text-ink/70 px-2 py-2">{item.color || '—'}</td>
                       <td className="px-2 py-2 text-right">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => handleEmailThis(item)}
-                        >
-                          Email this
+                        <Button type="button" variant="secondary" onClick={() => handlePick(item)}>
+                          {replaceProduct ? 'Use this' : 'Email this'}
                         </Button>
                       </td>
                     </tr>
