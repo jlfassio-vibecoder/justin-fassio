@@ -9,6 +9,7 @@ import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
 import {
   cancelAgentProductOutreachDraftClient,
+  composerDraftFromAgentDto,
   generateAgentProductOutreachDraft,
   sendAgentProductOutreachDraft,
   updateAgentProductOutreachDraftClient,
@@ -27,11 +28,17 @@ import {
   OGR_PRODUCT_EMAIL_MAX_SUBJECT,
   OGR_PRODUCT_EMAIL_MAX_TO,
 } from '@/lib/ogrProductEmailLimits';
+import { buildSelectedTargetFromDraft } from '@/lib/outreachDraftSelection';
+import {
+  formatOutreachCopyContextSummary,
+  isThinOutreachCopyContext,
+} from '@/lib/outreachCopyContextSummary';
 import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { sendOgrProductEmail } from '@/lib/sendOgrProductEmailClient';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { staffAiPostFields } from '@/lib/staffAiClientContext';
 import type { PublicMarket } from '@/lib/pricingMarket';
+import type { ProductOutreachGenerationMeta } from '@/lib/systemMessages';
 
 const MAX_TO = OGR_PRODUCT_EMAIL_MAX_TO;
 const MAX_RECIPIENT_NAME = OGR_PRODUCT_EMAIL_MAX_RECIPIENT_NAME;
@@ -52,6 +59,8 @@ export type OgrProductEmailComposerDraft = {
   productSku?: string;
   productSlug?: string;
   productIsNew?: boolean;
+  /** Prep-frozen selection meta; used by Add copy for prompt parity. */
+  generation?: ProductOutreachGenerationMeta | null;
 };
 
 export type OgrProductReplacedPayload = {
@@ -161,6 +170,9 @@ function OgrProductEmailComposerForm({
   const [closingText, setClosingText] = useState(
     draft?.closingText ?? OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
   );
+  const [generation, setGeneration] = useState<ProductOutreachGenerationMeta | null>(
+    () => draft?.generation ?? null,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
@@ -170,6 +182,14 @@ function OgrProductEmailComposerForm({
   const [loggingWarning, setLoggingWarning] = useState<string | null>(null);
 
   const busy = submitting || saving || regenerating || replacingProduct;
+  const hasAiCopy = generation?.copyStatus === 'ai';
+  const contextFlags = generation?.contextFlags;
+  const copyContextSummary =
+    hasAiCopy && contextFlags
+      ? formatOutreachCopyContextSummary(contextFlags, generation?.primaryChannel)
+      : null;
+  const showThinResearchBanner =
+    hasAiCopy && contextFlags != null && isThinOutreachCopyContext(contextFlags);
   const canChangeProduct =
     isDraftReview &&
     onProductReplaced != null &&
@@ -203,21 +223,10 @@ function OgrProductEmailComposerForm({
       setProductPickerOpen(false);
       onProductReplaced({
         item: pick.item,
-        draft: {
-          id: d.id,
-          to: d.toEmail,
-          toName: d.toName,
-          subject: d.subject,
-          introText: d.introText,
-          closingText: d.closingText,
-          prospectId: d.prospectId,
-          accountContactId: d.accountContactId,
-          catalogItemId: d.catalogItemId,
+        draft: composerDraftFromAgentDto(d, {
           prospectName: draft.prospectName,
-          productSku: d.payload.sku,
-          productSlug: d.payload.slug,
           productIsNew: pick.item.isNew,
-        },
+        }),
       });
     } finally {
       setReplacingProduct(false);
@@ -260,29 +269,24 @@ function OgrProductEmailComposerForm({
         existingDraftId: draft.id,
         salesLineId: aiFields.salesLineId,
         retailerLineAccountId: aiFields.retailerLineAccountId,
-        target: {
+        target: buildSelectedTargetFromDraft({
+          draft: {
+            id: draft.id,
+            prospectId: draft.prospectId,
+            accountContactId: draft.accountContactId,
+            catalogItemId: draft.catalogItemId,
+            payload: { generation: generation ?? null },
+          },
           preparationDate: formatOutreachPreparationDate(),
-          prospectId: draft.prospectId,
           prospectName,
-          accountContactId: draft.accountContactId,
           toEmail,
           toName: recipientName.trim() || draft.toName,
-          primaryChannel: null,
-          secondaryChannels: [],
           catalogItemId: draft.catalogItemId,
           productSku: draft.productSku ?? '',
           productName,
           productSlug: draft.productSlug ?? '',
           productIsNew: draft.productIsNew ?? false,
-          productSalesRank: null,
-          selectionReasons: {
-            priority: null,
-            fitScore: null,
-            channelMatch: false,
-            productFit: 'global_fallback',
-            exclusionsChecked: true,
-          },
-        },
+        }),
       });
       if (!generated.ok) {
         setError(generated.error);
@@ -291,6 +295,9 @@ function OgrProductEmailComposerForm({
       setSubject(generated.subject || subject);
       setIntroText(generated.introText || introText);
       setClosingText(generated.closingText || closingText);
+      if (generated.generation) {
+        setGeneration(generated.generation);
+      }
     } finally {
       setRegenerating(false);
     }
@@ -357,21 +364,12 @@ function OgrProductEmailComposerForm({
         return;
       }
       const d = updated.draft;
-      onDraftSaved?.({
-        id: d.id,
-        to: d.toEmail,
-        toName: d.toName,
-        subject: d.subject,
-        introText: d.introText,
-        closingText: d.closingText,
-        prospectId: d.prospectId,
-        accountContactId: d.accountContactId,
-        catalogItemId: d.catalogItemId,
-        prospectName: draft.prospectName,
-        productSku: d.payload.sku,
-        productSlug: d.payload.slug,
-        productIsNew: draft.productIsNew,
-      });
+      onDraftSaved?.(
+        composerDraftFromAgentDto(d, {
+          prospectName: draft.prospectName,
+          productIsNew: draft.productIsNew,
+        }),
+      );
     } finally {
       setSaving(false);
     }
@@ -601,6 +599,12 @@ function OgrProductEmailComposerForm({
           />
         </Field>
 
+        {copyContextSummary ? (
+          <p className="text-ink/55 m-0 text-xs" data-testid="outreach-copy-context-summary">
+            {copyContextSummary}
+          </p>
+        ) : null}
+
         <div>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-ink/55 m-0 text-xs font-medium tracking-wide uppercase">
@@ -644,6 +648,16 @@ function OgrProductEmailComposerForm({
           </p>
         ) : null}
 
+        {showThinResearchBanner ? (
+          <p
+            className="text-accent-800 border-accent-200 bg-accent-50 m-0 rounded-md border px-3 py-2 text-sm"
+            role="status"
+            data-testid="outreach-thin-research-banner"
+          >
+            No accepted citations — copy may stay generic; lock sources or accept citations.
+          </p>
+        ) : null}
+
         <div className="flex flex-wrap justify-end gap-2 pt-1">
           {isDraftReview ? (
             <>
@@ -669,7 +683,13 @@ function OgrProductEmailComposerForm({
                 onClick={() => void handleAddCopy()}
                 disabled={busy}
               >
-                {regenerating ? 'Adding…' : 'Add copy'}
+                {regenerating
+                  ? hasAiCopy
+                    ? 'Regenerating…'
+                    : 'Adding…'
+                  : hasAiCopy
+                    ? 'Regenerate with research'
+                    : 'Add copy'}
               </Button>
             </>
           ) : (

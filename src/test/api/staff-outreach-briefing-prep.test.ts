@@ -85,6 +85,8 @@ describe('staff outreach briefing + prep', () => {
             toEmail: 'a@b.com',
             primaryChannel: 'grocery',
             createdAt: '2026-08-12T00:00:00.000Z',
+            preparationDate: '2026-08-12',
+            fromEarlierPrep: false,
           },
         ],
         identifiedTargets: [],

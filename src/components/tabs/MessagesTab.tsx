@@ -179,7 +179,7 @@ export function MessagesTab({
                 }}
                 className={cn(
                   'font-heading rounded-full px-3.5 py-1.5 text-sm',
-                  channel === f.key ? 'bg-accent text-bg' : 'text-ink/70 bg-transparent',
+                  channel === f.key ? 'bg-accent text-on-accent' : 'text-ink/70 bg-transparent',
                 )}
               >
                 {f.label}
@@ -198,7 +198,7 @@ export function MessagesTab({
                   }}
                   className={cn(
                     'font-heading rounded-full px-3.5 py-1.5 text-sm',
-                    filter === f.key ? 'bg-accent text-bg' : 'text-ink/70 bg-transparent',
+                    filter === f.key ? 'bg-accent text-on-accent' : 'text-ink/70 bg-transparent',
                   )}
                 >
                   {f.label}

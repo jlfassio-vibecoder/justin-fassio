@@ -161,7 +161,7 @@ export function WholesaleProductCard({
         {canWholesale ? (
           <button
             type="button"
-            className="bg-accent-700 px-3.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full py-2 text-sm"
+            className="bg-accent-700 px-3.1 font-heading text-on-accent hover:bg-accent-600 inline-flex items-center justify-center rounded-full py-2 text-sm"
             onClick={() => onAddToOrder(product)}
           >
             Add
@@ -169,7 +169,7 @@ export function WholesaleProductCard({
         ) : (
           <button
             type="button"
-            className="bg-accent-700 px-3.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full py-2 text-sm"
+            className="bg-accent-700 px-3.1 font-heading text-on-accent hover:bg-accent-600 inline-flex items-center justify-center rounded-full py-2 text-sm"
             onClick={onRequestAccess}
           >
             Request pricing

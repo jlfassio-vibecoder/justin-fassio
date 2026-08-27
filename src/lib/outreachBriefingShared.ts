@@ -75,6 +75,10 @@ export type OutreachBriefingDraftRow = {
   accountStatus?: string;
   primaryChannel: string | null;
   createdAt: string;
+  /** Prep stamp on the draft; may be earlier than Briefing sellingDate. */
+  preparationDate: string | null;
+  /** True when preparationDate is set and differs from today's sellingDate. */
+  fromEarlierPrep: boolean;
 };
 
 export type OutreachBriefingDto = {

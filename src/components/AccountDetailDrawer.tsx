@@ -14,6 +14,7 @@ import {
 } from '@/components/OgrProductEmailComposerModal';
 import { AccountResearchPanel } from '@/components/accountResearch/AccountResearchPanel';
 import { Button } from '@/components/ui/Button';
+import { CopyUrlButton } from '@/components/ui/CopyUrlButton';
 import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import {
@@ -513,8 +514,12 @@ export function AccountDetailDrawer({
       >
         <div className="border-ink/10 flex items-start justify-between gap-3 border-b px-5 py-4">
           <div className="min-w-0">
-            <p id="account-detail-title" className="font-heading text-xl leading-tight">
-              {account.name}
+            <p
+              id="account-detail-title"
+              className="font-heading flex items-start gap-1.5 text-xl leading-tight"
+            >
+              <span className="min-w-0">{account.name}</span>
+              <CopyUrlButton url={account.name} label="Copy name" className="mt-1" />
             </p>
             <p className="text-ink/60 m-0 mt-1 text-xs tracking-wide uppercase">
               ID {account.id} · Active account

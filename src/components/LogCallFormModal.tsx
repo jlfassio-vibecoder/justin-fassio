@@ -39,12 +39,18 @@ import { formatLocalIsoDate } from '@/lib/reorderCadence';
 import { buildUsdToCadCallOrderValue } from '@/lib/calls';
 import { supabase } from '@/lib/supabase';
 
+export interface BriefingLogCallContext {
+  talkTrackHint: string | null;
+  lastProductName: string | null;
+}
+
 export interface LogCallFormModalProps {
   open: boolean;
   mode: LogCallMode;
   prospects: Prospect[];
   storeId: number | null;
   catalog?: CatalogItem[];
+  briefingContext?: BriefingLogCallContext | null;
   onClose: () => void;
   onStoreChange: (id: number | null) => void;
   onSaved?: () => void;
@@ -104,6 +110,7 @@ export function LogCallFormModal({
   prospects,
   storeId,
   catalog,
+  briefingContext = null,
   onClose,
   onStoreChange,
   onSaved,
@@ -243,6 +250,19 @@ export function LogCallFormModal({
       active = false;
     };
   }, [open, storeId, line.salesLineId, activityHistoryReloadToken]);
+
+  const briefingNotesKey =
+    open && storeId != null ? `${storeId}:${briefingContext?.talkTrackHint ?? ''}` : '';
+  const [appliedBriefingNotesKey, setAppliedBriefingNotesKey] = useState('');
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
+  if (briefingNotesKey && briefingNotesKey !== appliedBriefingNotesKey) {
+    setAppliedBriefingNotesKey(briefingNotesKey);
+    const hint = briefingContext?.talkTrackHint?.trim();
+    if (hint) setNotes(hint);
+  }
+  if (!open && appliedBriefingNotesKey) {
+    setAppliedBriefingNotesKey('');
+  }
 
   function toggleFeedback(option: string) {
     setFeedback((prev) =>
@@ -477,6 +497,21 @@ export function LogCallFormModal({
                 <X size={18} strokeWidth={2.75} />
               </button>
             </div>
+
+            {briefingContext && mode === 'prospect' ? (
+              <div
+                className="border-accent-200 bg-accent-50/40 text-ink/80 rounded-lg border px-3 py-2 text-sm"
+                data-testid="briefing-log-call-callout"
+              >
+                {briefingContext.talkTrackHint ? (
+                  <p className="m-0 mb-1.5">{briefingContext.talkTrackHint}</p>
+                ) : null}
+                <p className="text-ink/65 m-0 text-xs">
+                  Choose <strong>Closed PO / Written Order</strong> or{' '}
+                  <strong>Account Converted</strong> to convert in this session.
+                </p>
+              </div>
+            ) : null}
 
             <Field>
               <FieldLabel>{logCallStoreLabel(mode)}</FieldLabel>

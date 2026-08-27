@@ -71,6 +71,16 @@ describe('ContactDiscoverPreview', () => {
       screen.getByPlaceholderText('Role verification evidence and other contact notes'),
     ).toHaveValue('LinkedIn verification: Verified\nRole evidence: Owner at Sassy Seagull');
     expect(screen.getByRole('button', { name: 'Add contact' })).toBeEnabled();
+
+    expect(
+      screen.getByRole('link', {
+        name: 'https://www.yelp.com/biz/the-sassy-seagull-bandon',
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Copy URL' }).length).toBeGreaterThanOrEqual(2);
+    expect(
+      screen.getByRole('link', { name: 'https://linkedin.com/in/jane-doe' }),
+    ).toBeInTheDocument();
   });
 
   it('passes notes on apply', async () => {

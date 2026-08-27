@@ -10,7 +10,7 @@ interface TagProps extends HTMLAttributes<HTMLSpanElement> {
 
 const variantClasses: Record<Variant, string> = {
   accent: 'bg-accent-100 text-accent-800',
-  'accent-2': 'bg-sage-100 text-sage-800',
+  'accent-2': 'bg-accent-2-100 text-accent-2-800',
   neutral: 'bg-neutral-100 text-neutral-800',
   outline: 'border border-accent text-accent',
 };

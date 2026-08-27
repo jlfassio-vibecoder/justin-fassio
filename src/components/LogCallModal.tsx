@@ -1,5 +1,6 @@
 import { LogAccountCallModal } from '@/components/LogAccountCallModal';
 import { LogProspectCallModal } from '@/components/LogProspectCallModal';
+import type { BriefingLogCallContext } from '@/components/LogCallFormModal';
 import type { CatalogItem } from '@/lib/catalog';
 import { resolveLogCallMode } from '@/lib/logCallCatalogs';
 import type { Prospect } from '@/lib/prospects';
@@ -9,6 +10,7 @@ interface LogCallModalProps {
   prospects: Prospect[];
   storeId: number | null;
   catalog?: CatalogItem[];
+  briefingContext?: BriefingLogCallContext | null;
   onClose: () => void;
   onStoreChange: (id: number | null) => void;
   onSaved?: () => void;
@@ -27,6 +29,7 @@ export function LogCallModal({
   prospects,
   storeId,
   catalog,
+  briefingContext = null,
   onClose,
   onStoreChange,
   onSaved,
@@ -42,6 +45,7 @@ export function LogCallModal({
     prospects,
     storeId,
     catalog,
+    briefingContext,
     onClose,
     onStoreChange,
     onSaved,

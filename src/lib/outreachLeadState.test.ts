@@ -329,7 +329,7 @@ describe('evaluateLeadState', () => {
     const result = evaluateLeadState({ engagement, followUpDue: true, asOf });
     expect(result.leadState).not.toBe('hot');
     expect(result.callToday).toBe(true);
-    expect(result.callTodayReasons).toEqual(['follow_up_due']);
+    expect(result.callTodayReasons).toEqual(['follow_up_due_today']);
   });
 
   it('attributed reply within 3 days adds Call Today reason', () => {

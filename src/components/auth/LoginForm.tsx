@@ -3,6 +3,8 @@ import { useEffect, useState, type MouseEvent, type SubmitEvent } from 'react';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { Field, FieldLabel, Input } from '@/components/ui/Input';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { ThemeProvider } from '@/lib/ThemeProvider';
 
 type Mode = 'magic' | 'password';
 type AuthView = 'login' | 'register';
@@ -14,7 +16,7 @@ export type LoginFormProps = {
 
 const toggleBase =
   'font-heading flex-1 cursor-pointer rounded-full px-3 py-1.5 text-center text-sm no-underline';
-const toggleActive = 'bg-accent text-bg';
+const toggleActive = 'bg-accent text-on-accent';
 const toggleIdle = 'text-ink/70 hover:text-ink';
 
 function loginHref(view: AuthView, mode: Mode): string {
@@ -29,7 +31,15 @@ function loginHref(view: AuthView, mode: Mode): string {
   return q ? `/rep-login?${q}` : '/rep-login';
 }
 
-export function LoginForm({ initialView = 'login', initialMode = 'magic' }: LoginFormProps) {
+export function LoginForm(props: LoginFormProps) {
+  return (
+    <ThemeProvider>
+      <LoginFormInner {...props} />
+    </ThemeProvider>
+  );
+}
+
+function LoginFormInner({ initialView = 'login', initialMode = 'magic' }: LoginFormProps) {
   const [view, setView] = useState<AuthView>(initialView);
   const [mode, setMode] = useState<Mode>(initialView === 'register' ? 'password' : initialMode);
   const [email, setEmail] = useState('');
@@ -140,9 +150,12 @@ export function LoginForm({ initialView = 'login', initialMode = 'magic' }: Logi
   }
 
   return (
-    <div className="relative z-0 mx-auto flex min-h-dvh max-w-md flex-col justify-center bg-[radial-gradient(ellipse_at_top,_rgb(198_113_57_/_0.18),_transparent_55%),linear-gradient(180deg,#f5ead8,#ebddc5)] px-6 py-12">
+    <div className="bg-bg relative z-0 mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-12">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <a href="/" className="mb-8 inline-flex items-center gap-3 no-underline">
-        <span className="bg-accent font-heading text-bg flex h-11 w-11 items-center justify-center rounded-full">
+        <span className="bg-accent font-heading text-on-accent flex h-11 w-11 items-center justify-center rounded-full">
           JF
         </span>
         <span className="font-heading text-ink text-xl">Justin Fassio</span>

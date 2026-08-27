@@ -187,7 +187,7 @@ function BuyerAccountInner() {
               <div className="flex flex-wrap gap-2">
                 <a
                   href={`${ogrWholesaleCollectionPath(showroomMarket)}#order-builder`}
-                  className="bg-accent-700 px-4.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center rounded-full py-2 text-sm no-underline"
+                  className="bg-accent-700 px-4.1 font-heading text-on-accent hover:bg-accent-600 inline-flex items-center rounded-full py-2 text-sm no-underline"
                 >
                   Continue in showroom
                 </a>

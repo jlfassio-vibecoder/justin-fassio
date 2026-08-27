@@ -29,6 +29,7 @@ import {
 } from '@/lib/publicProductPresentation';
 import { mapProspectRow, PROSPECT_SELECT, type ProspectListRow } from '@/lib/prospects';
 import {
+  getAgentProductOutreachDraftById,
   insertAgentProductOutreachDraft,
   listAgentProductOutreachDrafts,
   requireExplicitProductOutreachCrmAssociation,
@@ -37,32 +38,35 @@ import {
   type ProductOutreachSystemMessagePayload,
   SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL,
 } from '@/lib/systemMessages';
+import { applyFrozenOutreachSelection } from '@/lib/outreachDraftSelection';
+import {
+  contextFlagsFromPack,
+  hostnameFromWebsite,
+  loadAcceptedResearchNotesForOutreach,
+  loadOutreachCopyContextPack,
+  OGR_OUTREACH_RESEARCH_NOTES_MAX,
+  stripUrlsFromResearchNote,
+  type OutreachCopyContextFlags,
+  type OutreachLockedProfile,
+} from '@/lib/outreachCopyContextPack';
 import type { Database } from '@/types/database';
 
 type DbClient = SupabaseClient<Database>;
 
-export const OGR_OUTREACH_DRAFT_PROMPT_VERSION = 'v1';
+export const OGR_OUTREACH_DRAFT_PROMPT_VERSION = 'v2';
 export const OGR_OUTREACH_DRAFT_MODEL = 'openai/gpt-4o' as const;
 export const OGR_OUTREACH_INTRO_PREFERRED_WORDS = 50;
 export const OGR_OUTREACH_CLOSING_PREFERRED_WORDS = 40;
 export const OGR_OUTREACH_BATCH_HTTP_MAX = 10;
 export const OGR_OUTREACH_DESCRIPTION_MAX_CHARS = 400;
-export const OGR_OUTREACH_RESEARCH_NOTES_MAX = 5;
+export {
+  hostnameFromWebsite,
+  loadAcceptedResearchNotesForOutreach,
+  OGR_OUTREACH_RESEARCH_NOTES_MAX,
+  stripUrlsFromResearchNote,
+};
 
 export type OutreachCopyMode = 'ai' | 'generic_stub';
-
-/** Extract hostname from a store website URL for safe prompt context (never full URL). */
-export function hostnameFromWebsite(raw: string | null | undefined): string | null {
-  const trimmed = raw?.trim();
-  if (!trimmed) return null;
-  try {
-    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-    const host = new URL(withScheme).hostname.replace(/^www\./i, '').trim();
-    return host || null;
-  } catch {
-    return null;
-  }
-}
 
 export const ogrOutreachDraftSchema = z.object({
   introText: z
@@ -154,6 +158,16 @@ export type SafeOutreachPromptContext = {
   storeWebsiteHost?: string;
   /** Short public notes from accepted research citations (no URLs). */
   recentPublicNotes?: string[];
+  /** CRM contact role label (tone only — still no greeting by name). */
+  contactRole?: string;
+  /** CRM contact title when set. */
+  contactTitle?: string;
+  /** Locked sources as platform + hostname only. */
+  lockedProfiles?: OutreachLockedProfile[];
+  /** 1–3 clipped bullets from latest research brief. */
+  researchBriefBullets?: string[];
+  /** Yelp verified name/categories text (no listing URL). */
+  directorySignals?: string;
 };
 
 /** Build allowlisted prompt context — never includes emails, ids, URLs, or forbidden keys. */
@@ -175,6 +189,13 @@ export function buildSafeOutreachPromptContext(input: {
     website?: string | null;
   } | null;
   recentPublicNotes?: string[];
+  /** Prefer pack host over prospects.website when provided. */
+  storeWebsiteHost?: string | null;
+  contactRole?: string | null;
+  contactTitle?: string | null;
+  lockedProfiles?: OutreachLockedProfile[];
+  researchBriefBullets?: string[];
+  directorySignals?: string | null;
 }): SafeOutreachPromptContext {
   const { target, product, prospect } = input;
   const channelLabels = [
@@ -183,7 +204,19 @@ export function buildSafeOutreachPromptContext(input: {
   ].filter(Boolean);
 
   const description = product.description.trim().slice(0, OGR_OUTREACH_DESCRIPTION_MAX_CHARS);
-  const storeWebsiteHost = hostnameFromWebsite(prospect?.website ?? null);
+  const storeWebsiteHost =
+    (typeof input.storeWebsiteHost === 'string' && input.storeWebsiteHost.trim()
+      ? input.storeWebsiteHost.trim()
+      : null) ?? hostnameFromWebsite(prospect?.website ?? null);
+  const contactRole = input.contactRole?.trim() || '';
+  const contactTitle = input.contactTitle?.trim() || '';
+  const lockedProfiles = (input.lockedProfiles ?? []).filter(
+    (p) => p.platform && p.hostname && !/^https?:\/\//i.test(p.hostname),
+  );
+  const researchBriefBullets = (input.researchBriefBullets ?? [])
+    .map((b) => b.trim())
+    .filter(Boolean);
+  const directorySignals = input.directorySignals?.trim() || '';
 
   return {
     prospectName: target.prospectName.trim(),
@@ -208,6 +241,11 @@ export function buildSafeOutreachPromptContext(input: {
     ...(input.recentPublicNotes && input.recentPublicNotes.length > 0
       ? { recentPublicNotes: input.recentPublicNotes }
       : {}),
+    ...(contactRole ? { contactRole } : {}),
+    ...(contactTitle ? { contactTitle } : {}),
+    ...(lockedProfiles.length > 0 ? { lockedProfiles } : {}),
+    ...(researchBriefBullets.length > 0 ? { researchBriefBullets } : {}),
+    ...(directorySignals ? { directorySignals } : {}),
   };
 }
 
@@ -217,6 +255,9 @@ export function assertSafePromptContext(ctx: SafeOutreachPromptContext): void {
     if (json.includes(`"${key}"`)) {
       throw new Error(`Forbidden presentation key leaked into prompt context: ${key}`);
     }
+  }
+  if (/https?:\/\//i.test(json)) {
+    throw new Error('URL scheme leaked into prompt context');
   }
 }
 
@@ -246,6 +287,8 @@ export function buildOutreachDraftPrompt(
   lines.push('', 'Context (use only what is present; skip empty fields):');
   lines.push(`Store name: ${ctx.prospectName}`);
   lines.push(`Buyer first name: ${ctx.toName}`);
+  if (ctx.contactRole) lines.push(`Contact role: ${ctx.contactRole}`);
+  if (ctx.contactTitle) lines.push(`Contact title: ${ctx.contactTitle}`);
   if (ctx.prospectCity) lines.push(`City: ${ctx.prospectCity}`);
   if (ctx.prospectRegion) lines.push(`Region: ${ctx.prospectRegion}`);
   if (ctx.channelLabels.length) lines.push(`Retail channels: ${ctx.channelLabels.join(', ')}`);
@@ -254,11 +297,26 @@ export function buildOutreachDraftPrompt(
   }
   if (ctx.prospectFit) lines.push(`Fit notes: ${ctx.prospectFit}`);
   if (ctx.storeWebsiteHost) lines.push(`Store website host: ${ctx.storeWebsiteHost}`);
+  if (ctx.lockedProfiles && ctx.lockedProfiles.length > 0) {
+    lines.push('Locked public profiles (hostname only; do not invent activity):');
+    for (const profile of ctx.lockedProfiles) {
+      lines.push(`- ${profile.platform}: ${profile.hostname}`);
+    }
+  }
   if (ctx.recentPublicNotes && ctx.recentPublicNotes.length > 0) {
     lines.push('Recent public notes (paraphrase lightly; do not invent; never paste URLs):');
     for (const note of ctx.recentPublicNotes) {
       lines.push(`- ${note}`);
     }
+  }
+  if (ctx.researchBriefBullets && ctx.researchBriefBullets.length > 0) {
+    lines.push('Research brief bullets:');
+    for (const bullet of ctx.researchBriefBullets) {
+      lines.push(`- ${bullet}`);
+    }
+  }
+  if (ctx.directorySignals) {
+    lines.push(`Directory signals: ${ctx.directorySignals}`);
   }
   lines.push(`Product name: ${ctx.productName}`);
   if (ctx.productCategory) lines.push(`Product category: ${ctx.productCategory}`);
@@ -434,6 +492,7 @@ export type GenerateOgrProductOutreachDraftResult =
       subject: string;
       introText: string;
       closingText: string;
+      generation: ProductOutreachGenerationMeta;
     }
   | { ok: false; error: string };
 
@@ -463,56 +522,6 @@ async function loadProspectContext(
   };
 }
 
-/**
- * Latest completed research run's accepted citation notes (plain text, no URLs).
- * Missing research is fine — returns [].
- */
-export function stripUrlsFromResearchNote(raw: string): string {
-  return raw
-    .replace(/https?:\/\/\S+/gi, ' ')
-    .replace(/\bwww\.\S+/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-export async function loadAcceptedResearchNotesForOutreach(
-  client: DbClient,
-  prospectId: number,
-  limit = OGR_OUTREACH_RESEARCH_NOTES_MAX,
-): Promise<string[]> {
-  const { data: runs, error: runError } = await client
-    .from('account_research_runs')
-    .select('id, completed_at')
-    .eq('retailer_id', prospectId)
-    .in('status', ['succeeded', 'partial'])
-    .not('completed_at', 'is', null)
-    .order('completed_at', { ascending: false })
-    .limit(1);
-  if (runError || !runs?.[0]?.id) return [];
-
-  const { data: citations, error: citeError } = await client
-    .from('account_research_citations')
-    .select('platform, title, excerpt')
-    .eq('research_run_id', runs[0].id)
-    .eq('acceptance_status', 'accepted')
-    .order('observed_at', { ascending: false })
-    .limit(limit);
-  if (citeError || !citations) return [];
-
-  const notes: string[] = [];
-  for (const row of citations) {
-    const platform = typeof row.platform === 'string' ? row.platform.trim() : '';
-    const title = typeof row.title === 'string' ? row.title.trim() : '';
-    const excerpt = typeof row.excerpt === 'string' ? row.excerpt.trim() : '';
-    const body = stripUrlsFromResearchNote(excerpt || title);
-    if (!body) continue;
-    const clipped = body.slice(0, 180);
-    notes.push(platform ? `${platform}: ${clipped}` : clipped);
-    if (notes.length >= limit) break;
-  }
-  return notes;
-}
-
 function buildGenerationMeta(
   target: SelectedOutreachTarget,
   copy: {
@@ -521,18 +530,28 @@ function buildGenerationMeta(
     closingWordCount: number;
   },
   copyStatus: 'stub' | 'ai',
+  contextFlags?: OutreachCopyContextFlags | null,
 ): ProductOutreachGenerationMeta {
   return {
     promptVersion: OGR_OUTREACH_DRAFT_PROMPT_VERSION,
     model: copyStatus === 'stub' ? 'none' : OGR_OUTREACH_DRAFT_MODEL,
     preparationDate: target.preparationDate,
-    selectionReasons: target.selectionReasons,
+    selectionReasons: {
+      priority: target.selectionReasons.priority,
+      fitScore: target.selectionReasons.fitScore,
+      channelMatch: target.selectionReasons.channelMatch,
+      productFit: target.selectionReasons.productFit,
+      exclusionsChecked: true,
+    },
     primaryChannel: target.primaryChannel,
+    secondaryChannels: [...target.secondaryChannels],
+    productSalesRank: target.productSalesRank,
     fallback: copy.fallback,
     introWordCount: copy.introWordCount,
     closingWordCount: copy.closingWordCount,
     generatedAt: new Date().toISOString(),
     copyStatus,
+    ...(contextFlags ? { contextFlags } : {}),
   };
 }
 
@@ -544,7 +563,7 @@ export async function generateOgrProductOutreachDraft(
   client: DbClient,
   input: GenerateOgrProductOutreachDraftInput,
 ): Promise<GenerateOgrProductOutreachDraftResult> {
-  const { target } = input;
+  let target = input.target;
   const userId = typeof input.userId === 'string' ? input.userId.trim() : '';
   const sentBy = userId || null;
   const copyMode: OutreachCopyMode = input.copyMode === 'generic_stub' ? 'generic_stub' : 'ai';
@@ -554,6 +573,30 @@ export async function generateOgrProductOutreachDraft(
     accountContactId: target.accountContactId,
   });
   if (!crm.ok) return { ok: false, error: crm.error };
+
+  // Resolve existing draft early so prep-frozen selection meta can feed AI context.
+  let draftId = input.existingDraftId?.trim() || '';
+  if (!draftId) {
+    const pending = await listAgentProductOutreachDrafts(client, {
+      prospectId: target.prospectId,
+      ...(input.retailerLineAccountId
+        ? { retailerLineAccountId: input.retailerLineAccountId }
+        : {}),
+      statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
+      limit: 5,
+    });
+    if (!pending.ok) return { ok: false, error: pending.error };
+    const match = pending.drafts.find(
+      (d) => d.status === 'draft' && d.origin === SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL,
+    );
+    if (match) draftId = match.id;
+  }
+
+  if (draftId) {
+    const existing = await getAgentProductOutreachDraftById(client, draftId);
+    if (!existing.ok) return { ok: false, error: existing.error };
+    target = applyFrozenOutreachSelection(target, existing.draft.payload.generation);
+  }
 
   const loaded = await loadPublishedOgrProductForEmail(client, target.catalogItemId, {
     salesLineId: input.salesLineId,
@@ -581,6 +624,7 @@ export async function generateOgrProductOutreachDraft(
     closingWordCount: number;
   };
   let copyStatus: 'stub' | 'ai';
+  let contextFlags: OutreachCopyContextFlags | null = null;
 
   if (copyMode === 'generic_stub') {
     copy = {
@@ -593,7 +637,12 @@ export async function generateOgrProductOutreachDraft(
     copyStatus = 'stub';
   } else {
     const prospectCtx = await loadProspectContext(client, target.prospectId);
-    const recentPublicNotes = await loadAcceptedResearchNotesForOutreach(client, target.prospectId);
+    const pack = await loadOutreachCopyContextPack(
+      client,
+      target.prospectId,
+      target.accountContactId,
+    );
+    contextFlags = contextFlagsFromPack(pack);
     const promptCtx = buildSafeOutreachPromptContext({
       target,
       product: {
@@ -604,8 +653,23 @@ export async function generateOgrProductOutreachDraft(
         lifestyleThemeLabels: presentation.lifestyleThemeLabels,
         isNew: presentation.isNew,
       },
-      prospect: prospectCtx,
-      recentPublicNotes,
+      prospect: prospectCtx
+        ? {
+            city: prospectCtx.city,
+            region: prospectCtx.region,
+            fit: prospectCtx.fit,
+            lifestyleThemes: prospectCtx.lifestyleThemes,
+            // Host comes from pack (lock preferred over CRM website).
+            website: null,
+          }
+        : null,
+      storeWebsiteHost: pack.storeWebsiteHost,
+      recentPublicNotes: pack.recentPublicNotes,
+      contactRole: pack.contactRole,
+      contactTitle: pack.contactTitle,
+      lockedProfiles: pack.lockedProfiles,
+      researchBriefBullets: pack.researchBriefBullets,
+      directorySignals: pack.directorySignals,
     });
     const produced = await produceOutreachCopy(promptCtx);
     if (!produced.ok) {
@@ -627,32 +691,15 @@ export async function generateOgrProductOutreachDraft(
     emailMarket === 'us'
       ? buildOgrProductUrl(presentation.slug, origin, 'us')
       : buildOgrProductUrl(presentation.slug, origin);
+  const generation = buildGenerationMeta(target, copy, copyStatus, contextFlags);
   const payload: ProductOutreachSystemMessagePayload = {
     sku: presentation.sku,
     name: presentation.name,
     slug: presentation.slug,
     productHref,
     ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
-    generation: buildGenerationMeta(target, copy, copyStatus),
+    generation,
   };
-
-  let draftId = input.existingDraftId?.trim() || '';
-
-  if (!draftId) {
-    const pending = await listAgentProductOutreachDrafts(client, {
-      prospectId: target.prospectId,
-      ...(input.retailerLineAccountId
-        ? { retailerLineAccountId: input.retailerLineAccountId }
-        : {}),
-      statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
-      limit: 5,
-    });
-    if (!pending.ok) return { ok: false, error: pending.error };
-    const match = pending.drafts.find(
-      (d) => d.status === 'draft' && d.origin === SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL,
-    );
-    if (match) draftId = match.id;
-  }
 
   if (draftId) {
     const updated = await updateAgentProductOutreachDraft(client, draftId, {
@@ -673,6 +720,7 @@ export async function generateOgrProductOutreachDraft(
       subject,
       introText: copy.introText,
       closingText: copy.closingText,
+      generation,
     };
   }
 
@@ -699,6 +747,7 @@ export async function generateOgrProductOutreachDraft(
     subject,
     introText: copy.introText,
     closingText: copy.closingText,
+    generation,
   };
 }
 

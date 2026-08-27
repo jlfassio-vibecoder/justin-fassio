@@ -54,12 +54,14 @@ function makeClient(overrides?: {
   existingRun?: Record<string, unknown> | null;
   insertError?: { message: string } | null;
   pendingMessageRows?: Array<Record<string, unknown>>;
+  prospectRows?: Array<{ id: number; region: string | null }>;
 }) {
   const existingRun = overrides?.existingRun ?? null;
   const runStore: { row: Record<string, unknown> | null } = {
     row: existingRun ? { ...existingRun } : null,
   };
   const pendingRows = overrides?.pendingMessageRows ?? [];
+  const prospectRows = overrides?.prospectRows ?? [];
 
   const from = vi.fn((table: string) => {
     if (table === 'system_messages') {
@@ -70,6 +72,14 @@ function makeClient(overrides?: {
       chain.in = self;
       chain.order = self;
       chain.range = async () => ({ data: pendingRows, error: null });
+      return chain;
+    }
+
+    if (table === 'prospects') {
+      const chain: Record<string, unknown> = {};
+      const self = () => chain;
+      chain.select = self;
+      chain.in = async () => ({ data: prospectRows, error: null });
       return chain;
     }
 
@@ -519,6 +529,59 @@ describe('runOutreachNightlyPrep', () => {
         allowMissingEmail: true,
       }),
     );
+  });
+
+  it('regional mode nets capacity against open pending drafts', async () => {
+    const pendingMessageRows = Array.from({ length: 10 }, (_, i) => ({
+      id: `p${i}`,
+      prospect_id: i + 1,
+    }));
+    const client = makeClient({ pendingMessageRows });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      limit: 25,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.run.pendingBefore).toBe(10);
+    expect(result.run.netCapacity).toBe(15);
+    expect(selectOutreachTargetsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ capacity: 15 }),
+    );
+  });
+
+  it('regional mode skips selection when open batch is full', async () => {
+    const pendingMessageRows = Array.from({ length: 25 }, (_, i) => ({
+      id: `p${i}`,
+      prospect_id: i + 1,
+    }));
+    const client = makeClient({
+      pendingMessageRows,
+      prospectRows: Array.from({ length: 25 }, (_, i) => ({
+        id: i + 1,
+        region: 'Oregon Coast',
+      })),
+    });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      crmRegion: 'Oregon Coast',
+      limit: 25,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.run.reason).toBe('open_batch_full');
+    expect(result.run.netCapacity).toBe(0);
+    expect(result.run.pendingBefore).toBe(25);
+    expect(selectOutreachTargetsMock).not.toHaveBeenCalled();
   });
 
   it('regional empty_pool is retryable (not terminal noop)', async () => {

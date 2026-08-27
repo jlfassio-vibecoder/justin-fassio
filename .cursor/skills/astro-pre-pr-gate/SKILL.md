@@ -18,7 +18,7 @@ When writing code, editing files, or reviewing git diffs before shipping, strict
 | API routes | `src/pages/api/**` (`agent`, `contacts/enrich`, `prospects/*`, `pricing/landed-rates`) |
 | Staff auth gate | `src/lib/agentAuth.ts` → `requireApprovedStaffClient` (Bearer JWT → `is_approved_staff`) |
 | Browser Supabase client | `src/lib/supabase.ts` (`PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` only) |
-| Design tokens | `src/styles/global.css` (`@theme` Organic tokens) |
+| Design tokens | `src/styles/global.css` (`@theme` Track Signal v2 + `[data-theme=dark]`) |
 | Generated DB types | `src/types/database.ts` |
 | RLS / migrations | `supabase/schema.sql`, `supabase/migrations/` |
 | App shell / tabs | `src/components/` (React islands under `/app`) |
@@ -38,7 +38,7 @@ Domain tables under RLS: `calls`, `catalog_items`, `prospects`, `contacts`, `ord
 
 - **Security & RLS:** Ensure all domain reads/writes (calls, prospects, contacts, orders, catalog) enforce `is_approved_staff()` or execute under the user's caller JWT. Never bypass Supabase RLS with the service role from app code unless an existing privileged server path already documents that exception.
 - **Cruft Cleanliness:** Remove unintended `console.log` statements, commented-out code blocks, and unhandled `TODO`/`FIXME` items.
-- **Design Tokens:** Always map styling through Tailwind CSS 4 `@theme` tokens in `src/styles/global.css` (Organic system — sage, etc.). Avoid one-off hex/rgb that duplicate tokens.
+- **Design Tokens:** Always map styling through Tailwind CSS 4 `@theme` tokens in `src/styles/global.css` (Track Signal v2 — cream light / coffee-chocolate dark via `data-theme`; dark matches AMRAP schema). Prefer `text-on-accent` on filled accent controls. Avoid one-off hex/rgb that duplicate tokens.
 - **Icon Standards:** Use `lucide-react` with `strokeWidth={2.75}`.
 - **TypeScript Policy:** Maintain TypeScript `5.x` (`^5.9.3`). Do not introduce `any` or non-null assertions (`!`). Prefer types from `src/types/database.ts` and existing `src/lib/*` helpers.
 

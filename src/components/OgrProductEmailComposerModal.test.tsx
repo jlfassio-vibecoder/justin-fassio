@@ -21,15 +21,20 @@ vi.mock('@/lib/sendOgrProductEmailClient', () => ({
   sendOgrProductEmail: (...args: unknown[]) => sendOgrProductEmailMock(...args),
 }));
 
-vi.mock('@/lib/agentProductOutreachDraftClient', () => ({
-  updateAgentProductOutreachDraftClient: (...args: unknown[]) =>
-    updateAgentProductOutreachDraftClientMock(...args),
-  sendAgentProductOutreachDraft: (...args: unknown[]) => sendAgentProductOutreachDraftMock(...args),
-  cancelAgentProductOutreachDraftClient: (...args: unknown[]) =>
-    cancelAgentProductOutreachDraftClientMock(...args),
-  generateAgentProductOutreachDraft: (...args: unknown[]) =>
-    generateAgentProductOutreachDraftMock(...args),
-}));
+vi.mock('@/lib/agentProductOutreachDraftClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/agentProductOutreachDraftClient')>();
+  return {
+    ...actual,
+    updateAgentProductOutreachDraftClient: (...args: unknown[]) =>
+      updateAgentProductOutreachDraftClientMock(...args),
+    sendAgentProductOutreachDraft: (...args: unknown[]) =>
+      sendAgentProductOutreachDraftMock(...args),
+    cancelAgentProductOutreachDraftClient: (...args: unknown[]) =>
+      cancelAgentProductOutreachDraftClientMock(...args),
+    generateAgentProductOutreachDraft: (...args: unknown[]) =>
+      generateAgentProductOutreachDraftMock(...args),
+  };
+});
 
 const PRODUCT_ID = 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22';
 const DRAFT_ID = 'a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';

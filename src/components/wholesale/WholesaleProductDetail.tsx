@@ -223,7 +223,7 @@ export function WholesaleProductDetail({
             <button
               type="button"
               disabled={totalUnits === 0}
-              className="bg-accent-700 px-4.1 py-2.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm disabled:opacity-40"
+              className="bg-accent-700 px-4.1 py-2.1 font-heading text-on-accent hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm disabled:opacity-40"
               onClick={handleAdd}
             >
               Add to Order{totalUnits > 0 ? ` (${totalUnits})` : ''}
@@ -231,7 +231,7 @@ export function WholesaleProductDetail({
           ) : (
             <button
               type="button"
-              className="bg-accent-700 px-4.1 py-2.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm"
+              className="bg-accent-700 px-4.1 py-2.1 font-heading text-on-accent hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm"
               onClick={onRequestAccess}
             >
               Request wholesale pricing

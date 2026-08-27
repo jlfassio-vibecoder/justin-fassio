@@ -27,7 +27,7 @@ export function WholesaleMarketSwitcher({ market }: Props) {
         href={ogrWholesaleCollectionPath('ca')}
         className={`inline-flex items-center rounded-full px-3 py-1.5 text-sm no-underline ${
           market === 'ca'
-            ? 'bg-accent-700 font-heading text-bg'
+            ? 'bg-accent-700 font-heading text-on-accent'
             : 'border-divider text-ink hover:bg-ink/[0.05] border'
         }`}
         aria-current={market === 'ca' ? 'page' : undefined}
@@ -42,7 +42,7 @@ export function WholesaleMarketSwitcher({ market }: Props) {
         href={ogrWholesaleCollectionPath('us')}
         className={`inline-flex items-center rounded-full px-3 py-1.5 text-sm no-underline ${
           market === 'us'
-            ? 'bg-accent-700 font-heading text-bg'
+            ? 'bg-accent-700 font-heading text-on-accent'
             : 'border-divider text-ink hover:bg-ink/[0.05] border'
         }`}
         aria-current={market === 'us' ? 'page' : undefined}

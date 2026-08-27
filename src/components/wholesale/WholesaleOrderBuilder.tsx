@@ -50,7 +50,7 @@ export function WholesaleOrderBuilder({
           </p>
           <button
             type="button"
-            className="bg-accent-700 px-3.1 font-heading text-bg hover:bg-accent-600 mt-3 inline-flex items-center justify-center rounded-full py-2 text-sm"
+            className="bg-accent-700 px-3.1 font-heading text-on-accent hover:bg-accent-600 mt-3 inline-flex items-center justify-center rounded-full py-2 text-sm"
             onClick={onAskAboutLine}
           >
             Request wholesale access
@@ -168,7 +168,7 @@ export function WholesaleOrderBuilder({
       <div className="gap-2.1 flex flex-wrap">
         <button
           type="button"
-          className="bg-accent-700 px-4.1 py-2.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm"
+          className="bg-accent-700 px-4.1 py-2.1 font-heading text-on-accent hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm"
           onClick={onAskAboutLine}
         >
           {pricingUnlocked ? 'Continue to buyer form' : 'Request wholesale access'}

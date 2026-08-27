@@ -63,12 +63,25 @@ export type ProductOutreachGenerationMeta = {
   };
   /** Phase 4: channel snapshot for attribution / learning. */
   primaryChannel?: string | null;
+  /** Frozen at prep for Add copy parity. */
+  secondaryChannels?: string[];
+  /** Frozen product sales-rank hint for Add copy parity. */
+  productSalesRank?: number | null;
   fallback: 'none' | 'defaults' | 'retry_shorten';
   introWordCount: number;
   closingWordCount: number;
   generatedAt: string;
   /** Prep stubs use `stub`; staff Add copy uses `ai`. Older drafts omit this. */
   copyStatus?: 'stub' | 'ai';
+  /** Slice B: which allowlisted research/profile fields were present for AI copy. */
+  contextFlags?: {
+    hasWebsiteHost: boolean;
+    acceptedNoteCount: number;
+    lockedSourceCount: number;
+    hasContactRole: boolean;
+    hasBriefBullets: boolean;
+    hasDirectorySignals: boolean;
+  };
 };
 
 export type ProductOutreachSystemMessagePayload = {
@@ -140,11 +153,50 @@ export function parseGenerationMeta(raw: unknown): ProductOutreachGenerationMeta
     ...(typeof g.primaryChannel === 'string' || g.primaryChannel === null
       ? { primaryChannel: g.primaryChannel }
       : {}),
+    ...(Array.isArray(g.secondaryChannels)
+      ? {
+          secondaryChannels: g.secondaryChannels.filter(
+            (c): c is string => typeof c === 'string' && c.trim().length > 0,
+          ),
+        }
+      : {}),
+    ...(typeof g.productSalesRank === 'number' &&
+    Number.isFinite(g.productSalesRank) &&
+    g.productSalesRank > 0
+      ? { productSalesRank: g.productSalesRank }
+      : g.productSalesRank === null
+        ? { productSalesRank: null }
+        : {}),
     fallback: g.fallback,
     introWordCount: g.introWordCount,
     closingWordCount: g.closingWordCount,
     generatedAt: g.generatedAt,
     ...(g.copyStatus === 'stub' || g.copyStatus === 'ai' ? { copyStatus: g.copyStatus } : {}),
+    ...(g.contextFlags && typeof g.contextFlags === 'object' && !Array.isArray(g.contextFlags)
+      ? (() => {
+          const f = g.contextFlags as Record<string, unknown>;
+          if (
+            typeof f.hasWebsiteHost !== 'boolean' ||
+            typeof f.acceptedNoteCount !== 'number' ||
+            typeof f.lockedSourceCount !== 'number' ||
+            typeof f.hasContactRole !== 'boolean' ||
+            typeof f.hasBriefBullets !== 'boolean' ||
+            typeof f.hasDirectorySignals !== 'boolean'
+          ) {
+            return {};
+          }
+          return {
+            contextFlags: {
+              hasWebsiteHost: f.hasWebsiteHost,
+              acceptedNoteCount: f.acceptedNoteCount,
+              lockedSourceCount: f.lockedSourceCount,
+              hasContactRole: f.hasContactRole,
+              hasBriefBullets: f.hasBriefBullets,
+              hasDirectorySignals: f.hasDirectorySignals,
+            },
+          };
+        })()
+      : {}),
   };
 }
 
@@ -891,7 +943,8 @@ export async function updateAgentProductOutreachDraft(
     patch.retailer_line_account_id = input.retailerLineAccountId?.trim() || null;
   }
   if (input.payload != null) {
-    patch.payload = buildProductOutreachPayload(input.payload, input.payload.generation ?? null);
+    const generation = input.payload.generation ?? existing.draft.payload.generation ?? null;
+    patch.payload = buildProductOutreachPayload(input.payload, generation);
   }
 
   if (Object.keys(patch).length === 0) {

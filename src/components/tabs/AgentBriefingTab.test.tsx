@@ -8,11 +8,15 @@ import type { OutreachBriefingDto } from '@/lib/outreachBriefingShared';
 const getAgentProductOutreachDraftClientMock = vi.fn();
 const createFollowUpDraftClientMock = vi.fn();
 
-vi.mock('@/lib/agentProductOutreachDraftClient', () => ({
-  getAgentProductOutreachDraftClient: (...args: unknown[]) =>
-    getAgentProductOutreachDraftClientMock(...args),
-  createFollowUpDraftClient: (...args: unknown[]) => createFollowUpDraftClientMock(...args),
-}));
+vi.mock('@/lib/agentProductOutreachDraftClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/agentProductOutreachDraftClient')>();
+  return {
+    ...actual,
+    getAgentProductOutreachDraftClient: (...args: unknown[]) =>
+      getAgentProductOutreachDraftClientMock(...args),
+    createFollowUpDraftClient: (...args: unknown[]) => createFollowUpDraftClientMock(...args),
+  };
+});
 
 vi.mock('@/components/OgrProductEmailComposerModal', () => ({
   OgrProductEmailComposerModal: ({
@@ -86,6 +90,8 @@ const briefingPayload: { briefing: OutreachBriefingDto } = {
         toEmail: 'buyer@coastalgolf.com',
         primaryChannel: 'golf',
         createdAt: '2026-08-22T12:00:00Z',
+        preparationDate: '2026-08-22',
+        fromEarlierPrep: false,
       },
     ],
     identifiedTargets: [],
@@ -233,10 +239,12 @@ describe('AgentBriefingTab follow-up queue', () => {
             leadState: 'hot',
             recommendedAction: 'call',
             reasonLine: 'Follow-up due',
+            talkTrackHint: 'Follow-up scheduled — check in on your last conversation.',
             lastEngagedAt: '2026-08-21T12:00:00Z',
             lastProductName: 'American Revival',
             lastProductId: PRODUCT_ID,
             score: 10,
+            followUpOverdueDays: null,
           },
         ],
       },
@@ -252,7 +260,10 @@ describe('AgentBriefingTab follow-up queue', () => {
 
     await user.click(screen.getByRole('button', { name: 'Call Call Today Store' }));
 
-    expect(onLogCallForLead).toHaveBeenCalledWith(42);
+    expect(onLogCallForLead).toHaveBeenCalledWith(42, {
+      talkTrackHint: 'Follow-up scheduled — check in on your last conversation.',
+      lastProductName: 'American Revival',
+    });
     expect(onOpenProspect).not.toHaveBeenCalled();
     expect(createFollowUpDraftClientMock).not.toHaveBeenCalled();
   });
@@ -269,10 +280,12 @@ describe('AgentBriefingTab follow-up queue', () => {
             leadState: 'warm',
             recommendedAction: 'email',
             reasonLine: '1 product clicked',
+            talkTrackHint: null,
             lastEngagedAt: '2026-08-21T12:00:00Z',
             lastProductName: 'American Revival',
             lastProductId: PRODUCT_ID,
             score: 5,
+            followUpOverdueDays: null,
           },
         ],
       },
@@ -306,10 +319,12 @@ describe('AgentBriefingTab follow-up queue', () => {
             leadState: 'cold',
             recommendedAction: 'watch',
             reasonLine: '1 product opened',
+            talkTrackHint: null,
             lastEngagedAt: '2026-08-21T12:00:00Z',
             lastProductName: null,
             lastProductId: PRODUCT_ID,
             score: 1,
+            followUpOverdueDays: null,
           },
         ],
       },
@@ -330,6 +345,72 @@ describe('AgentBriefingTab follow-up queue', () => {
       accountStatus: 'prospect',
     });
     expect(onLogCallForLead).not.toHaveBeenCalled();
+  });
+
+  it('snoozes a follow-up row until tomorrow', async () => {
+    const followUpBriefing = {
+      briefing: {
+        ...briefingPayload.briefing,
+        followUps: [
+          {
+            prospectId: 66,
+            prospectName: 'Snooze Me Shop',
+            accountStatus: 'prospect',
+            leadState: 'hot',
+            recommendedAction: 'call',
+            reasonLine: 'Hot intent',
+            talkTrackHint: 'Hot intent on the product — lead with what they viewed online.',
+            lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastProductName: 'American Revival',
+            lastProductId: PRODUCT_ID,
+            score: 10,
+            followUpOverdueDays: null,
+          },
+        ],
+      },
+    };
+    let snoozed = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.includes('/api/staff/outreach/follow-up-snooze')) {
+          snoozed = true;
+          return {
+            ok: true,
+            json: async () => ({ ok: true, snoozedUntil: '2026-08-23' }),
+          };
+        }
+        if (url.includes('/api/staff/outreach/briefing')) {
+          return {
+            ok: true,
+            json: async () =>
+              snoozed
+                ? {
+                    briefing: { ...briefingPayload.briefing, followUps: [] },
+                  }
+                : followUpBriefing,
+          };
+        }
+        void init;
+        return { ok: false, json: async () => ({ error: 'unexpected fetch' }) };
+      }),
+    );
+
+    const user = userEvent.setup();
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Snooze Me Shop')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Snooze Snooze Me Shop until tomorrow' }));
+
+    await waitFor(() => {
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+        '/api/staff/outreach/follow-up-snooze',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
   });
 });
 

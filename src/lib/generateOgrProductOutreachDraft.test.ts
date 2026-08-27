@@ -209,7 +209,7 @@ describe('buildSafeOutreachPromptContext', () => {
     expect(prompt).not.toContain('sam@example.com');
     expect(prompt).not.toContain(target.accountContactId);
     expect(prompt).not.toContain(target.catalogItemId);
-    expect(OGR_OUTREACH_DRAFT_PROMPT_VERSION).toBe('v1');
+    expect(OGR_OUTREACH_DRAFT_PROMPT_VERSION).toBe('v2');
     assertSafePromptContext(ctx);
     const json = JSON.stringify(ctx);
     for (const key of PUBLIC_PRESENTATION_FORBIDDEN_KEYS) {
@@ -243,6 +243,267 @@ describe('buildSafeOutreachPromptContext', () => {
     expect(prompt).toContain('golfshop.example');
     expect(prompt).toContain('Local tournament photos');
     expect(prompt).toContain('No HTML, markdown links, URLs');
+  });
+
+  it('includes Slice B pack fields and never emits https in the built prompt', () => {
+    const ctx = buildSafeOutreachPromptContext({
+      target,
+      product: {
+        name: 'Golf Tee',
+        tagline: 'Fun tee',
+        description: 'A fun tee for golf shops.',
+        category: 'Apparel',
+        lifestyleThemeLabels: ['Golf'],
+        isNew: false,
+      },
+      prospect: {
+        city: 'Kelowna',
+        region: 'Okanagan',
+        fit: 'Strong golf fit',
+        lifestyleThemes: ['golf'],
+        website: null,
+      },
+      storeWebsiteHost: 'nmscharters.com',
+      contactRole: 'Buyer',
+      contactTitle: 'Purchasing Manager',
+      lockedProfiles: [
+        { platform: 'website', hostname: 'nmscharters.com' },
+        { platform: 'instagram', hostname: 'instagram.com' },
+        { platform: 'facebook', hostname: 'facebook.com' },
+      ],
+      recentPublicNotes: ['website: Coastal charter and retail shop'],
+      researchBriefBullets: ['Family-run store focused on golf apparel'],
+      directorySignals: 'NMS Charters · Boat Charters, Sporting Goods',
+    });
+    const prompt = buildOutreachDraftPrompt(ctx);
+    expect(prompt).toContain('Contact role: Buyer');
+    expect(prompt).toContain('Contact title: Purchasing Manager');
+    expect(prompt).toContain('Locked public profiles (hostname only; do not invent activity):');
+    expect(prompt).toContain('- instagram: instagram.com');
+    expect(prompt).toContain('- facebook: facebook.com');
+    expect(prompt).toContain('Research brief bullets:');
+    expect(prompt).toContain('Family-run store focused on golf apparel');
+    expect(prompt).toContain('Directory signals: NMS Charters · Boat Charters, Sporting Goods');
+    expect(prompt).not.toMatch(/https?:\/\//i);
+    assertSafePromptContext(ctx);
+  });
+
+  it('still builds when research pack fields are empty', () => {
+    const ctx = buildSafeOutreachPromptContext({
+      target,
+      product: {
+        name: 'Golf Tee',
+        tagline: '',
+        description: '',
+        category: 'Apparel',
+        lifestyleThemeLabels: [],
+        isNew: false,
+      },
+      prospect: null,
+    });
+    const prompt = buildOutreachDraftPrompt(ctx);
+    expect(prompt).toContain('Store name: Golf Shop');
+    expect(prompt).not.toContain('Locked public profiles');
+    expect(prompt).not.toContain('Contact role:');
+    expect(prompt).not.toMatch(/https?:\/\//i);
+  });
+
+  it('rejects prompt context that still contains a URL scheme', () => {
+    const ctx = buildSafeOutreachPromptContext({
+      target,
+      product: {
+        name: 'Golf Tee',
+        tagline: '',
+        description: '',
+        category: 'Apparel',
+        lifestyleThemeLabels: [],
+        isNew: false,
+      },
+      prospect: null,
+    });
+    const tainted = {
+      ...ctx,
+      directorySignals: 'See https://yelp.com/biz/bad',
+    };
+    expect(() => assertSafePromptContext(tainted)).toThrow(/URL scheme/);
+  });
+});
+
+describe('golden outreach prompt fixtures', () => {
+  const product = {
+    name: 'Golf Tee',
+    tagline: 'Fun tee',
+    description: 'A fun tee for golf shops.',
+    category: 'Apparel',
+    lifestyleThemeLabels: ['Golf'],
+    isNew: false,
+  };
+
+  it('snapshots rich research pack prompt', () => {
+    const ctx = buildSafeOutreachPromptContext({
+      target,
+      product,
+      prospect: {
+        city: 'Kelowna',
+        region: 'Okanagan',
+        fit: 'Strong golf fit',
+        lifestyleThemes: ['golf'],
+        website: null,
+      },
+      storeWebsiteHost: 'nmscharters.com',
+      contactRole: 'Buyer',
+      contactTitle: 'Purchasing Manager',
+      lockedProfiles: [
+        { platform: 'website', hostname: 'nmscharters.com' },
+        { platform: 'instagram', hostname: 'instagram.com' },
+      ],
+      recentPublicNotes: ['website: Coastal charter and retail shop'],
+      researchBriefBullets: ['Family-run store focused on golf apparel'],
+      directorySignals: 'NMS Charters · Boat Charters, Sporting Goods',
+    });
+    expect(buildOutreachDraftPrompt(ctx)).toMatchInlineSnapshot(`
+      "You write short wholesale outreach intro and closing copy for Old Guys Rule apparel.
+      Return ONLY introText and closingText as plain text.
+      Rules:
+      - Pique interest; do not close the sale or hard-pitch.
+      - No HTML, markdown links, URLs, email addresses, or CRM/product IDs.
+      - No pricing, wholesale, landed, MSRP, USD/CAD, or cost language.
+      - Do not invent facts (city, buyer title, inventory, availability).
+      - Do not write a subject line, From header, or signature.
+      - Do not greet or address the buyer by name (no "Hi Pam," / "Hello …"); the email template already adds the greeting.
+      - Prefer intro under 50 words and closing under 40 words.
+      - Closing should invite a brief reply or call — not spammy CTAs.
+
+      Context (use only what is present; skip empty fields):
+      Store name: Golf Shop
+      Buyer first name: Sam
+      Contact role: Buyer
+      Contact title: Purchasing Manager
+      City: Kelowna
+      Region: Okanagan
+      Retail channels: Golf Courses, Resorts & Pro Shops
+      Store lifestyle themes: Golf
+      Fit notes: Strong golf fit
+      Store website host: nmscharters.com
+      Locked public profiles (hostname only; do not invent activity):
+      - website: nmscharters.com
+      - instagram: instagram.com
+      Recent public notes (paraphrase lightly; do not invent; never paste URLs):
+      - website: Coastal charter and retail shop
+      Research brief bullets:
+      - Family-run store focused on golf apparel
+      Directory signals: NMS Charters · Boat Charters, Sporting Goods
+      Product name: Golf Tee
+      Product category: Apparel
+      Product tagline: Fun tee
+      Product description: A fun tee for golf shops.
+      Sales rank hint: #1
+      Product lifestyle themes: Golf
+      Channel match to allocation: yes
+      Product fit: channel_intersect"
+    `);
+  });
+
+  it('snapshots thin CRM-only prompt', () => {
+    const ctx = buildSafeOutreachPromptContext({
+      target: {
+        ...target,
+        primaryChannel: null,
+        secondaryChannels: [],
+        productSalesRank: null,
+        selectionReasons: {
+          ...target.selectionReasons,
+          channelMatch: false,
+          productFit: 'global_fallback',
+        },
+      },
+      product: {
+        name: 'Golf Tee',
+        tagline: '',
+        description: '',
+        category: 'Apparel',
+        lifestyleThemeLabels: [],
+        isNew: false,
+      },
+      prospect: {
+        city: 'Kelowna',
+        region: 'Okanagan',
+        fit: '',
+        lifestyleThemes: [],
+      },
+    });
+    expect(buildOutreachDraftPrompt(ctx)).toMatchInlineSnapshot(`
+      "You write short wholesale outreach intro and closing copy for Old Guys Rule apparel.
+      Return ONLY introText and closingText as plain text.
+      Rules:
+      - Pique interest; do not close the sale or hard-pitch.
+      - No HTML, markdown links, URLs, email addresses, or CRM/product IDs.
+      - No pricing, wholesale, landed, MSRP, USD/CAD, or cost language.
+      - Do not invent facts (city, buyer title, inventory, availability).
+      - Do not write a subject line, From header, or signature.
+      - Do not greet or address the buyer by name (no "Hi Pam," / "Hello …"); the email template already adds the greeting.
+      - Prefer intro under 50 words and closing under 40 words.
+      - Closing should invite a brief reply or call — not spammy CTAs.
+
+      Context (use only what is present; skip empty fields):
+      Store name: Golf Shop
+      Buyer first name: Sam
+      City: Kelowna
+      Region: Okanagan
+      Product name: Golf Tee
+      Product category: Apparel
+      Channel match to allocation: no
+      Product fit: global_fallback"
+    `);
+  });
+
+  it('snapshots host and notes middle case', () => {
+    const ctx = buildSafeOutreachPromptContext({
+      target,
+      product,
+      prospect: {
+        city: 'Kelowna',
+        region: 'Okanagan',
+        fit: 'Strong golf fit',
+        lifestyleThemes: ['golf'],
+        website: 'https://golfshop.example/path',
+      },
+      recentPublicNotes: ['instagram: Local tournament photos', 'website: Family-owned since 1998'],
+    });
+    expect(buildOutreachDraftPrompt(ctx)).toMatchInlineSnapshot(`
+      "You write short wholesale outreach intro and closing copy for Old Guys Rule apparel.
+      Return ONLY introText and closingText as plain text.
+      Rules:
+      - Pique interest; do not close the sale or hard-pitch.
+      - No HTML, markdown links, URLs, email addresses, or CRM/product IDs.
+      - No pricing, wholesale, landed, MSRP, USD/CAD, or cost language.
+      - Do not invent facts (city, buyer title, inventory, availability).
+      - Do not write a subject line, From header, or signature.
+      - Do not greet or address the buyer by name (no "Hi Pam," / "Hello …"); the email template already adds the greeting.
+      - Prefer intro under 50 words and closing under 40 words.
+      - Closing should invite a brief reply or call — not spammy CTAs.
+
+      Context (use only what is present; skip empty fields):
+      Store name: Golf Shop
+      Buyer first name: Sam
+      City: Kelowna
+      Region: Okanagan
+      Retail channels: Golf Courses, Resorts & Pro Shops
+      Store lifestyle themes: Golf
+      Fit notes: Strong golf fit
+      Store website host: golfshop.example
+      Recent public notes (paraphrase lightly; do not invent; never paste URLs):
+      - instagram: Local tournament photos
+      - website: Family-owned since 1998
+      Product name: Golf Tee
+      Product category: Apparel
+      Product tagline: Fun tee
+      Product description: A fun tee for golf shops.
+      Sales rank hint: #1
+      Product lifestyle themes: Golf
+      Channel match to allocation: yes
+      Product fit: channel_intersect"
+    `);
   });
 });
 

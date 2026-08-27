@@ -1,5 +1,6 @@
 import { useId, useMemo, useState, type SubmitEvent } from 'react';
 import { Button } from '@/components/ui/Button';
+import { CopyableUrl, CopyUrlButton } from '@/components/ui/CopyUrlButton';
 import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import {
@@ -215,7 +216,16 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
         <dl className="m-0 grid gap-3 text-sm">
           <div>
             <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Business name</dt>
-            <dd className="m-0 mt-0.5">{displayValue(prospect.name)}</dd>
+            <dd className="m-0 mt-0.5">
+              {prospect.name?.trim() ? (
+                <span className="inline-flex max-w-full items-start gap-1">
+                  <span className="min-w-0">{prospect.name}</span>
+                  <CopyUrlButton url={prospect.name} label="Copy name" className="mt-0.5" />
+                </span>
+              ) : (
+                '—'
+              )}
+            </dd>
           </div>
           <div>
             <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Store phone</dt>
@@ -223,7 +233,13 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
           </div>
           <div>
             <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Website</dt>
-            <dd className="m-0 mt-0.5">{displayValue(prospect.website)}</dd>
+            <dd className="m-0 mt-0.5">
+              {prospect.website?.trim() ? (
+                <CopyableUrl url={prospect.website} linkClassName="text-accent-800 text-sm" />
+              ) : (
+                '—'
+              )}
+            </dd>
           </div>
           <div>
             <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Street address</dt>

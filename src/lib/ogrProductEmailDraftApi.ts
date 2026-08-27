@@ -5,6 +5,7 @@ import {
   OGR_PRODUCT_EMAIL_MAX_SUBJECT,
   OGR_PRODUCT_EMAIL_MAX_TO,
 } from '@/lib/ogrProductEmailLimits';
+import type { ProductOutreachGenerationMeta } from '@/lib/systemMessages';
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -157,6 +158,7 @@ export function serializeAgentDraft(draft: {
     slug: string;
     productHref: string;
     from?: string;
+    generation?: ProductOutreachGenerationMeta;
   };
   createdAt: string;
   updatedAt: string;

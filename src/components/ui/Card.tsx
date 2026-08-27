@@ -20,7 +20,7 @@ export function Card({ elevation = 'sm', row = false, className, children, ...pr
   return (
     <div
       className={cn(
-        'bg-surface p-3.1 flex gap-2 rounded-xl',
+        'bg-surface border-border p-3.1 flex gap-2 rounded-lg border',
         row ? 'flex-row' : 'flex-col',
         elevationClasses[elevation],
         className,
@@ -45,11 +45,11 @@ export function CardTitle({ children, className }: { children: ReactNode; classN
 }
 
 export function CardBody({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn('m-0 flex-1 text-[13px] opacity-80', className)}>{children}</p>;
+  return <p className={cn('text-muted m-0 flex-1 text-[13px]', className)}>{children}</p>;
 }
 
 export function CardMeta({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <p className={cn('text-ink/50 flex items-center gap-1.5 text-[11px]', className)}>{children}</p>
+    <p className={cn('text-subtle flex items-center gap-1.5 text-[11px]', className)}>{children}</p>
   );
 }

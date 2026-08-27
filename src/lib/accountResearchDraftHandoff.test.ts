@@ -17,10 +17,14 @@ vi.mock('@/lib/catalog', async (importOriginal) => {
   return { ...original, fetchCatalogItems: mocks.fetchCatalogItems };
 });
 
-vi.mock('@/lib/agentProductOutreachDraftClient', () => ({
-  generateAgentProductOutreachDraft: mocks.generateDraft,
-  getAgentProductOutreachDraftClient: mocks.getDraft,
-}));
+vi.mock('@/lib/agentProductOutreachDraftClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/agentProductOutreachDraftClient')>();
+  return {
+    ...actual,
+    generateAgentProductOutreachDraft: mocks.generateDraft,
+    getAgentProductOutreachDraftClient: mocks.getDraft,
+  };
+});
 
 describe('accountResearchDraftHandoff', () => {
   beforeEach(() => {

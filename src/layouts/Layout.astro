@@ -26,13 +26,27 @@ const {
 const resolvedCanonical = canonicalUrl ?? new URL(Astro.url.pathname, Astro.site ?? Astro.url).href;
 const path = Astro.url.pathname;
 const isStaffSurface = path === '/app' || path.startsWith('/app/') || path === '/rep-login';
+/** Marketing landing stays on soft cream light tokens — never inherits app dark theme. */
+const forceLightTheme = path === '/';
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme={forceLightTheme ? 'light' : undefined}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script is:inline define:vars={{ forceLightTheme }}>
+      try {
+        if (forceLightTheme) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        } else {
+          const t = localStorage.getItem('rcc-theme');
+          document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+        }
+      } catch {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    </script>
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>{title}</title>
