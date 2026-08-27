@@ -19,7 +19,14 @@ function leadFromMessages(
   prospectId: number,
   name: string,
   messages: Parameters<typeof aggregateProspectOutreachEngagement>[0]['messages'],
-  extras?: { followUpDue?: boolean; reply?: boolean; lastReplyAt?: string },
+  extras?: {
+    followUpDue?: boolean;
+    followUpOverdueDays?: number;
+    lastCallAtToday?: string;
+    accountStatus?: OutreachLeadRow['accountStatus'];
+    reply?: boolean;
+    lastReplyAt?: string;
+  },
 ): OutreachLeadRow {
   const engagement = aggregateProspectOutreachEngagement({
     prospectId,
@@ -34,14 +41,16 @@ function leadFromMessages(
   });
   const evaluated = evaluateLeadState({
     engagement,
-    followUpDue: extras?.followUpDue,
+    followUpDue: extras?.followUpDue
+      ? { due: true, overdueDays: extras.followUpOverdueDays ?? 0 }
+      : { due: false, overdueDays: 0 },
     asOf,
     rules: OUTREACH_LEAD_RULES,
   });
   return {
     prospectId,
     prospectName: name,
-    accountStatus: 'prospect',
+    accountStatus: extras?.accountStatus ?? 'prospect',
     leadState: evaluated.leadState,
     callToday: evaluated.callToday,
     callTodayReasons: evaluated.callTodayReasons,
@@ -52,6 +61,8 @@ function leadFromMessages(
     emailsSentInWindow: messages.filter(
       (m) => m.sent_at != null && m.sent_at >= '2026-07-27T12:00:00Z',
     ).length,
+    followUpOverdueDays: extras?.followUpOverdueDays ?? null,
+    lastCallAtToday: extras?.lastCallAtToday ?? null,
   };
 }
 
@@ -238,6 +249,73 @@ describe('buildFollowUpQueue', () => {
       asOf,
     });
     expect(queue[0]?.recommendedAction).toBe('email');
+  });
+
+  it('excludes active accounts from the queue', () => {
+    const activeWithHot = {
+      ...hotLead,
+      prospectId: 10,
+      prospectName: 'Active Hot Shop',
+      accountStatus: 'active_account' as const,
+    };
+    const queue = buildFollowUpQueue({ leads: [activeWithHot, hotLead], asOf });
+    expect(queue.some((r) => r.prospectId === 10)).toBe(false);
+    expect(queue.some((r) => r.prospectId === 2)).toBe(true);
+  });
+
+  it('downgrades Call to watch when already called today without new engagement', () => {
+    const called = {
+      ...hotLead,
+      lastCallAtToday: '2026-08-10T14:00:00Z',
+    };
+    const queue = buildFollowUpQueue({ leads: [called], asOf });
+    expect(queue).toHaveLength(0);
+  });
+
+  it('keeps Call when engagement is newer than today’s call', () => {
+    const called = {
+      ...hotLead,
+      lastCallAtToday: '2026-08-10T08:00:00Z',
+      engagement: {
+        ...hotLead.engagement,
+        lastClickedAt: '2026-08-10T10:00:00Z',
+        lastEngagementAt: '2026-08-10T10:00:00Z',
+      },
+    };
+    const queue = buildFollowUpQueue({ leads: [called], asOf });
+    expect(queue[0]?.recommendedAction).toBe('call');
+  });
+
+  it('ranks overdue follow-up below fresh Hot', () => {
+    const overdue = leadFromMessages(7, 'Overdue Shop', [], {
+      followUpDue: true,
+      followUpOverdueDays: 5,
+    });
+    const queue = buildFollowUpQueue({
+      leads: [overdue, hotLead],
+      asOf,
+    });
+    expect(queue[0]?.prospectId).toBe(2);
+    expect(queue[1]?.prospectId).toBe(7);
+    expect(queue[1]?.followUpOverdueDays).toBe(5);
+  });
+
+  it('excludes snoozed prospects', () => {
+    const queue = buildFollowUpQueue({
+      leads: [hotLead],
+      snoozedProspectIds: new Set([2]),
+      asOf,
+    });
+    expect(queue).toHaveLength(0);
+  });
+
+  it('includes talk track hint on Call rows', () => {
+    const queue = buildFollowUpQueue({
+      leads: [hotLead],
+      asOf,
+      productNamesById: new Map([[PRODUCT_A, 'American Revival']]),
+    });
+    expect(queue[0]?.talkTrackHint).toMatch(/clicked American Revival/i);
   });
 });
 

@@ -1962,6 +1962,35 @@ export interface Database {
         };
         Relationships: [];
       };
+      outreach_follow_up_snoozes: {
+        Row: {
+          prospect_id: number;
+          snoozed_until: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          prospect_id: number;
+          snoozed_until: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          prospect_id?: number;
+          snoozed_until?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'outreach_follow_up_snoozes_prospect_id_fkey';
+            columns: ['prospect_id'];
+            isOneToOne: true;
+            referencedRelation: 'prospects';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       account_conversion_attribution: {
         Row: {
           id: string;

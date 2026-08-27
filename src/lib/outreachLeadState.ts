@@ -11,14 +11,30 @@ import {
 } from '@/lib/outreachLeadRules';
 
 export type OutreachLeadState = 'cold' | 'warm' | 'hot';
-export type CallTodayReason = 'hot_intent' | 'attributed_reply' | 'follow_up_due';
+export type CallTodayReason =
+  'hot_intent' | 'attributed_reply' | 'follow_up_due_today' | 'follow_up_overdue';
+
+export type FollowUpDueContext = {
+  due: boolean;
+  overdueDays: number;
+};
 
 export type EvaluateLeadStateInput = {
   engagement: ProspectOutreachEngagement;
-  followUpDue?: boolean;
+  followUpDue?: boolean | FollowUpDueContext;
   asOf?: Date;
   rules?: OutreachLeadRules;
 };
+
+function resolveFollowUpDue(input: EvaluateLeadStateInput): FollowUpDueContext {
+  if (typeof input.followUpDue === 'object' && input.followUpDue != null) {
+    return input.followUpDue;
+  }
+  if (input.followUpDue === true) {
+    return { due: true, overdueDays: 0 };
+  }
+  return { due: false, overdueDays: 0 };
+}
 
 export type EvaluateLeadStateResult = {
   leadState: OutreachLeadState;
@@ -123,8 +139,13 @@ export function evaluateLeadState(input: EvaluateLeadStateInput): EvaluateLeadSt
         callTodayReasons.push('attributed_reply');
       }
     }
-    if (input.followUpDue === true) {
-      callTodayReasons.push('follow_up_due');
+    const followUp = resolveFollowUpDue(input);
+    if (followUp.due) {
+      if (followUp.overdueDays > 0) {
+        callTodayReasons.push('follow_up_overdue');
+      } else {
+        callTodayReasons.push('follow_up_due_today');
+      }
     }
   }
 

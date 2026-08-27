@@ -45,13 +45,18 @@ type DraftReviewTarget = {
   prospectName?: string;
 };
 
+type BriefingLogCallContext = {
+  talkTrackHint: string | null;
+  lastProductName: string | null;
+};
+
 type AgentBriefingTabProps = {
   catalog: CatalogItem[];
   deepLinkSku?: string | null;
   deepLinkDraftId?: string | null;
   onDeepLinkConsumed?: () => void;
   onProductEmailSent?: () => void;
-  onLogCallForLead: (prospectId: number) => void;
+  onLogCallForLead: (prospectId: number, context?: BriefingLogCallContext) => void;
   briefingReloadToken?: number;
   onOpenProspect: (args: {
     prospectId: number;
@@ -123,17 +128,21 @@ function followUpActionLabel(action: OutreachFollowUpRow['recommendedAction']): 
 function FollowUpQueue({
   rows,
   emailBusyId,
+  snoozeBusyId,
   onAction,
+  onSnooze,
 }: {
   rows: OutreachFollowUpRow[];
   emailBusyId: number | null;
+  snoozeBusyId: number | null;
   onAction: (row: OutreachFollowUpRow) => void;
+  onSnooze: (row: OutreachFollowUpRow) => void;
 }) {
   return (
     <Card>
       <CardTitle className="text-[15px]">Today’s follow-ups</CardTitle>
       <CardMeta className="mb-2">
-        {rows.length} lead{rows.length === 1 ? '' : 's'} · Call, email, or watch
+        {rows.length} lead{rows.length === 1 ? '' : 's'} · Call, email, watch, or snooze
       </CardMeta>
       {rows.length === 0 ? (
         <p className="text-ink/50 m-0 text-sm">None right now.</p>
@@ -141,7 +150,6 @@ function FollowUpQueue({
         <ul
           className="m-0 flex list-none flex-col gap-2 overflow-y-auto p-0"
           style={{
-            // ~2.5rem row content + gap-2; scroll after FOLLOW_UP_QUEUE_VISIBLE rows.
             maxHeight: `calc(${FOLLOW_UP_QUEUE_VISIBLE} * 2.5rem + ${FOLLOW_UP_QUEUE_VISIBLE - 1} * 0.5rem)`,
           }}
         >
@@ -151,6 +159,7 @@ function FollowUpQueue({
               row.leadState === 'hot' ? 'Hot' : row.leadState === 'warm' ? 'Warm' : 'Cold';
             const stateVariant =
               row.leadState === 'hot' ? 'accent' : row.leadState === 'warm' ? 'outline' : 'neutral';
+            const rowBusy = emailBusyId === row.prospectId || snoozeBusyId === row.prospectId;
             return (
               <li
                 key={row.prospectId}
@@ -161,26 +170,44 @@ function FollowUpQueue({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{row.prospectName}</span>
                     <Tag variant={stateVariant}>{stateLabel}</Tag>
+                    {row.followUpOverdueDays != null && row.followUpOverdueDays > 0 ? (
+                      <Tag variant="outline">Overdue</Tag>
+                    ) : null}
                     {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
                   </div>
                   <p className="text-ink/55 m-0 mt-0.5 text-xs">{row.reasonLine}</p>
+                  {row.talkTrackHint ? (
+                    <p className="text-ink/45 m-0 mt-0.5 text-xs italic">{row.talkTrackHint}</p>
+                  ) : null}
                 </div>
-                <Button
-                  type="button"
-                  variant={row.recommendedAction === 'watch' ? 'ghost' : 'secondary'}
-                  className="shrink-0 px-3 py-1 text-xs"
-                  disabled={emailBusyId === row.prospectId}
-                  aria-label={
-                    emailBusyId === row.prospectId
-                      ? `Preparing follow-up for ${row.prospectName}`
-                      : `${followUpActionLabel(row.recommendedAction)} ${row.prospectName}`
-                  }
-                  onClick={() => onAction(row)}
-                >
-                  {emailBusyId === row.prospectId
-                    ? 'Preparing…'
-                    : followUpActionLabel(row.recommendedAction)}
-                </Button>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <Button
+                    type="button"
+                    variant={row.recommendedAction === 'watch' ? 'ghost' : 'secondary'}
+                    className="px-3 py-1 text-xs"
+                    disabled={rowBusy}
+                    aria-label={
+                      emailBusyId === row.prospectId
+                        ? `Preparing follow-up for ${row.prospectName}`
+                        : `${followUpActionLabel(row.recommendedAction)} ${row.prospectName}`
+                    }
+                    onClick={() => onAction(row)}
+                  >
+                    {emailBusyId === row.prospectId
+                      ? 'Preparing…'
+                      : followUpActionLabel(row.recommendedAction)}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="text-ink/50 px-2 py-0.5 text-[11px]"
+                    disabled={rowBusy}
+                    aria-label={`Snooze ${row.prospectName} until tomorrow`}
+                    onClick={() => onSnooze(row)}
+                  >
+                    {snoozeBusyId === row.prospectId ? 'Snoozing…' : 'Snooze'}
+                  </Button>
+                </div>
               </li>
             );
           })}
@@ -213,6 +240,7 @@ export function AgentBriefingTab({
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [emailBusyId, setEmailBusyId] = useState<number | null>(null);
+  const [snoozeBusyId, setSnoozeBusyId] = useState<number | null>(null);
   const [appliedDeepLinkKey, setAppliedDeepLinkKey] = useState('');
   const [opsOptions, setOpsOptions] = useState<OperationalTerritoryOption[]>([]);
   const [storeTerritoryCode, setStoreTerritoryCode] = useState<'or' | 'wa'>('or');
@@ -274,7 +302,10 @@ export function AgentBriefingTab({
   const handleFollowUpAction = useCallback(
     async (row: OutreachFollowUpRow) => {
       if (row.recommendedAction === 'call') {
-        onLogCallForLead(row.prospectId);
+        onLogCallForLead(row.prospectId, {
+          talkTrackHint: row.talkTrackHint,
+          lastProductName: row.lastProductName,
+        });
         return;
       }
       if (row.recommendedAction === 'watch') {
@@ -299,6 +330,19 @@ export function AgentBriefingTab({
     },
     [onLogCallForLead, onOpenProspect, openDraftReview],
   );
+
+  const handleFollowUpSnooze = useCallback(async (row: OutreachFollowUpRow) => {
+    setSnoozeBusyId(row.prospectId);
+    const result = await staffPost('/api/staff/outreach/follow-up-snooze', {
+      prospectId: row.prospectId,
+    });
+    setSnoozeBusyId(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setReloadToken((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     if (!isOgrLine) return;
@@ -771,7 +815,9 @@ export function AgentBriefingTab({
           <FollowUpQueue
             rows={briefing.followUps ?? []}
             emailBusyId={emailBusyId}
+            snoozeBusyId={snoozeBusyId}
             onAction={(row) => void handleFollowUpAction(row)}
+            onSnooze={(row) => void handleFollowUpSnooze(row)}
           />
 
           <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3">

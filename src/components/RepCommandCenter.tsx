@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Header } from '@/components/Header';
 import { TabNav } from '@/components/TabNav';
 import { LogCallModal } from '@/components/LogCallModal';
+import type { BriefingLogCallContext } from '@/components/LogCallFormModal';
 import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
 import { CatalogTab } from '@/components/tabs/CatalogTab';
 import { DashboardTab } from '@/components/tabs/DashboardTab';
@@ -101,6 +102,8 @@ export function RepCommandCenter({
         : defaultTab,
   );
   const [modalOpen, setModalOpen] = useState(false);
+  const [logCallBriefingContext, setLogCallBriefingContext] =
+    useState<BriefingLogCallContext | null>(null);
   const [modalStoreId, setModalStoreId] = useState<number | null>(null);
   const [callsReloadToken, setCallsReloadToken] = useState(0);
   const [directoryReloadToken, setDirectoryReloadToken] = useState(0);
@@ -368,15 +371,16 @@ export function RepCommandCenter({
   }, [activeTab]);
 
   function openModal(prospect?: Prospect) {
-    // Generic Log Call requires an explicit selection — do not default to prospects[0].
+    setLogCallBriefingContext(null);
     setModalStoreId(prospect ? prospect.id : null);
     setModalOpen(true);
   }
 
   const openLogCallForProspectId = useCallback(
-    (prospectId: number) => {
+    (prospectId: number, context?: BriefingLogCallContext) => {
       const match = prospects.find((p) => p.id === prospectId);
       if (!match) return;
+      setLogCallBriefingContext(context ?? null);
       setModalStoreId(prospectId);
       setModalOpen(true);
     },
@@ -619,7 +623,11 @@ export function RepCommandCenter({
         prospects={prospects}
         storeId={modalStoreId}
         catalog={catalog}
-        onClose={() => setModalOpen(false)}
+        briefingContext={logCallBriefingContext}
+        onClose={() => {
+          setModalOpen(false);
+          setLogCallBriefingContext(null);
+        }}
         onStoreChange={(id) => setModalStoreId(id)}
         onSaved={refreshAfterCallLog}
         onConverted={() => {

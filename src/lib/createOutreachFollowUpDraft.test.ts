@@ -119,6 +119,8 @@ function warmClickLead(emailsSentInWindow: number): OutreachLeadRow {
     engagement: aggregateProspectOutreachEngagement({ prospectId: 12, messages }),
     lastEngagedCatalogItemId: PRODUCT_A,
     emailsSentInWindow,
+    followUpOverdueDays: null,
+    lastCallAtToday: null,
   };
 }
 

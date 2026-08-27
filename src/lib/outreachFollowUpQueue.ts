@@ -24,10 +24,12 @@ export type OutreachFollowUpRow = {
   leadState: OutreachLeadRow['leadState'];
   recommendedAction: OutreachFollowUpAction;
   reasonLine: string;
+  talkTrackHint: string | null;
   lastEngagedAt: string | null;
   lastProductName: string | null;
   lastProductId: string | null;
   score: number;
+  followUpOverdueDays: number | null;
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -157,16 +159,18 @@ function withinWatchWindow(lead: OutreachLeadRow, asOf: Date): boolean {
   return age != null && age <= FOLLOW_UP_WATCH_DAYS;
 }
 
-function recommendedAction(input: {
+function engagementAfterCall(lead: OutreachLeadRow, lastCallAt: string): boolean {
+  const signal = signalAt(lead);
+  return Boolean(signal && signal > lastCallAt);
+}
+
+function warmOrWatchAction(input: {
   lead: OutreachLeadRow;
   asOf: Date;
   rules: OutreachLeadRules;
   hasPendingDraft: boolean;
 }): OutreachFollowUpAction | null {
   const { lead } = input;
-  if (lead.engagement.suppressed) return null;
-  if (lead.callToday) return 'call';
-
   const inCooldown = isWithinOutreachCooldown(lead.engagement.lastSentAt, { asOf: input.asOf });
   const exception = clickOrReplyInLeadWindow({
     lastClickedAt: lead.engagement.lastClickedAt,
@@ -175,22 +179,82 @@ function recommendedAction(input: {
     asOf: input.asOf,
     rules: input.rules,
   });
-  const emailsSentInWindow = lead.emailsSentInWindow ?? 0;
   const generateOk = canGenerateFollowUpEmail({
     inCooldown,
     clickOrReplyInWindow: exception,
-    emailsSentInWindow,
+    emailsSentInWindow: lead.emailsSentInWindow ?? 0,
     hasPendingDraft: input.hasPendingDraft,
   });
 
   if (lead.leadState === 'warm') {
     return generateOk.ok ? 'email' : 'watch';
   }
-
   if (lead.leadState === 'cold' && withinWatchWindow(lead, input.asOf)) {
     return 'watch';
   }
+  return null;
+}
 
+function baseRecommendedAction(input: {
+  lead: OutreachLeadRow;
+  asOf: Date;
+  rules: OutreachLeadRules;
+  hasPendingDraft: boolean;
+}): OutreachFollowUpAction | null {
+  const { lead } = input;
+  if (lead.engagement.suppressed) return null;
+  if (lead.callToday) return 'call';
+  return warmOrWatchAction(input);
+}
+
+function applyWorkedTodaySuppression(input: {
+  lead: OutreachLeadRow;
+  action: OutreachFollowUpAction;
+  asOf: Date;
+  rules: OutreachLeadRules;
+  hasPendingDraft: boolean;
+}): OutreachFollowUpAction | null {
+  if (input.action !== 'call') return input.action;
+  const lastCallAt = input.lead.lastCallAtToday;
+  if (!lastCallAt) return input.action;
+  if (engagementAfterCall(input.lead, lastCallAt)) return input.action;
+  return warmOrWatchAction(input);
+}
+
+function recommendedAction(input: {
+  lead: OutreachLeadRow;
+  asOf: Date;
+  rules: OutreachLeadRules;
+  hasPendingDraft: boolean;
+}): OutreachFollowUpAction | null {
+  const action = baseRecommendedAction(input);
+  if (!action) return null;
+  return applyWorkedTodaySuppression({ ...input, action });
+}
+
+export function buildFollowUpTalkTrackHint(
+  lead: OutreachLeadRow,
+  productName: string | null,
+): string | null {
+  const product = productName?.trim() || 'the product';
+  if (lead.callTodayReasons.includes('attributed_reply')) {
+    return `They replied recently — confirm interest in ${product}.`;
+  }
+  if (lead.engagement.maxClickCountOnMessage >= 2 || lead.engagement.clickCount >= 2) {
+    return `They clicked ${product} more than once — ask what caught their eye.`;
+  }
+  if (lead.engagement.clickCount === 1) {
+    return `They clicked ${product} — offer sizing and availability.`;
+  }
+  if (
+    lead.callTodayReasons.includes('follow_up_due_today') ||
+    lead.callTodayReasons.includes('follow_up_overdue')
+  ) {
+    return 'Follow-up scheduled — check in on your last conversation.';
+  }
+  if (lead.callTodayReasons.includes('hot_intent')) {
+    return `Hot intent on ${product} — lead with what they viewed online.`;
+  }
   return null;
 }
 
@@ -198,7 +262,12 @@ function reasonLine(lead: OutreachLeadRow, productName: string | null): string {
   const parts: string[] = [];
   if (lead.callTodayReasons.includes('attributed_reply')) parts.push('Replied');
   if (lead.callTodayReasons.includes('hot_intent')) parts.push('Hot intent');
-  if (lead.callTodayReasons.includes('follow_up_due')) parts.push('Follow-up due');
+  if (lead.callTodayReasons.includes('follow_up_overdue')) {
+    const days = lead.followUpOverdueDays ?? 0;
+    parts.push(days > 0 ? `Follow-up overdue · ${days}d` : 'Follow-up overdue');
+  } else if (lead.callTodayReasons.includes('follow_up_due_today')) {
+    parts.push('Follow-up due today');
+  }
   if (lead.engagement.clickCount > 0) {
     const n = lead.engagement.distinctProductsClicked;
     parts.push(`${n} product${n === 1 ? '' : 's'} clicked`);
@@ -215,15 +284,17 @@ function reasonLine(lead: OutreachLeadRow, productName: string | null): string {
 function rankBucket(row: OutreachFollowUpRow, lead: OutreachLeadRow): number {
   if (lead.callTodayReasons.includes('attributed_reply')) return 0;
   if (lead.callTodayReasons.includes('hot_intent')) return 1;
-  if (lead.callTodayReasons.includes('follow_up_due')) return 2;
+  if (lead.callTodayReasons.includes('follow_up_due_today')) return 2;
   if (row.recommendedAction === 'email' && lead.engagement.clickCount > 0) return 3;
   if (row.recommendedAction === 'email') return 4;
+  if (lead.callTodayReasons.includes('follow_up_overdue')) return 6;
   return 5;
 }
 
 export function buildFollowUpQueue(input: {
   leads: OutreachLeadRow[];
   pendingProspectIds?: ReadonlySet<number>;
+  snoozedProspectIds?: ReadonlySet<number>;
   productNamesById?: ReadonlyMap<string, string>;
   asOf?: Date;
   rules?: OutreachLeadRules;
@@ -232,12 +303,16 @@ export function buildFollowUpQueue(input: {
   const asOf = input.asOf ?? new Date();
   const rules = input.rules ?? OUTREACH_LEAD_RULES;
   const pending = input.pendingProspectIds ?? new Set<number>();
+  const snoozed = input.snoozedProspectIds ?? new Set<number>();
   const names = input.productNamesById ?? new Map<string, string>();
   const limit = input.limit ?? FOLLOW_UP_QUEUE_LIMIT;
 
   const byId = new Map<number, { row: OutreachFollowUpRow; lead: OutreachLeadRow }>();
 
   for (const lead of input.leads) {
+    if (lead.accountStatus === 'active_account') continue;
+    if (snoozed.has(lead.prospectId)) continue;
+
     const action = recommendedAction({
       lead,
       asOf,
@@ -254,10 +329,15 @@ export function buildFollowUpQueue(input: {
       leadState: lead.leadState,
       recommendedAction: action,
       reasonLine: reasonLine(lead, productName),
+      talkTrackHint: action === 'call' ? buildFollowUpTalkTrackHint(lead, productName) : null,
       lastEngagedAt: signalAt(lead),
       lastProductName: productName,
       lastProductId: productId,
       score: lead.score,
+      followUpOverdueDays:
+        lead.followUpOverdueDays != null && lead.followUpOverdueDays > 0
+          ? lead.followUpOverdueDays
+          : null,
     };
     byId.set(lead.prospectId, { row, lead });
   }

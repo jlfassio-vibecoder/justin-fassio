@@ -8,6 +8,7 @@ import type { AllocateChannelsForDayResult } from '@/lib/outreachChannelAllocati
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
 import { listOutreachLeads } from '@/lib/outreachLeadLists';
 import { buildFollowUpQueue } from '@/lib/outreachFollowUpQueue';
+import { loadActiveFollowUpSnoozes } from '@/lib/outreachFollowUpSnooze';
 import {
   briefingSellingDate,
   getLatestOutreachAutomationRunForDate,
@@ -410,12 +411,14 @@ export async function assembleOutreachBriefing(params: {
     performance: snap.snapshot.performance,
   });
 
-  const [allLeads, pendingDrafts, recentEngagement, recentConversions] = await Promise.all([
-    listOutreachLeads(client, { asOf, rules: resolvedLeadRules.rules }),
-    fetchPendingAgentProductOutreachProspectIds(client, AGENT_OUTREACH_PENDING_DRAFT_STATUSES),
-    loadRecentEngagement(client, since),
-    loadRecentConversions(client, since),
-  ]);
+  const [allLeads, pendingDrafts, recentEngagement, recentConversions, snoozedProspectIds] =
+    await Promise.all([
+      listOutreachLeads(client, { asOf, rules: resolvedLeadRules.rules }),
+      fetchPendingAgentProductOutreachProspectIds(client, AGENT_OUTREACH_PENDING_DRAFT_STATUSES),
+      loadRecentEngagement(client, since),
+      loadRecentConversions(client, since),
+      loadActiveFollowUpSnoozes(client, { asOf }),
+    ]);
   if (!pendingDrafts.ok) return { ok: false, error: pendingDrafts.error };
 
   const productIds = [
@@ -439,6 +442,7 @@ export async function assembleOutreachBriefing(params: {
   const followUps = buildFollowUpQueue({
     leads: allLeads,
     pendingProspectIds: pendingDrafts.prospectIds,
+    snoozedProspectIds,
     productNamesById,
     asOf,
     rules: resolvedLeadRules.rules,
