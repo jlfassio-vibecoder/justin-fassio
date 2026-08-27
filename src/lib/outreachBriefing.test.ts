@@ -26,6 +26,7 @@ function run(partial: Partial<OutreachAutomationRunRow>): OutreachAutomationRunR
     operationalTerritoryId: null,
     storeTerritoryCode: null,
     crmRegion: null,
+    prepCity: null,
     startedAt: '2026-08-12T05:00:00.000Z',
     finishedAt: '2026-08-12T05:01:00.000Z',
     triggeredBy: null,

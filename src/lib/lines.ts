@@ -1,13 +1,19 @@
 import {
   BIG_FISH_WHOLESALE_PATH,
   EAGLE_PEAK_WHOLESALE_PATH,
+  LIVING_IN_SUNSHINE_WHOLESALE_PATH,
   OGR_WHOLESALE_PATH,
 } from '@/data/landing';
 import { supabase } from '@/lib/supabase';
 import type { Line, LineStatus } from '@/types/database';
 
 /** Seed marketing / special-case codes — not picker membership. */
-export const REPRESENTED_LINE_CODES = ['ogr', 'eagle-peak', 'big-fish'] as const;
+export const REPRESENTED_LINE_CODES = [
+  'ogr',
+  'living-in-sunshine',
+  'eagle-peak',
+  'big-fish',
+] as const;
 
 export const REPRESENTED_LINE_STATUSES = [
   'active',
@@ -81,6 +87,16 @@ export const PUBLIC_LINE_CARD_FALLBACKS: PublicActiveLine[] = [
     heroImageUrl: null,
     sortOrder: 10,
     publicShowroomPath: OGR_WHOLESALE_PATH,
+  },
+  {
+    id: 'fallback-living-in-sunshine',
+    code: 'living-in-sunshine',
+    name: 'Living In Sunshine',
+    tagline: 'Now Repping',
+    description: 'Premium outdoor and surf gear — flagship Go Hammock and accessories.',
+    heroImageUrl: null,
+    sortOrder: 20,
+    publicShowroomPath: LIVING_IN_SUNSHINE_WHOLESALE_PATH,
   },
   {
     id: 'fallback-eagle-peak',

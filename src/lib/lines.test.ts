@@ -6,6 +6,7 @@ import type { Line } from '@/types/database';
 import {
   BIG_FISH_WHOLESALE_PATH,
   EAGLE_PEAK_WHOLESALE_PATH,
+  LIVING_IN_SUNSHINE_WHOLESALE_PATH,
   OGR_WHOLESALE_PATH,
 } from '@/data/landing';
 
@@ -91,18 +92,25 @@ describe('public line cards', () => {
       },
     ]);
 
-    expect(merged.map((row) => row.code)).toEqual(['ogr', 'eagle-peak', 'big-fish']);
+    expect(merged.map((row) => row.code)).toEqual([
+      'ogr',
+      'living-in-sunshine',
+      'eagle-peak',
+      'big-fish',
+    ]);
     expect(merged[0]?.heroImageUrl).toBe('https://example.com/ogr.jpg');
-    expect(merged[1]?.publicShowroomPath).toBe(EAGLE_PEAK_WHOLESALE_PATH);
+    expect(merged[1]?.publicShowroomPath).toBe(LIVING_IN_SUNSHINE_WHOLESALE_PATH);
     expect(merged[1]?.tagline).toBe('Now Repping');
-    expect(merged[2]?.tagline).toBe('Coming soon');
-    expect(merged[2]?.publicShowroomPath).toBe(BIG_FISH_WHOLESALE_PATH);
+    expect(merged[2]?.publicShowroomPath).toBe(EAGLE_PEAK_WHOLESALE_PATH);
+    expect(merged[2]?.tagline).toBe('Now Repping');
+    expect(merged[3]?.tagline).toBe('Coming soon');
+    expect(merged[3]?.publicShowroomPath).toBe(BIG_FISH_WHOLESALE_PATH);
   });
 
   it('keeps get_public_active_lines OGR-only and adds get_public_line_cards', () => {
     const schema = readFileSync(resolve(process.cwd(), 'supabase/schema.sql'), 'utf8');
     const migration = readFileSync(
-      resolve(process.cwd(), 'supabase/migrations/20260816120000_public_line_cards.sql'),
+      resolve(process.cwd(), 'supabase/migrations/20260827201000_living_in_sunshine_line.sql'),
       'utf8',
     );
     const types = readFileSync(resolve(process.cwd(), 'src/types/database.ts'), 'utf8');
@@ -112,11 +120,12 @@ describe('public line cards', () => {
       /create or replace function public\.get_public_active_lines\(\)[\s\S]*?where l\.active = true[\s\S]*?\$\$;/i,
     );
     expect(schema).toMatch(
-      /create or replace function public\.get_public_line_cards\(\)[\s\S]*?code in \('ogr', 'eagle-peak', 'big-fish'\)[\s\S]*?\$\$;/i,
+      /create or replace function public\.get_public_line_cards\(\)[\s\S]*?code in \('ogr', 'living-in-sunshine', 'eagle-peak', 'big-fish'\)[\s\S]*?\$\$;/i,
     );
     expect(schema).not.toMatch(/get_public_eagle_peak/);
     expect(schema).not.toMatch(/get_public_big_fish/);
-    expect(migration).toMatch(/tagline = coalesce\(tagline, 'Coming soon'\)/);
+    expect(migration).toMatch(/living-in-sunshine/);
+    expect(migration).toMatch(/LIS-GO-HAMMOCK/);
     expect(migration).not.toMatch(/active = true/);
     expect(types).toMatch(/get_public_line_cards:/);
     expect(lines).toContain("supabase.rpc('get_public_line_cards')");

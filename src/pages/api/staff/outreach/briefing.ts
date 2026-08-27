@@ -28,6 +28,7 @@ export const GET: APIRoute = async ({ request, url }) => {
   const operationalTerritoryId = search.get('operational_territory_id')?.trim() || '';
   const storeTerritoryCode = search.get('store_territory_code')?.trim().toLowerCase() || '';
   const crmRegion = search.get('crm_region')?.trim() || '';
+  const city = search.get('city')?.trim() || '';
 
   const assembled = await assembleOutreachBriefing({
     client: gate.supabase,
@@ -38,6 +39,7 @@ export const GET: APIRoute = async ({ request, url }) => {
           operationalTerritoryId,
           storeTerritoryCode: storeTerritoryCode || null,
           crmRegion: crmRegion || null,
+          city: city || null,
         }
       : undefined,
   });

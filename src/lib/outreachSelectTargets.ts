@@ -13,7 +13,7 @@ import {
   type AccountContact,
 } from '@/lib/accountContacts';
 import type { PrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
-import { prospectMatchesCrmRegion } from '@/lib/geoCatalog';
+import { prospectMatchesCrmRegion, prospectMatchesPrepCity } from '@/lib/geoCatalog';
 import {
   allocateChannelsForDay,
   type AllocateChannelsForDayResult,
@@ -97,6 +97,8 @@ export type SelectOutreachTargetsInput = {
   storeTerritoryCode?: string;
   /** Driveable CRM region within the store territory (e.g. Oregon Coast). */
   crmRegion?: string;
+  /** Optional city within the CRM region (exact, case-insensitive). */
+  city?: string;
   /**
    * Ranking mode. `fit_score` = fit desc (nulls last), then id.
    * `default` = priority / fit / fit-band / channel soft rank (nightly).
@@ -411,6 +413,7 @@ export async function selectOutreachTargets(
   const opsTerritoryId = input.operationalTerritoryId?.trim() || null;
   const storeTerritoryCode = input.storeTerritoryCode?.trim().toLowerCase() || null;
   const crmRegion = input.crmRegion?.trim() || null;
+  const city = input.city?.trim() || null;
   const rankMode = input.rankMode ?? 'default';
   const skipChannelAllocation = Boolean(input.skipChannelAllocation);
   const allowMissingEmail = Boolean(input.allowMissingEmail);
@@ -437,6 +440,10 @@ export async function selectOutreachTargets(
       !prospectMatchesCrmRegion(p.region, crmRegion, storeTerritoryCode ?? p.territoryCode)
     ) {
       excluded.push({ prospectId: p.id, reason: 'outside_crm_region' });
+      return false;
+    }
+    if (city && !prospectMatchesPrepCity(p.city, city)) {
+      excluded.push({ prospectId: p.id, reason: 'outside_city' });
       return false;
     }
     return true;

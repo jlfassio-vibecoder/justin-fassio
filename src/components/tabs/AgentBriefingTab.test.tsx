@@ -42,6 +42,15 @@ vi.mock('@/lib/supabase', () => ({
         data: { session: { access_token: 'token' } },
       }),
     },
+    from: vi.fn(() => {
+      const chain: Record<string, unknown> = {};
+      const self = () => chain;
+      chain.select = self;
+      chain.eq = self;
+      chain.then = (onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
+        Promise.resolve({ data: [], error: null }).then(onFulfilled, onRejected);
+      return chain;
+    }),
   },
 }));
 
