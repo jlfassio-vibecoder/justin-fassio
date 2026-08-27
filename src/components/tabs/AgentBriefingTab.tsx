@@ -6,7 +6,7 @@ import {
 } from '@/components/OgrProductEmailComposerModal';
 import { Button } from '@/components/ui/Button';
 import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
-import { Select } from '@/components/ui/Input';
+import { Input, Select } from '@/components/ui/Input';
 import {
   getAgentProductOutreachDraftClient,
   createFollowUpDraftClient,
@@ -28,16 +28,27 @@ import {
   type OperationalTerritoryOption,
 } from '@/lib/operationalTerritories/fetchOperationalTerritories';
 import { OGR_OPERATIONAL_TERRITORY_CODES } from '@/lib/operationalTerritories/resolve';
-import { opsCodeForBriefingRegion, regionOptionsForTerritory } from '@/lib/geoCatalog';
+import {
+  opsCodeForBriefingRegion,
+  prospectMatchesCrmRegion,
+  regionOptionsForTerritory,
+} from '@/lib/geoCatalog';
 import { supabase } from '@/lib/supabase';
 
 const ICON_STROKE = 2.75;
 const OGR_OPS_SET = new Set<string>(OGR_OPERATIONAL_TERRITORY_CODES);
-const REGIONAL_PREP_LIMIT = 25;
+/** Keep in sync with OUTREACH_REGIONAL_PREP_* in outreachNightlyPrep. */
+const REGIONAL_PREP_DEFAULT_LIMIT = 25;
+const REGIONAL_PREP_MAX_LIMIT = 50;
 const OGR_BRIEFING_TERRITORIES = [
   { code: 'or' as const, label: 'Oregon' },
   { code: 'wa' as const, label: 'Washington' },
 ];
+
+function clampPrepLimit(value: number): number {
+  if (!Number.isFinite(value)) return REGIONAL_PREP_DEFAULT_LIMIT;
+  return Math.min(REGIONAL_PREP_MAX_LIMIT, Math.max(1, Math.floor(value)));
+}
 
 type DraftReviewTarget = {
   draftId: string;
@@ -246,6 +257,9 @@ export function AgentBriefingTab({
   const [opsOptions, setOpsOptions] = useState<OperationalTerritoryOption[]>([]);
   const [storeTerritoryCode, setStoreTerritoryCode] = useState<'or' | 'wa'>('or');
   const [briefingRegion, setBriefingRegion] = useState('ALL');
+  const [briefingCity, setBriefingCity] = useState('ALL');
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const [prepLimit, setPrepLimit] = useState(REGIONAL_PREP_DEFAULT_LIMIT);
 
   const pendingSku = deepLinkSku?.trim() || null;
   const pendingDraftId = deepLinkDraftId?.trim() || null;
@@ -362,6 +376,47 @@ export function AgentBriefingTab({
   }, [opsOptions, storeTerritoryCode, briefingRegion]);
 
   useEffect(() => {
+    if (!isOgrLine) return;
+    let active = true;
+    async function loadCities() {
+      try {
+        const { data, error } = await supabase
+          .from('prospects')
+          .select('city, region, territories!inner(code)')
+          .eq('territories.code', storeTerritoryCode);
+        if (!active) return;
+        if (error || !data) {
+          setCityOptions([]);
+          setBriefingCity('ALL');
+          return;
+        }
+        const cities = new Set<string>();
+        for (const row of data) {
+          const city = typeof row.city === 'string' ? row.city.trim() : '';
+          if (!city) continue;
+          if (
+            briefingRegion !== 'ALL' &&
+            !prospectMatchesCrmRegion(row.region ?? '', briefingRegion, storeTerritoryCode)
+          ) {
+            continue;
+          }
+          cities.add(city);
+        }
+        const sorted = [...cities].sort((a, b) => a.localeCompare(b));
+        setCityOptions(sorted);
+        setBriefingCity((prev) => (prev !== 'ALL' && !sorted.includes(prev) ? 'ALL' : prev));
+      } catch {
+        if (!active) return;
+        setCityOptions([]);
+      }
+    }
+    void loadCities();
+    return () => {
+      active = false;
+    };
+  }, [isOgrLine, storeTerritoryCode, briefingRegion]);
+
+  useEffect(() => {
     let active = true;
     async function load() {
       setLoading(true);
@@ -378,6 +433,9 @@ export function AgentBriefingTab({
       }
       if (isOgrLine && briefingRegion && briefingRegion !== 'ALL') {
         qsParams.set('crm_region', briefingRegion);
+      }
+      if (isOgrLine && briefingCity && briefingCity !== 'ALL') {
+        qsParams.set('city', briefingCity);
       }
       const qs = qsParams.toString() ? `?${qsParams.toString()}` : '';
       const result = await staffGet(`/api/staff/outreach/briefing${qs}`);
@@ -405,6 +463,7 @@ export function AgentBriefingTab({
     storeTerritoryCode,
     resolvedOpsTerritoryId,
     briefingRegion,
+    briefingCity,
   ]);
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
@@ -449,10 +508,13 @@ export function AgentBriefingTab({
     const body: Record<string, unknown> = {
       operationalTerritoryId: resolvedOpsTerritoryId,
       storeTerritoryCode,
-      limit: REGIONAL_PREP_LIMIT,
+      limit: clampPrepLimit(prepLimit),
     };
     if (briefingRegion && briefingRegion !== 'ALL') {
       body.crmRegion = briefingRegion;
+    }
+    if (briefingCity && briefingCity !== 'ALL') {
+      body.city = briefingCity;
     }
     if (briefing?.sellingDate) body.preparationDate = briefing.sellingDate;
     const result = await staffPost('/api/staff/outreach/prep', body);
@@ -527,6 +589,7 @@ export function AgentBriefingTab({
                     e.target.value === 'wa' || e.target.value === 'or' ? e.target.value : 'or';
                   setStoreTerritoryCode(next);
                   setBriefingRegion('ALL');
+                  setBriefingCity('ALL');
                 }}
                 disabled={prepBusy || loading}
                 aria-label="Territory"
@@ -544,7 +607,10 @@ export function AgentBriefingTab({
                 id="briefing-region"
                 className="w-auto min-w-[10rem]"
                 value={briefingRegion}
-                onChange={(e) => setBriefingRegion(e.target.value)}
+                onChange={(e) => {
+                  setBriefingRegion(e.target.value);
+                  setBriefingCity('ALL');
+                }}
                 disabled={prepBusy || loading || opsOptions.length === 0}
                 aria-label="Region"
               >
@@ -554,12 +620,44 @@ export function AgentBriefingTab({
                   </option>
                 ))}
               </Select>
+              <label className="sr-only" htmlFor="briefing-city">
+                City
+              </label>
+              <Select
+                id="briefing-city"
+                className="w-auto min-w-[8rem]"
+                value={briefingCity}
+                onChange={(e) => setBriefingCity(e.target.value)}
+                disabled={prepBusy || loading}
+                aria-label="City"
+              >
+                <option value="ALL">All cities</option>
+                {cityOptions.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </Select>
+              <label className="sr-only" htmlFor="briefing-prep-limit">
+                Prep limit
+              </label>
+              <Input
+                id="briefing-prep-limit"
+                type="number"
+                min={1}
+                max={REGIONAL_PREP_MAX_LIMIT}
+                className="w-16"
+                value={prepLimit}
+                onChange={(e) => setPrepLimit(clampPrepLimit(Number(e.target.value)))}
+                disabled={prepBusy || loading}
+                aria-label="Prep limit"
+              />
               <Button
                 type="button"
                 onClick={() => void runPrepNow()}
                 disabled={prepBusy || loading || !resolvedOpsTerritoryId}
               >
-                {prepBusy ? 'Running prep…' : `Run prep now (${REGIONAL_PREP_LIMIT})`}
+                {prepBusy ? 'Running prep…' : `Run prep now (${clampPrepLimit(prepLimit)})`}
               </Button>
             </>
           ) : null}

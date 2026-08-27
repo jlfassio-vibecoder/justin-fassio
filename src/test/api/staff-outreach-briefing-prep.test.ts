@@ -18,7 +18,7 @@ vi.mock('@/lib/outreachNightlyPrep', () => ({
   defaultNightlyPrepRunDate: () => '2026-08-13',
   briefingSellingDate: () => '2026-08-12',
   OUTREACH_REGIONAL_PREP_DEFAULT_LIMIT: 25,
-  OUTREACH_REGIONAL_PREP_MAX_LIMIT: 25,
+  OUTREACH_REGIONAL_PREP_MAX_LIMIT: 50,
 }));
 
 vi.mock('@/lib/operationalTerritories/fetchOperationalTerritories', () => ({
@@ -157,7 +157,7 @@ describe('staff outreach briefing + prep', () => {
     );
   });
 
-  it('POST regional prep passes ops territory, store geo, CRM region, limit, and selling date', async () => {
+  it('POST regional prep passes ops territory, store geo, CRM region, city, limit, and selling date', async () => {
     const res = await POST_PREP({
       request: new Request('http://localhost/api/staff/outreach/prep', {
         method: 'POST',
@@ -166,7 +166,8 @@ describe('staff outreach briefing + prep', () => {
           operationalTerritoryId: 'ops-pnw-west',
           storeTerritoryCode: 'or',
           crmRegion: 'Oregon Coast',
-          limit: 25,
+          city: 'Newport',
+          limit: 5,
         }),
       }),
     } as never);
@@ -178,8 +179,31 @@ describe('staff outreach briefing + prep', () => {
         operationalTerritoryId: 'ops-pnw-west',
         storeTerritoryCode: 'or',
         crmRegion: 'Oregon Coast',
-        limit: 25,
+        city: 'Newport',
+        limit: 5,
         preparationDate: '2026-08-12',
+      }),
+    );
+  });
+
+  it('GET briefing passes city in regional prep scope', async () => {
+    const res = await GET_BRIEFING({
+      request: new Request(
+        'http://localhost/api/staff/outreach/briefing?operational_territory_id=ops-pnw-west&store_territory_code=or&crm_region=Oregon%20Coast&city=Newport',
+      ),
+      url: new URL(
+        'http://localhost/api/staff/outreach/briefing?operational_territory_id=ops-pnw-west&store_territory_code=or&crm_region=Oregon%20Coast&city=Newport',
+      ),
+    } as never);
+    expect(res.status).toBe(200);
+    expect(assembleOutreachBriefingMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        regionalPrepScope: expect.objectContaining({
+          operationalTerritoryId: 'ops-pnw-west',
+          storeTerritoryCode: 'or',
+          crmRegion: 'Oregon Coast',
+          city: 'Newport',
+        }),
       }),
     );
   });

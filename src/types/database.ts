@@ -1900,6 +1900,7 @@ export interface Database {
           operational_territory_id: string | null;
           store_territory_code: string | null;
           crm_region: string | null;
+          prep_city: string | null;
           started_at: string;
           finished_at: string | null;
           triggered_by: string | null;
@@ -1927,6 +1928,7 @@ export interface Database {
           operational_territory_id?: string | null;
           store_territory_code?: string | null;
           crm_region?: string | null;
+          prep_city?: string | null;
           started_at?: string;
           finished_at?: string | null;
           triggered_by?: string | null;
@@ -1954,6 +1956,7 @@ export interface Database {
           operational_territory_id?: string | null;
           store_territory_code?: string | null;
           crm_region?: string | null;
+          prep_city?: string | null;
           started_at?: string;
           finished_at?: string | null;
           triggered_by?: string | null;

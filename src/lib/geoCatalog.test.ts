@@ -4,7 +4,10 @@ import {
   UNASSIGNED_REGION_VALUE,
   allDriveableRegionOptions,
   isStatewideRegionLabel,
+  normalizeCityKey,
+  normalizePrepCity,
   normalizePrepCrmRegion,
+  prospectMatchesPrepCity,
   opsCodeForBriefingRegion,
   prospectMatchesCrmRegion,
   regionOptionsForTerritory,
@@ -68,6 +71,12 @@ describe('geoCatalog', () => {
     expect(normalizePrepCrmRegion('ALL')).toBeNull();
     expect(normalizePrepCrmRegion(' Oregon Coast ')).toBe('Oregon Coast');
     expect(normalizePrepCrmRegion(UNASSIGNED_REGION_VALUE)).toBe(UNASSIGNED_REGION_VALUE);
+    expect(normalizePrepCity('ALL')).toBeNull();
+    expect(normalizePrepCity(' Newport ')).toBe('Newport');
+    expect(normalizeCityKey(' Newport ')).toBe('newport');
+    expect(prospectMatchesPrepCity('Newport', 'newport')).toBe(true);
+    expect(prospectMatchesPrepCity('Coos Bay', 'Newport')).toBe(false);
+    expect(prospectMatchesPrepCity('Newport', 'ALL')).toBe(true);
 
     expect(prospectMatchesCrmRegion('Oregon Coast', 'Oregon Coast')).toBe(true);
     expect(prospectMatchesCrmRegion('Willamette Valley', 'Oregon Coast')).toBe(false);

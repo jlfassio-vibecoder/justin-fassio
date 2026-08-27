@@ -13,7 +13,12 @@ import { computeChannelAllocationWeights } from '@/lib/outreachChannelWeights';
 import { computeProductSelectionWeights } from '@/lib/outreachProductWeights';
 import { computeFitBandRankingWeights } from '@/lib/outreachFitBandWeights';
 import { generateOgrProductOutreachDrafts } from '@/lib/generateOgrProductOutreachDraft';
-import { normalizePrepCrmRegion, prospectMatchesCrmRegion } from '@/lib/geoCatalog';
+import {
+  normalizePrepCity,
+  normalizePrepCrmRegion,
+  prospectMatchesCrmRegion,
+  prospectMatchesPrepCity,
+} from '@/lib/geoCatalog';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
 import type { OutreachGoalSettings } from '@/lib/outreachGoals';
 import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
@@ -38,7 +43,7 @@ export const OUTREACH_MANUAL_REGIONAL_PREP_KIND = 'manual_regional_prep' as cons
 export const OUTREACH_NIGHTLY_PREP_CHUNK = 5;
 export const OUTREACH_NIGHTLY_PREP_STALE_MS = 15 * 60 * 1000;
 export const OUTREACH_REGIONAL_PREP_DEFAULT_LIMIT = 25;
-export const OUTREACH_REGIONAL_PREP_MAX_LIMIT = 25;
+export const OUTREACH_REGIONAL_PREP_MAX_LIMIT = 50;
 
 export type OutreachPrepKind =
   typeof OUTREACH_NIGHTLY_PREP_KIND | typeof OUTREACH_MANUAL_REGIONAL_PREP_KIND;
@@ -67,6 +72,7 @@ export type OutreachAutomationRunRow = {
   operationalTerritoryId: string | null;
   storeTerritoryCode: string | null;
   crmRegion: string | null;
+  prepCity: string | null;
   startedAt: string;
   finishedAt: string | null;
   triggeredBy: string | null;
@@ -107,6 +113,7 @@ function mapRunRow(row: DbRunRow): OutreachAutomationRunRow {
     operationalTerritoryId: row.operational_territory_id,
     storeTerritoryCode: row.store_territory_code,
     crmRegion: row.crm_region,
+    prepCity: row.prep_city ?? null,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
     triggeredBy: row.triggered_by,
@@ -163,6 +170,7 @@ async function findPrepRun(params: {
   operationalTerritoryId?: string | null;
   storeTerritoryCode?: string | null;
   crmRegion?: string | null;
+  city?: string | null;
 }): Promise<{ ok: true; run: OutreachAutomationRunRow | null } | { ok: false; error: string }> {
   const { client, kind, runDate } = params;
   if (kind === OUTREACH_NIGHTLY_PREP_KIND) {
@@ -182,12 +190,15 @@ async function findPrepRun(params: {
   const crmRegion = normalizePrepCrmRegion(params.crmRegion);
   query = crmRegion ? query.eq('crm_region', crmRegion) : query.is('crm_region', null);
 
+  const prepCity = normalizePrepCity(params.city);
+  query = prepCity ? query.eq('prep_city', prepCity) : query.is('prep_city', null);
+
   const { data, error } = await query.maybeSingle();
   if (error) return { ok: false, error: error.message };
   return { ok: true, run: data ? mapRunRow(data) : null };
 }
 
-/** Regional prep run for a selling day + ops/store/CRM region scope (briefing banner). */
+/** Regional prep run for a selling day + ops/store/CRM region/city scope (briefing banner). */
 export async function getRegionalOutreachPrepRun(
   client: Client,
   params: {
@@ -195,6 +206,7 @@ export async function getRegionalOutreachPrepRun(
     operationalTerritoryId: string;
     storeTerritoryCode?: string | null;
     crmRegion?: string | null;
+    city?: string | null;
   },
 ): Promise<{ ok: true; run: OutreachAutomationRunRow | null } | { ok: false; error: string }> {
   return findPrepRun({
@@ -204,11 +216,12 @@ export async function getRegionalOutreachPrepRun(
     operationalTerritoryId: params.operationalTerritoryId,
     storeTerritoryCode: params.storeTerritoryCode,
     crmRegion: params.crmRegion,
+    city: params.city,
   });
 }
 
 /**
- * Latest regional prep run for a territory/region scope (any run_date).
+ * Latest regional prep run for a territory/region/city scope (any run_date).
  * Used to keep identified needs-email targets mounted across selling days.
  */
 export async function getLatestRegionalOutreachPrepRun(
@@ -217,6 +230,7 @@ export async function getLatestRegionalOutreachPrepRun(
     operationalTerritoryId: string;
     storeTerritoryCode?: string | null;
     crmRegion?: string | null;
+    city?: string | null;
   },
 ): Promise<{ ok: true; run: OutreachAutomationRunRow | null } | { ok: false; error: string }> {
   let query = client
@@ -234,6 +248,9 @@ export async function getLatestRegionalOutreachPrepRun(
 
   const crmRegion = normalizePrepCrmRegion(params.crmRegion);
   query = crmRegion ? query.eq('crm_region', crmRegion) : query.is('crm_region', null);
+
+  const prepCity = normalizePrepCity(params.city);
+  query = prepCity ? query.eq('prep_city', prepCity) : query.is('prep_city', null);
 
   const { data, error } = await query.maybeSingle();
   if (error) return { ok: false, error: error.message };
@@ -310,16 +327,18 @@ export async function countPendingDraftsForPreparationDate(
 
 /**
  * Count pending agent drafts whose prospects match a regional Briefing scope.
- * Used so Run prep now tops up to 25 against the open batch, not selling date.
+ * Used so Run prep now tops up to the open-batch limit, not selling date.
  */
 export async function countPendingDraftsForRegionalScope(
   client: Client,
   params: {
     storeTerritoryCode?: string | null;
     crmRegion?: string | null;
+    city?: string | null;
   },
 ): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
   const crmRegion = normalizePrepCrmRegion(params.crmRegion);
+  const prepCity = normalizePrepCity(params.city);
   const storeCode = params.storeTerritoryCode?.trim().toLowerCase() || null;
 
   const pageSize = 100;
@@ -350,8 +369,8 @@ export async function countPendingDraftsForRegionalScope(
 
   if (draftsByProspect.size === 0) return { ok: true, count: 0 };
 
-  // No CRM region filter (ALL): count every pending agent draft.
-  if (!crmRegion) {
+  // No CRM region or city filter (ALL): count every pending agent draft.
+  if (!crmRegion && !prepCity) {
     let total = 0;
     for (const n of draftsByProspect.values()) total += n;
     return { ok: true, count: total };
@@ -362,12 +381,19 @@ export async function countPendingDraftsForRegionalScope(
   const chunkSize = 200;
   for (let i = 0; i < ids.length; i += chunkSize) {
     const chunk = ids.slice(i, i + chunkSize);
-    const { data, error } = await client.from('prospects').select('id, region').in('id', chunk);
+    const { data, error } = await client
+      .from('prospects')
+      .select('id, region, city')
+      .in('id', chunk);
     if (error) return { ok: false, error: error.message };
     for (const row of data ?? []) {
-      if (prospectMatchesCrmRegion(row.region ?? '', crmRegion, storeCode)) {
-        matching.add(row.id);
+      if (crmRegion && !prospectMatchesCrmRegion(row.region ?? '', crmRegion, storeCode)) {
+        continue;
       }
+      if (!prospectMatchesPrepCity(row.city, prepCity)) {
+        continue;
+      }
+      matching.add(row.id);
     }
   }
 
@@ -396,7 +422,9 @@ export type RunOutreachNightlyPrepInput = {
   storeTerritoryCode?: string | null;
   /** Driveable CRM region (e.g. Oregon Coast); ALL/null = whole store territory. */
   crmRegion?: string | null;
-  /** Regional capacity override (default/max 25). Ignored for nightly. */
+  /** Optional city within the CRM region; ALL/null = all cities in scope. */
+  city?: string | null;
+  /** Regional capacity override (default 25, max 50). Ignored for nightly. */
   limit?: number;
 };
 
@@ -461,6 +489,7 @@ export async function runOutreachNightlyPrep(
   const operationalTerritoryId = input.operationalTerritoryId?.trim() || null;
   const storeTerritoryCode = input.storeTerritoryCode?.trim().toLowerCase() || null;
   const crmRegion = normalizePrepCrmRegion(input.crmRegion);
+  const prepCity = normalizePrepCity(input.city);
   const isRegional = Boolean(operationalTerritoryId);
   const kind: OutreachPrepKind = isRegional
     ? OUTREACH_MANUAL_REGIONAL_PREP_KIND
@@ -501,6 +530,7 @@ export async function runOutreachNightlyPrep(
     operationalTerritoryId,
     storeTerritoryCode,
     crmRegion,
+    city: prepCity,
   });
   if (!existing.ok) return { ok: false, error: existing.error };
 
@@ -566,6 +596,7 @@ export async function runOutreachNightlyPrep(
         operationalTerritoryId,
         storeTerritoryCode,
         crmRegion,
+        city: prepCity,
       });
     }
   }
@@ -582,6 +613,7 @@ export async function runOutreachNightlyPrep(
       operational_territory_id: isRegional ? operationalTerritoryId : null,
       store_territory_code: isRegional ? storeTerritoryCode : null,
       crm_region: isRegional ? crmRegion : null,
+      prep_city: isRegional ? prepCity : null,
     })
     .select('*')
     .single();
@@ -594,6 +626,7 @@ export async function runOutreachNightlyPrep(
       operationalTerritoryId,
       storeTerritoryCode,
       crmRegion,
+      city: prepCity,
     });
     if (again.ok && again.run) {
       if (again.run.status === 'succeeded' || (again.run.status === 'empty_pool' && !isRegional)) {
@@ -625,6 +658,7 @@ export async function runOutreachNightlyPrep(
     operationalTerritoryId,
     storeTerritoryCode,
     crmRegion,
+    city: prepCity,
   });
 }
 
@@ -642,6 +676,7 @@ async function continuePrep(params: {
   operationalTerritoryId: string | null;
   storeTerritoryCode: string | null;
   crmRegion: string | null;
+  city: string | null;
 }): Promise<RunOutreachNightlyPrepResult> {
   const {
     client,
@@ -655,6 +690,7 @@ async function continuePrep(params: {
     operationalTerritoryId,
     storeTerritoryCode,
     crmRegion,
+    city,
   } = params;
 
   const leadRulesRefresh = await refreshPersistedLeadRules({ client, performance });
@@ -671,6 +707,7 @@ async function continuePrep(params: {
     ? await countPendingDraftsForRegionalScope(client, {
         storeTerritoryCode,
         crmRegion,
+        city,
       })
     : await countPendingDraftsForPreparationDate(client, runDate);
   if (!pending.ok) {
@@ -761,6 +798,7 @@ async function continuePrep(params: {
     operationalTerritoryId: operationalTerritoryId ?? undefined,
     storeTerritoryCode: storeTerritoryCode ?? undefined,
     crmRegion: crmRegion ?? undefined,
+    city: city ?? undefined,
     rankMode: isRegional ? 'fit_score' : 'default',
     skipChannelAllocation: isRegional,
     allowMissingEmail: isRegional,

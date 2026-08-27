@@ -17,7 +17,12 @@ import {
   OUTREACH_MANUAL_REGIONAL_PREP_KIND,
   type OutreachAutomationRunRow,
 } from '@/lib/outreachNightlyPrep';
-import { normalizePrepCrmRegion, prospectMatchesCrmRegion } from '@/lib/geoCatalog';
+import {
+  normalizePrepCity,
+  normalizePrepCrmRegion,
+  prospectMatchesCrmRegion,
+  prospectMatchesPrepCity,
+} from '@/lib/geoCatalog';
 import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outreachSelectTargets';
 import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
 import {
@@ -248,6 +253,7 @@ export async function assembleOutreachBriefing(params: {
     operationalTerritoryId: string;
     storeTerritoryCode?: string | null;
     crmRegion?: string | null;
+    city?: string | null;
   };
 }): Promise<{ ok: true; briefing: OutreachBriefingDto } | { ok: false; error: string }> {
   const client = params.client;
@@ -305,6 +311,7 @@ export async function assembleOutreachBriefing(params: {
         operationalTerritoryId: params.regionalPrepScope.operationalTerritoryId,
         storeTerritoryCode: params.regionalPrepScope.storeTerritoryCode,
         crmRegion: params.regionalPrepScope.crmRegion,
+        city: params.regionalPrepScope.city,
       })
     : await getLatestOutreachAutomationRunForDate(client, sellingDate);
   if (!runLookup.ok) return { ok: false, error: runLookup.error };
@@ -312,11 +319,12 @@ export async function assembleOutreachBriefing(params: {
   const banner = prepBannerMessage({ sellingDate, run });
 
   const scopedCrmRegion = normalizePrepCrmRegion(params.regionalPrepScope?.crmRegion);
+  const scopedPrepCity = normalizePrepCity(params.regionalPrepScope?.city);
 
   let regionalPool: OutreachPoolDiagnostics | null = null;
   if (
     params.regionalPrepScope?.operationalTerritoryId &&
-    scopedCrmRegion &&
+    (scopedCrmRegion || scopedPrepCity) &&
     params.regionalPrepScope.storeTerritoryCode
   ) {
     const poolDiag = await selectOutreachTargets(client, {
@@ -325,7 +333,8 @@ export async function assembleOutreachBriefing(params: {
       includeDiagnostics: true,
       operationalTerritoryId: params.regionalPrepScope.operationalTerritoryId,
       storeTerritoryCode: params.regionalPrepScope.storeTerritoryCode,
-      crmRegion: scopedCrmRegion,
+      crmRegion: scopedCrmRegion ?? undefined,
+      city: scopedPrepCity ?? undefined,
       rankMode: 'fit_score',
       skipChannelAllocation: true,
       allowMissingEmail: true,
@@ -368,7 +377,7 @@ export async function assembleOutreachBriefing(params: {
   if (draftProspectIds.length > 0) {
     const { data: names } = await client
       .from('prospects')
-      .select('id, name, account_status, region')
+      .select('id, name, account_status, region, city')
       .in('id', draftProspectIds);
     const prospectById = new Map((names ?? []).map((p) => [p.id, p] as const));
     for (const d of drafts) {
@@ -377,12 +386,21 @@ export async function assembleOutreachBriefing(params: {
       if (name) d.prospectName = name;
       if (prospect?.account_status) d.accountStatus = prospect.account_status;
     }
-    if (scopedCrmRegion) {
+    if (scopedCrmRegion || scopedPrepCity) {
       const storeCode = params.regionalPrepScope?.storeTerritoryCode?.trim().toLowerCase() || null;
       filteredDrafts = drafts.filter((d) => {
         const prospect = prospectById.get(d.prospectId);
         if (!prospect) return false;
-        return prospectMatchesCrmRegion(prospect.region ?? '', scopedCrmRegion, storeCode);
+        if (
+          scopedCrmRegion &&
+          !prospectMatchesCrmRegion(prospect.region ?? '', scopedCrmRegion, storeCode)
+        ) {
+          return false;
+        }
+        if (!prospectMatchesPrepCity(prospect.city, scopedPrepCity)) {
+          return false;
+        }
+        return true;
       });
     }
   }
@@ -395,6 +413,7 @@ export async function assembleOutreachBriefing(params: {
       operationalTerritoryId: params.regionalPrepScope.operationalTerritoryId,
       storeTerritoryCode: params.regionalPrepScope.storeTerritoryCode,
       crmRegion: params.regionalPrepScope.crmRegion,
+      city: params.regionalPrepScope.city,
     });
     if (!latestRegional.ok) return { ok: false, error: latestRegional.error };
     if (latestRegional.run) identifiedSourceRun = latestRegional.run;
