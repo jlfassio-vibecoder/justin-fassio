@@ -2792,6 +2792,7 @@ create table if not exists outreach_automation_runs (
       or store_territory_code in ('or', 'wa', 'ca', 'bc', 'ab')
     ),
   crm_region text,
+  prep_city text,
   started_at timestamptz not null default now(),
   finished_at timestamptz,
   triggered_by uuid references auth.users (id) on delete set null,
@@ -2812,13 +2813,18 @@ create unique index if not exists outreach_automation_runs_regional_identity_uid
     run_date,
     operational_territory_id,
     coalesce(store_territory_code, ''),
-    coalesce(crm_region, '')
+    coalesce(crm_region, ''),
+    coalesce(prep_city, '')
   )
   where kind = 'manual_regional_prep';
 
 create index if not exists outreach_automation_runs_crm_region_idx
   on outreach_automation_runs (crm_region)
   where crm_region is not null;
+
+create index if not exists outreach_automation_runs_prep_city_idx
+  on outreach_automation_runs (prep_city)
+  where prep_city is not null;
 
 create index if not exists outreach_automation_runs_run_date_idx
   on outreach_automation_runs (run_date desc);

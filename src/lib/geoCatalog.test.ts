@@ -72,7 +72,9 @@ describe('geoCatalog', () => {
     expect(normalizePrepCrmRegion(' Oregon Coast ')).toBe('Oregon Coast');
     expect(normalizePrepCrmRegion(UNASSIGNED_REGION_VALUE)).toBe(UNASSIGNED_REGION_VALUE);
     expect(normalizePrepCity('ALL')).toBeNull();
-    expect(normalizePrepCity(' Newport ')).toBe('Newport');
+    expect(normalizePrepCity('all')).toBeNull();
+    expect(normalizePrepCity(' Newport ')).toBe('newport');
+    expect(normalizePrepCity('Newport')).toBe(normalizePrepCity('newport'));
     expect(normalizeCityKey(' Newport ')).toBe('newport');
     expect(prospectMatchesPrepCity('Newport', 'newport')).toBe(true);
     expect(prospectMatchesPrepCity('Coos Bay', 'Newport')).toBe(false);

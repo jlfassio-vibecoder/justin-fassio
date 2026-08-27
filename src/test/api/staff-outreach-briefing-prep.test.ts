@@ -179,7 +179,7 @@ describe('staff outreach briefing + prep', () => {
         operationalTerritoryId: 'ops-pnw-west',
         storeTerritoryCode: 'or',
         crmRegion: 'Oregon Coast',
-        city: 'Newport',
+        city: 'newport',
         limit: 5,
         preparationDate: '2026-08-12',
       }),

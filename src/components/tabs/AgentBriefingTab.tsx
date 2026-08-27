@@ -378,6 +378,7 @@ export function AgentBriefingTab({
   useEffect(() => {
     if (!isOgrLine) return;
     let active = true;
+    // Copilot suggestion ignored: distinct-city RPC would add a new staff endpoint for a small OGR directory filter already scoped client-side.
     async function loadCities() {
       try {
         const { data, error } = await supabase
@@ -390,6 +391,9 @@ export function AgentBriefingTab({
           setBriefingCity('ALL');
           return;
         }
+        const storeCode =
+          storeTerritoryCode === 'or' || storeTerritoryCode === 'wa' ? storeTerritoryCode : '';
+        const expectedOps = opsCodeForBriefingRegion(storeCode, briefingRegion);
         const cities = new Set<string>();
         for (const row of data) {
           const city = typeof row.city === 'string' ? row.city.trim() : '';
@@ -399,6 +403,10 @@ export function AgentBriefingTab({
             !prospectMatchesCrmRegion(row.region ?? '', briefingRegion, storeTerritoryCode)
           ) {
             continue;
+          }
+          if (expectedOps) {
+            const rowOps = opsCodeForBriefingRegion(storeCode, row.region ?? '');
+            if (rowOps && rowOps !== expectedOps) continue;
           }
           cities.add(city);
         }

@@ -727,7 +727,7 @@ describe('runOutreachNightlyPrep', () => {
       expect.anything(),
       expect.objectContaining({
         crmRegion: 'Oregon Coast',
-        city: 'Newport',
+        city: 'newport',
         capacity: 5,
       }),
     );

@@ -79,11 +79,12 @@ export function normalizeCityKey(city: string | null | undefined): string {
   return (city ?? '').trim().toLowerCase();
 }
 
-/** Normalize briefing city for prep run identity (ALL/empty → null). */
+/** Normalize briefing city for prep run identity (ALL/empty → null; case-stable). */
 export function normalizePrepCity(city: string | null | undefined): string | null {
   const trimmed = city?.trim();
-  if (!trimmed || trimmed === 'ALL') return null;
-  return trimmed;
+  if (!trimmed || trimmed.toLowerCase() === 'all') return null;
+  // Lowercase so Newport/newport share one regional prep identity.
+  return trimmed.toLowerCase();
 }
 
 /** Whether a prospect city matches a briefing city filter (exact, case-insensitive). */
