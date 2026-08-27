@@ -50,7 +50,8 @@ describe('homepage public line cards', () => {
   });
 
   it('renders empty collection pages without the OGR order pipeline', () => {
-    expect(lisPage).toContain('PublicLineEmptyShowroom');
+    expect(lisPage).toContain('PublicLinePublishedShowroom');
+    expect(lisPage).toContain('fetchPublicLivingInSunshineProducts');
     expect(lisPage).toContain("row.code === 'living-in-sunshine'");
     expect(epPage).toContain('PublicLineEmptyShowroom');
     expect(epPage).toContain("row.code === 'eagle-peak'");
