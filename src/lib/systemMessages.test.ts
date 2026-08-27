@@ -1069,6 +1069,137 @@ describe('buildProductOutreachPayload', () => {
   });
 });
 
+describe('parseGenerationMeta freeze fields', () => {
+  it('round-trips secondaryChannels and productSalesRank', async () => {
+    const { parseGenerationMeta } = await import('@/lib/systemMessages');
+    const parsed = parseGenerationMeta({
+      promptVersion: 'v1',
+      model: 'none',
+      preparationDate: '2026-08-25',
+      selectionReasons: {
+        priority: 'Tier 1',
+        fitScore: 7,
+        channelMatch: true,
+        productFit: 'channel_intersect',
+        exclusionsChecked: true,
+      },
+      primaryChannel: 'marine_retail',
+      secondaryChannels: ['gift_novelty_souvenir', 12, ''],
+      productSalesRank: 4,
+      fallback: 'defaults',
+      introWordCount: 12,
+      closingWordCount: 8,
+      generatedAt: '2026-08-25T12:00:00Z',
+      copyStatus: 'stub',
+    });
+    expect(parsed?.primaryChannel).toBe('marine_retail');
+    expect(parsed?.secondaryChannels).toEqual(['gift_novelty_souvenir']);
+    expect(parsed?.productSalesRank).toBe(4);
+    expect(parsed?.copyStatus).toBe('stub');
+  });
+});
+
+describe('updateAgentProductOutreachDraft preserves generation', () => {
+  it('keeps existing generation when payload omits it (Change product)', async () => {
+    const { updateAgentProductOutreachDraft } = await import('@/lib/systemMessages');
+    const existingGeneration = {
+      promptVersion: 'v1',
+      model: 'none',
+      preparationDate: '2026-08-25',
+      selectionReasons: {
+        priority: null,
+        fitScore: null,
+        channelMatch: true,
+        productFit: 'channel_intersect' as const,
+        exclusionsChecked: true as const,
+      },
+      primaryChannel: 'marine_retail',
+      secondaryChannels: ['gift_novelty_souvenir'],
+      productSalesRank: 4,
+      fallback: 'defaults' as const,
+      introWordCount: 12,
+      closingWordCount: 8,
+      generatedAt: '2026-08-25T12:00:00Z',
+      copyStatus: 'stub' as const,
+    };
+
+    let savedPayload: unknown = null;
+    const draftRow = {
+      id: 'draft-1',
+      message_type: 'product_outreach',
+      origin: 'agent_product_email',
+      status: 'draft',
+      catalog_item_id: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      resend_email_id: null,
+      to_email: 'a@b.com',
+      to_name: 'A',
+      subject: 'Old Guys Rule — Tee',
+      intro_text: 'Intro',
+      closing_text: 'Closing',
+      prospect_id: 1,
+      retailer_line_account_id: null,
+      account_contact_id: 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      sent_by: null,
+      queued_at: null,
+      sent_at: null,
+      payload: {
+        sku: 'OG1',
+        name: 'Tee',
+        slug: 'tee',
+        productHref: 'https://example.com/tee',
+        generation: existingGeneration,
+      },
+      automation_run_id: null,
+      created_at: '2026-08-25T12:00:00Z',
+      updated_at: '2026-08-25T12:00:00Z',
+    };
+
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table !== 'system_messages') throw new Error(`unexpected ${table}`);
+        const chain: Record<string, unknown> = {};
+        chain.select = vi.fn(() => chain);
+        chain.eq = vi.fn(() => chain);
+        chain.maybeSingle = vi.fn(async () => ({ data: draftRow, error: null }));
+        chain.update = vi.fn((patch: { payload?: unknown; catalog_item_id?: string }) => {
+          savedPayload = patch.payload;
+          if (patch.payload) {
+            draftRow.payload = patch.payload as typeof draftRow.payload;
+          }
+          if (patch.catalog_item_id) {
+            draftRow.catalog_item_id = patch.catalog_item_id;
+          }
+          return {
+            eq: vi.fn(async () => ({ error: null })),
+          };
+        });
+        return chain;
+      }),
+    };
+
+    const result = await updateAgentProductOutreachDraft(client as never, 'draft-1', {
+      catalogItemId: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a33',
+      payload: {
+        sku: 'OG2',
+        name: 'Other',
+        slug: 'other',
+        productHref: 'https://example.com/other',
+      },
+    });
+    expect(result.ok).toBe(true);
+    expect(savedPayload).toEqual(
+      expect.objectContaining({
+        sku: 'OG2',
+        generation: expect.objectContaining({
+          primaryChannel: 'marine_retail',
+          productSalesRank: 4,
+          selectionReasons: expect.objectContaining({ productFit: 'channel_intersect' }),
+        }),
+      }),
+    );
+  });
+});
+
 describe('fetchPendingAgentDraftCountsByCatalogItemId', () => {
   beforeEach(() => {
     vi.clearAllMocks();

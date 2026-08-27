@@ -1,5 +1,6 @@
 import type { OgrProductEmailComposerDraft } from '@/components/OgrProductEmailComposerModal';
 import {
+  composerDraftFromAgentDto,
   generateAgentProductOutreachDraft,
   getAgentProductOutreachDraftClient,
 } from '@/lib/agentProductOutreachDraftClient';
@@ -105,21 +106,10 @@ export async function generateDraftFromResearchMatch(input: {
   return {
     ok: true,
     systemMessageId: generated.systemMessageId,
-    draft: {
-      id: d.id,
-      to: d.toEmail,
-      toName: d.toName,
-      subject: d.subject,
-      introText: d.introText,
-      closingText: d.closingText,
-      prospectId: d.prospectId,
-      accountContactId: d.accountContactId,
-      catalogItemId: d.catalogItemId,
+    draft: composerDraftFromAgentDto(d, {
       prospectName: input.prospect.name,
-      productSku: d.payload.sku,
-      productSlug: d.payload.slug,
       productIsNew: catalogItem.isNew,
-    },
+    }),
     catalogItem,
   };
 }

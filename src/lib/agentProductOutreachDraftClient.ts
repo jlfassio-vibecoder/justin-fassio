@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase';
 
+import type { ProductOutreachGenerationMeta } from '@/lib/systemMessages';
+
 export type AgentProductOutreachDraftDto = {
   id: string;
   messageType: string;
@@ -23,10 +25,52 @@ export type AgentProductOutreachDraftDto = {
     slug: string;
     productHref: string;
     from?: string;
+    generation?: ProductOutreachGenerationMeta;
   };
   createdAt: string;
   updatedAt: string;
 };
+
+/** Map a staff draft API DTO into composer review state (includes frozen generation). */
+export function composerDraftFromAgentDto(
+  d: AgentProductOutreachDraftDto,
+  extras?: {
+    prospectName?: string;
+    productIsNew?: boolean;
+  },
+): {
+  id: string;
+  to: string;
+  toName: string;
+  subject: string;
+  introText: string;
+  closingText: string;
+  prospectId: number;
+  accountContactId: string;
+  catalogItemId: string;
+  prospectName?: string;
+  productSku?: string;
+  productSlug?: string;
+  productIsNew?: boolean;
+  generation?: ProductOutreachGenerationMeta | null;
+} {
+  return {
+    id: d.id,
+    to: d.toEmail,
+    toName: d.toName,
+    subject: d.subject,
+    introText: d.introText,
+    closingText: d.closingText,
+    prospectId: d.prospectId,
+    accountContactId: d.accountContactId,
+    catalogItemId: d.catalogItemId,
+    prospectName: extras?.prospectName,
+    productSku: d.payload.sku,
+    productSlug: d.payload.slug,
+    productIsNew: extras?.productIsNew,
+    generation: d.payload.generation ?? null,
+  };
+}
 
 type ApiFail = { ok: false; error: string };
 

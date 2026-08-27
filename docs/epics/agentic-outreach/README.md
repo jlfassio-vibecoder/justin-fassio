@@ -358,6 +358,7 @@ Until that Epic ships, every agent-created Product Outreach email requires expli
 | [phase-4-goals-attribution-learning.md](./phase-4-goals-attribution-learning.md)               | Goals, pace, learning                                                                                          |
 | [phase-5-nightly-briefing.md](./phase-5-nightly-briefing.md)                                   | Cron + morning briefing                                                                                        |
 | [account-research-before-product-selection.md](./account-research-before-product-selection.md) | **Planned:** public-web account research → profile suggestions → 1–3 product matches (before draft); GO Mode A |
+| [outreach-copy-context-personalization.md](./outreach-copy-context-personalization.md)         | **Draft:** richer research/CRM context for intro/closing; Add copy parity with prep selection meta             |
 | [../yelp-contact-enrichment.md](../yelp-contact-enrichment.md)                                 | **Planning:** Yelp business verification → contact discovery → role verification (existing CRM fields only)    |
 
 ---

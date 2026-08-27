@@ -8,11 +8,15 @@ import type { OutreachBriefingDto } from '@/lib/outreachBriefingShared';
 const getAgentProductOutreachDraftClientMock = vi.fn();
 const createFollowUpDraftClientMock = vi.fn();
 
-vi.mock('@/lib/agentProductOutreachDraftClient', () => ({
-  getAgentProductOutreachDraftClient: (...args: unknown[]) =>
-    getAgentProductOutreachDraftClientMock(...args),
-  createFollowUpDraftClient: (...args: unknown[]) => createFollowUpDraftClientMock(...args),
-}));
+vi.mock('@/lib/agentProductOutreachDraftClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/agentProductOutreachDraftClient')>();
+  return {
+    ...actual,
+    getAgentProductOutreachDraftClient: (...args: unknown[]) =>
+      getAgentProductOutreachDraftClientMock(...args),
+    createFollowUpDraftClient: (...args: unknown[]) => createFollowUpDraftClientMock(...args),
+  };
+});
 
 vi.mock('@/components/OgrProductEmailComposerModal', () => ({
   OgrProductEmailComposerModal: ({

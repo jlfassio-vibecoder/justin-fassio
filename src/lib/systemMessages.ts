@@ -63,6 +63,10 @@ export type ProductOutreachGenerationMeta = {
   };
   /** Phase 4: channel snapshot for attribution / learning. */
   primaryChannel?: string | null;
+  /** Frozen at prep for Add copy parity. */
+  secondaryChannels?: string[];
+  /** Frozen product sales-rank hint for Add copy parity. */
+  productSalesRank?: number | null;
   fallback: 'none' | 'defaults' | 'retry_shorten';
   introWordCount: number;
   closingWordCount: number;
@@ -139,6 +143,16 @@ export function parseGenerationMeta(raw: unknown): ProductOutreachGenerationMeta
     },
     ...(typeof g.primaryChannel === 'string' || g.primaryChannel === null
       ? { primaryChannel: g.primaryChannel }
+      : {}),
+    ...(Array.isArray(g.secondaryChannels)
+      ? {
+          secondaryChannels: g.secondaryChannels.filter(
+            (c): c is string => typeof c === 'string' && c.trim().length > 0,
+          ),
+        }
+      : {}),
+    ...(typeof g.productSalesRank === 'number' || g.productSalesRank === null
+      ? { productSalesRank: g.productSalesRank }
       : {}),
     fallback: g.fallback,
     introWordCount: g.introWordCount,
@@ -891,7 +905,8 @@ export async function updateAgentProductOutreachDraft(
     patch.retailer_line_account_id = input.retailerLineAccountId?.trim() || null;
   }
   if (input.payload != null) {
-    patch.payload = buildProductOutreachPayload(input.payload, input.payload.generation ?? null);
+    const generation = input.payload.generation ?? existing.draft.payload.generation ?? null;
+    patch.payload = buildProductOutreachPayload(input.payload, generation);
   }
 
   if (Object.keys(patch).length === 0) {

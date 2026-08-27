@@ -9,6 +9,7 @@ import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
 import {
   cancelAgentProductOutreachDraftClient,
+  composerDraftFromAgentDto,
   generateAgentProductOutreachDraft,
   sendAgentProductOutreachDraft,
   updateAgentProductOutreachDraftClient,
@@ -27,11 +28,13 @@ import {
   OGR_PRODUCT_EMAIL_MAX_SUBJECT,
   OGR_PRODUCT_EMAIL_MAX_TO,
 } from '@/lib/ogrProductEmailLimits';
+import { buildSelectedTargetFromDraft } from '@/lib/outreachDraftSelection';
 import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { sendOgrProductEmail } from '@/lib/sendOgrProductEmailClient';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { staffAiPostFields } from '@/lib/staffAiClientContext';
 import type { PublicMarket } from '@/lib/pricingMarket';
+import type { ProductOutreachGenerationMeta } from '@/lib/systemMessages';
 
 const MAX_TO = OGR_PRODUCT_EMAIL_MAX_TO;
 const MAX_RECIPIENT_NAME = OGR_PRODUCT_EMAIL_MAX_RECIPIENT_NAME;
@@ -52,6 +55,8 @@ export type OgrProductEmailComposerDraft = {
   productSku?: string;
   productSlug?: string;
   productIsNew?: boolean;
+  /** Prep-frozen selection meta; used by Add copy for prompt parity. */
+  generation?: ProductOutreachGenerationMeta | null;
 };
 
 export type OgrProductReplacedPayload = {
@@ -203,21 +208,10 @@ function OgrProductEmailComposerForm({
       setProductPickerOpen(false);
       onProductReplaced({
         item: pick.item,
-        draft: {
-          id: d.id,
-          to: d.toEmail,
-          toName: d.toName,
-          subject: d.subject,
-          introText: d.introText,
-          closingText: d.closingText,
-          prospectId: d.prospectId,
-          accountContactId: d.accountContactId,
-          catalogItemId: d.catalogItemId,
+        draft: composerDraftFromAgentDto(d, {
           prospectName: draft.prospectName,
-          productSku: d.payload.sku,
-          productSlug: d.payload.slug,
           productIsNew: pick.item.isNew,
-        },
+        }),
       });
     } finally {
       setReplacingProduct(false);
@@ -260,29 +254,24 @@ function OgrProductEmailComposerForm({
         existingDraftId: draft.id,
         salesLineId: aiFields.salesLineId,
         retailerLineAccountId: aiFields.retailerLineAccountId,
-        target: {
+        target: buildSelectedTargetFromDraft({
+          draft: {
+            id: draft.id,
+            prospectId: draft.prospectId,
+            accountContactId: draft.accountContactId,
+            catalogItemId: draft.catalogItemId,
+            payload: { generation: draft.generation ?? null },
+          },
           preparationDate: formatOutreachPreparationDate(),
-          prospectId: draft.prospectId,
           prospectName,
-          accountContactId: draft.accountContactId,
           toEmail,
           toName: recipientName.trim() || draft.toName,
-          primaryChannel: null,
-          secondaryChannels: [],
           catalogItemId: draft.catalogItemId,
           productSku: draft.productSku ?? '',
           productName,
           productSlug: draft.productSlug ?? '',
           productIsNew: draft.productIsNew ?? false,
-          productSalesRank: null,
-          selectionReasons: {
-            priority: null,
-            fitScore: null,
-            channelMatch: false,
-            productFit: 'global_fallback',
-            exclusionsChecked: true,
-          },
-        },
+        }),
       });
       if (!generated.ok) {
         setError(generated.error);
@@ -357,21 +346,12 @@ function OgrProductEmailComposerForm({
         return;
       }
       const d = updated.draft;
-      onDraftSaved?.({
-        id: d.id,
-        to: d.toEmail,
-        toName: d.toName,
-        subject: d.subject,
-        introText: d.introText,
-        closingText: d.closingText,
-        prospectId: d.prospectId,
-        accountContactId: d.accountContactId,
-        catalogItemId: d.catalogItemId,
-        prospectName: draft.prospectName,
-        productSku: d.payload.sku,
-        productSlug: d.payload.slug,
-        productIsNew: draft.productIsNew,
-      });
+      onDraftSaved?.(
+        composerDraftFromAgentDto(d, {
+          prospectName: draft.prospectName,
+          productIsNew: draft.productIsNew,
+        }),
+      );
     } finally {
       setSaving(false);
     }

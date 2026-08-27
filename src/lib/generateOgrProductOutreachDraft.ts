@@ -29,6 +29,7 @@ import {
 } from '@/lib/publicProductPresentation';
 import { mapProspectRow, PROSPECT_SELECT, type ProspectListRow } from '@/lib/prospects';
 import {
+  getAgentProductOutreachDraftById,
   insertAgentProductOutreachDraft,
   listAgentProductOutreachDrafts,
   requireExplicitProductOutreachCrmAssociation,
@@ -37,6 +38,7 @@ import {
   type ProductOutreachSystemMessagePayload,
   SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL,
 } from '@/lib/systemMessages';
+import { applyFrozenOutreachSelection } from '@/lib/outreachDraftSelection';
 import type { Database } from '@/types/database';
 
 type DbClient = SupabaseClient<Database>;
@@ -526,8 +528,16 @@ function buildGenerationMeta(
     promptVersion: OGR_OUTREACH_DRAFT_PROMPT_VERSION,
     model: copyStatus === 'stub' ? 'none' : OGR_OUTREACH_DRAFT_MODEL,
     preparationDate: target.preparationDate,
-    selectionReasons: target.selectionReasons,
+    selectionReasons: {
+      priority: target.selectionReasons.priority,
+      fitScore: target.selectionReasons.fitScore,
+      channelMatch: target.selectionReasons.channelMatch,
+      productFit: target.selectionReasons.productFit,
+      exclusionsChecked: true,
+    },
     primaryChannel: target.primaryChannel,
+    secondaryChannels: [...target.secondaryChannels],
+    productSalesRank: target.productSalesRank,
     fallback: copy.fallback,
     introWordCount: copy.introWordCount,
     closingWordCount: copy.closingWordCount,
@@ -544,7 +554,7 @@ export async function generateOgrProductOutreachDraft(
   client: DbClient,
   input: GenerateOgrProductOutreachDraftInput,
 ): Promise<GenerateOgrProductOutreachDraftResult> {
-  const { target } = input;
+  let target = input.target;
   const userId = typeof input.userId === 'string' ? input.userId.trim() : '';
   const sentBy = userId || null;
   const copyMode: OutreachCopyMode = input.copyMode === 'generic_stub' ? 'generic_stub' : 'ai';
@@ -554,6 +564,30 @@ export async function generateOgrProductOutreachDraft(
     accountContactId: target.accountContactId,
   });
   if (!crm.ok) return { ok: false, error: crm.error };
+
+  // Resolve existing draft early so prep-frozen selection meta can feed AI context.
+  let draftId = input.existingDraftId?.trim() || '';
+  if (!draftId) {
+    const pending = await listAgentProductOutreachDrafts(client, {
+      prospectId: target.prospectId,
+      ...(input.retailerLineAccountId
+        ? { retailerLineAccountId: input.retailerLineAccountId }
+        : {}),
+      statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
+      limit: 5,
+    });
+    if (!pending.ok) return { ok: false, error: pending.error };
+    const match = pending.drafts.find(
+      (d) => d.status === 'draft' && d.origin === SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL,
+    );
+    if (match) draftId = match.id;
+  }
+
+  if (draftId) {
+    const existing = await getAgentProductOutreachDraftById(client, draftId);
+    if (!existing.ok) return { ok: false, error: existing.error };
+    target = applyFrozenOutreachSelection(target, existing.draft.payload.generation);
+  }
 
   const loaded = await loadPublishedOgrProductForEmail(client, target.catalogItemId, {
     salesLineId: input.salesLineId,
@@ -635,24 +669,6 @@ export async function generateOgrProductOutreachDraft(
     ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
     generation: buildGenerationMeta(target, copy, copyStatus),
   };
-
-  let draftId = input.existingDraftId?.trim() || '';
-
-  if (!draftId) {
-    const pending = await listAgentProductOutreachDrafts(client, {
-      prospectId: target.prospectId,
-      ...(input.retailerLineAccountId
-        ? { retailerLineAccountId: input.retailerLineAccountId }
-        : {}),
-      statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
-      limit: 5,
-    });
-    if (!pending.ok) return { ok: false, error: pending.error };
-    const match = pending.drafts.find(
-      (d) => d.status === 'draft' && d.origin === SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL,
-    );
-    if (match) draftId = match.id;
-  }
 
   if (draftId) {
     const updated = await updateAgentProductOutreachDraft(client, draftId, {

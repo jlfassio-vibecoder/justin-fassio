@@ -10,6 +10,7 @@ import { Select } from '@/components/ui/Input';
 import {
   getAgentProductOutreachDraftClient,
   createFollowUpDraftClient,
+  composerDraftFromAgentDto,
 } from '@/lib/agentProductOutreachDraftClient';
 import type { CatalogItem } from '@/lib/catalog';
 import { buildCatalogItemEmailCardHtml } from '@/lib/catalogItemEmailCardHtml';
@@ -280,20 +281,11 @@ export function AgentBriefingTab({
 
       const d = loaded.draft;
       setComposerProduct(catalogItem);
-      setComposerDraft({
-        id: d.id,
-        to: d.toEmail,
-        toName: d.toName,
-        subject: d.subject,
-        introText: d.introText,
-        closingText: d.closingText,
-        prospectId: d.prospectId,
-        accountContactId: d.accountContactId,
-        catalogItemId: d.catalogItemId,
-        prospectName: target.prospectName?.trim() || undefined,
-        productSku: d.payload.sku,
-        productSlug: d.payload.slug,
-      });
+      setComposerDraft(
+        composerDraftFromAgentDto(d, {
+          prospectName: target.prospectName?.trim() || undefined,
+        }),
+      );
       setComposerOpen(true);
     },
     [catalogById],
