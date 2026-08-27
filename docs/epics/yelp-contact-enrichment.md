@@ -486,6 +486,81 @@ Preview attach path (`previewEnrichedContactAttach`) uses contact research + Yel
 
 Ops: confirm `YELP_FUSION_API_KEY` on Vercel preview deployments — local `.env` alone does not guarantee server-side Yelp match.
 
+### 7.4 Phase 2 implementation spec (shipped 2026-08-26)
+
+LinkedIn snippet corroboration after Phase 1.5 contact discovery — confirmation only, not discovery.
+
+#### Role verification lib
+
+| Function                      | Path                                                 | Behavior                                                                              |
+| ----------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `verifyPublicContactRole`     | `src/lib/contactResearch/verifyPublicContactRole.ts` | Open-web Perplexity search with LinkedIn query patterns; explicit-only Zod evaluation |
+| `formatRoleVerificationNotes` | same                                                 | Stable CRM `notes` text from verification result                                      |
+
+Outcomes: **Verified** / **Partial public match** / **Not found** (§1.1). No `searchDomainFilter` denylist — separate from website discovery.
+
+#### Preview + apply wiring
+
+`previewEnrichedContactAttach` calls verification when `fullName` is resolved. `ContactEnrichPreview.roleVerification` includes status, signals, excerpt, source URLs, and `suggestedNotes`.
+
+When verification is **verified** and `matchedRole` is explicit, title refines from discovery (unless staff seeded `candidateName`). Apply path accepts optional `notes` → `account_contacts.notes` on insert.
+
+#### UI
+
+`ContactDiscoverPreview`: verification badge, collapsible LinkedIn excerpt/sources, editable Notes field pre-filled from `suggestedNotes`.
+
+#### Phase 2 pilot accounts (staff manual run pending)
+
+| retailer_id | Expected verification                           |
+| ----------- | ----------------------------------------------- |
+| 674         | Partial or not_found (Karen R. initial on Yelp) |
+| 634         | Run and record outcome                          |
+| 631         | Run and record outcome                          |
+
+### 7.5 Phase 3 implementation spec (shipped 2026-08-26)
+
+Account Research UI integration: staff **Verify on Yelp** persists directory citations and enables blank-only identity suggestions.
+
+#### Verify lib + citations
+
+| Function                            | Path                                                  | Behavior                                                                   |
+| ----------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------- |
+| `verifyYelpDirectoryMatchOnRun`     | `src/lib/accountResearch/verifyYelpDirectoryMatch.ts` | Fusion match; persist `platform: directory` citation on website source row |
+| `findDirectoryCitationForRun`       | same                                                  | Read accepted directory citation from snapshot                             |
+| `loadPersistedYelpMatchForRetailer` | same                                                  | Latest accepted directory citation → `YelpMatchResult`                     |
+
+Citation `provider_metadata`: `yelp_id`, `match_method`, `match_score`, `yelp_business_url`, `candidate_count`, `business` snapshot. Persist **high/medium** only; **low** returns error without write.
+
+#### Suggestions
+
+`suggestionFields.ts`: `directory` platform for blank `phone`, `address`, `city`, `postal_code`.
+
+`suggestions.ts`: `pickDirectoryIdentitySuggestions` uses `buildBlankOnlyProspectPatch` — deterministic, no LLM.
+
+#### Staff API + UI
+
+| Route                                                  | Behavior                                                 |
+| ------------------------------------------------------ | -------------------------------------------------------- |
+| `POST /api/staff/account-research/[runId]/yelp-verify` | Staff verify; returns match summary + refreshed snapshot |
+
+`AccountResearchPanel`: **Business verification (Yelp)** section with confidence + listing link; available **before** website lock. Post-verify triggers suggestion regeneration.
+
+#### Orchestration seed
+
+`provider.ts`: when directory citation exists, website Exa search prompt includes Yelp `businessUrl` hint (not proof).
+
+`buildContactResearchBrief`: prefers persisted directory citation over live Fusion when available.
+
+#### Phase 3 E2E pilot (staff manual run pending)
+
+Outreach queue → Research → Verify on Yelp → apply blank phone suggestion → lock website → contact discovery → re-run regional prep.
+
+| retailer_id | Expected                                                              |
+| ----------- | --------------------------------------------------------------------- |
+| 674         | High Yelp match; directory citation + optional blank phone suggestion |
+| 634         | High match; verify + suggestions                                      |
+| 631         | High match; verify + suggestions                                      |
+
 ### Phase 1 — Contact discovery preview (summary)
 
 Chain existing `researchCompany` with Yelp (+ optional locked website) context. Preview contact via `createEnrichedContact` **attach** semantics — staff confirms in UI before insert.
@@ -594,13 +669,13 @@ Update this section as work lands.
 
 ### Phase 2 — Role verification
 
-- [ ] `verifyPublicContactRole` with explicit-only schema
-- [ ] Evidence stored in contact `notes` or citation metadata
+- [x] `verifyPublicContactRole` with explicit-only schema
+- [x] Evidence stored in contact `notes` via preview suggestedNotes + staff apply
 
 ### Phase 3 — UI integration
 
-- [ ] Account Research “Verify on Yelp”
-- [ ] Directory citations + suggestion apply for blank identity fields
+- [x] Account Research “Verify on Yelp”
+- [x] Directory citations + suggestion apply for blank identity fields
 - [ ] End-to-end: outreach queue → Research → Yelp → contact → re-run prep → draft
 
 ---
@@ -632,11 +707,13 @@ Update this section as work lands.
 
 ## 14. Revision log
 
-| Date       | Change                                                                                              |
-| ---------- | --------------------------------------------------------------------------------------------------- |
-| 2026-08-26 | Initial epic drafted from codebase audit on `feature/yelp-contact-finder`                           |
-| 2026-08-26 | Locked §1.1 verification methodology (LinkedIn confirmation layer, Verified/Partial/Not found)      |
-| 2026-08-26 | Phase 0 shipped: Fusion API lib, pilot script, §7.1 implementation spec                             |
-| 2026-08-26 | Live pilot: apply #624/#631 phone; scorer compact/parenthetical fix; §7.1 results table             |
-| 2026-08-26 | Phase 1 shipped: brief builder, preview/apply APIs, Account Research contact discovery UI; §7.2     |
-| 2026-08-26 | Phase 1.5 shipped: Yelp-first contact research, owner extraction from yelp.com URL, rich seed; §7.3 |
+| Date       | Change                                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------------------- |
+| 2026-08-26 | Initial epic drafted from codebase audit on `feature/yelp-contact-finder`                                  |
+| 2026-08-26 | Locked §1.1 verification methodology (LinkedIn confirmation layer, Verified/Partial/Not found)             |
+| 2026-08-26 | Phase 0 shipped: Fusion API lib, pilot script, §7.1 implementation spec                                    |
+| 2026-08-26 | Live pilot: apply #624/#631 phone; scorer compact/parenthetical fix; §7.1 results table                    |
+| 2026-08-26 | Phase 1 shipped: brief builder, preview/apply APIs, Account Research contact discovery UI; §7.2            |
+| 2026-08-26 | Phase 1.5 shipped: Yelp-first contact research, owner extraction from yelp.com URL, rich seed; §7.3        |
+| 2026-08-26 | Phase 2 shipped: LinkedIn snippet role verification, notes on contact apply, UI badges; §7.4               |
+| 2026-08-26 | Phase 3 shipped: Verify on Yelp in Account Research, directory citations, blank identity suggestions; §7.5 |

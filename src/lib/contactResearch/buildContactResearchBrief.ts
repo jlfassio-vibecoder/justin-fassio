@@ -9,6 +9,7 @@ export type ContactResearchBriefInput = {
   prospect: Prospect;
   resolvedWebsite?: string | null;
   candidateName?: string | null;
+  persistedYelpMatch?: YelpMatchResult | null;
 };
 
 export type ContactResearchBriefResult = {
@@ -106,7 +107,10 @@ export async function buildContactResearchBrief(
 
   let yelpMatch: YelpMatchResult | null = null;
   let yelpMatchError: string | null = null;
-  if (hasYelpFusionApiKey()) {
+
+  if (input.persistedYelpMatch && yelpUsableForSeed(input.persistedYelpMatch.confidence)) {
+    yelpMatch = input.persistedYelpMatch;
+  } else if (hasYelpFusionApiKey()) {
     try {
       const matched = await matchProspectToYelp({
         name: prospect.name,
@@ -126,7 +130,7 @@ export async function buildContactResearchBrief(
       yelpMatch = null;
       yelpMatchError = err instanceof Error ? err.message : 'Yelp match failed';
     }
-  } else {
+  } else if (!input.persistedYelpMatch) {
     yelpMatchError = LOCAL_YELP_FUSION_KEY_HELP;
   }
 

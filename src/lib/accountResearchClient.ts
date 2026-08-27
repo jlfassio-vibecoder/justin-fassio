@@ -203,6 +203,63 @@ export async function processAccountResearchSource(
   };
 }
 
+export type VerifyYelpDirectoryMatchClientResult =
+  | ({
+      ok: true;
+      match: {
+        businessName: string;
+        confidence: string;
+        matchMethod: string;
+        score: number;
+        listingUrl: string;
+        categories: string[];
+      };
+      citationIds: string[];
+    } & AccountResearchSnapshotDto)
+  | ApiFail;
+
+export async function verifyYelpDirectoryMatch(
+  runId: string,
+): Promise<VerifyYelpDirectoryMatchClientResult> {
+  const result = await staffFetch(`/api/staff/account-research/${runId}/yelp-verify`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+  if (!('res' in result)) return result;
+
+  const { res, payload } = result;
+  if (!res.ok || payload.ok !== true) {
+    return {
+      ok: false,
+      error:
+        typeof payload.error === 'string' ? payload.error : `Yelp verify failed (${res.status})`,
+    };
+  }
+
+  const snapshot = parseSnapshot(payload);
+  if (!snapshot) return { ok: false, error: 'Invalid research snapshot' };
+
+  const matchPayload = payload.match;
+  if (!matchPayload || typeof matchPayload !== 'object') {
+    return { ok: false, error: 'Invalid Yelp match payload' };
+  }
+
+  const match = matchPayload as Record<string, unknown>;
+  return {
+    ok: true,
+    match: {
+      businessName: String(match.businessName ?? ''),
+      confidence: String(match.confidence ?? ''),
+      matchMethod: String(match.matchMethod ?? ''),
+      score: Number(match.score ?? 0),
+      listingUrl: String(match.listingUrl ?? ''),
+      categories: Array.isArray(match.categories) ? match.categories.map(String) : [],
+    },
+    citationIds: Array.isArray(payload.citationIds) ? payload.citationIds.map(String) : [],
+    ...snapshot,
+  };
+}
+
 export async function lockAccountResearchSource(input: {
   retailerId: number;
   sourceType: string;

@@ -24,6 +24,7 @@ import { fetchOfficialWebsiteEvidence } from '@/lib/accountResearch/officialWebs
 import { runSatisfiesScopeRequest } from '@/lib/accountResearch/freshness';
 import { resolveAccountIdentity, type IdentityResolution } from '@/lib/accountResearch/identity';
 import { executeAccountResearchSourceSearch } from '@/lib/accountResearch/provider';
+import { loadYelpBusinessUrlHintForRun } from '@/lib/accountResearch/verifyYelpDirectoryMatch';
 import { loadSourceLocks } from '@/lib/accountResearch/locks';
 import type { SocialSearchOutcome } from '@/lib/accountResearch/socialSourceSearch';
 import {
@@ -639,6 +640,10 @@ export async function processNextAccountResearchSource(args: {
     websiteSocialLinks,
     shopifyEvidence,
     lockedUrl,
+    yelpBusinessUrlHint:
+      source.source_type === 'website'
+        ? await loadYelpBusinessUrlHintForRun(args.supabase, args.runId)
+        : null,
   });
 
   const lockAfter =
@@ -652,6 +657,10 @@ export async function processNextAccountResearchSource(args: {
       websiteSocialLinks,
       shopifyEvidence,
       lockedUrl,
+      yelpBusinessUrlHint:
+        source.source_type === 'website'
+          ? await loadYelpBusinessUrlHintForRun(args.supabase, args.runId)
+          : null,
     });
   } else {
     lockedUrl = lockAfter;

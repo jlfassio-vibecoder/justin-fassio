@@ -5,6 +5,7 @@ const createEnrichedProspectMock = vi.fn();
 const researchCompanyMock = vi.fn();
 const researchContactDiscoveryMock = vi.fn();
 const extractOwnerFromYelpListingMock = vi.fn();
+const verifyPublicContactRoleMock = vi.fn();
 const generateObjectMock = vi.fn();
 const buildContactResearchBriefMock = vi.fn();
 const matchProspectToYelpMock = vi.fn();
@@ -23,6 +24,21 @@ vi.mock('@/lib/contactResearch/researchContactDiscovery', () => ({
 
 vi.mock('@/lib/contactResearch/extractOwnerFromYelpListing', () => ({
   extractOwnerFromYelpListing: (...args: unknown[]) => extractOwnerFromYelpListingMock(...args),
+}));
+
+vi.mock('@/lib/contactResearch/verifyPublicContactRole', () => ({
+  verifyPublicContactRole: (...args: unknown[]) => verifyPublicContactRoleMock(...args),
+  formatRoleVerificationNotes: (result: {
+    status: string;
+    signals: { personName: boolean; company: boolean; role: boolean; location: boolean };
+    matchedRole: string | null;
+    matchedCompany: string | null;
+    sourceUrls: string[];
+  }) => `LinkedIn verification: ${result.status}`,
+}));
+
+vi.mock('@/lib/accountResearch/verifyYelpDirectoryMatch', () => ({
+  loadPersistedYelpMatchForRetailer: async () => null,
 }));
 
 vi.mock('@/lib/contactResearch/buildContactResearchBrief', () => ({
@@ -356,6 +372,14 @@ describe('previewEnrichedContactAttach', () => {
       title: null,
       excerpt: null,
     });
+    verifyPublicContactRoleMock.mockResolvedValue({
+      status: 'not_found',
+      signals: { personName: false, company: false, role: false, location: false },
+      matchedRole: null,
+      matchedCompany: null,
+      excerpt: null,
+      sourceUrls: [],
+    });
     generateObjectMock.mockResolvedValue({
       object: { title: 'General Manager', phone: '541-555-0100', email: null },
     });
@@ -377,6 +401,7 @@ describe('previewEnrichedContactAttach', () => {
     if (result.ok) {
       expect(result.preview.proposed.role).toBe('manager');
       expect(result.preview.proposed.fullName).toBe('Sarah Jenkins');
+      expect(result.preview.roleVerification?.status).toBe('not_found');
       expect(result.preview.yelpListingUrl).toBe(
         'https://www.yelp.com/biz/the-sassy-seagull-bandon',
       );
@@ -385,6 +410,45 @@ describe('previewEnrichedContactAttach', () => {
     }
     expect(researchContactDiscoveryMock).toHaveBeenCalled();
     expect(researchCompanyMock).not.toHaveBeenCalled();
+    expect(verifyPublicContactRoleMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        candidateName: 'Sarah Jenkins',
+        businessName: 'The Sassy Seagull',
+      }),
+    );
+  });
+
+  it('refines title from verified LinkedIn role when no staff candidate name', async () => {
+    verifyPublicContactRoleMock.mockResolvedValue({
+      status: 'verified',
+      signals: { personName: true, company: true, role: true, location: true },
+      matchedRole: 'Owner',
+      matchedCompany: 'The Sassy Seagull',
+      excerpt: 'Bob Leis — Owner at The Sassy Seagull',
+      sourceUrls: ['https://linkedin.com/in/bob-leis'],
+    });
+    extractOwnerFromYelpListingMock.mockResolvedValue({
+      fullName: 'Bob Leis',
+      title: 'Business Owner',
+      excerpt: 'Meet the Business Owner: Bob Leis.',
+    });
+
+    const supabase = mockSupabase({
+      prospectSingle: prospectRow,
+      contactCount: 1,
+      contactList: [],
+    });
+
+    const result = await previewEnrichedContactAttach(supabase, { accountId: 12 });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.preview.proposed.fullName).toBe('Bob Leis');
+      expect(result.preview.proposed.title).toBe('Owner');
+      expect(result.preview.proposed.role).toBe('owner');
+      expect(result.preview.roleVerification?.status).toBe('verified');
+      expect(result.preview.roleVerification?.suggestedNotes).toContain('verified');
+    }
   });
 
   it('uses Yelp owner extraction when no candidate name', async () => {
@@ -406,8 +470,30 @@ describe('previewEnrichedContactAttach', () => {
     if (result.ok) {
       expect(result.preview.proposed.fullName).toBe('Karen R.');
       expect(result.preview.proposed.title).toBe('Business Owner');
+      expect(result.preview.roleVerification).not.toBeNull();
     }
     expect(extractOwnerFromYelpListingMock).toHaveBeenCalled();
+  });
+
+  it('persists notes on apply', async () => {
+    const supabase = mockSupabase({
+      prospectSingle: prospectRow,
+      contactCount: 1,
+      contactList: [],
+      contactInsert: { ...contactRow, role: 'owner', notes: 'LinkedIn verification: Verified' },
+    });
+
+    const result = await applyEnrichedContactAttach(supabase, {
+      accountId: 12,
+      fullName: 'Sarah Jenkins',
+      title: 'Owner',
+      phone: null,
+      email: null,
+      role: 'owner',
+      notes: 'LinkedIn verification: Verified',
+    });
+
+    expect(result.ok).toBe(true);
   });
 });
 

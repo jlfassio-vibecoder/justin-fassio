@@ -13,6 +13,8 @@ const lockResearchMock = vi.fn();
 const unlockResearchMock = vi.fn();
 const generateSuggestionsMock = vi.fn();
 
+const verifyYelpDirectoryMatchMock = vi.fn();
+
 vi.mock('@/lib/accountResearchClient', () => ({
   fetchLatestAccountResearch: (...args: unknown[]) => fetchLatestMock(...args),
   startAccountResearch: (...args: unknown[]) => startResearchMock(...args),
@@ -25,6 +27,7 @@ vi.mock('@/lib/accountResearchClient', () => ({
   createAccountProductMatchClient: vi.fn(),
   lockAccountResearchSource: (...args: unknown[]) => lockResearchMock(...args),
   unlockAccountResearchSource: (...args: unknown[]) => unlockResearchMock(...args),
+  verifyYelpDirectoryMatch: (...args: unknown[]) => verifyYelpDirectoryMatchMock(...args),
 }));
 
 vi.mock('@/lib/lineContext', () => ({
@@ -854,5 +857,85 @@ describe('AccountResearchPanel', () => {
     expect(
       await screen.findByText(/No website\? Paste their Facebook or Instagram page URL/i),
     ).toBeInTheDocument();
+  });
+
+  it('shows Verify on Yelp before website lock and calls verify API', async () => {
+    fetchLatestMock.mockResolvedValue({
+      ok: true,
+      outcome: 'found',
+      run: {
+        id: 'run-yelp',
+        status: 'needs_identity_review',
+        requested_scope: 'website',
+        identity_confidence: 'unresolved',
+        completed_at: new Date().toISOString(),
+      },
+      sources: [
+        {
+          id: 'src-web',
+          source_type: 'website',
+          status: 'none_indexed',
+          provider_metadata: {},
+        },
+      ],
+      citationsBySourceId: { 'src-web': [] },
+      sourceFreshness: { 'src-web': true },
+      locksBySourceType: {},
+    });
+    verifyYelpDirectoryMatchMock.mockResolvedValue({
+      ok: true,
+      match: {
+        businessName: 'The Sassy Seagull',
+        confidence: 'high',
+        matchMethod: 'business_match',
+        score: 100,
+        listingUrl: 'https://www.yelp.com/biz/the-sassy-seagull-bandon',
+        categories: ['Gift Shop'],
+      },
+      citationIds: ['cite-dir'],
+      run: {
+        id: 'run-yelp',
+        status: 'needs_identity_review',
+        requested_scope: 'website',
+        identity_confidence: 'unresolved',
+        completed_at: new Date().toISOString(),
+      },
+      sources: [
+        {
+          id: 'src-web',
+          source_type: 'website',
+          status: 'none_indexed',
+          provider_metadata: {},
+        },
+      ],
+      citationsBySourceId: {
+        'src-web': [
+          {
+            id: 'cite-dir',
+            platform: 'directory',
+            acceptance_status: 'accepted',
+            source_url: 'https://www.yelp.com/biz/the-sassy-seagull-bandon',
+            title: 'The Sassy Seagull · Gift Shop',
+            confidence: 'high',
+          },
+        ],
+      },
+      sourceFreshness: { 'src-web': true },
+      locksBySourceType: {},
+    });
+    generateSuggestionsMock.mockResolvedValue({ ok: true, outcome: 'generated', suggestions: [] });
+
+    render(<AccountResearchPanel prospect={prospect} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Verify on Yelp' })).toBeEnabled();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Verify on Yelp' }));
+
+    await waitFor(() => {
+      expect(verifyYelpDirectoryMatchMock).toHaveBeenCalledWith('run-yelp');
+    });
+    expect(await screen.findByText(/Yelp verified:/i)).toBeInTheDocument();
   });
 });

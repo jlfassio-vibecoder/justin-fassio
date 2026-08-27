@@ -65,6 +65,7 @@ export async function applyContactEnrich(input: {
   phone?: string | null;
   email?: string | null;
   role: AccountContactRole;
+  notes?: string | null;
   confirmDuplicateEmail?: boolean;
   salesLineId?: string;
   retailerLineAccountId?: string;
@@ -87,6 +88,7 @@ export async function applyContactEnrich(input: {
       phone: input.phone,
       email: input.email,
       role: input.role,
+      notes: input.notes,
       confirmDuplicateEmail: input.confirmDuplicateEmail,
       salesLineId: input.salesLineId,
       retailerLineAccountId: input.retailerLineAccountId,
