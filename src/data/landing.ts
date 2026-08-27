@@ -1,6 +1,9 @@
 /** Public wholesale showroom path (on-site catalog). */
 export const OGR_WHOLESALE_PATH = '/old-guys-rule-wholesale';
 
+/** Public Living In Sunshine collection path (empty until a catalog is published). */
+export const LIVING_IN_SUNSHINE_WHOLESALE_PATH = '/living-in-sunshine-wholesale';
+
 /** Public Eagle Peak collection path (empty until a catalog is published). */
 export const EAGLE_PEAK_WHOLESALE_PATH = '/eagle-peak-wholesale';
 

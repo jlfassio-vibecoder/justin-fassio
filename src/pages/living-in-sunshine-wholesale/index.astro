@@ -1,0 +1,21 @@
+---
+export const prerender = false;
+
+import Layout from '@/layouts/Layout.astro';
+import PublicLineEmptyShowroom from '@/components/wholesale/PublicLineEmptyShowroom.astro';
+import { fetchPublicLineCards, mergePublicLineCards } from '@/lib/lines';
+
+const { data: cards } = await fetchPublicLineCards();
+const line = mergePublicLineCards(cards).find((row) => row.code === 'living-in-sunshine');
+const lineName = line?.name ?? 'Living In Sunshine';
+const description =
+  line?.description ?? 'Premium outdoor and surf gear — flagship Go Hammock and accessories.';
+---
+
+<Layout title={`${lineName} Wholesale | Justin Fassio`} description={description}>
+  <PublicLineEmptyShowroom
+    lineName={lineName}
+    tagline={line?.tagline ?? 'Now Repping'}
+    description={description}
+  />
+</Layout>

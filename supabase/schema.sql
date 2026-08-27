@@ -2054,7 +2054,7 @@ as $$
     l.sort_order,
     l.public_showroom_path
   from lines l
-  where l.code in ('ogr', 'eagle-peak', 'big-fish')
+  where l.code in ('ogr', 'living-in-sunshine', 'eagle-peak', 'big-fish')
     and l.status in ('active', 'onboarding', 'confirmed')
   order by l.sort_order asc, l.name asc;
 $$;

@@ -310,7 +310,13 @@ describe('Phase 8 owner routes and APIs', () => {
   });
 
   it('create requires stage; reserved codes rejected; 13th create warns', async () => {
-    expect([...RESERVED_LINE_CODES].sort()).toEqual(['big-fish', 'bkg', 'eagle-peak', 'ogr']);
+    expect([...RESERVED_LINE_CODES].sort()).toEqual([
+      'big-fish',
+      'bkg',
+      'eagle-peak',
+      'living-in-sunshine',
+      'ogr',
+    ]);
     expect(isReservedLineCode('ogr')).toBe(true);
     expect(isReservedLineCode('bkg')).toBe(true);
     expect(parseLineCode('ogr')).toEqual({ ok: false, error: 'This line code is reserved' });
