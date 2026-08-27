@@ -29,6 +29,10 @@ import {
   OGR_PRODUCT_EMAIL_MAX_TO,
 } from '@/lib/ogrProductEmailLimits';
 import { buildSelectedTargetFromDraft } from '@/lib/outreachDraftSelection';
+import {
+  formatOutreachCopyContextSummary,
+  isThinOutreachCopyContext,
+} from '@/lib/outreachCopyContextSummary';
 import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { sendOgrProductEmail } from '@/lib/sendOgrProductEmailClient';
 import { useOptionalLineContext } from '@/lib/lineContext';
@@ -166,6 +170,9 @@ function OgrProductEmailComposerForm({
   const [closingText, setClosingText] = useState(
     draft?.closingText ?? OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
   );
+  const [generation, setGeneration] = useState<ProductOutreachGenerationMeta | null>(
+    () => draft?.generation ?? null,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
@@ -175,6 +182,14 @@ function OgrProductEmailComposerForm({
   const [loggingWarning, setLoggingWarning] = useState<string | null>(null);
 
   const busy = submitting || saving || regenerating || replacingProduct;
+  const hasAiCopy = generation?.copyStatus === 'ai';
+  const contextFlags = generation?.contextFlags;
+  const copyContextSummary =
+    hasAiCopy && contextFlags
+      ? formatOutreachCopyContextSummary(contextFlags, generation?.primaryChannel)
+      : null;
+  const showThinResearchBanner =
+    hasAiCopy && contextFlags != null && isThinOutreachCopyContext(contextFlags);
   const canChangeProduct =
     isDraftReview &&
     onProductReplaced != null &&
@@ -260,7 +275,7 @@ function OgrProductEmailComposerForm({
             prospectId: draft.prospectId,
             accountContactId: draft.accountContactId,
             catalogItemId: draft.catalogItemId,
-            payload: { generation: draft.generation ?? null },
+            payload: { generation: generation ?? null },
           },
           preparationDate: formatOutreachPreparationDate(),
           prospectName,
@@ -280,6 +295,9 @@ function OgrProductEmailComposerForm({
       setSubject(generated.subject || subject);
       setIntroText(generated.introText || introText);
       setClosingText(generated.closingText || closingText);
+      if (generated.generation) {
+        setGeneration(generated.generation);
+      }
     } finally {
       setRegenerating(false);
     }
@@ -581,6 +599,12 @@ function OgrProductEmailComposerForm({
           />
         </Field>
 
+        {copyContextSummary ? (
+          <p className="text-ink/55 m-0 text-xs" data-testid="outreach-copy-context-summary">
+            {copyContextSummary}
+          </p>
+        ) : null}
+
         <div>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-ink/55 m-0 text-xs font-medium tracking-wide uppercase">
@@ -624,6 +648,16 @@ function OgrProductEmailComposerForm({
           </p>
         ) : null}
 
+        {showThinResearchBanner ? (
+          <p
+            className="text-accent-800 border-accent-200 bg-accent-50 m-0 rounded-md border px-3 py-2 text-sm"
+            role="status"
+            data-testid="outreach-thin-research-banner"
+          >
+            No accepted citations — copy may stay generic; lock sources or accept citations.
+          </p>
+        ) : null}
+
         <div className="flex flex-wrap justify-end gap-2 pt-1">
           {isDraftReview ? (
             <>
@@ -649,7 +683,13 @@ function OgrProductEmailComposerForm({
                 onClick={() => void handleAddCopy()}
                 disabled={busy}
               >
-                {regenerating ? 'Adding…' : 'Add copy'}
+                {regenerating
+                  ? hasAiCopy
+                    ? 'Regenerating…'
+                    : 'Adding…'
+                  : hasAiCopy
+                    ? 'Regenerate with research'
+                    : 'Add copy'}
               </Button>
             </>
           ) : (

@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 
-import type { ProductOutreachGenerationMeta } from '@/lib/systemMessages';
+import { parseGenerationMeta, type ProductOutreachGenerationMeta } from '@/lib/systemMessages';
 
 export type AgentProductOutreachDraftDto = {
   id: string;
@@ -301,6 +301,7 @@ export async function generateAgentProductOutreachDraft(input: {
       introText: string;
       closingText: string;
       fallback: string;
+      generation: ProductOutreachGenerationMeta | null;
     }
   | ApiFail
 > {
@@ -326,6 +327,7 @@ export async function generateAgentProductOutreachDraft(input: {
     introText: typeof payload.introText === 'string' ? payload.introText : '',
     closingText: typeof payload.closingText === 'string' ? payload.closingText : '',
     fallback: typeof payload.fallback === 'string' ? payload.fallback : 'none',
+    generation: parseGenerationMeta(payload.generation) ?? null,
   };
 }
 

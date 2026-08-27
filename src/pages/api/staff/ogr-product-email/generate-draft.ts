@@ -277,6 +277,7 @@ export const POST: APIRoute = async ({ request }) => {
       introText: generated.introText,
       closingText: generated.closingText,
       fallback: generated.fallback,
+      generation: generated.generation,
     });
   }
 
@@ -311,5 +312,6 @@ export const POST: APIRoute = async ({ request }) => {
     introText: generated.introText,
     closingText: generated.closingText,
     fallback: generated.fallback,
+    generation: generated.generation,
   });
 };

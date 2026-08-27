@@ -8,6 +8,10 @@ import {
   lockedProfilesFromSourceLocks,
   type OutreachCopyContextPack,
 } from '@/lib/outreachCopyContextPack';
+import {
+  formatOutreachCopyContextSummary,
+  isThinOutreachCopyContext,
+} from '@/lib/outreachCopyContextSummary';
 import type { YelpMatchResult } from '@/lib/yelp/types';
 import type { AccountResearchSourceLock } from '@/types/database';
 
@@ -146,5 +150,48 @@ describe('contextFlagsFromPack', () => {
       hasBriefBullets: true,
       hasDirectorySignals: true,
     });
+  });
+});
+
+describe('formatOutreachCopyContextSummary', () => {
+  it('formats compact Used: line for the composer', () => {
+    expect(
+      formatOutreachCopyContextSummary(
+        {
+          hasWebsiteHost: true,
+          acceptedNoteCount: 3,
+          lockedSourceCount: 2,
+          hasContactRole: false,
+          hasBriefBullets: false,
+          hasDirectorySignals: false,
+        },
+        'golf_retail',
+      ),
+    ).toBe(
+      'Used: website host · 3 research notes · 2 locked sources · channel golf courses, resorts & pro shops',
+    );
+  });
+
+  it('detects thin research context', () => {
+    expect(
+      isThinOutreachCopyContext({
+        hasWebsiteHost: true,
+        acceptedNoteCount: 0,
+        lockedSourceCount: 0,
+        hasContactRole: false,
+        hasBriefBullets: false,
+        hasDirectorySignals: false,
+      }),
+    ).toBe(true);
+    expect(
+      isThinOutreachCopyContext({
+        hasWebsiteHost: false,
+        acceptedNoteCount: 1,
+        lockedSourceCount: 0,
+        hasContactRole: false,
+        hasBriefBullets: false,
+        hasDirectorySignals: false,
+      }),
+    ).toBe(false);
   });
 });

@@ -492,6 +492,7 @@ export type GenerateOgrProductOutreachDraftResult =
       subject: string;
       introText: string;
       closingText: string;
+      generation: ProductOutreachGenerationMeta;
     }
   | { ok: false; error: string };
 
@@ -690,13 +691,14 @@ export async function generateOgrProductOutreachDraft(
     emailMarket === 'us'
       ? buildOgrProductUrl(presentation.slug, origin, 'us')
       : buildOgrProductUrl(presentation.slug, origin);
+  const generation = buildGenerationMeta(target, copy, copyStatus, contextFlags);
   const payload: ProductOutreachSystemMessagePayload = {
     sku: presentation.sku,
     name: presentation.name,
     slug: presentation.slug,
     productHref,
     ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
-    generation: buildGenerationMeta(target, copy, copyStatus, contextFlags),
+    generation,
   };
 
   if (draftId) {
@@ -718,6 +720,7 @@ export async function generateOgrProductOutreachDraft(
       subject,
       introText: copy.introText,
       closingText: copy.closingText,
+      generation,
     };
   }
 
@@ -744,6 +747,7 @@ export async function generateOgrProductOutreachDraft(
     subject,
     introText: copy.introText,
     closingText: copy.closingText,
+    generation,
   };
 }
 

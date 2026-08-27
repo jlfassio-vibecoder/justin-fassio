@@ -135,9 +135,9 @@ Implement as sequential PRs. Each slice must ship tests + `npm run check`.
 
 **Acceptance**
 
-- [ ] Staff can see whether research notes were available for the last AI write.
-- [ ] Thin-context banner appears when pack has zero notes and no locks.
-- [ ] Prompt fixtures frozen in unit tests.
+- [x] Staff can see whether research notes were available for the last AI write.
+- [x] Thin-context banner appears when pack has zero notes and no locks.
+- [x] Prompt fixtures frozen in unit tests.
 
 ### Slice D — Prep-time AI (optional / flag)
 
@@ -275,7 +275,7 @@ No separate system message required unless a later slice proves better complianc
 - [ ] Epic reviewed; slices prioritized
 - [x] Slice A merged — Add copy parity with prep selection meta
 - [x] Slice B merged — structured research/profile pack in prompt
-- [ ] Slice C merged — staff visibility into context used
+- [x] Slice C merged — staff visibility into context used
 - [ ] Slice D decided (ship or explicitly defer)
 - [ ] Account Research epic §2.4 / Phase 2 docs updated to match live prompt inputs
 - [ ] No autosend; subject still deterministic; no live URLs in generated prose

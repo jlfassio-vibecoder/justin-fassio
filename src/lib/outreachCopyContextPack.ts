@@ -11,8 +11,15 @@ import {
 import { loadSourceLocks, type SourceLockMap } from '@/lib/accountResearch/locks';
 import { loadPersistedYelpMatchForRetailer } from '@/lib/accountResearch/verifyYelpDirectoryMatch';
 import { ACCOUNT_CONTACT_ROLES, accountContactRoleLabel } from '@/lib/accountContacts';
+import type { OutreachCopyContextFlags } from '@/lib/outreachCopyContextSummary';
 import type { YelpMatchResult } from '@/lib/yelp/types';
 import type { AccountContactRole, Database } from '@/types/database';
+
+export type { OutreachCopyContextFlags } from '@/lib/outreachCopyContextSummary';
+export {
+  formatOutreachCopyContextSummary,
+  isThinOutreachCopyContext,
+} from '@/lib/outreachCopyContextSummary';
 
 type DbClient = SupabaseClient<Database>;
 
@@ -34,15 +41,6 @@ export type OutreachCopyContextPack = {
   recentPublicNotes: string[];
   researchBriefBullets: string[];
   directorySignals: string | null;
-};
-
-export type OutreachCopyContextFlags = {
-  hasWebsiteHost: boolean;
-  acceptedNoteCount: number;
-  lockedSourceCount: number;
-  hasContactRole: boolean;
-  hasBriefBullets: boolean;
-  hasDirectorySignals: boolean;
 };
 
 /** Extract hostname from a store website URL for safe prompt context (never full URL). */
