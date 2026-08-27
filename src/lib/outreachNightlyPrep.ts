@@ -13,7 +13,7 @@ import { computeChannelAllocationWeights } from '@/lib/outreachChannelWeights';
 import { computeProductSelectionWeights } from '@/lib/outreachProductWeights';
 import { computeFitBandRankingWeights } from '@/lib/outreachFitBandWeights';
 import { generateOgrProductOutreachDrafts } from '@/lib/generateOgrProductOutreachDraft';
-import { normalizePrepCrmRegion } from '@/lib/geoCatalog';
+import { normalizePrepCrmRegion, prospectMatchesCrmRegion } from '@/lib/geoCatalog';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
 import type { OutreachGoalSettings } from '@/lib/outreachGoals';
 import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
@@ -207,6 +207,39 @@ export async function getRegionalOutreachPrepRun(
   });
 }
 
+/**
+ * Latest regional prep run for a territory/region scope (any run_date).
+ * Used to keep identified needs-email targets mounted across selling days.
+ */
+export async function getLatestRegionalOutreachPrepRun(
+  client: Client,
+  params: {
+    operationalTerritoryId: string;
+    storeTerritoryCode?: string | null;
+    crmRegion?: string | null;
+  },
+): Promise<{ ok: true; run: OutreachAutomationRunRow | null } | { ok: false; error: string }> {
+  let query = client
+    .from('outreach_automation_runs')
+    .select('*')
+    .eq('kind', OUTREACH_MANUAL_REGIONAL_PREP_KIND)
+    .eq('operational_territory_id', params.operationalTerritoryId)
+    .in('status', ['succeeded', 'partial', 'empty_pool'])
+    .order('run_date', { ascending: false })
+    .order('started_at', { ascending: false })
+    .limit(1);
+
+  const store = params.storeTerritoryCode?.trim().toLowerCase() || null;
+  query = store ? query.eq('store_territory_code', store) : query.is('store_territory_code', null);
+
+  const crmRegion = normalizePrepCrmRegion(params.crmRegion);
+  query = crmRegion ? query.eq('crm_region', crmRegion) : query.is('crm_region', null);
+
+  const { data, error } = await query.maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, run: data ? mapRunRow(data) : null };
+}
+
 async function updateRun(
   client: Client,
   id: string,
@@ -275,6 +308,76 @@ export async function countPendingDraftsForPreparationDate(
   return { ok: true, count: seen.size };
 }
 
+/**
+ * Count pending agent drafts whose prospects match a regional Briefing scope.
+ * Used so Run prep now tops up to 25 against the open batch, not selling date.
+ */
+export async function countPendingDraftsForRegionalScope(
+  client: Client,
+  params: {
+    storeTerritoryCode?: string | null;
+    crmRegion?: string | null;
+  },
+): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  const crmRegion = normalizePrepCrmRegion(params.crmRegion);
+  const storeCode = params.storeTerritoryCode?.trim().toLowerCase() || null;
+
+  const pageSize = 100;
+  const maxRows = 2000;
+  const draftsByProspect = new Map<number, number>();
+  let offset = 0;
+
+  while (offset < maxRows) {
+    const { data, error } = await client
+      .from('system_messages')
+      .select('id, prospect_id')
+      .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
+      .eq('origin', SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL)
+      .in('status', [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES])
+      .order('created_at', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) return { ok: false, error: error.message };
+    const rows = data ?? [];
+    for (const row of rows) {
+      if (typeof row.prospect_id === 'number' && Number.isFinite(row.prospect_id)) {
+        draftsByProspect.set(row.prospect_id, (draftsByProspect.get(row.prospect_id) ?? 0) + 1);
+      }
+    }
+    if (rows.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  if (draftsByProspect.size === 0) return { ok: true, count: 0 };
+
+  // No CRM region filter (ALL): count every pending agent draft.
+  if (!crmRegion) {
+    let total = 0;
+    for (const n of draftsByProspect.values()) total += n;
+    return { ok: true, count: total };
+  }
+
+  const ids = [...draftsByProspect.keys()];
+  const matching = new Set<number>();
+  const chunkSize = 200;
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const { data, error } = await client.from('prospects').select('id, region').in('id', chunk);
+    if (error) return { ok: false, error: error.message };
+    for (const row of data ?? []) {
+      if (prospectMatchesCrmRegion(row.region ?? '', crmRegion, storeCode)) {
+        matching.add(row.id);
+      }
+    }
+  }
+
+  let count = 0;
+  for (const prospectId of matching) {
+    count += draftsByProspect.get(prospectId) ?? 0;
+  }
+  return { ok: true, count };
+}
+
 export type RunOutreachNightlyPrepInput = {
   client: Client;
   trigger: 'cron' | 'manual';
@@ -324,7 +427,11 @@ function finalizeStatus(params: {
   reason: string | null;
 } {
   const { netCapacity, selectedCount, producedCount, failedCount, reason } = params;
-  if (reason === 'goal_met_or_non_selling' || reason === 'already_at_pace') {
+  if (
+    reason === 'goal_met_or_non_selling' ||
+    reason === 'already_at_pace' ||
+    reason === 'open_batch_full'
+  ) {
     return { status: 'succeeded', reason };
   }
   if (netCapacity > 0 && selectedCount === 0) {
@@ -560,7 +667,12 @@ async function continuePrep(params: {
     return { ok: false, error: leadRulesRefresh.error };
   }
 
-  const pending = await countPendingDraftsForPreparationDate(client, runDate);
+  const pending = isRegional
+    ? await countPendingDraftsForRegionalScope(client, {
+        storeTerritoryCode,
+        crmRegion,
+      })
+    : await countPendingDraftsForPreparationDate(client, runDate);
   if (!pending.ok) {
     await updateRun(client, runId, {
       status: 'failed',
@@ -571,10 +683,10 @@ async function continuePrep(params: {
   }
 
   const pendingBefore = pending.count;
-  // Regional mode: fixed limit is the capacity (pending is skipped at generate time, not subtracted here).
-  const netCapacity = Math.max(0, capacity - (isRegional ? 0 : pendingBefore));
-  // For regional, capacity is the hard 25; pending accounts are skipped at generate time.
-  const selectCapacity = isRegional ? capacity : netCapacity;
+  // Regional: top up to the fixed limit against open pending drafts in this scope.
+  // Nightly: subtract same-day pendings from pace capacity.
+  const netCapacity = Math.max(0, capacity - pendingBefore);
+  const selectCapacity = netCapacity;
 
   const { weights, source: weightSource } = computeChannelAllocationWeights({
     report: performance,
@@ -600,19 +712,19 @@ async function continuePrep(params: {
   let reason: string | null = null;
   if (capacity === 0) {
     reason = 'goal_met_or_non_selling';
-  } else if (!isRegional && netCapacity === 0) {
-    reason = 'already_at_pace';
+  } else if (netCapacity === 0) {
+    reason = isRegional ? 'open_batch_full' : 'already_at_pace';
   }
 
   await updateRun(client, runId, {
     capacity,
     pending_before: pendingBefore,
-    net_capacity: isRegional ? capacity : netCapacity,
+    net_capacity: netCapacity,
     channel_allocation: channelAllocation,
     reason,
   });
 
-  if (!isRegional && netCapacity === 0) {
+  if (netCapacity === 0) {
     const fin = finalizeStatus({
       netCapacity,
       selectedCount: 0,

@@ -56,6 +56,20 @@ describe('prepBannerMessage', () => {
     expect(b.message).toContain('already meet');
   });
 
+  it('open_batch_full tells staff to finish pending drafts', () => {
+    const b = prepBannerMessage({
+      sellingDate: '2026-08-13',
+      run: run({
+        kind: 'manual_regional_prep',
+        reason: 'open_batch_full',
+        pendingBefore: 25,
+        producedCount: 0,
+      }),
+    });
+    expect(b.message).toContain('25 pending drafts still open');
+    expect(b.message).toContain('before running prep again');
+  });
+
   it('empty_pool includes shortfall', () => {
     const b = prepBannerMessage({
       sellingDate: '2026-08-13',

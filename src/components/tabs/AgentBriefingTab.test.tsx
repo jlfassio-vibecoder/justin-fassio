@@ -86,6 +86,8 @@ const briefingPayload: { briefing: OutreachBriefingDto } = {
         toEmail: 'buyer@coastalgolf.com',
         primaryChannel: 'golf',
         createdAt: '2026-08-22T12:00:00Z',
+        preparationDate: '2026-08-22',
+        fromEarlierPrep: false,
       },
     ],
     identifiedTargets: [],

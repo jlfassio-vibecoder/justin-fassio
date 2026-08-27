@@ -475,6 +475,10 @@ export function AgentBriefingTab({
     };
     if (data.noop) {
       setPrepMessage('Prep already complete for that region and selling day.');
+    } else if (data.run?.reason === 'open_batch_full') {
+      setPrepMessage(
+        'Pending drafts still open for this region — finish or send them before running prep again.',
+      );
     } else if (data.run?.status === 'empty_pool') {
       setPrepMessage(
         'No sendable accounts today — see the regional pool breakdown on the prep card.',
@@ -712,9 +716,12 @@ export function AgentBriefingTab({
             <CardMeta className="mb-2">
               {briefing.drafts.length} pending · open a draft and use Add copy for personalized
               intro/closing (prep leaves generic stubs)
+              {briefing.drafts.some((d) => d.fromEarlierPrep)
+                ? ' · includes drafts from earlier prep'
+                : ''}
             </CardMeta>
             {briefing.drafts.length === 0 ? (
-              <p className="text-ink/50 m-0 text-sm">No pending drafts for this selling date.</p>
+              <p className="text-ink/50 m-0 text-sm">No pending drafts.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-left text-sm">
@@ -743,6 +750,9 @@ export function AgentBriefingTab({
                             >
                               {d.prospectName}
                             </button>
+                            {d.fromEarlierPrep ? (
+                              <span className="text-ink/45 text-xs">from earlier prep</span>
+                            ) : null}
                             <button
                               type="button"
                               className="text-ink/55 hover:text-accent-800 text-xs hover:underline"

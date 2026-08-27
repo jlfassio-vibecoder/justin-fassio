@@ -12,6 +12,7 @@ import { loadActiveFollowUpSnoozes } from '@/lib/outreachFollowUpSnooze';
 import {
   briefingSellingDate,
   getLatestOutreachAutomationRunForDate,
+  getLatestRegionalOutreachPrepRun,
   getRegionalOutreachPrepRun,
   OUTREACH_MANUAL_REGIONAL_PREP_KIND,
   type OutreachAutomationRunRow,
@@ -84,6 +85,12 @@ export function prepBannerMessage(params: {
         return {
           status: 'succeeded',
           message: "Pending drafts already meet today's pace.",
+        };
+      }
+      if (run.reason === 'open_batch_full') {
+        return {
+          status: 'succeeded',
+          message: `${run.pendingBefore} pending draft${run.pendingBefore === 1 ? '' : 's'} still open for this region — finish or send them before running prep again.`,
         };
       }
       if (run.kind === OUTREACH_MANUAL_REGIONAL_PREP_KIND && identified > 0 && n === 0) {
@@ -329,45 +336,31 @@ export async function assembleOutreachBriefing(params: {
     }
   }
 
-  // Only filter by automationRunId when a run exists; otherwise preparationDate alone.
-  // Querying without either returns unrelated pending drafts and skips the fallback.
-  let draftsListed = run?.id
-    ? await listAgentProductOutreachDrafts(client, {
-        statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
-        automationRunId: run.id,
-        prepScope: true,
-        limit: 25,
-      })
-    : await listAgentProductOutreachDrafts(client, {
-        statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
-        preparationDate: sellingDate,
-        prepScope: true,
-        limit: 25,
-      });
+  // Keep unfinished prep drafts mounted across selling dates (carryover until send).
+  const draftsListed = await listAgentProductOutreachDrafts(client, {
+    statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
+    prepScope: true,
+    limit: 100,
+  });
   if (!draftsListed.ok) return { ok: false, error: draftsListed.error };
 
-  if (run?.id && draftsListed.drafts.length === 0) {
-    draftsListed = await listAgentProductOutreachDrafts(client, {
-      statuses: [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES],
-      preparationDate: sellingDate,
-      prepScope: true,
-      limit: 25,
-    });
-    if (!draftsListed.ok) return { ok: false, error: draftsListed.error };
-  }
-
-  const drafts: OutreachBriefingDraftRow[] = draftsListed.drafts.map((d) => ({
-    draftId: d.id,
-    prospectId: d.prospectId,
-    prospectName: d.toName,
-    catalogItemId: d.catalogItemId,
-    productName: d.payload.name,
-    productSku: d.payload.sku,
-    productSlug: d.payload.slug,
-    toEmail: d.toEmail,
-    primaryChannel: d.payload.generation?.primaryChannel ?? null,
-    createdAt: d.createdAt,
-  }));
+  const drafts: OutreachBriefingDraftRow[] = draftsListed.drafts.map((d) => {
+    const preparationDate = d.payload.generation?.preparationDate?.trim() || null;
+    return {
+      draftId: d.id,
+      prospectId: d.prospectId,
+      prospectName: d.toName,
+      catalogItemId: d.catalogItemId,
+      productName: d.payload.name,
+      productSku: d.payload.sku,
+      productSlug: d.payload.slug,
+      toEmail: d.toEmail,
+      primaryChannel: d.payload.generation?.primaryChannel ?? null,
+      createdAt: d.createdAt,
+      preparationDate,
+      fromEarlierPrep: Boolean(preparationDate && preparationDate !== sellingDate),
+    };
+  });
 
   // Enrich prospect names
   const draftProspectIds = [...new Set(drafts.map((d) => d.prospectId))];
@@ -394,7 +387,22 @@ export async function assembleOutreachBriefing(params: {
     }
   }
 
-  const identifiedTargets = parseIdentifiedTargetsFromPrepAllocation(run?.channelAllocation);
+  const pendingDraftProspectIds = new Set(filteredDrafts.map((d) => d.prospectId));
+
+  let identifiedSourceRun = run;
+  if (params.regionalPrepScope?.operationalTerritoryId) {
+    const latestRegional = await getLatestRegionalOutreachPrepRun(client, {
+      operationalTerritoryId: params.regionalPrepScope.operationalTerritoryId,
+      storeTerritoryCode: params.regionalPrepScope.storeTerritoryCode,
+      crmRegion: params.regionalPrepScope.crmRegion,
+    });
+    if (!latestRegional.ok) return { ok: false, error: latestRegional.error };
+    if (latestRegional.run) identifiedSourceRun = latestRegional.run;
+  }
+
+  const identifiedTargets = parseIdentifiedTargetsFromPrepAllocation(
+    identifiedSourceRun?.channelAllocation,
+  ).filter((t) => t.needsEmail && !pendingDraftProspectIds.has(t.prospectId));
 
   const channelAllocation =
     run?.channelAllocation &&
