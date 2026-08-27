@@ -170,6 +170,11 @@ function FollowUpQueue({
                   variant={row.recommendedAction === 'watch' ? 'ghost' : 'secondary'}
                   className="shrink-0 px-3 py-1 text-xs"
                   disabled={emailBusyId === row.prospectId}
+                  aria-label={
+                    emailBusyId === row.prospectId
+                      ? `Preparing follow-up for ${row.prospectName}`
+                      : `${followUpActionLabel(row.recommendedAction)} ${row.prospectName}`
+                  }
                   onClick={() => onAction(row)}
                 >
                   {emailBusyId === row.prospectId

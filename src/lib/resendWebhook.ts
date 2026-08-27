@@ -387,11 +387,18 @@ export async function replayUnmatchedResendEvents(
       result.applied += 1;
     }
 
-    await admin
+    const { error: resolveError } = await admin
       .from('resend_unmatched_events')
       .update({ resolved_at: now })
       .eq('id', row.id)
       .is('resolved_at', null);
+    if (resolveError) {
+      console.error('[resendWebhook] failed to mark unmatched event resolved', {
+        id: row.id,
+        resendEmailId: trimmed,
+        error: resolveError.message,
+      });
+    }
   }
 
   return result;

@@ -139,6 +139,7 @@ async function loadRecentEngagement(
     .select('prospect_id, open_count, click_count, last_opened_at, last_clicked_at, to_name')
     .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
     .or(`last_clicked_at.gte.${sinceIso},last_opened_at.gte.${sinceIso}`)
+    .order('last_engagement_received_at', { ascending: false, nullsFirst: false })
     .limit(100);
 
   if (error || !data) return [];

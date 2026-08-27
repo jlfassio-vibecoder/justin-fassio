@@ -250,7 +250,7 @@ describe('AgentBriefingTab follow-up queue', () => {
       expect(screen.getByText('Call Today Store')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Call' }));
+    await user.click(screen.getByRole('button', { name: 'Call Call Today Store' }));
 
     expect(onLogCallForLead).toHaveBeenCalledWith(42);
     expect(onOpenProspect).not.toHaveBeenCalled();
@@ -285,7 +285,7 @@ describe('AgentBriefingTab follow-up queue', () => {
       expect(screen.getByText('Warm Lead Shop')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Email' }));
+    await user.click(screen.getByRole('button', { name: 'Email Warm Lead Shop' }));
 
     await waitFor(() => {
       expect(createFollowUpDraftClientMock).toHaveBeenCalledWith(44);
@@ -323,7 +323,7 @@ describe('AgentBriefingTab follow-up queue', () => {
       expect(screen.getByText('Clicked Prospect')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: 'Open Clicked Prospect' }));
 
     expect(onOpenProspect).toHaveBeenCalledWith({
       prospectId: 55,
