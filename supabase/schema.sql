@@ -2879,6 +2879,35 @@ create policy "approved staff full access" on system_message_events
   with check (public.is_approved_staff());
 
 -- ─────────────────────────────────────────────────────────────────────────
+-- resend_unmatched_events — buffer webhooks before resend_email_id stamp.
+-- See migrations/20260827120000_resend_unmatched_events.sql.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists resend_unmatched_events (
+  id uuid primary key default gen_random_uuid(),
+  resend_email_id text not null,
+  resend_event_id text not null,
+  event_type text not null,
+  occurred_at timestamptz not null,
+  payload jsonb not null default '{}'::jsonb,
+  failure_reason text,
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  constraint resend_unmatched_events_resend_event_id_uidx unique (resend_event_id)
+);
+
+create index if not exists resend_unmatched_events_email_unresolved_idx
+  on resend_unmatched_events (resend_email_id)
+  where resolved_at is null;
+
+alter table resend_unmatched_events enable row level security;
+
+drop policy if exists "approved staff read unmatched resend events" on resend_unmatched_events;
+create policy "approved staff read unmatched resend events"
+  on resend_unmatched_events
+  for select to authenticated
+  using (public.is_approved_staff());
+
+-- ─────────────────────────────────────────────────────────────────────────
 -- product_outreach_engagement_seen — shared staff cursor per catalog item (not per user).
 -- See migrations/20260811160000_product_engagement_alerts.sql.
 -- ─────────────────────────────────────────────────────────────────────────

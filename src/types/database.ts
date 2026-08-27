@@ -2710,6 +2710,42 @@ export interface Database {
           },
         ];
       };
+      resend_unmatched_events: {
+        Row: {
+          id: string;
+          resend_email_id: string;
+          resend_event_id: string;
+          event_type: string;
+          occurred_at: string;
+          payload: unknown;
+          failure_reason: string | null;
+          created_at: string;
+          resolved_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          resend_email_id: string;
+          resend_event_id: string;
+          event_type: string;
+          occurred_at: string;
+          payload?: unknown;
+          failure_reason?: string | null;
+          created_at?: string;
+          resolved_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          resend_email_id?: string;
+          resend_event_id?: string;
+          event_type?: string;
+          occurred_at?: string;
+          payload?: unknown;
+          failure_reason?: string | null;
+          created_at?: string;
+          resolved_at?: string | null;
+        };
+        Relationships: [];
+      };
       product_outreach_engagement_seen: {
         Row: {
           catalog_item_id: string;
@@ -3460,6 +3496,9 @@ export type SystemMessageEventInsert =
   Database['public']['Tables']['system_message_events']['Insert'];
 export type SystemMessageEventUpdate =
   Database['public']['Tables']['system_message_events']['Update'];
+export type ResendUnmatchedEvent = Database['public']['Tables']['resend_unmatched_events']['Row'];
+export type ResendUnmatchedEventInsert =
+  Database['public']['Tables']['resend_unmatched_events']['Insert'];
 export type ProductOutreachEngagementSeen =
   Database['public']['Tables']['product_outreach_engagement_seen']['Row'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];

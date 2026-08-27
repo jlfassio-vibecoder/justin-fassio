@@ -1,8 +1,10 @@
 import type { APIRoute } from 'astro';
 import {
   applyResendSystemMessageEvent,
+  bufferUnmatchedResendEvent,
   isHandledResendEventType,
   normalizeResendWebhookEvent,
+  replayUnmatchedResendEvents,
   verifyResendWebhook,
 } from '@/lib/resendWebhook';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
@@ -82,13 +84,31 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   if ('unknownEmail' in result && result.unknownEmail) {
+    const buffered = await bufferUnmatchedResendEvent(admin, {
+      resendEventId: svixId,
+      event: normalized,
+    });
+    if (!buffered.ok) {
+      console.error('[resendWebhook]', {
+        workflow: 'buffer_unmatched',
+        error: buffered.error,
+        emailId: normalized.emailId,
+        type: normalized.type,
+      });
+      return json({ ok: false, error: 'Failed to buffer unmatched webhook event' }, 500);
+    }
     console.info('[resendWebhook]', {
       workflow: 'apply',
       ignored: 'unknown_email',
+      buffered: true,
       emailId: normalized.emailId,
       type: normalized.type,
     });
-    return json({ ok: true, unknownEmail: true }, 200);
+    return json({ ok: true, unknownEmail: true, buffered: true }, 200);
+  }
+
+  if ('systemMessageId' in result && result.systemMessageId) {
+    await replayUnmatchedResendEvents(admin, normalized.emailId);
   }
 
   return json(

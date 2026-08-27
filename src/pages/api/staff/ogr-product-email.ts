@@ -19,9 +19,14 @@ import { buildPublicProductPresentation } from '@/lib/publicProductPresentation'
 import { sendOgrProductOutreachEmail } from '@/lib/sendOgrProductOutreachEmail';
 import { resolvePricingMarketForRetailerLineAccount } from '@/lib/resolveAccountPricingMarket';
 import { normalizePublicMarket, type PublicMarket } from '@/lib/pricingMarket';
+import { getServiceRoleClient } from '@/lib/supabaseAdmin';
+import { replayUnmatchedResendEvents } from '@/lib/resendWebhook';
 import {
-  insertProductOutreachSystemMessage,
+  insertProductOutreachSendingMessage,
+  markProductOutreachMessageFailed,
   resolveProductOutreachCrmAssociation,
+  stampProductOutreachMessageSent,
+  stampResendEmailIdWithRetry,
   validateProductOutreachRetailerLineAccount,
 } from '@/lib/systemMessages';
 
@@ -283,6 +288,33 @@ export const POST: APIRoute = async ({ request }) => {
       closingText: closingResult.value,
     });
 
+    const ledger = await insertProductOutreachSendingMessage(gate.supabase, {
+      catalogItemId: productId,
+      toEmail: to,
+      toName: recipientNameResult.value,
+      subject: message.subject,
+      prospectId: crm.association.prospectId,
+      accountContactId: crm.association.accountContactId,
+      retailerLineAccountId: retailerLineAccountId ?? null,
+      sentBy: gate.userId,
+      payload: {
+        sku: loaded.product.sku,
+        name: loaded.product.name,
+        slug: presentation.slug,
+        productHref,
+        ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
+      },
+    });
+
+    if (!ledger.ok) {
+      console.error('[ogrProductOutreachEmail]', {
+        workflow: 'system_message_preinsert',
+        productId,
+        error: ledger.error,
+      });
+      return jsonError('Failed to prepare email log', 500);
+    }
+
     const sendResult = await sendOgrProductOutreachEmail({
       to,
       subject: message.subject,
@@ -292,6 +324,11 @@ export const POST: APIRoute = async ({ request }) => {
     });
 
     if (!sendResult.ok) {
+      await markProductOutreachMessageFailed(
+        gate.supabase,
+        ledger.id,
+        sendResult.error ?? sendResult.reason,
+      );
       if (sendResult.reason === 'not_configured') {
         return jsonError('Email is not configured', 503);
       }
@@ -318,35 +355,24 @@ export const POST: APIRoute = async ({ request }) => {
       return jsonError('Failed to send email', 502);
     }
 
-    const persist = await insertProductOutreachSystemMessage(gate.supabase, {
-      catalogItemId: productId,
-      resendEmailId: sendResult.resendEmailId,
-      toEmail: to,
-      toName: recipientNameResult.value,
-      subject: message.subject,
-      prospectId: crm.association.prospectId,
-      accountContactId: crm.association.accountContactId,
-      retailerLineAccountId: retailerLineAccountId ?? null,
-      sentBy: gate.userId,
-      payload: {
-        sku: loaded.product.sku,
-        name: loaded.product.name,
-        slug: presentation.slug,
-        productHref,
-        ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
-      },
-    });
+    const persist = await stampResendEmailIdWithRetry(() =>
+      stampProductOutreachMessageSent(gate.supabase, ledger.id, {
+        resendEmailId: sendResult.resendEmailId,
+      }),
+    );
 
     if (!persist.ok) {
       console.error('[ogrProductOutreachEmail]', {
-        workflow: 'system_message_persist',
+        workflow: 'system_message_stamp',
         productId,
+        systemMessageId: ledger.id,
         resendEmailId: sendResult.resendEmailId,
         error: persist.error,
       });
       return new Response(
         JSON.stringify({
           ok: true,
+          systemMessageId: ledger.id,
           resendEmailId: sendResult.resendEmailId,
           logged: false,
         }),
@@ -355,6 +381,11 @@ export const POST: APIRoute = async ({ request }) => {
           headers: { 'Content-Type': 'application/json' },
         },
       );
+    }
+
+    const admin = getServiceRoleClient();
+    if (admin) {
+      await replayUnmatchedResendEvents(admin, sendResult.resendEmailId);
     }
 
     return new Response(

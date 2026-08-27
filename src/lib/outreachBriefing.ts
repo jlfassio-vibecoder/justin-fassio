@@ -6,7 +6,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import type { AllocateChannelsForDayResult } from '@/lib/outreachChannelAllocation';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
-import { listCallToday, listHotLeads, listWarmLeads } from '@/lib/outreachLeadLists';
+import { listOutreachLeads } from '@/lib/outreachLeadLists';
+import { buildFollowUpQueue } from '@/lib/outreachFollowUpQueue';
 import {
   briefingSellingDate,
   getLatestOutreachAutomationRunForDate,
@@ -35,6 +36,7 @@ export { formatRegionalPoolMessage } from '@/lib/outreachBriefingShared';
 import { AGENT_OUTREACH_PENDING_DRAFT_STATUSES } from '@/lib/outreachSelectionConstants';
 import { resolveOutreachLeadRules } from '@/lib/resolveOutreachLeadRules';
 import {
+  fetchPendingAgentProductOutreachProspectIds,
   listAgentProductOutreachDrafts,
   SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH,
 } from '@/lib/systemMessages';
@@ -134,28 +136,48 @@ async function loadRecentEngagement(
 ): Promise<OutreachBriefingDto['recentEngagement']> {
   const { data, error } = await client
     .from('system_messages')
-    .select('prospect_id, click_count, last_clicked_at, to_name')
+    .select('prospect_id, open_count, click_count, last_opened_at, last_clicked_at, to_name')
     .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
-    .not('last_clicked_at', 'is', null)
-    .gte('last_clicked_at', sinceIso)
-    .order('last_clicked_at', { ascending: false })
-    .limit(50);
+    .or(`last_clicked_at.gte.${sinceIso},last_opened_at.gte.${sinceIso}`)
+    .order('last_engagement_received_at', { ascending: false, nullsFirst: false })
+    .limit(100);
 
   if (error || !data) return [];
 
   const byProspect = new Map<
     number,
-    { prospectName: string; lastClickedAt: string; clickCount: number }
+    {
+      prospectName: string;
+      lastEngagedAt: string;
+      openCount: number;
+      clickCount: number;
+    }
   >();
+
   for (const row of data) {
-    if (row.prospect_id == null || !row.last_clicked_at) continue;
+    if (row.prospect_id == null) continue;
+    const lastOpened =
+      row.last_opened_at && row.last_opened_at >= sinceIso ? row.last_opened_at : null;
+    const lastClicked =
+      row.last_clicked_at && row.last_clicked_at >= sinceIso ? row.last_clicked_at : null;
+    if (!lastOpened && !lastClicked) continue;
+
+    const lastEngagedAt =
+      lastOpened && lastClicked
+        ? lastOpened > lastClicked
+          ? lastOpened
+          : lastClicked
+        : (lastClicked ?? lastOpened!);
+
     const prev = byProspect.get(row.prospect_id);
+    const openCount = Math.max(prev?.openCount ?? 0, row.open_count ?? 0);
     const clickCount = Math.max(prev?.clickCount ?? 0, row.click_count ?? 0);
-    const lastClickedAt =
-      !prev || row.last_clicked_at > prev.lastClickedAt ? row.last_clicked_at : prev.lastClickedAt;
+    const nextEngaged =
+      !prev || lastEngagedAt > prev.lastEngagedAt ? lastEngagedAt : prev.lastEngagedAt;
     byProspect.set(row.prospect_id, {
       prospectName: (row.to_name ?? '').trim() || `Prospect #${row.prospect_id}`,
-      lastClickedAt,
+      lastEngagedAt: nextEngaged,
+      openCount,
       clickCount,
     });
   }
@@ -174,7 +196,7 @@ async function loadRecentEngagement(
 
   return [...byProspect.entries()]
     .map(([prospectId, v]) => ({ prospectId, ...v }))
-    .sort((a, b) => b.lastClickedAt.localeCompare(a.lastClickedAt))
+    .sort((a, b) => b.lastEngagedAt.localeCompare(a.lastEngagedAt))
     .slice(0, 25);
 }
 
@@ -251,6 +273,7 @@ export async function assembleOutreachBriefing(params: {
       callToday: [],
       hot: [],
       warm: [],
+      followUps: [],
       recentEngagement: [],
       recentConversions: [],
       performance: null,
@@ -387,13 +410,42 @@ export async function assembleOutreachBriefing(params: {
     performance: snap.snapshot.performance,
   });
 
-  const [callToday, hot, warm, recentEngagement, recentConversions] = await Promise.all([
-    listCallToday(client, asOf, resolvedLeadRules.rules),
-    listHotLeads(client, asOf, resolvedLeadRules.rules),
-    listWarmLeads(client, asOf, resolvedLeadRules.rules),
+  const [allLeads, pendingDrafts, recentEngagement, recentConversions] = await Promise.all([
+    listOutreachLeads(client, { asOf, rules: resolvedLeadRules.rules }),
+    fetchPendingAgentProductOutreachProspectIds(client, AGENT_OUTREACH_PENDING_DRAFT_STATUSES),
     loadRecentEngagement(client, since),
     loadRecentConversions(client, since),
   ]);
+  if (!pendingDrafts.ok) return { ok: false, error: pendingDrafts.error };
+
+  const productIds = [
+    ...new Set(
+      allLeads
+        .map((row) => row.lastEngagedCatalogItemId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    ),
+  ];
+  const productNamesById = new Map<string, string>();
+  if (productIds.length > 0) {
+    const { data: catalogRows } = await client
+      .from('catalog_items')
+      .select('id, name')
+      .in('id', productIds);
+    for (const row of catalogRows ?? []) {
+      if (row.name?.trim()) productNamesById.set(row.id, row.name.trim());
+    }
+  }
+
+  const followUps = buildFollowUpQueue({
+    leads: allLeads,
+    pendingProspectIds: pendingDrafts.prospectIds,
+    productNamesById,
+    asOf,
+    rules: resolvedLeadRules.rules,
+  });
+  const callToday = allLeads.filter((row) => row.callToday);
+  const hot = allLeads.filter((row) => row.leadState === 'hot');
+  const warm = allLeads.filter((row) => row.leadState === 'warm');
 
   const prepMessage =
     regionalPool && banner.status === 'empty_pool' && scopedCrmRegion
@@ -423,6 +475,7 @@ export async function assembleOutreachBriefing(params: {
     callToday,
     hot,
     warm,
+    followUps,
     recentEngagement,
     recentConversions,
     performance: snap.snapshot.performance,

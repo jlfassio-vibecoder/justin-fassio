@@ -37,6 +37,8 @@ const SAMPLE: ProductOutreachHistoryItem = {
   clickCount: 1,
   openedAt: '2026-08-11T15:10:00.000Z',
   clickedAt: '2026-08-11T15:11:00.000Z',
+  lastOpenedAt: '2026-08-11T16:00:00.000Z',
+  lastClickedAt: '2026-08-11T15:11:00.000Z',
   deliveredAt: '2026-08-11T15:01:00.000Z',
   bouncedAt: null,
   failedAt: null,
@@ -68,6 +70,9 @@ describe('ProductEmailHistory', () => {
     expect(screen.getByText(/Manual/)).toBeInTheDocument();
     expect(screen.getByText(/Kelowna Golf · Sam Buyer/)).toBeInTheDocument();
     expect(screen.getByText('Opens 2 · Clicks 1')).toBeInTheDocument();
+    expect(screen.getByText(/First open/)).toBeInTheDocument();
+    expect(screen.getByText(/Last open/)).toBeInTheDocument();
+    expect(screen.getByText(/First click/)).toBeInTheDocument();
     expect(screen.getByText('Old Guys Rule — American Revival')).toBeInTheDocument();
   });
 

@@ -18,11 +18,15 @@ import {
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import { resolveOgrPricingMarketForProductEmailDraft } from '@/lib/resolveAccountPricingMarket';
 import { sendOgrProductOutreachEmail } from '@/lib/sendOgrProductOutreachEmail';
+import { getServiceRoleClient } from '@/lib/supabaseAdmin';
+import { replayUnmatchedResendEvents } from '@/lib/resendWebhook';
 import {
   getAgentProductOutreachDraftById,
   markAgentProductOutreachDraftSent,
   publicMarketFromOutreachPayload,
   requireExplicitProductOutreachCrmAssociation,
+  stampAgentProductOutreachDraftResendId,
+  stampResendEmailIdWithRetry,
 } from '@/lib/systemMessages';
 
 export const prerender = false;
@@ -155,17 +159,32 @@ export const POST: APIRoute = async ({ params, request }) => {
       return jsonError('Failed to send email', 502);
     }
 
-    const persist = await markAgentProductOutreachDraftSent(gate.supabase, draft.id, {
-      resendEmailId: sendResult.resendEmailId,
-      sentBy: gate.userId,
-      payload: {
-        sku: loaded.product.sku,
-        name: loaded.product.name,
-        slug: presentation.slug,
-        productHref,
-        from: undefined,
-        ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
-      },
+    const persist = await stampResendEmailIdWithRetry(async () => {
+      const primary = await markAgentProductOutreachDraftSent(gate.supabase, draft.id, {
+        resendEmailId: sendResult.resendEmailId,
+        sentBy: gate.userId,
+        payload: {
+          sku: loaded.product.sku,
+          name: loaded.product.name,
+          slug: presentation.slug,
+          productHref,
+          from: undefined,
+          ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
+        },
+      });
+      if (primary.ok) return primary;
+      return stampAgentProductOutreachDraftResendId(gate.supabase, draft.id, {
+        resendEmailId: sendResult.resendEmailId,
+        sentBy: gate.userId,
+        payload: {
+          sku: loaded.product.sku,
+          name: loaded.product.name,
+          slug: presentation.slug,
+          productHref,
+          from: undefined,
+          ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
+        },
+      });
     });
 
     if (!persist.ok) {
@@ -181,6 +200,11 @@ export const POST: APIRoute = async ({ params, request }) => {
         resendEmailId: sendResult.resendEmailId,
         logged: false,
       });
+    }
+
+    const admin = getServiceRoleClient();
+    if (admin) {
+      await replayUnmatchedResendEvents(admin, sendResult.resendEmailId);
     }
 
     return jsonOk({

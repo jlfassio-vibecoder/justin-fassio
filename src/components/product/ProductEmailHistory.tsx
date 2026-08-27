@@ -137,6 +137,25 @@ export function ProductEmailHistory({ catalogItemId, onReviewDraft }: ProductEma
                   Opens {item.openCount} · Clicks {item.clickCount}
                 </p>
               ) : null}
+              {item.status !== 'draft' &&
+              item.status !== 'cancelled' &&
+              (item.openCount > 0 || item.clickCount > 0)
+                ? (() => {
+                    const timing = [
+                      item.openedAt ? `First open ${formatWhen(item.openedAt)}` : null,
+                      item.lastOpenedAt && item.lastOpenedAt !== item.openedAt
+                        ? `Last open ${formatWhen(item.lastOpenedAt)}`
+                        : null,
+                      item.clickedAt ? `First click ${formatWhen(item.clickedAt)}` : null,
+                      item.lastClickedAt && item.lastClickedAt !== item.clickedAt
+                        ? `Last click ${formatWhen(item.lastClickedAt)}`
+                        : null,
+                    ].filter(Boolean);
+                    return timing.length > 0 ? (
+                      <p className="text-ink/45 m-0 mt-0.5 text-xs">{timing.join(' · ')}</p>
+                    ) : null;
+                  })()
+                : null}
               {item.failureReason && (item.status === 'bounced' || item.status === 'failed') ? (
                 <p className="text-accent-800 m-0 mt-0.5 text-xs">{item.failureReason}</p>
               ) : null}

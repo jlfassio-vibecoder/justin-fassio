@@ -284,3 +284,45 @@ export async function generateAgentProductOutreachDraft(input: {
     fallback: typeof payload.fallback === 'string' ? payload.fallback : 'none',
   };
 }
+
+export async function createFollowUpDraftClient(prospectId: number): Promise<
+  | {
+      ok: true;
+      draftId: string;
+      catalogItemId: string;
+      productName: string;
+      reusedPending: boolean;
+    }
+  | ApiFail
+> {
+  const result = await staffFetch('/api/staff/ogr-product-email/follow-up-draft', {
+    method: 'POST',
+    body: JSON.stringify({ prospectId }),
+  });
+  if ('ok' in result && result.ok === false) return result;
+  const { res, payload } = result as {
+    res: Response;
+    payload: Record<string, unknown>;
+  };
+  if (
+    !res.ok ||
+    !payload.ok ||
+    typeof payload.draftId !== 'string' ||
+    typeof payload.catalogItemId !== 'string'
+  ) {
+    return {
+      ok: false,
+      error:
+        typeof payload.error === 'string'
+          ? payload.error
+          : `Follow-up draft failed (${res.status})`,
+    };
+  }
+  return {
+    ok: true,
+    draftId: payload.draftId,
+    catalogItemId: payload.catalogItemId,
+    productName: typeof payload.productName === 'string' ? payload.productName : 'Product',
+    reusedPending: payload.reusedPending === true,
+  };
+}

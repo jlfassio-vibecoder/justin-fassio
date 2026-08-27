@@ -10,7 +10,7 @@ export const SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL = 'manual_product_email'
 export const SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL = 'agent_product_email' as const;
 
 export const PRODUCT_OUTREACH_HISTORY_SELECT =
-  'id, to_email, to_name, subject, status, origin, intro_text, closing_text, sent_at, prospect_id, account_contact_id, catalog_item_id, created_at, open_count, click_count, opened_at, clicked_at, delivered_at, bounced_at, failed_at, failure_reason' as const;
+  'id, to_email, to_name, subject, status, origin, intro_text, closing_text, sent_at, prospect_id, account_contact_id, catalog_item_id, created_at, open_count, click_count, opened_at, clicked_at, last_opened_at, last_clicked_at, delivered_at, bounced_at, failed_at, failure_reason' as const;
 
 export const PRODUCT_OUTREACH_HISTORY_LIMIT = 50;
 
@@ -37,6 +37,8 @@ export type ProductOutreachHistoryItem = {
   clickCount: number;
   openedAt: string | null;
   clickedAt: string | null;
+  lastOpenedAt: string | null;
+  lastClickedAt: string | null;
   deliveredAt: string | null;
   bouncedAt: string | null;
   failedAt: string | null;
@@ -149,6 +151,19 @@ export function parseGenerationMeta(raw: unknown): ProductOutreachGenerationMeta
 export type InsertProductOutreachSystemMessageInput = {
   catalogItemId: string;
   resendEmailId: string;
+  toEmail: string;
+  toName?: string | null;
+  subject: string;
+  prospectId?: number | null;
+  accountContactId?: string | null;
+  retailerLineAccountId?: string | null;
+  sentBy: string;
+  payload: ProductOutreachSystemMessagePayload;
+};
+
+/** Pre-send ledger row (status=sending) before Resend returns an email id. */
+export type InsertProductOutreachSendingMessageInput = {
+  catalogItemId: string;
   toEmail: string;
   toName?: string | null;
   subject: string;
@@ -949,6 +964,160 @@ export async function markAgentProductOutreachDraftSent(
   return { ok: true, id: existing.draft.id };
 }
 
+/**
+ * Stamp resend_email_id + sent after a successful Resend send when the draft
+ * transition may have partially applied (recoverable logged:false path).
+ */
+export async function stampAgentProductOutreachDraftResendId(
+  client: DbClient,
+  id: string,
+  input: MarkAgentProductOutreachDraftSentInput,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const existing = await getAgentProductOutreachDraftById(client, id);
+  if (!existing.ok) return existing;
+  if (
+    existing.draft.status !== 'draft' &&
+    existing.draft.status !== 'sending' &&
+    !(existing.draft.status === 'sent' && !existing.draft.resendEmailId)
+  ) {
+    return { ok: false, error: 'Draft is not eligible for Resend id stamp' };
+  }
+
+  const now = new Date().toISOString();
+  const generation = input.payload.generation ?? existing.draft.payload.generation ?? null;
+  const { error } = await client
+    .from('system_messages')
+    .update({
+      status: 'sent',
+      resend_email_id: input.resendEmailId,
+      queued_at: existing.draft.queuedAt ?? now,
+      sent_at: existing.draft.sentAt ?? now,
+      sent_by: input.sentBy,
+      payload: buildProductOutreachPayload(input.payload, generation),
+    })
+    .eq('id', existing.draft.id)
+    .eq('origin', SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL)
+    .in('status', ['draft', 'sending', 'sent']);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true, id: existing.draft.id };
+}
+
+const STAMP_RETRY_ATTEMPTS = 3;
+const STAMP_RETRY_BASE_MS = 40;
+
+async function sleepMs(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Run an ok/error stamp helper up to 3 times (2 retries) with short backoff. */
+export async function stampResendEmailIdWithRetry(
+  stamp: () => Promise<{ ok: true; id: string } | { ok: false; error: string }>,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  let last: { ok: true; id: string } | { ok: false; error: string } = {
+    ok: false,
+    error: 'Stamp did not run',
+  };
+  for (let attempt = 0; attempt < STAMP_RETRY_ATTEMPTS; attempt++) {
+    last = await stamp();
+    if (last.ok) return last;
+    if (attempt < STAMP_RETRY_ATTEMPTS - 1) {
+      await sleepMs(STAMP_RETRY_BASE_MS * (attempt + 1));
+    }
+  }
+  return last;
+}
+
+export async function insertProductOutreachSendingMessage(
+  client: DbClient,
+  input: InsertProductOutreachSendingMessageInput,
+): Promise<InsertProductOutreachSystemMessageResult> {
+  const now = new Date().toISOString();
+  const row: SystemMessageInsert = {
+    message_type: SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH,
+    origin: SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL,
+    status: 'sending',
+    catalog_item_id: input.catalogItemId,
+    resend_email_id: null,
+    to_email: normalizeSystemMessageEmail(input.toEmail),
+    to_name: input.toName?.trim() || null,
+    subject: input.subject,
+    prospect_id: input.prospectId ?? null,
+    account_contact_id: input.accountContactId ?? null,
+    retailer_line_account_id: input.retailerLineAccountId ?? null,
+    sent_by: input.sentBy,
+    queued_at: now,
+    sent_at: null,
+    payload: {
+      sku: input.payload.sku,
+      name: input.payload.name,
+      slug: input.payload.slug,
+      productHref: input.payload.productHref,
+      ...(input.payload.from ? { from: input.payload.from } : {}),
+      ...(input.payload.publicMarket === 'us' ? { publicMarket: 'us' as const } : {}),
+    },
+  };
+
+  const { data, error } = await client.from('system_messages').insert(row).select('id').single();
+
+  if (error || !data?.id) {
+    return { ok: false, error: error?.message ?? 'Failed to insert system message' };
+  }
+
+  return { ok: true, id: data.id };
+}
+
+export async function stampProductOutreachMessageSent(
+  client: DbClient,
+  id: string,
+  input: { resendEmailId: string },
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const now = new Date().toISOString();
+  const { error } = await client
+    .from('system_messages')
+    .update({
+      status: 'sent',
+      resend_email_id: input.resendEmailId,
+      sent_at: now,
+    })
+    .eq('id', id)
+    .eq('origin', SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL)
+    .in('status', ['sending', 'sent']);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true, id };
+}
+
+export async function markProductOutreachMessageFailed(
+  client: DbClient,
+  id: string,
+  failureReason: string,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const now = new Date().toISOString();
+  const { error } = await client
+    .from('system_messages')
+    .update({
+      status: 'failed',
+      failed_at: now,
+      failure_reason: failureReason.slice(0, 500),
+    })
+    .eq('id', id)
+    .eq('origin', SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL)
+    .eq('status', 'sending');
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true, id };
+}
+
 export async function insertProductOutreachSystemMessage(
   client: DbClient,
   input: InsertProductOutreachSystemMessageInput,
@@ -1006,6 +1175,8 @@ function mapHistoryRow(row: {
   click_count: number;
   opened_at: string | null;
   clicked_at: string | null;
+  last_opened_at: string | null;
+  last_clicked_at: string | null;
   delivered_at: string | null;
   bounced_at: string | null;
   failed_at: string | null;
@@ -1031,6 +1202,8 @@ function mapHistoryRow(row: {
     clickCount: row.click_count,
     openedAt: row.opened_at,
     clickedAt: row.clicked_at,
+    lastOpenedAt: row.last_opened_at,
+    lastClickedAt: row.last_clicked_at,
     deliveredAt: row.delivered_at,
     bouncedAt: row.bounced_at,
     failedAt: row.failed_at,

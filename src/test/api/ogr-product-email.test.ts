@@ -10,9 +10,14 @@ const buildOgrProductUrlMock = vi.fn();
 const buildOgrCollectionUrlMock = vi.fn();
 const resolvePublicSiteOriginMock = vi.fn();
 const resolveProductOutreachCrmAssociationMock = vi.fn();
-const insertProductOutreachSystemMessageMock = vi.fn();
+const insertProductOutreachSendingMessageMock = vi.fn();
+const stampProductOutreachMessageSentMock = vi.fn();
+const stampResendEmailIdWithRetryMock = vi.fn();
+const markProductOutreachMessageFailedMock = vi.fn();
 const validateProductOutreachRetailerLineAccountMock = vi.fn();
 const resolvePricingMarketForRetailerLineAccountMock = vi.fn();
+const getServiceRoleClientMock = vi.fn();
+const replayUnmatchedResendEventsMock = vi.fn();
 
 vi.mock('@/lib/agentAuth', () => ({
   requireApprovedStaffClient: (...args: unknown[]) => requireApprovedStaffClientMock(...args),
@@ -47,11 +52,24 @@ vi.mock('@/lib/resolveAccountPricingMarket', () => ({
     resolvePricingMarketForRetailerLineAccountMock(...args),
 }));
 
+vi.mock('@/lib/supabaseAdmin', () => ({
+  getServiceRoleClient: (...args: unknown[]) => getServiceRoleClientMock(...args),
+}));
+
+vi.mock('@/lib/resendWebhook', () => ({
+  replayUnmatchedResendEvents: (...args: unknown[]) => replayUnmatchedResendEventsMock(...args),
+}));
+
 vi.mock('@/lib/systemMessages', () => ({
   resolveProductOutreachCrmAssociation: (...args: unknown[]) =>
     resolveProductOutreachCrmAssociationMock(...args),
-  insertProductOutreachSystemMessage: (...args: unknown[]) =>
-    insertProductOutreachSystemMessageMock(...args),
+  insertProductOutreachSendingMessage: (...args: unknown[]) =>
+    insertProductOutreachSendingMessageMock(...args),
+  stampProductOutreachMessageSent: (...args: unknown[]) =>
+    stampProductOutreachMessageSentMock(...args),
+  stampResendEmailIdWithRetry: (...args: unknown[]) => stampResendEmailIdWithRetryMock(...args),
+  markProductOutreachMessageFailed: (...args: unknown[]) =>
+    markProductOutreachMessageFailedMock(...args),
   validateProductOutreachRetailerLineAccount: (...args: unknown[]) =>
     validateProductOutreachRetailerLineAccountMock(...args),
 }));
@@ -180,9 +198,17 @@ describe('POST /api/staff/ogr-product-email', () => {
       ok: true,
       association: { prospectId: null, accountContactId: null },
     });
-    insertProductOutreachSystemMessageMock.mockResolvedValue({
+    insertProductOutreachSendingMessageMock.mockResolvedValue({
       ok: true,
       id: 'sm-1',
+    });
+    stampResendEmailIdWithRetryMock.mockResolvedValue({ ok: true, id: 'sm-1' });
+    getServiceRoleClientMock.mockReturnValue(null);
+    replayUnmatchedResendEventsMock.mockResolvedValue({
+      attempted: 0,
+      applied: 0,
+      duplicates: 0,
+      failed: 0,
     });
     validateProductOutreachRetailerLineAccountMock.mockResolvedValue({
       ok: true,
@@ -413,11 +439,10 @@ describe('POST /api/staff/ogr-product-email', () => {
       text: 'Hi\n\ncard',
       fromDisplayName: 'Justin Fassio',
     });
-    expect(insertProductOutreachSystemMessageMock).toHaveBeenCalledWith(
+    expect(insertProductOutreachSendingMessageMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         catalogItemId: PRODUCT_ID,
-        resendEmailId: 're_123',
         toEmail: 'buyer@example.com',
         toName: 'Sam',
         subject: 'Old Guys Rule — American Revival',
@@ -432,6 +457,7 @@ describe('POST /api/staff/ogr-product-email', () => {
         }),
       }),
     );
+    expect(stampResendEmailIdWithRetryMock).toHaveBeenCalledOnce();
     // Pathnames may contain "wholesale"; assert against pricing leakage instead.
     expect(buildPublicProductPresentationMock).toHaveBeenCalledWith(
       expect.objectContaining({ wholesaleUsd: null }),
@@ -449,7 +475,7 @@ describe('POST /api/staff/ogr-product-email', () => {
 
     const res = await POST(requestWith({ productId: PRODUCT_ID, to: 'buyer@example.com' }));
     expect(res.status).toBe(200);
-    expect(insertProductOutreachSystemMessageMock).toHaveBeenCalledWith(
+    expect(insertProductOutreachSendingMessageMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         prospectId: 42,
@@ -478,7 +504,7 @@ describe('POST /api/staff/ogr-product-email', () => {
       error: 'Account contact does not belong to the given prospect',
     });
     expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
-    expect(insertProductOutreachSystemMessageMock).not.toHaveBeenCalled();
+    expect(insertProductOutreachSendingMessageMock).not.toHaveBeenCalled();
   });
 
   it('sends and logs when only prospectId is provided', async () => {
@@ -498,7 +524,7 @@ describe('POST /api/staff/ogr-product-email', () => {
       expect.anything(),
       expect.objectContaining({ prospectId: 42, toEmail: 'adhoc@example.com' }),
     );
-    expect(insertProductOutreachSystemMessageMock).toHaveBeenCalledWith(
+    expect(insertProductOutreachSendingMessageMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         prospectId: 42,
@@ -546,7 +572,7 @@ describe('POST /api/staff/ogr-product-email', () => {
       prospectId: 42,
       salesLineId: LINE_ID,
     });
-    expect(insertProductOutreachSystemMessageMock).toHaveBeenCalledWith(
+    expect(insertProductOutreachSendingMessageMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         prospectId: 42,
@@ -682,7 +708,7 @@ describe('POST /api/staff/ogr-product-email', () => {
     });
     expect(validateProductOutreachRetailerLineAccountMock).not.toHaveBeenCalled();
     expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
-    expect(insertProductOutreachSystemMessageMock).not.toHaveBeenCalled();
+    expect(insertProductOutreachSendingMessageMock).not.toHaveBeenCalled();
   });
 
   it('rejects a mismatched retailer line account before send', async () => {
@@ -710,25 +736,32 @@ describe('POST /api/staff/ogr-product-email', () => {
       error: 'Retailer line account does not belong to the given prospect',
     });
     expect(sendOgrProductOutreachEmailMock).not.toHaveBeenCalled();
-    expect(insertProductOutreachSystemMessageMock).not.toHaveBeenCalled();
+    expect(insertProductOutreachSendingMessageMock).not.toHaveBeenCalled();
   });
 
-  it('does not insert when Resend fails', async () => {
+  it('inserts sending row then marks failed when Resend is not configured', async () => {
     sendOgrProductOutreachEmailMock.mockResolvedValue({ ok: false, reason: 'not_configured' });
     const res = await POST(requestWith({ productId: PRODUCT_ID, to: 'buyer@example.com' }));
     expect(res.status).toBe(503);
-    expect(insertProductOutreachSystemMessageMock).not.toHaveBeenCalled();
+    expect(insertProductOutreachSendingMessageMock).toHaveBeenCalledOnce();
+    expect(markProductOutreachMessageFailedMock).toHaveBeenCalledWith(
+      expect.anything(),
+      'sm-1',
+      'not_configured',
+    );
+    expect(stampResendEmailIdWithRetryMock).not.toHaveBeenCalled();
   });
 
-  it('returns 200 ok when persist fails after send', async () => {
-    insertProductOutreachSystemMessageMock.mockResolvedValue({
+  it('returns 200 ok with systemMessageId when stamp fails after send', async () => {
+    stampResendEmailIdWithRetryMock.mockResolvedValue({
       ok: false,
-      error: 'insert failed',
+      error: 'stamp failed',
     });
     const res = await POST(requestWith({ productId: PRODUCT_ID, to: 'buyer@example.com' }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       ok: true,
+      systemMessageId: 'sm-1',
       resendEmailId: 're_123',
       logged: false,
     });

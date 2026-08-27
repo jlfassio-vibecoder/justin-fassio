@@ -5,9 +5,12 @@
 
 import type { AllocateChannelsForDayResult } from '@/lib/outreachChannelAllocation';
 import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
+import type { OutreachFollowUpRow } from '@/lib/outreachFollowUpQueue';
 import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
 import type { LeadRuleSource } from '@/lib/outreachLeadRuleCalibration';
 import type { OutreachLeadRulesVersion } from '@/lib/outreachLeadRules';
+
+export type { OutreachFollowUpAction, OutreachFollowUpRow } from '@/lib/outreachFollowUpQueue';
 
 export type OutreachPrepRunStatus = 'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
 
@@ -98,10 +101,13 @@ export type OutreachBriefingDto = {
   callToday: OutreachLeadRow[];
   hot: OutreachLeadRow[];
   warm: OutreachLeadRow[];
+  /** Ranked Call / Email / Watch queue for Briefing (recs 1–2). */
+  followUps: OutreachFollowUpRow[];
   recentEngagement: Array<{
     prospectId: number;
     prospectName: string;
-    lastClickedAt: string;
+    lastEngagedAt: string;
+    openCount: number;
     clickCount: number;
   }>;
   recentConversions: Array<{
@@ -203,4 +209,23 @@ export function formatRegionalPoolMessage(
     parts.push('0 selected today');
   }
   return parts.join(' · ');
+}
+
+export function formatFollowUpRelativeTime(
+  iso: string | null,
+  asOf: Date = new Date(),
+): string | null {
+  if (!iso) return null;
+  const then = Date.parse(iso);
+  if (!Number.isFinite(then)) return null;
+  const delta = asOf.getTime() - then;
+  if (delta < 60_000) return 'just now';
+  const hours = Math.floor(delta / 3_600_000);
+  if (hours < 1) {
+    const mins = Math.max(1, Math.floor(delta / 60_000));
+    return `${mins}m ago`;
+  }
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }

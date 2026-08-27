@@ -92,6 +92,7 @@ describe('staff outreach briefing + prep', () => {
         callToday: [],
         hot: [],
         warm: [],
+        followUps: [],
         recentEngagement: [],
         recentConversions: [],
         performance: null,

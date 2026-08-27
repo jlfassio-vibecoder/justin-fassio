@@ -3,15 +3,15 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
 import { catalogItemStub } from '@/lib/catalog';
-import { aggregateProspectOutreachEngagement } from '@/lib/outreachEngagementAggregate';
 import type { OutreachBriefingDto } from '@/lib/outreachBriefingShared';
-import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
 
 const getAgentProductOutreachDraftClientMock = vi.fn();
+const createFollowUpDraftClientMock = vi.fn();
 
 vi.mock('@/lib/agentProductOutreachDraftClient', () => ({
   getAgentProductOutreachDraftClient: (...args: unknown[]) =>
     getAgentProductOutreachDraftClientMock(...args),
+  createFollowUpDraftClient: (...args: unknown[]) => createFollowUpDraftClientMock(...args),
 }));
 
 vi.mock('@/components/OgrProductEmailComposerModal', () => ({
@@ -93,42 +93,13 @@ const briefingPayload: { briefing: OutreachBriefingDto } = {
     callToday: [],
     hot: [],
     warm: [],
+    followUps: [],
     recentEngagement: [],
     recentConversions: [],
     performance: null,
     leadRules: { source: 'provisional', version: 'v1-provisional', adjustedFields: [] },
     adaptiveWeightsEnabled: true,
   },
-};
-
-const leadRowStub: OutreachLeadRow = {
-  prospectId: 42,
-  prospectName: 'BuddyBubble',
-  accountStatus: 'prospect' as const,
-  leadState: 'hot' as const,
-  callToday: true,
-  callTodayReasons: ['follow_up_due' as const],
-  score: 10,
-  rulesVersion: 'v1-provisional' as const,
-  engagement: aggregateProspectOutreachEngagement({
-    prospectId: 42,
-    messages: [
-      {
-        id: 'msg-1',
-        prospect_id: 42,
-        to_email: 'buyer@buddybubble.com',
-        catalog_item_id: PRODUCT_ID,
-        sent_at: '2026-08-20T12:00:00Z',
-        open_count: 2,
-        click_count: 1,
-        last_opened_at: '2026-08-21T12:00:00Z',
-        last_clicked_at: '2026-08-21T13:00:00Z',
-        bounced_at: null,
-        complained_at: null,
-        status: 'sent',
-      },
-    ],
-  }),
 };
 
 function briefingProps(overrides: Record<string, unknown> = {}) {
@@ -223,50 +194,126 @@ describe('AgentBriefingTab draft review', () => {
   });
 });
 
-describe('AgentBriefingTab log call', () => {
+describe('AgentBriefingTab follow-up queue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockBriefingFetch({
-      briefing: {
-        ...briefingPayload.briefing,
-        callToday: [{ ...leadRowStub, prospectName: 'Call Today Store' }],
-        hot: [{ ...leadRowStub, prospectId: 43, prospectName: 'Hot Lead Shop' }],
-        warm: [
-          { ...leadRowStub, prospectId: 44, prospectName: 'Warm Lead Shop', leadState: 'warm' },
-        ],
-        recentEngagement: [
-          {
-            prospectId: 55,
-            prospectName: 'Clicked Prospect',
-            lastClickedAt: '2026-08-21T12:00:00Z',
-            clickCount: 2,
-          },
-        ],
+    createFollowUpDraftClientMock.mockResolvedValue({
+      ok: true,
+      draftId: DRAFT_ID,
+      catalogItemId: PRODUCT_ID,
+      productName: 'American Revival',
+      reusedPending: false,
+    });
+    getAgentProductOutreachDraftClientMock.mockResolvedValue({
+      ok: true,
+      draft: {
+        id: DRAFT_ID,
+        toEmail: 'buyer@example.com',
+        toName: 'Buyer',
+        subject: 'Subject',
+        introText: 'Intro',
+        closingText: 'Close',
+        prospectId: 42,
+        accountContactId: 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+        catalogItemId: PRODUCT_ID,
+        payload: { sku: 'OGR-101', slug: 'american-revival', name: 'American Revival' },
       },
     });
   });
 
-  it.each([
-    ['Call Today', 'Call Today Store', 42],
-    ['Hot', 'Hot Lead Shop', 43],
-    ['Warm', 'Warm Lead Shop', 44],
-  ] as const)('opens log call for %s lead without navigating', async (_label, name, prospectId) => {
+  it('opens log call for Call rows', async () => {
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        followUps: [
+          {
+            prospectId: 42,
+            prospectName: 'Call Today Store',
+            accountStatus: 'prospect',
+            leadState: 'hot',
+            recommendedAction: 'call',
+            reasonLine: 'Follow-up due',
+            lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastProductName: 'American Revival',
+            lastProductId: PRODUCT_ID,
+            score: 10,
+          },
+        ],
+      },
+    });
     const user = userEvent.setup();
     const onLogCallForLead = vi.fn();
     const onOpenProspect = vi.fn();
     render(<AgentBriefingTab {...briefingProps({ onLogCallForLead, onOpenProspect })} />);
 
     await waitFor(() => {
-      expect(screen.getByText(name)).toBeInTheDocument();
+      expect(screen.getByText('Call Today Store')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: new RegExp(name) }));
+    await user.click(screen.getByRole('button', { name: 'Call Call Today Store' }));
 
-    expect(onLogCallForLead).toHaveBeenCalledWith(prospectId);
+    expect(onLogCallForLead).toHaveBeenCalledWith(42);
     expect(onOpenProspect).not.toHaveBeenCalled();
+    expect(createFollowUpDraftClientMock).not.toHaveBeenCalled();
   });
 
-  it('still navigates for recent engagement clicks', async () => {
+  it('opens a follow-up draft for Email rows', async () => {
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        followUps: [
+          {
+            prospectId: 44,
+            prospectName: 'Warm Lead Shop',
+            accountStatus: 'prospect',
+            leadState: 'warm',
+            recommendedAction: 'email',
+            reasonLine: '1 product clicked',
+            lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastProductName: 'American Revival',
+            lastProductId: PRODUCT_ID,
+            score: 5,
+          },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    const onLogCallForLead = vi.fn();
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Warm Lead Shop')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Email Warm Lead Shop' }));
+
+    await waitFor(() => {
+      expect(createFollowUpDraftClientMock).toHaveBeenCalledWith(44);
+      expect(screen.getByTestId('composer-modal')).toBeInTheDocument();
+    });
+    expect(onLogCallForLead).not.toHaveBeenCalled();
+  });
+
+  it('opens the drawer for Watch rows', async () => {
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        followUps: [
+          {
+            prospectId: 55,
+            prospectName: 'Clicked Prospect',
+            accountStatus: 'prospect',
+            leadState: 'cold',
+            recommendedAction: 'watch',
+            reasonLine: '1 product opened',
+            lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastProductName: null,
+            lastProductId: PRODUCT_ID,
+            score: 1,
+          },
+        ],
+      },
+    });
     const user = userEvent.setup();
     const onLogCallForLead = vi.fn();
     const onOpenProspect = vi.fn();
@@ -276,9 +323,12 @@ describe('AgentBriefingTab log call', () => {
       expect(screen.getByText('Clicked Prospect')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Clicked Prospect' }));
+    await user.click(screen.getByRole('button', { name: 'Open Clicked Prospect' }));
 
-    expect(onOpenProspect).toHaveBeenCalledWith({ prospectId: 55 });
+    expect(onOpenProspect).toHaveBeenCalledWith({
+      prospectId: 55,
+      accountStatus: 'prospect',
+    });
     expect(onLogCallForLead).not.toHaveBeenCalled();
   });
 });
