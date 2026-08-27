@@ -300,3 +300,99 @@ export async function applyResendSystemMessageEvent(
     error: rpcError ?? `Unexpected RPC status: ${status ?? 'null'}`,
   };
 }
+
+export async function bufferUnmatchedResendEvent(
+  admin: DbClient,
+  input: ApplyResendSystemMessageEventInput,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await admin.from('resend_unmatched_events').upsert(
+    {
+      resend_email_id: input.event.emailId,
+      resend_event_id: input.resendEventId,
+      event_type: input.event.type,
+      occurred_at: input.event.occurredAt,
+      payload: input.event.payload,
+      failure_reason: input.event.failureReason,
+      resolved_at: null,
+    },
+    { onConflict: 'resend_event_id', ignoreDuplicates: true },
+  );
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
+export type ReplayUnmatchedResendEventsResult = {
+  attempted: number;
+  applied: number;
+  duplicates: number;
+  failed: number;
+};
+
+/**
+ * Re-apply buffered webhook events once system_messages.resend_email_id exists.
+ * Marks unmatched rows resolved on applied/duplicate outcomes.
+ */
+export async function replayUnmatchedResendEvents(
+  admin: DbClient,
+  resendEmailId: string,
+): Promise<ReplayUnmatchedResendEventsResult> {
+  const trimmed = resendEmailId.trim();
+  const result: ReplayUnmatchedResendEventsResult = {
+    attempted: 0,
+    applied: 0,
+    duplicates: 0,
+    failed: 0,
+  };
+  if (!trimmed) return result;
+
+  const { data, error } = await admin
+    .from('resend_unmatched_events')
+    .select(
+      'id, resend_email_id, resend_event_id, event_type, occurred_at, payload, failure_reason',
+    )
+    .eq('resend_email_id', trimmed)
+    .is('resolved_at', null)
+    .order('occurred_at', { ascending: true });
+
+  if (error || !data?.length) return result;
+
+  const now = new Date().toISOString();
+  for (const row of data) {
+    result.attempted += 1;
+    const apply = await applyResendSystemMessageEvent(admin, {
+      resendEventId: row.resend_event_id,
+      event: {
+        type: row.event_type,
+        emailId: row.resend_email_id,
+        occurredAt: row.occurred_at,
+        failureReason: row.failure_reason,
+        payload:
+          row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
+            ? (row.payload as Record<string, unknown>)
+            : {},
+      },
+    });
+
+    if (!apply.ok || ('unknownEmail' in apply && apply.unknownEmail)) {
+      result.failed += 1;
+      continue;
+    }
+
+    if (apply.duplicate) {
+      result.duplicates += 1;
+    } else {
+      result.applied += 1;
+    }
+
+    await admin
+      .from('resend_unmatched_events')
+      .update({ resolved_at: now })
+      .eq('id', row.id)
+      .is('resolved_at', null);
+  }
+
+  return result;
+}

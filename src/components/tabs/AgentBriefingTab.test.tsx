@@ -238,7 +238,8 @@ describe('AgentBriefingTab log call', () => {
           {
             prospectId: 55,
             prospectName: 'Clicked Prospect',
-            lastClickedAt: '2026-08-21T12:00:00Z',
+            lastEngagedAt: '2026-08-21T12:00:00Z',
+            openCount: 3,
             clickCount: 2,
           },
         ],

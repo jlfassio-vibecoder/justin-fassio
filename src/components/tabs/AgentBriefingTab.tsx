@@ -712,23 +712,30 @@ export function AgentBriefingTab({
             <Card>
               <CardTitle className="text-[15px]">Recent engagement (7d)</CardTitle>
               {briefing.recentEngagement.length === 0 ? (
-                <p className="text-ink/50 m-0 text-sm">No clicks in the last 7 days.</p>
+                <p className="text-ink/50 m-0 text-sm">No opens or clicks in the last 7 days.</p>
               ) : (
                 <ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm">
-                  {briefing.recentEngagement.map((e) => (
-                    <li key={e.prospectId}>
-                      <button
-                        type="button"
-                        className="text-accent-800 hover:underline"
-                        onClick={() => onOpenProspect({ prospectId: e.prospectId })}
-                      >
-                        {e.prospectName}
-                      </button>
-                      <span className="text-ink/50 ml-2 text-xs">
-                        {e.clickCount} click{e.clickCount === 1 ? '' : 's'}
-                      </span>
-                    </li>
-                  ))}
+                  {briefing.recentEngagement.map((e) => {
+                    const parts: string[] = [];
+                    if (e.clickCount > 0) {
+                      parts.push(`${e.clickCount} click${e.clickCount === 1 ? '' : 's'}`);
+                    }
+                    if (e.openCount > 0) {
+                      parts.push(`${e.openCount} open${e.openCount === 1 ? '' : 's'}`);
+                    }
+                    return (
+                      <li key={e.prospectId}>
+                        <button
+                          type="button"
+                          className="text-accent-800 hover:underline"
+                          onClick={() => onOpenProspect({ prospectId: e.prospectId })}
+                        >
+                          {e.prospectName}
+                        </button>
+                        <span className="text-ink/50 ml-2 text-xs">{parts.join(' · ')}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </Card>

@@ -167,6 +167,7 @@ function OgrProductEmailComposerForm({
   const [replacingProduct, setReplacingProduct] = useState(false);
   const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loggingWarning, setLoggingWarning] = useState<string | null>(null);
 
   const busy = submitting || saving || regenerating || replacingProduct;
   const canChangeProduct =
@@ -407,6 +408,7 @@ function OgrProductEmailComposerForm({
     }
 
     setError(null);
+    setLoggingWarning(null);
     setSubmitting(true);
     try {
       if (isDraftReview && draft) {
@@ -427,6 +429,12 @@ function OgrProductEmailComposerForm({
           return;
         }
         onSent();
+        if (sent.logged === false) {
+          setLoggingWarning(
+            'Email was delivered, but CRM logging is incomplete. Opens and clicks may not track until the send is repaired.',
+          );
+          return;
+        }
         onClose();
         return;
       }
@@ -453,6 +461,12 @@ function OgrProductEmailComposerForm({
         return;
       }
       onSent();
+      if (result.logged === false) {
+        setLoggingWarning(
+          'Email was delivered, but CRM logging is incomplete. Opens and clicks may not track until the send is repaired.',
+        );
+        return;
+      }
       onClose();
     } finally {
       setSubmitting(false);
@@ -618,6 +632,15 @@ function OgrProductEmailComposerForm({
         {error ? (
           <p className="text-accent-800 m-0 text-sm" role="alert">
             {error}
+          </p>
+        ) : null}
+
+        {loggingWarning ? (
+          <p
+            className="text-accent-800 border-accent-200 bg-accent-50 m-0 rounded-md border px-3 py-2 text-sm"
+            role="status"
+          >
+            {loggingWarning}
           </p>
         ) : null}
 

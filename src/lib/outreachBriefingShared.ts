@@ -101,7 +101,8 @@ export type OutreachBriefingDto = {
   recentEngagement: Array<{
     prospectId: number;
     prospectName: string;
-    lastClickedAt: string;
+    lastEngagedAt: string;
+    openCount: number;
     clickCount: number;
   }>;
   recentConversions: Array<{
