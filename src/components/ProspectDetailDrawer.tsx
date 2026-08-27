@@ -16,6 +16,7 @@ import {
 import { ProspectTaxonomyEditor } from '@/components/ProspectTaxonomyEditor';
 import { OutreachLeadStateChip } from '@/components/OutreachLeadStateChip';
 import { Button } from '@/components/ui/Button';
+import { CopyUrlButton } from '@/components/ui/CopyUrlButton';
 import { Tag } from '@/components/ui/Tag';
 import { formatAccountLocationLine } from '@/lib/accountImport/directoryPresentation';
 import { buildCatalogItemEmailCardHtml } from '@/lib/catalogItemEmailCardHtml';
@@ -171,8 +172,12 @@ export function ProspectDetailDrawer({
       >
         <div className="border-ink/10 flex items-start justify-between gap-3 border-b px-5 py-4">
           <div className="min-w-0">
-            <p id="prospect-detail-title" className="font-heading text-xl leading-tight">
-              {prospect.name}
+            <p
+              id="prospect-detail-title"
+              className="font-heading flex items-start gap-1.5 text-xl leading-tight"
+            >
+              <span className="min-w-0">{prospect.name}</span>
+              <CopyUrlButton url={prospect.name} label="Copy name" className="mt-1" />
             </p>
             <p className="text-ink/60 m-0 mt-1 text-xs tracking-wide uppercase">
               ID {prospect.id} · {STATUS_LABEL[prospect.accountStatus]}

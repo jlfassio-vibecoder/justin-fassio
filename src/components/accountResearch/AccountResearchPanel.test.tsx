@@ -350,6 +350,10 @@ describe('AccountResearchPanel', () => {
     render(<AccountResearchPanel prospect={prospect} />);
 
     expect(await screen.findByText(/^Locked$/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'https://www.facebook.com/SpallGolf' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy URL' })).toBeInTheDocument();
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Unlock/i }));
     expect(unlockResearchMock).toHaveBeenCalled();

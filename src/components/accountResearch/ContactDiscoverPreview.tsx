@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { CopyableUrl } from '@/components/ui/CopyUrlButton';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
 import {
   ACCOUNT_CONTACT_ROLES,
@@ -206,14 +207,7 @@ export function ContactDiscoverPreview({
           {preview.yelpListingUrl ? (
             <p className="m-0">
               Directory listing:{' '}
-              <a
-                href={preview.yelpListingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent-700 underline"
-              >
-                {preview.yelpListingUrl}
-              </a>
+              <CopyableUrl url={preview.yelpListingUrl} linkClassName="text-accent-700 underline" />
             </p>
           ) : null}
         </div>
@@ -255,14 +249,10 @@ export function ContactDiscoverPreview({
                   <ul className="m-0 list-none space-y-1 p-0">
                     {preview.roleVerification.sourceUrls.map((url) => (
                       <li key={url}>
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-accent-700 break-all underline"
-                        >
-                          {url}
-                        </a>
+                        <CopyableUrl
+                          url={url}
+                          linkClassName="text-accent-700 break-all underline"
+                        />
                       </li>
                     ))}
                   </ul>

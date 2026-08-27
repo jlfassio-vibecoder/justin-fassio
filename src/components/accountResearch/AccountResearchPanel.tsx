@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { CopyableUrl, CopyUrlButton } from '@/components/ui/CopyUrlButton';
 import { Tag } from '@/components/ui/Tag';
 import { AccountResearchContactPickModal } from '@/components/accountResearch/AccountResearchContactPickModal';
 import { ContactDiscoverPreview } from '@/components/accountResearch/ContactDiscoverPreview';
@@ -627,14 +628,10 @@ export function AccountResearchPanel({
             </p>
             <p className="m-0">
               Directory listing:{' '}
-              <a
-                href={directoryCitation.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent-700 underline"
-              >
-                {directoryCitation.source_url}
-              </a>
+              <CopyableUrl
+                url={directoryCitation.source_url}
+                linkClassName="text-accent-700 underline"
+              />
             </p>
           </div>
         ) : (
@@ -734,14 +731,11 @@ export function AccountResearchPanel({
                     </div>
                     {lock ? (
                       <div className="mt-2 flex flex-col gap-2">
-                        <a
-                          href={lock.locked_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-accent-800 inline-block text-xs hover:underline"
-                        >
-                          {lock.locked_url}
-                        </a>
+                        <CopyableUrl
+                          url={lock.locked_url}
+                          className="text-xs"
+                          linkClassName="text-accent-800 text-xs hover:underline"
+                        />
                         <div>
                           <Button
                             variant="secondary"
@@ -771,12 +765,13 @@ export function AccountResearchPanel({
                                     }))
                                   }
                                 />
-                                <span>
+                                <span className="min-w-0 flex-1">
                                   <span className="block text-xs font-medium">
                                     {candidate.title ?? candidate.url}
                                   </span>
-                                  <span className="text-ink/55 block text-[11px] break-all">
-                                    {candidate.url}
+                                  <span className="text-ink/55 flex items-start gap-1 text-[11px]">
+                                    <span className="min-w-0 break-all">{candidate.url}</span>
+                                    <CopyUrlButton url={candidate.url} />
                                   </span>
                                   {candidate.snippet ? (
                                     <span className="text-ink/60 mt-0.5 block text-[11px] leading-relaxed">
@@ -911,14 +906,13 @@ export function AccountResearchPanel({
                                     {citation.excerpt}
                                   </p>
                                 ) : null}
-                                <a
-                                  href={citation.source_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-accent-800 mt-1 inline-block text-xs hover:underline"
+                                <CopyableUrl
+                                  url={citation.source_url}
+                                  className="mt-1 text-xs"
+                                  linkClassName="text-accent-800 text-xs hover:underline"
                                 >
                                   Open source
-                                </a>
+                                </CopyableUrl>
                               </li>
                             ))
                           )}
