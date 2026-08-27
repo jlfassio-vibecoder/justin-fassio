@@ -150,6 +150,7 @@ export async function executeAccountResearchSourceSearch(args: {
   websiteSocialLinks?: RunWebsiteSocialCache;
   shopifyEvidence?: ShopifyEvidence | null;
   lockedUrl?: string | null;
+  yelpBusinessUrlHint?: string | null;
 }): Promise<SourceSearchOutcome> {
   if (isSocialPlatform(args.sourceType)) {
     return executeSocialPlatformSearch({
@@ -243,6 +244,9 @@ export async function executeAccountResearchSourceSearch(args: {
                 : '',
           args.ctx.website && !isDirectoryCitationHost(hostnameFromUrl(args.ctx.website))
             ? `CRM website hint: ${args.ctx.website}`
+            : '',
+          args.yelpBusinessUrlHint?.trim()
+            ? `Yelp-verified official website hint (not proof): ${args.yelpBusinessUrlHint.trim()}`
             : '',
           websiteDiscovery
             ? 'After searching, write a short factual brief from tool results only.'

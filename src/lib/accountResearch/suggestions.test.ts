@@ -5,7 +5,9 @@ import {
   buildGeneratedSuggestions,
   collectAcceptedCitations,
   filterNoOpSuggestions,
+  pickDirectoryIdentitySuggestions,
 } from '@/lib/accountResearch/suggestions';
+import { buildYelpDirectoryCitationMetadata } from '@/lib/accountResearch/verifyYelpDirectoryMatch';
 
 function baseProspect(overrides: Partial<Prospect> = {}): Prospect {
   return {
@@ -112,6 +114,82 @@ describe('accountResearch suggestions', () => {
       useModel: false,
     });
     expect(rows).toHaveLength(0);
+  });
+
+  it('builds blank-only directory identity suggestions', () => {
+    const prospect = baseProspect({ phone: '', city: 'Bandon' });
+    const directory = citation({
+      id: 'dir-1',
+      platform: 'directory',
+      confidence: 'high',
+      provider_metadata: buildYelpDirectoryCitationMetadata({
+        business: {
+          id: 'yelp-1',
+          name: 'The Sassy Seagull',
+          alias: 'the-sassy-seagull-bandon',
+          url: 'https://www.yelp.com/biz/the-sassy-seagull-bandon',
+          phone: '541-777-7147',
+          address1: '198 2nd St SE',
+          city: 'Bandon',
+          state: 'OR',
+          postalCode: '97411',
+          businessUrl: null,
+          categories: ['Gift Shop'],
+          isClaimed: true,
+          reviewCount: 42,
+          rating: 4.5,
+        },
+        confidence: 'high',
+        matchMethod: 'business_match',
+        score: 100,
+        reasons: [],
+        candidateCount: 1,
+        viableCandidateCount: 1,
+      }),
+    });
+
+    const rows = pickDirectoryIdentitySuggestions(prospect, [directory]);
+    expect(rows.map((r) => r.field_path).sort()).toEqual(['address', 'phone', 'postal_code']);
+    expect(rows.every((r) => r.citation_ids.includes('dir-1'))).toBe(true);
+  });
+
+  it('includes directory suggestions in buildGeneratedSuggestions', async () => {
+    const prospect = baseProspect({ phone: '' });
+    const directory = citation({
+      id: 'dir-1',
+      platform: 'directory',
+      provider_metadata: buildYelpDirectoryCitationMetadata({
+        business: {
+          id: 'yelp-1',
+          name: 'Shop',
+          alias: 'shop',
+          url: 'https://www.yelp.com/biz/shop',
+          phone: '541-555-0100',
+          address1: '1 Main',
+          city: 'Bandon',
+          state: 'OR',
+          postalCode: '97411',
+          businessUrl: null,
+          categories: [],
+          isClaimed: null,
+          reviewCount: null,
+          rating: null,
+        },
+        confidence: 'high',
+        matchMethod: 'business_match',
+        score: 90,
+        reasons: [],
+        candidateCount: 1,
+        viableCandidateCount: 1,
+      }),
+    });
+
+    const rows = await buildGeneratedSuggestions({
+      prospect,
+      citations: [directory],
+      useModel: false,
+    });
+    expect(rows.some((r) => r.field_path === 'phone')).toBe(true);
   });
 
   it('filters no-op suggestions before persist', () => {

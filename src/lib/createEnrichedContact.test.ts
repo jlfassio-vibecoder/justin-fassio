@@ -37,6 +37,10 @@ vi.mock('@/lib/contactResearch/verifyPublicContactRole', () => ({
   }) => `LinkedIn verification: ${result.status}`,
 }));
 
+vi.mock('@/lib/accountResearch/verifyYelpDirectoryMatch', () => ({
+  loadPersistedYelpMatchForRetailer: async () => null,
+}));
+
 vi.mock('@/lib/contactResearch/buildContactResearchBrief', () => ({
   buildContactResearchBrief: (...args: unknown[]) => buildContactResearchBriefMock(...args),
   composeContactResearchBrief: (seed: string, brief: string | null) =>

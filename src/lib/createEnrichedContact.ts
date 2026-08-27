@@ -19,6 +19,7 @@ import {
   verifyPublicContactRole,
   type PublicRoleVerificationStatus,
 } from '@/lib/contactResearch/verifyPublicContactRole';
+import { loadPersistedYelpMatchForRetailer } from '@/lib/accountResearch/verifyYelpDirectoryMatch';
 import { researchCompany } from '@/lib/companyWebResearch';
 import { yelpBizSearchUrl } from '@/lib/yelp/businessMatch';
 import { createEnrichedProspect } from '@/lib/createEnrichedProspect';
@@ -355,10 +356,13 @@ export async function previewEnrichedContactAttach(
     return { ok: false, error: contactsResult.error };
   }
 
+  const persistedYelpMatch = await loadPersistedYelpMatchForRetailer(supabase, accountId);
+
   const briefContext = await buildContactResearchBrief({
     prospect,
     resolvedWebsite: input.resolvedWebsite,
     candidateName: input.candidateName,
+    persistedYelpMatch,
   });
 
   const candidateName = input.candidateName?.trim() || undefined;

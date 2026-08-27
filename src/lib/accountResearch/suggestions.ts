@@ -18,6 +18,11 @@ import {
   valuesEqualForSuggestion,
 } from '@/lib/accountResearch/suggestionFields';
 import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
+import {
+  yelpMatchFromDirectoryCitation,
+  type YelpDirectoryCitationMetadata,
+} from '@/lib/accountResearch/verifyYelpDirectoryMatch';
+import { buildBlankOnlyProspectPatch } from '@/lib/yelp/mapYelpToProspectPatch';
 import type {
   AccountResearchCitation,
   AccountResearchProfileSuggestion,
@@ -120,6 +125,64 @@ function pickWebsiteSuggestion(
   };
 }
 
+const DIRECTORY_IDENTITY_FIELDS = ['phone', 'address', 'city', 'postal_code'] as const;
+
+type DirectoryIdentityField = (typeof DIRECTORY_IDENTITY_FIELDS)[number];
+
+function directoryFieldPath(key: string): DirectoryIdentityField | null {
+  if ((DIRECTORY_IDENTITY_FIELDS as readonly string[]).includes(key)) {
+    return key as DirectoryIdentityField;
+  }
+  return null;
+}
+
+/** Deterministic blank-only identity suggestions from accepted Yelp directory citations. */
+export function pickDirectoryIdentitySuggestions(
+  prospect: Prospect,
+  citations: ReadonlyArray<AccountResearchCitation>,
+): GeneratedSuggestionPayload[] {
+  const directoryCitation = citations.find(
+    (c) => c.platform === 'directory' && c.acceptance_status === 'accepted',
+  );
+  if (!directoryCitation) return [];
+
+  const match = yelpMatchFromDirectoryCitation(directoryCitation);
+  if (!match) return [];
+
+  const meta = directoryCitation.provider_metadata as Partial<YelpDirectoryCitationMetadata> | null;
+  const confidence = meta?.match_confidence ?? directoryCitation.confidence;
+
+  const { patch } = buildBlankOnlyProspectPatch(
+    {
+      phone: prospect.phone,
+      address: prospect.address,
+      city: prospect.city,
+      postal_code: prospect.postalCode,
+      website: prospect.website,
+    },
+    match.business,
+  );
+
+  const out: GeneratedSuggestionPayload[] = [];
+  for (const [key, value] of Object.entries(patch) as [keyof typeof patch, string][]) {
+    const fieldPath = directoryFieldPath(key);
+    if (!fieldPath || !value) continue;
+    if (!citationMatchesFieldPlatforms(directoryCitation.platform, fieldPath)) continue;
+    if (!canSuggestField(prospect, fieldPath, value)) continue;
+
+    out.push({
+      field_path: fieldPath,
+      suggested_value: value,
+      rationale: `Yelp directory match (${confidence}) — blank CRM field only.`,
+      confidence,
+      citation_ids: [directoryCitation.id],
+      baseline_value: prospectBaselineValue(prospect, fieldPath),
+    });
+  }
+
+  return out;
+}
+
 function buildEvidencePrompt(citations: ReadonlyArray<AccountResearchCitation>): string {
   const byPlatform = new Map<string, AccountResearchCitation[]>();
   for (const citation of citations) {
@@ -219,6 +282,10 @@ export async function buildGeneratedSuggestions(args: {
 
   const website = pickWebsiteSuggestion(args.prospect, args.citations);
   if (website) out.push(website);
+
+  for (const row of pickDirectoryIdentitySuggestions(args.prospect, args.citations)) {
+    if (!out.some((s) => s.field_path === row.field_path)) out.push(row);
+  }
 
   if (args.useModel !== false && args.citations.length > 0) {
     try {

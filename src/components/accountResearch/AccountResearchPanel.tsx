@@ -24,6 +24,7 @@ import {
   runAccountResearchUntilDone,
   startAccountResearch,
   unlockAccountResearchSource,
+  verifyYelpDirectoryMatch,
   type AccountResearchSnapshotDto,
   type LoadedProductMatch,
 } from '@/lib/accountResearchClient';
@@ -170,7 +171,8 @@ export function AccountResearchPanel({
     Boolean(
       busyAction?.startsWith('run-') ||
       busyAction?.startsWith('lock-') ||
-      busyAction?.startsWith('unlock-'),
+      busyAction?.startsWith('unlock-') ||
+      busyAction === 'yelp-verify',
     );
   // Copilot suggestion ignored: Search All remains available during snapshot hydration so staff can start a new run when no prior run exists.
 
@@ -180,6 +182,11 @@ export function AccountResearchPanel({
       .flat()
       .filter((c) => c.acceptance_status === 'accepted');
   }, [snapshot]);
+
+  const directoryCitation = useMemo(
+    () => citationsFlat.find((c) => c.platform === 'directory') ?? null,
+    [citationsFlat],
+  );
 
   const hydrateSuggestions = useCallback(async (runId: string) => {
     const listed = await listAccountResearchSuggestions(runId);
@@ -524,6 +531,31 @@ export function AccountResearchPanel({
     await Promise.all([hydrateSuggestions(result.run.id), hydrateMatch(result.run.id)]);
   }
 
+  async function handleVerifyYelp() {
+    if (!snapshot) return;
+    setBusyAction('yelp-verify');
+    setError(null);
+    const result = await verifyYelpDirectoryMatch(snapshot.run.id);
+    if (!result.ok) {
+      setBusyAction(null);
+      setError(result.error);
+      return;
+    }
+    setSnapshot({
+      run: result.run,
+      sources: result.sources,
+      citationsBySourceId: result.citationsBySourceId,
+      sourceFreshness: result.sourceFreshness,
+      locksBySourceType: result.locksBySourceType ?? {},
+    });
+    const generated = await generateAccountResearchSuggestions(snapshot.run.id);
+    if (generated.ok) {
+      const listed = await listAccountResearchSuggestions(snapshot.run.id);
+      if (listed.ok) setSuggestions(listed.suggestions);
+    }
+    setBusyAction(null);
+  }
+
   async function handleUnlockSource(source: AccountResearchSourceSearch) {
     setBusyAction(`unlock-${source.id}`);
     setError(null);
@@ -573,6 +605,56 @@ export function AccountResearchPanel({
           review citations when identity is unresolved.
         </p>
       ) : null}
+
+      <section className="border-ink/10 flex flex-col gap-2 rounded-md border px-3 py-3">
+        <h4 className="text-ink/70 m-0 text-xs font-semibold tracking-wider uppercase">
+          Business verification (Yelp)
+        </h4>
+        <p className="text-ink/55 m-0 text-xs leading-relaxed">
+          Verify the physical business on Yelp before locking the official website. Blank phone and
+          address suggestions can use directory evidence after verify.
+        </p>
+        {directoryCitation ? (
+          <div className="text-ink/60 flex flex-col gap-0.5 text-xs">
+            <p className="m-0">
+              Yelp verified:{' '}
+              <span className="text-ink/80 font-medium">
+                {directoryCitation.title ?? 'Listing'}
+              </span>
+              {typeof directoryCitation.confidence === 'string' ? (
+                <span className="text-ink/55"> · {directoryCitation.confidence} confidence</span>
+              ) : null}
+            </p>
+            <p className="m-0">
+              Directory listing:{' '}
+              <a
+                href={directoryCitation.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent-700 underline"
+              >
+                {directoryCitation.source_url}
+              </a>
+            </p>
+          </div>
+        ) : (
+          <p className="text-ink/55 m-0 text-xs">Not verified on Yelp for this research run yet.</p>
+        )}
+        {!directoryCitation && snapshot && !websiteLocked ? (
+          <p className="text-ink/55 m-0 text-xs">
+            Verify on Yelp first for blank phone/address suggestions.
+          </p>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            disabled={running || !snapshot}
+            onClick={() => void handleVerifyYelp()}
+          >
+            {busyAction === 'yelp-verify' ? 'Verifying…' : 'Verify on Yelp'}
+          </Button>
+        </div>
+      </section>
 
       <div className="flex flex-wrap gap-2">
         <Button
