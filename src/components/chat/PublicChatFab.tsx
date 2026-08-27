@@ -225,7 +225,7 @@ export function PublicChatFab() {
           className="border-ink/15 bg-surface pointer-events-auto flex h-[min(32rem,70vh)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-xl"
           aria-label="Chat with Justin"
         >
-          <header className="border-ink/10 bg-accent-700 text-bg flex items-start justify-between gap-2 px-4 py-3">
+          <header className="border-ink/10 bg-accent-700 text-on-accent flex items-start justify-between gap-2 px-4 py-3">
             <div className="min-w-0">
               <p className="font-heading m-0 text-base leading-tight">Chat with Justin</p>
               <p className="m-0 mt-0.5 text-[11px] leading-snug opacity-90">
@@ -236,7 +236,7 @@ export function PublicChatFab() {
             </div>
             <button
               type="button"
-              className="text-bg/90 hover:text-bg mt-0.5 inline-flex rounded-full p-1"
+              className="text-on-accent/90 hover:text-on-accent mt-0.5 inline-flex rounded-full p-1"
               aria-label="Close chat"
               onClick={() => setOpen(false)}
             >
@@ -278,7 +278,7 @@ export function PublicChatFab() {
                 <button
                   type="submit"
                   disabled={busy}
-                  className="bg-accent-700 font-heading text-bg hover:bg-accent-600 rounded-full px-4 py-2 text-sm disabled:opacity-40"
+                  className="bg-accent-700 font-heading text-on-accent hover:bg-accent-600 rounded-full px-4 py-2 text-sm disabled:opacity-40"
                 >
                   {busy ? 'Starting…' : 'Start chat'}
                 </button>
@@ -299,7 +299,7 @@ export function PublicChatFab() {
                           system
                             ? 'text-ink/55 text-center text-[11px]'
                             : mine
-                              ? 'bg-accent-700 text-bg ml-8 rounded-2xl rounded-br-md px-3 py-2 text-sm'
+                              ? 'bg-accent-700 text-on-accent ml-8 rounded-2xl rounded-br-md px-3 py-2 text-sm'
                               : 'bg-ink/5 text-ink mr-8 rounded-2xl rounded-bl-md px-3 py-2 text-sm'
                         }
                       >
@@ -333,7 +333,7 @@ export function PublicChatFab() {
                   <button
                     type="submit"
                     disabled={busy || !draft.trim()}
-                    className="bg-accent-700 font-heading text-bg hover:bg-accent-600 rounded-full px-3.5 py-2 text-sm disabled:opacity-40"
+                    className="bg-accent-700 font-heading text-on-accent hover:bg-accent-600 rounded-full px-3.5 py-2 text-sm disabled:opacity-40"
                   >
                     Send
                   </button>
@@ -346,7 +346,7 @@ export function PublicChatFab() {
 
       <button
         type="button"
-        className="bg-accent-700 font-heading text-bg hover:bg-accent-600 pointer-events-auto inline-flex items-center gap-2 rounded-full px-4 py-3 text-sm shadow-lg"
+        className="bg-accent-700 font-heading text-on-accent hover:bg-accent-600 pointer-events-auto inline-flex items-center gap-2 rounded-full px-4 py-3 text-sm shadow-lg"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={open ? 'Close chat' : 'Chat with Justin'}

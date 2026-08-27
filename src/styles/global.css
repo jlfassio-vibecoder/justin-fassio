@@ -1,64 +1,71 @@
-@import url('https://fonts.googleapis.com/css2?family=Caprasimo:wght@400&family=Figtree:wght@400;600;700&display=swap');
+/* Track Signal v2 Light — live app design-token source of truth.
+ * Light = @theme defaults. Dark = [data-theme='dark'] overrides below. */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Work+Sans:wght@400;600;700&display=swap');
 @import 'tailwindcss';
 
 @theme {
-  --color-bg: #f5ead8;
-  --color-surface: #ebddc5;
-  --color-ink: #201e1d;
+  --color-bg: #f7f2ea;
+  --color-surface: #fffdf8;
+  --color-ink: #211d18;
+  --color-border: #e8ddc9;
+  --color-divider: #efe6d6;
+  --color-muted: #8a8072;
+  --color-subtle: #a89f8e;
+  --color-on-accent: #fffdf8;
 
-  --color-accent: #c67139;
-  --color-accent-100: #fff2eb;
-  --color-accent-200: #ffe1d0;
-  --color-accent-300: #ffc6a5;
-  --color-accent-400: #f6a06b;
-  --color-accent-500: #d67f48;
-  --color-accent-600: #b2622d;
-  --color-accent-700: #8c491a;
-  --color-accent-800: #643312;
-  --color-accent-900: #402310;
+  /* Coral accent ramp (Track Signal) */
+  --color-accent: #e64a2e;
+  --color-accent-100: #fbe4dc;
+  --color-accent-200: #f6c4b4;
+  --color-accent-300: #f09a82;
+  --color-accent-400: #ea7254;
+  --color-accent-500: #e64a2e;
+  --color-accent-600: #c93c22;
+  --color-accent-700: #a8321c;
+  --color-accent-800: #7e2515;
+  --color-accent-900: #54190e;
 
-  --color-sage: #7a8a5e;
-  --color-sage-100: #f0fae1;
-  --color-sage-200: #e1eecc;
-  --color-sage-300: #ccdbb2;
-  --color-sage-400: #aebf92;
-  --color-sage-500: #8fa073;
-  --color-sage-600: #728157;
-  --color-sage-700: #56633f;
-  --color-sage-800: #3d472b;
-  --color-sage-900: #272e1b;
+  /* Success / sage family (presence, positive status) — green stays here only */
+  --color-sage: #5a9e52;
+  --color-sage-100: #e9f4e5;
+  --color-sage-200: #d3e8cb;
+  --color-sage-300: #b0d4a5;
+  --color-sage-400: #85b978;
+  --color-sage-500: #5a9e52;
+  --color-sage-600: #3f7d38;
+  --color-sage-700: #33652e;
+  --color-sage-800: #264a22;
+  --color-sage-900: #193117;
 
-  /* Design accent-2 aliases — keep in sync with sage (do not duplicate hex) */
-  --color-accent-2: var(--color-sage);
-  --color-accent-2-100: var(--color-sage-100);
-  --color-accent-2-200: var(--color-sage-200);
-  --color-accent-2-300: var(--color-sage-300);
-  --color-accent-2-400: var(--color-sage-400);
-  --color-accent-2-500: var(--color-sage-500);
-  --color-accent-2-600: var(--color-sage-600);
-  --color-accent-2-700: var(--color-sage-700);
-  --color-accent-2-800: var(--color-sage-800);
-  --color-accent-2-900: var(--color-sage-900);
+  /* Brand chrome (accent-2) — coffee/chocolate, not sage green */
+  --color-accent-2: #3f3a34;
+  --color-accent-2-100: #efe6d6;
+  --color-accent-2-200: #e8ddc9;
+  --color-accent-2-300: #e8ddc9;
+  --color-accent-2-400: #a89f8e;
+  --color-accent-2-500: #8a8072;
+  --color-accent-2-600: #645c50;
+  --color-accent-2-700: #3f3a34;
+  --color-accent-2-800: #3f3a34;
+  --color-accent-2-900: #28251e;
 
-  --color-divider: rgb(32 30 29 / 0.16);
-
-  --color-neutral-100: #f9f4ed;
-  --color-neutral-200: #eee7db;
-  --color-neutral-300: #dcd3c4;
-  --color-neutral-400: #c0b6a5;
-  --color-neutral-500: #a19786;
-  --color-neutral-600: #82796a;
+  --color-neutral-100: #fffdf8;
+  --color-neutral-200: #f7f2ea;
+  --color-neutral-300: #efe6d6;
+  --color-neutral-400: #e8ddc9;
+  --color-neutral-500: #a89f8e;
+  --color-neutral-600: #8a8072;
   --color-neutral-700: #645c50;
-  --color-neutral-800: #474238;
-  --color-neutral-900: #2e2b25;
+  --color-neutral-800: #3f3a34;
+  --color-neutral-900: #211d18;
 
-  --font-heading: Caprasimo, system-ui, sans-serif;
-  --font-body: Figtree, system-ui, sans-serif;
+  --font-heading: 'Bebas Neue', system-ui, sans-serif;
+  --font-body: 'Work Sans', system-ui, sans-serif;
 
   --radius-sm: 8px;
-  --radius-md: 16px;
-  --radius-lg: 28px;
-  --radius-xl: calc(28px * 1.15);
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 20px;
 
   --spacing-1\.1: 4.4px;
   --spacing-2\.1: 8.8px;
@@ -67,9 +74,141 @@
   --spacing-6\.1: 26.4px;
   --spacing-8\.1: 35.2px;
 
-  --shadow-sm: 0 1px 2px rgb(46 43 37 / 0.14);
-  --shadow-md: 0 3px 10px rgb(46 43 37 / 0.16);
-  --shadow-lg: 0 12px 32px rgb(46 43 37 / 0.22);
+  --shadow-sm: 0 2px 0 #e8ddc9;
+  --shadow-md: 0 2px 0 #e8ddc9, 0 8px 20px rgb(33 29 24 / 0.06);
+  --shadow-lg: 0 2px 0 #e8ddc9, 0 16px 36px rgb(33 29 24 / 0.1);
+}
+
+/* Nested themes: any ancestor can pin light/dark tokens (landing bands, etc.). */
+html {
+  color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* Light palette — explicit so a light subtree can sit inside a dark page theme. */
+[data-theme='light'] {
+  color-scheme: light;
+
+  --color-bg: #f7f2ea;
+  --color-surface: #fffdf8;
+  --color-ink: #211d18;
+  --color-border: #e8ddc9;
+  --color-divider: #efe6d6;
+  --color-muted: #8a8072;
+  --color-subtle: #a89f8e;
+  --color-on-accent: #fffdf8;
+
+  --color-accent: #e64a2e;
+  --color-accent-100: #fbe4dc;
+  --color-accent-200: #f6c4b4;
+  --color-accent-300: #f09a82;
+  --color-accent-400: #ea7254;
+  --color-accent-500: #e64a2e;
+  --color-accent-600: #c93c22;
+  --color-accent-700: #a8321c;
+  --color-accent-800: #7e2515;
+  --color-accent-900: #54190e;
+
+  --color-sage: #5a9e52;
+  --color-sage-100: #e9f4e5;
+  --color-sage-200: #d3e8cb;
+  --color-sage-300: #b0d4a5;
+  --color-sage-400: #85b978;
+  --color-sage-500: #5a9e52;
+  --color-sage-600: #3f7d38;
+  --color-sage-700: #33652e;
+  --color-sage-800: #264a22;
+  --color-sage-900: #193117;
+
+  --color-accent-2: #3f3a34;
+  --color-accent-2-100: #efe6d6;
+  --color-accent-2-200: #e8ddc9;
+  --color-accent-2-300: #e8ddc9;
+  --color-accent-2-400: #a89f8e;
+  --color-accent-2-500: #8a8072;
+  --color-accent-2-600: #645c50;
+  --color-accent-2-700: #3f3a34;
+  --color-accent-2-800: #3f3a34;
+  --color-accent-2-900: #28251e;
+
+  --color-neutral-100: #fffdf8;
+  --color-neutral-200: #f7f2ea;
+  --color-neutral-300: #efe6d6;
+  --color-neutral-400: #e8ddc9;
+  --color-neutral-500: #a89f8e;
+  --color-neutral-600: #8a8072;
+  --color-neutral-700: #645c50;
+  --color-neutral-800: #3f3a34;
+  --color-neutral-900: #211d18;
+
+  --shadow-sm: 0 2px 0 #e8ddc9;
+  --shadow-md: 0 2px 0 #e8ddc9, 0 8px 20px rgb(33 29 24 / 0.06);
+  --shadow-lg: 0 2px 0 #e8ddc9, 0 16px 36px rgb(33 29 24 / 0.1);
+}
+
+/* Dark palette — AMRAP Track Signal coffee/chocolate (not inverted sage/mint). */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #28251e;
+  --color-surface: #1e1c18;
+  --color-ink: #e8e2d6;
+  --color-border: #4a443c;
+  --color-divider: #3a352e;
+  --color-muted: #8a8072;
+  --color-subtle: #a89f8e;
+  --color-on-accent: #fffdf8;
+
+  --color-accent: #e64a2e;
+  --color-accent-100: rgb(230 74 46 / 0.18);
+  --color-accent-200: rgb(230 74 46 / 0.28);
+  --color-accent-300: rgb(230 74 46 / 0.4);
+  --color-accent-400: #ea7254;
+  --color-accent-500: #e64a2e;
+  --color-accent-600: #ff6a45;
+  --color-accent-700: #ff8a6a;
+  --color-accent-800: #f6c4b4;
+  --color-accent-900: #fbe4dc;
+
+  /* Success green stays green; brand chrome (accent-2) is coffee/chocolate. */
+  --color-sage: #5a9e52;
+  --color-sage-100: rgb(90 158 82 / 0.18);
+  --color-sage-200: rgb(90 158 82 / 0.28);
+  --color-sage-300: #85b978;
+  --color-sage-400: #5a9e52;
+  --color-sage-500: #5a9e52;
+  --color-sage-600: #8fd485;
+  --color-sage-700: #a8e09f;
+  --color-sage-800: #8fd485;
+  --color-sage-900: #e9f4e5;
+
+  --color-accent-2: #a89f8e;
+  --color-accent-2-100: rgb(232 226 214 / 0.12);
+  --color-accent-2-200: rgb(232 226 214 / 0.2);
+  --color-accent-2-300: #4a443c;
+  --color-accent-2-400: #8a8072;
+  --color-accent-2-500: #a89f8e;
+  --color-accent-2-600: #c4bbaa;
+  --color-accent-2-700: #c4bbaa;
+  --color-accent-2-800: #e8e2d6;
+  --color-accent-2-900: #1e1c18;
+
+  --color-neutral-100: #1e1c18;
+  --color-neutral-200: #221e1a;
+  --color-neutral-300: #3a352e;
+  --color-neutral-400: #4a443c;
+  --color-neutral-500: #8a8072;
+  --color-neutral-600: #a89f8e;
+  --color-neutral-700: #c4bbaa;
+  --color-neutral-800: #e8e2d6;
+  --color-neutral-900: #f7f2ea;
+
+  --shadow-sm: 0 2px 0 #4a443c;
+  --shadow-md: 0 2px 0 #4a443c, 0 8px 20px rgb(0 0 0 / 0.35);
+  --shadow-lg: 0 2px 0 #4a443c, 0 16px 36px rgb(0 0 0 / 0.45);
 }
 
 @layer base {
@@ -85,19 +224,20 @@
   h5,
   h6 {
     @apply font-heading;
-    line-height: 1.12;
-    letter-spacing: -0.015em;
+    line-height: 1.05;
+    letter-spacing: 0.02em;
+    font-weight: 400;
   }
   h6 {
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
   a {
-    @apply text-accent-700 hover:text-accent-800;
+    @apply text-accent hover:text-accent-600;
     text-underline-offset: 3px;
   }
   ::selection {
-    background: rgb(198 113 57 / 0.3);
+    background: rgb(230 74 46 / 0.28);
   }
   ::-webkit-scrollbar {
     width: 8px;

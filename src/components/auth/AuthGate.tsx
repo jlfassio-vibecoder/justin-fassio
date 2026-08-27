@@ -11,8 +11,10 @@ import { ProspectiveLinesWorkspace } from '@/components/ProspectiveLinesWorkspac
 import { RepCommandCenter } from '@/components/RepCommandCenter';
 import { AIAssistantModal } from '@/components/ui/AIAssistantModal';
 import { Button } from '@/components/ui/Button';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
 import { AiAssistProvider } from '@/lib/AiAssistProvider';
+import { ThemeProvider } from '@/lib/ThemeProvider';
 import { supabase } from '@/lib/supabase';
 import { isApprovedOwner, isApprovedStaff } from '@/lib/auth';
 import { LineProvider, useLineContext } from '@/lib/lineContext';
@@ -67,7 +69,7 @@ function StaffToolbarAvatar({
 
   const initials = staffAccountInitials(displayName, emails);
   return (
-    <span className="bg-accent font-heading text-bg flex h-6 w-6 flex-none items-center justify-center overflow-hidden rounded-full text-[10px]">
+    <span className="bg-accent font-heading text-on-accent flex h-6 w-6 flex-none items-center justify-center overflow-hidden rounded-full text-[10px]">
       {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : initials}
     </span>
   );
@@ -400,6 +402,7 @@ function AuthGateInner({
             )}
             {isApprovedStaff(profile) ? <OwnerWholesaleBuyersPanel /> : null}
             {isApprovedOwner(profile) ? <OwnerPendingPanel /> : null}
+            <ThemeToggle />
             <AIAssistantModal />
             {pingStatus && <span className="text-ink/60">{pingStatus}</span>}
             <Button
@@ -446,13 +449,15 @@ export function AuthGate({
   pathTab?: TabKey;
 }) {
   return (
-    <AuthProvider>
-      <AuthGateInner
-        page={page}
-        lineSlug={lineSlug}
-        lineAccountId={lineAccountId}
-        pathTab={pathTab}
-      />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AuthGateInner
+          page={page}
+          lineSlug={lineSlug}
+          lineAccountId={lineAccountId}
+          pathTab={pathTab}
+        />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

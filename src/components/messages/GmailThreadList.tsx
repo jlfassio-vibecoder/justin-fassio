@@ -67,7 +67,7 @@ export function GmailThreadList({
               onClick={() => onLabelChange(f.key)}
               className={cn(
                 'font-heading rounded-full px-3 py-1.5 text-sm',
-                label === f.key ? 'bg-accent text-bg' : 'text-ink/70 bg-transparent',
+                label === f.key ? 'bg-accent text-on-accent' : 'text-ink/70 bg-transparent',
               )}
             >
               {f.label}
@@ -78,7 +78,7 @@ export function GmailThreadList({
           <button
             type="button"
             onClick={onCompose}
-            className="font-heading bg-accent text-bg rounded-md px-3 py-1.5 text-sm"
+            className="font-heading bg-accent text-on-accent rounded-md px-3 py-1.5 text-sm"
           >
             Compose
           </button>

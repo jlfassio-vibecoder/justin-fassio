@@ -287,7 +287,7 @@ export function WholesaleShowroom({
         <div className="mt-6.1 gap-3.1 flex flex-wrap">
           <a
             href="#collection"
-            className="bg-accent-700 px-6.1 py-2.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm no-underline"
+            className="bg-accent-700 px-6.1 py-2.1 font-heading text-on-accent hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm no-underline"
             onClick={(e) => {
               e.preventDefault();
               scrollTo('collection');
