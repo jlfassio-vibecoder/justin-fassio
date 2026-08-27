@@ -3342,6 +3342,66 @@ export interface Database {
           available_sizes: string[];
         }[];
       };
+      get_public_living_in_sunshine_products: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          sku: string;
+          public_slug: string;
+          name: string;
+          cat: string;
+          color: string | null;
+          tagline: string | null;
+          description: string | null;
+          page: number | null;
+          catalog_year: number | null;
+          collection: string | null;
+          wholesale_usd: number | null;
+          msrp_cad: number;
+          is_new: boolean;
+          featured: boolean;
+          public_sort_order: number;
+          primary_image_url: string | null;
+          alternate_image_urls: unknown;
+          unit_of_measure: string;
+          minimum_quantity: number | null;
+          order_multiple: number | null;
+          pack_quantity: number | null;
+          lifestyle_themes: unknown;
+          live_sku: string | null;
+          available_sizes: string[];
+        }[];
+      };
+      get_public_living_in_sunshine_product_by_slug: {
+        Args: { p_slug: string };
+        Returns: {
+          id: string;
+          sku: string;
+          public_slug: string;
+          name: string;
+          cat: string;
+          color: string | null;
+          tagline: string | null;
+          description: string | null;
+          page: number | null;
+          catalog_year: number | null;
+          collection: string | null;
+          wholesale_usd: number | null;
+          msrp_cad: number;
+          is_new: boolean;
+          featured: boolean;
+          public_sort_order: number;
+          primary_image_url: string | null;
+          alternate_image_urls: unknown;
+          unit_of_measure: string;
+          minimum_quantity: number | null;
+          order_multiple: number | null;
+          pack_quantity: number | null;
+          lifestyle_themes: unknown;
+          live_sku: string | null;
+          available_sizes: string[];
+        }[];
+      };
       get_public_ogr_product_by_slug: {
         Args: { p_slug: string };
         Returns: {

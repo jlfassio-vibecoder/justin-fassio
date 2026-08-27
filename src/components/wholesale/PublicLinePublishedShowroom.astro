@@ -1,0 +1,115 @@
+---
+import { CONTACT_EMAIL } from '@/data/landing';
+import type { PublicOgrProduct } from '@/lib/publicCatalog';
+import {
+  formatSuggestedRetailUs,
+  formatWholesaleUsd,
+  hasWholesalePricing,
+  RETAIL_PRICE_DISCLAIMER,
+  WHOLESALE_LOCKED_LABEL,
+} from '@/lib/wholesalePricing';
+
+interface Props {
+  lineName: string;
+  tagline?: string | null;
+  description?: string | null;
+  products: PublicOgrProduct[];
+}
+
+const { lineName, tagline, description, products } = Astro.props;
+---
+
+<div class="bg-bg text-ink font-body">
+  <header class="px-8.1 mx-auto flex max-w-[1240px] items-center justify-between py-4">
+    <a href="/" class="font-heading text-accent-2-900 text-lg no-underline">Justin Fassio</a>
+  </header>
+
+  <section class="px-8.1 mx-auto max-w-[1240px] pt-4 pb-10">
+    {
+      tagline ? (
+        <span class="bg-accent-100 text-accent-800 inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] tracking-wide">
+          {tagline}
+        </span>
+      ) : (
+        <span class="bg-accent-100 text-accent-800 inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] tracking-wide">
+          Wholesale
+        </span>
+      )
+    }
+    <h1 class="font-heading mt-3.1 m-0 max-w-[18ch] text-4xl leading-[1.08] md:text-5xl">
+      {lineName} Wholesale
+    </h1>
+    {
+      description ? (
+        <p class="text-ink/70 mt-3.1 m-0 max-w-[540px] text-base">{description}</p>
+      ) : null
+    }
+    <div class="mt-6.1 gap-3.1 flex flex-wrap">
+      <a
+        href={`mailto:${CONTACT_EMAIL}`}
+        class="bg-accent-700 px-6.1 py-2.1 font-heading text-on-accent hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm no-underline"
+      >
+        Get wholesale pricing
+      </a>
+      <a
+        href="/#brands"
+        class="border-accent-2-900 px-6.1 py-2.1 font-heading text-accent-2-900 hover:bg-ink/[0.07] inline-flex items-center justify-center rounded-full border text-sm no-underline"
+      >
+        All brands
+      </a>
+    </div>
+  </section>
+
+  <section id="collection" class="px-8.1 mx-auto max-w-[1240px] pb-16">
+    {
+      products.length === 0 ? (
+        <p class="text-ink/55 m-0 text-sm">No products published yet.</p>
+      ) : (
+        <div class="gap-4.1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {products.map((product) => {
+            const wholesale = formatWholesaleUsd(product.wholesaleUsd);
+            const canWholesale = hasWholesalePricing(product.wholesaleUsd);
+            return (
+              <article class="elev-md gap-3.1 bg-bg p-3.1 flex flex-col rounded-xl shadow-md">
+                <div class="bg-surface aspect-[4/5] w-full overflow-hidden rounded-lg">
+                  {product.primaryImageUrl ? (
+                    <img
+                      src={product.primaryImageUrl}
+                      alt={product.name}
+                      loading="lazy"
+                      decoding="async"
+                      class="h-full w-full object-contain"
+                    />
+                  ) : (
+                    <div class="text-ink/40 flex h-full items-center justify-center text-xs">
+                      Image coming soon
+                    </div>
+                  )}
+                </div>
+                <div class="gap-1.1 flex flex-col">
+                  <p class="text-ink/55 m-0 text-[11px] tracking-wide uppercase">{product.sku}</p>
+                  <h2 class="font-heading m-0 text-xl leading-tight">{product.name}</h2>
+                  {product.tagline ? (
+                    <p class="text-ink/70 m-0 text-sm">{product.tagline}</p>
+                  ) : null}
+                  {product.description ? (
+                    <p class="text-ink/60 m-0 text-sm">{product.description}</p>
+                  ) : null}
+                </div>
+                <div class="gap-1.1 mt-auto flex flex-col pt-2">
+                  {canWholesale && wholesale ? (
+                    <p class="text-accent-800 m-0 text-sm font-semibold">{wholesale}</p>
+                  ) : (
+                    <p class="text-ink/55 m-0 text-sm">{WHOLESALE_LOCKED_LABEL}</p>
+                  )}
+                  <p class="text-ink/55 m-0 text-xs">{formatSuggestedRetailUs()}</p>
+                  <p class="text-ink/40 m-0 text-[11px]">{RETAIL_PRICE_DISCLAIMER}</p>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )
+    }
+  </section>
+</div>

@@ -124,10 +124,12 @@ describe('public line cards', () => {
     );
     expect(schema).not.toMatch(/get_public_eagle_peak/);
     expect(schema).not.toMatch(/get_public_big_fish/);
+    expect(schema).toMatch(/get_public_living_in_sunshine_products/);
     expect(migration).toMatch(/living-in-sunshine/);
     expect(migration).toMatch(/LIS-GO-HAMMOCK/);
     expect(migration).not.toMatch(/active = true/);
     expect(types).toMatch(/get_public_line_cards:/);
+    expect(types).toMatch(/get_public_living_in_sunshine_products:/);
     expect(lines).toContain("supabase.rpc('get_public_line_cards')");
   });
 });
