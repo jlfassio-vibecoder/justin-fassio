@@ -118,9 +118,9 @@ Implement as sequential PRs. Each slice must ship tests + `npm run check`.
 
 **Acceptance**
 
-- [ ] Locked Instagram/Facebook/website contribute hostname/platform lines when present.
-- [ ] No full `https://…` strings in the built prompt (test).
-- [ ] Accounts without research still generate (empty optional fields).
+- [x] Locked Instagram/Facebook/website contribute hostname/platform lines when present.
+- [x] No full `https://…` strings in the built prompt (test).
+- [x] Accounts without research still generate (empty optional fields).
 
 ### Slice C — Personalization quality & staff affordances
 
@@ -178,7 +178,8 @@ Implement as sequential PRs. Each slice must ship tests + `npm run check`.
 | Add copy UI                 | `src/components/OgrProductEmailComposerModal.tsx`         |
 | Generate API                | `src/pages/api/staff/ogr-product-email/generate-draft.ts` |
 | Prep stubs                  | `src/lib/outreachNightlyPrep.ts`                          |
-| Research notes loader       | `loadAcceptedResearchNotesForOutreach`                    |
+| Research notes loader       | `loadAcceptedResearchNotesForOutreach` (via pack)         |
+| Context pack (Slice B)      | `loadOutreachCopyContextPack` → locks/role/brief/Yelp     |
 | Locks / citations           | Account research tables + `AccountResearchPanel`          |
 | Contact role                | `account_contacts` + discover preview                     |
 
@@ -273,7 +274,7 @@ No separate system message required unless a later slice proves better complianc
 
 - [ ] Epic reviewed; slices prioritized
 - [x] Slice A merged — Add copy parity with prep selection meta
-- [ ] Slice B merged — structured research/profile pack in prompt
+- [x] Slice B merged — structured research/profile pack in prompt
 - [ ] Slice C merged — staff visibility into context used
 - [ ] Slice D decided (ship or explicitly defer)
 - [ ] Account Research epic §2.4 / Phase 2 docs updated to match live prompt inputs

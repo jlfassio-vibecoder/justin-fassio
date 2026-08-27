@@ -73,6 +73,15 @@ export type ProductOutreachGenerationMeta = {
   generatedAt: string;
   /** Prep stubs use `stub`; staff Add copy uses `ai`. Older drafts omit this. */
   copyStatus?: 'stub' | 'ai';
+  /** Slice B: which allowlisted research/profile fields were present for AI copy. */
+  contextFlags?: {
+    hasWebsiteHost: boolean;
+    acceptedNoteCount: number;
+    lockedSourceCount: number;
+    hasContactRole: boolean;
+    hasBriefBullets: boolean;
+    hasDirectorySignals: boolean;
+  };
 };
 
 export type ProductOutreachSystemMessagePayload = {
@@ -159,6 +168,31 @@ export function parseGenerationMeta(raw: unknown): ProductOutreachGenerationMeta
     closingWordCount: g.closingWordCount,
     generatedAt: g.generatedAt,
     ...(g.copyStatus === 'stub' || g.copyStatus === 'ai' ? { copyStatus: g.copyStatus } : {}),
+    ...(g.contextFlags && typeof g.contextFlags === 'object' && !Array.isArray(g.contextFlags)
+      ? (() => {
+          const f = g.contextFlags as Record<string, unknown>;
+          if (
+            typeof f.hasWebsiteHost !== 'boolean' ||
+            typeof f.acceptedNoteCount !== 'number' ||
+            typeof f.lockedSourceCount !== 'number' ||
+            typeof f.hasContactRole !== 'boolean' ||
+            typeof f.hasBriefBullets !== 'boolean' ||
+            typeof f.hasDirectorySignals !== 'boolean'
+          ) {
+            return {};
+          }
+          return {
+            contextFlags: {
+              hasWebsiteHost: f.hasWebsiteHost,
+              acceptedNoteCount: f.acceptedNoteCount,
+              lockedSourceCount: f.lockedSourceCount,
+              hasContactRole: f.hasContactRole,
+              hasBriefBullets: f.hasBriefBullets,
+              hasDirectorySignals: f.hasDirectorySignals,
+            },
+          };
+        })()
+      : {}),
   };
 }
 

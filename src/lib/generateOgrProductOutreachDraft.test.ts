@@ -209,7 +209,7 @@ describe('buildSafeOutreachPromptContext', () => {
     expect(prompt).not.toContain('sam@example.com');
     expect(prompt).not.toContain(target.accountContactId);
     expect(prompt).not.toContain(target.catalogItemId);
-    expect(OGR_OUTREACH_DRAFT_PROMPT_VERSION).toBe('v1');
+    expect(OGR_OUTREACH_DRAFT_PROMPT_VERSION).toBe('v2');
     assertSafePromptContext(ctx);
     const json = JSON.stringify(ctx);
     for (const key of PUBLIC_PRESENTATION_FORBIDDEN_KEYS) {
@@ -243,6 +243,89 @@ describe('buildSafeOutreachPromptContext', () => {
     expect(prompt).toContain('golfshop.example');
     expect(prompt).toContain('Local tournament photos');
     expect(prompt).toContain('No HTML, markdown links, URLs');
+  });
+
+  it('includes Slice B pack fields and never emits https in the built prompt', () => {
+    const ctx = buildSafeOutreachPromptContext({
+      target,
+      product: {
+        name: 'Golf Tee',
+        tagline: 'Fun tee',
+        description: 'A fun tee for golf shops.',
+        category: 'Apparel',
+        lifestyleThemeLabels: ['Golf'],
+        isNew: false,
+      },
+      prospect: {
+        city: 'Kelowna',
+        region: 'Okanagan',
+        fit: 'Strong golf fit',
+        lifestyleThemes: ['golf'],
+        website: null,
+      },
+      storeWebsiteHost: 'nmscharters.com',
+      contactRole: 'Buyer',
+      contactTitle: 'Purchasing Manager',
+      lockedProfiles: [
+        { platform: 'website', hostname: 'nmscharters.com' },
+        { platform: 'instagram', hostname: 'instagram.com' },
+        { platform: 'facebook', hostname: 'facebook.com' },
+      ],
+      recentPublicNotes: ['website: Coastal charter and retail shop'],
+      researchBriefBullets: ['Family-run store focused on golf apparel'],
+      directorySignals: 'NMS Charters · Boat Charters, Sporting Goods',
+    });
+    const prompt = buildOutreachDraftPrompt(ctx);
+    expect(prompt).toContain('Contact role: Buyer');
+    expect(prompt).toContain('Contact title: Purchasing Manager');
+    expect(prompt).toContain('Locked public profiles (hostname only; do not invent activity):');
+    expect(prompt).toContain('- instagram: instagram.com');
+    expect(prompt).toContain('- facebook: facebook.com');
+    expect(prompt).toContain('Research brief bullets:');
+    expect(prompt).toContain('Family-run store focused on golf apparel');
+    expect(prompt).toContain('Directory signals: NMS Charters · Boat Charters, Sporting Goods');
+    expect(prompt).not.toMatch(/https?:\/\//i);
+    assertSafePromptContext(ctx);
+  });
+
+  it('still builds when research pack fields are empty', () => {
+    const ctx = buildSafeOutreachPromptContext({
+      target,
+      product: {
+        name: 'Golf Tee',
+        tagline: '',
+        description: '',
+        category: 'Apparel',
+        lifestyleThemeLabels: [],
+        isNew: false,
+      },
+      prospect: null,
+    });
+    const prompt = buildOutreachDraftPrompt(ctx);
+    expect(prompt).toContain('Store name: Golf Shop');
+    expect(prompt).not.toContain('Locked public profiles');
+    expect(prompt).not.toContain('Contact role:');
+    expect(prompt).not.toMatch(/https?:\/\//i);
+  });
+
+  it('rejects prompt context that still contains a URL scheme', () => {
+    const ctx = buildSafeOutreachPromptContext({
+      target,
+      product: {
+        name: 'Golf Tee',
+        tagline: '',
+        description: '',
+        category: 'Apparel',
+        lifestyleThemeLabels: [],
+        isNew: false,
+      },
+      prospect: null,
+    });
+    const tainted = {
+      ...ctx,
+      directorySignals: 'See https://yelp.com/biz/bad',
+    };
+    expect(() => assertSafePromptContext(tainted)).toThrow(/URL scheme/);
   });
 });
 

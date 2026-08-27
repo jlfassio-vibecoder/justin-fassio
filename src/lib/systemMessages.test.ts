@@ -1097,6 +1097,43 @@ describe('parseGenerationMeta freeze fields', () => {
     expect(parsed?.productSalesRank).toBe(4);
     expect(parsed?.copyStatus).toBe('stub');
   });
+
+  it('round-trips contextFlags from Slice B AI generation', async () => {
+    const { parseGenerationMeta } = await import('@/lib/systemMessages');
+    const parsed = parseGenerationMeta({
+      promptVersion: 'v2',
+      model: 'openai/gpt-4o',
+      preparationDate: '2026-08-25',
+      selectionReasons: {
+        priority: 'Tier 1',
+        fitScore: 7,
+        channelMatch: true,
+        productFit: 'channel_intersect',
+        exclusionsChecked: true,
+      },
+      fallback: 'none',
+      introWordCount: 40,
+      closingWordCount: 20,
+      generatedAt: '2026-08-25T12:00:00Z',
+      copyStatus: 'ai',
+      contextFlags: {
+        hasWebsiteHost: true,
+        acceptedNoteCount: 2,
+        lockedSourceCount: 3,
+        hasContactRole: true,
+        hasBriefBullets: false,
+        hasDirectorySignals: true,
+      },
+    });
+    expect(parsed?.contextFlags).toEqual({
+      hasWebsiteHost: true,
+      acceptedNoteCount: 2,
+      lockedSourceCount: 3,
+      hasContactRole: true,
+      hasBriefBullets: false,
+      hasDirectorySignals: true,
+    });
+  });
 });
 
 describe('updateAgentProductOutreachDraft preserves generation', () => {
