@@ -4,6 +4,7 @@ import {
   applyTheme,
   getAppliedTheme,
   getStoredTheme,
+  subscribeTheme,
   toggleTheme,
 } from '@/lib/theme';
 
@@ -52,6 +53,14 @@ describe('theme helpers', () => {
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
     expect(getAppliedTheme()).toBe('dark');
     expect(getStoredTheme()).toBe('dark');
+  });
+
+  it('applyTheme notifies theme subscribers', () => {
+    const onChange = vi.fn();
+    const unsubscribe = subscribeTheme(onChange);
+    applyTheme('dark');
+    expect(onChange).toHaveBeenCalled();
+    unsubscribe();
   });
 
   it('toggleTheme flips light and dark', () => {

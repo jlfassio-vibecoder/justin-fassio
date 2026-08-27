@@ -160,9 +160,13 @@ export function parseGenerationMeta(raw: unknown): ProductOutreachGenerationMeta
           ),
         }
       : {}),
-    ...(typeof g.productSalesRank === 'number' || g.productSalesRank === null
+    ...(typeof g.productSalesRank === 'number' &&
+    Number.isFinite(g.productSalesRank) &&
+    g.productSalesRank > 0
       ? { productSalesRank: g.productSalesRank }
-      : {}),
+      : g.productSalesRank === null
+        ? { productSalesRank: null }
+        : {}),
     fallback: g.fallback,
     introWordCount: g.introWordCount,
     closingWordCount: g.closingWordCount,

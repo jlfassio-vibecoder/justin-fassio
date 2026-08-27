@@ -1098,6 +1098,31 @@ describe('parseGenerationMeta freeze fields', () => {
     expect(parsed?.copyStatus).toBe('stub');
   });
 
+  it('drops non-positive or non-finite productSalesRank', async () => {
+    const { parseGenerationMeta } = await import('@/lib/systemMessages');
+    const base = {
+      promptVersion: 'v1',
+      model: 'none',
+      preparationDate: '2026-08-25',
+      selectionReasons: {
+        priority: 'Tier 1',
+        fitScore: 7,
+        channelMatch: true,
+        productFit: 'channel_intersect',
+        exclusionsChecked: true,
+      },
+      fallback: 'defaults',
+      introWordCount: 12,
+      closingWordCount: 8,
+      generatedAt: '2026-08-25T12:00:00Z',
+    } as const;
+    for (const productSalesRank of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const parsed = parseGenerationMeta({ ...base, productSalesRank });
+      expect(parsed?.productSalesRank).toBeUndefined();
+    }
+    expect(parseGenerationMeta({ ...base, productSalesRank: null })?.productSalesRank).toBeNull();
+  });
+
   it('round-trips contextFlags from Slice B AI generation', async () => {
     const { parseGenerationMeta } = await import('@/lib/systemMessages');
     const parsed = parseGenerationMeta({

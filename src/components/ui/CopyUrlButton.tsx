@@ -5,6 +5,13 @@ import { copyTextToClipboard } from '@/lib/copyTextToClipboard';
 
 const COPIED_MS = 1800;
 
+/** Absolute http(s) href for host-only or scheme-less website strings. */
+function hrefForExternalUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 type CopyUrlButtonProps = {
   /** Plain text to copy (URL, account name, etc.). */
   url: string;
@@ -71,7 +78,7 @@ export function CopyableUrl({ url, className, linkClassName, children }: Copyabl
   return (
     <span className={cn('inline-flex max-w-full items-start gap-1', className)}>
       <a
-        href={trimmed}
+        href={hrefForExternalUrl(trimmed)}
         target="_blank"
         rel="noopener noreferrer"
         className={cn('text-accent-800 break-all hover:underline', linkClassName)}

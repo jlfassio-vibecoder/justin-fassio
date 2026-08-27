@@ -254,6 +254,7 @@ export function LogCallFormModal({
   const briefingNotesKey =
     open && storeId != null ? `${storeId}:${briefingContext?.talkTrackHint ?? ''}` : '';
   const [appliedBriefingNotesKey, setAppliedBriefingNotesKey] = useState('');
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (briefingNotesKey && briefingNotesKey !== appliedBriefingNotesKey) {
     setAppliedBriefingNotesKey(briefingNotesKey);
     const hint = briefingContext?.talkTrackHint?.trim();

@@ -68,7 +68,7 @@ export function composerDraftFromAgentDto(
     productSku: d.payload.sku,
     productSlug: d.payload.slug,
     productIsNew: extras?.productIsNew,
-    generation: d.payload.generation ?? null,
+    generation: parseGenerationMeta(d.payload.generation) ?? null,
   };
 }
 

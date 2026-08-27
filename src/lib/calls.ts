@@ -143,30 +143,54 @@ function dateDiffDays(fromYmd: string, toYmd: string): number {
 
 /**
  * Latest call per prospect: due only when that call has follow_up_date <= today (Vancouver).
+ * When prospectIds are omitted, first narrows to prospects that have any due follow-up row,
+ * then loads latest calls only for those ids (avoids a full calls table ordered scan).
  */
 export async function fetchProspectFollowUpContext(
   client: Client,
   options?: { asOf?: Date; prospectIds?: number[] },
 ): Promise<Map<number, ProspectFollowUpContext>> {
   const today = formatOutreachPreparationDate(options?.asOf ?? new Date(), AGENT_OUTREACH_PREP_TZ);
-  let query = client
-    .from('calls')
-    .select('prospect_id, follow_up_date, call_date, created_at')
-    .order('call_date', { ascending: false })
-    .order('created_at', { ascending: false });
 
-  if (options?.prospectIds && options.prospectIds.length > 0) {
-    query = query.in('prospect_id', options.prospectIds);
+  let prospectIds = options?.prospectIds?.filter(
+    (id) => typeof id === 'number' && Number.isFinite(id),
+  );
+
+  if (!prospectIds || prospectIds.length === 0) {
+    const { data: dueRows, error: dueError } = await client
+      .from('calls')
+      .select('prospect_id')
+      .not('follow_up_date', 'is', null)
+      .lte('follow_up_date', today);
+    if (dueError) throw new Error(dueError.message);
+
+    const idSet = new Set<number>();
+    for (const row of dueRows ?? []) {
+      if (typeof row.prospect_id === 'number' && Number.isFinite(row.prospect_id)) {
+        idSet.add(row.prospect_id);
+      }
+    }
+    prospectIds = [...idSet];
+    if (prospectIds.length === 0) return new Map();
   }
 
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-
   const latestByProspect = new Map<number, string | null>();
-  for (const row of data ?? []) {
-    if (typeof row.prospect_id !== 'number' || !Number.isFinite(row.prospect_id)) continue;
-    if (!latestByProspect.has(row.prospect_id)) {
-      latestByProspect.set(row.prospect_id, row.follow_up_date ?? null);
+  const chunkSize = 200;
+  for (let i = 0; i < prospectIds.length; i += chunkSize) {
+    const chunk = prospectIds.slice(i, i + chunkSize);
+    const { data, error } = await client
+      .from('calls')
+      .select('prospect_id, follow_up_date, call_date, created_at')
+      .in('prospect_id', chunk)
+      .order('call_date', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+
+    for (const row of data ?? []) {
+      if (typeof row.prospect_id !== 'number' || !Number.isFinite(row.prospect_id)) continue;
+      if (!latestByProspect.has(row.prospect_id)) {
+        latestByProspect.set(row.prospect_id, row.follow_up_date ?? null);
+      }
     }
   }
 

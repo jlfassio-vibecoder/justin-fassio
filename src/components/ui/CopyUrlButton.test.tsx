@@ -57,4 +57,11 @@ describe('CopyableUrl', () => {
     await user.click(screen.getByRole('button', { name: 'Copy URL' }));
     expect(copyTextToClipboardMock).toHaveBeenCalledWith('https://example.com/page');
   });
+
+  it('prefixes https for host-only href while copying the raw display string', () => {
+    render(<CopyableUrl url="example.com" />);
+    const link = screen.getByRole('link', { name: 'example.com' });
+    expect(link).toHaveAttribute('href', 'https://example.com');
+    expect(link).toHaveTextContent('example.com');
+  });
 });
