@@ -84,6 +84,7 @@ const STAFF_FEATURES_OFF: StaffIslandFeatureFlags = {
   FEATURE_EAGLE_PEAK_OUTREACH: false,
   FEATURE_BIG_FISH_SELLING: false,
   FEATURE_BIG_FISH_OUTREACH: false,
+  FEATURE_LIVING_IN_SUNSHINE_SELLING: false,
   FEATURE_PROSPECTIVE_LINES: false,
 };
 
@@ -108,6 +109,9 @@ async function fetchStaffFeatures(): Promise<StaffIslandFeatureFlags> {
       FEATURE_EAGLE_PEAK_OUTREACH: Boolean(payload.features?.FEATURE_EAGLE_PEAK_OUTREACH),
       FEATURE_BIG_FISH_SELLING: Boolean(payload.features?.FEATURE_BIG_FISH_SELLING),
       FEATURE_BIG_FISH_OUTREACH: Boolean(payload.features?.FEATURE_BIG_FISH_OUTREACH),
+      FEATURE_LIVING_IN_SUNSHINE_SELLING: Boolean(
+        payload.features?.FEATURE_LIVING_IN_SUNSHINE_SELLING,
+      ),
       FEATURE_PROSPECTIVE_LINES: Boolean(payload.features?.FEATURE_PROSPECTIVE_LINES),
     };
   } catch {
