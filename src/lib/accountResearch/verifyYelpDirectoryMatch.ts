@@ -30,6 +30,7 @@ export type VerifyYelpDirectoryMatchCode =
   | 'no_match'
   | 'low_confidence'
   | 'run_not_found'
+  | 'citation_persist_failed'
   | 'website_source_missing'
   | 'retailer_mismatch';
 
@@ -98,14 +99,19 @@ export function yelpMatchFromDirectoryCitation(
   };
 }
 
-export function findDirectoryCitationForRun(
-  snapshot: AccountResearchSnapshot,
+export function findLatestAcceptedDirectoryCitation(
+  citations: ReadonlyArray<AccountResearchCitation>,
 ): AccountResearchCitation | null {
-  const accepted = Object.values(snapshot.citationsBySourceId)
-    .flat()
+  const accepted = citations
     .filter((c) => c.platform === 'directory' && c.acceptance_status === 'accepted')
     .sort((a, b) => b.observed_at.localeCompare(a.observed_at));
   return accepted[0] ?? null;
+}
+
+export function findDirectoryCitationForRun(
+  snapshot: AccountResearchSnapshot,
+): AccountResearchCitation | null {
+  return findLatestAcceptedDirectoryCitation(Object.values(snapshot.citationsBySourceId).flat());
 }
 
 export function findYelpBusinessUrlHint(snapshot: AccountResearchSnapshot): string | null {
@@ -246,7 +252,7 @@ export async function verifyYelpDirectoryMatchOnRun(
     .eq('platform', 'directory');
 
   if (deleteError) {
-    return { ok: false, error: deleteError.message, code: 'run_not_found' };
+    return { ok: false, error: deleteError.message, code: 'citation_persist_failed' };
   }
 
   const { data: inserted, error: insertError } = await supabase
@@ -277,7 +283,7 @@ export async function verifyYelpDirectoryMatchOnRun(
     return {
       ok: false,
       error: insertError?.message ?? 'Failed to save directory citation',
-      code: 'run_not_found',
+      code: 'citation_persist_failed',
     };
   }
 
@@ -286,7 +292,7 @@ export async function verifyYelpDirectoryMatchOnRun(
     return {
       ok: false,
       error: 'Citation saved but failed to reload research snapshot',
-      code: 'run_not_found',
+      code: 'citation_persist_failed',
     };
   }
 

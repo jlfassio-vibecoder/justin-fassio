@@ -416,7 +416,7 @@ export async function previewEnrichedContactAttach(
         candidateName: fullName,
         businessName: yelpBusiness?.name ?? prospect.name,
         city: prospect.city,
-        state: prospect.region ?? 'OR',
+        state: prospect.region,
         proposedTitle: gaps.title,
       })
     : null;

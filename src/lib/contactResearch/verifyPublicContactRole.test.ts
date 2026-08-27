@@ -85,6 +85,33 @@ describe('verifyPublicContactRole', () => {
     expect(result.matchedRole).toBeNull();
   });
 
+  it('drops model source URLs that are not present in the search excerpt', async () => {
+    generateTextMock.mockResolvedValue({
+      text: 'Bob Leis — Owner at Newport Ace Hardware. https://linkedin.com/in/bob-leis',
+    });
+    generateObjectMock.mockResolvedValue({
+      object: {
+        status: 'verified',
+        signals: { personName: true, company: true, role: true, location: true },
+        matchedRole: 'Owner',
+        matchedCompany: 'Newport Ace Hardware',
+        sourceUrls: [
+          'https://linkedin.com/in/bob-leis',
+          'https://linkedin.com/in/hallucinated-profile',
+        ],
+      },
+    });
+
+    const result = await verifyPublicContactRole({
+      candidateName: 'Bob Leis',
+      businessName: 'Newport Ace Hardware',
+      city: 'Newport',
+      state: 'OR',
+    });
+
+    expect(result.sourceUrls).toEqual(['https://linkedin.com/in/bob-leis']);
+  });
+
   it('returns not_found when search finds no corroboration', async () => {
     generateTextMock.mockResolvedValue({
       text: 'No usable public LinkedIn corroboration found for Tony Gile.',

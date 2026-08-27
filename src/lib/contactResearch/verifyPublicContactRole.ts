@@ -50,6 +50,21 @@ const roleVerificationSchema = z.object({
   sourceUrls: z.array(z.string()).describe('Public search result URLs only — no invented links'),
 });
 
+function filterSourceUrlsInExcerpt(sourceUrls: string[], excerpt: string): string[] {
+  return sourceUrls
+    .map((url) => url.trim())
+    .filter((url) => {
+      if (!url) return false;
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+      } catch {
+        return false;
+      }
+      return excerpt.includes(url);
+    });
+}
+
 const NOT_FOUND_RESULT: PublicRoleVerificationResult = {
   status: 'not_found',
   signals: { personName: false, company: false, role: false, location: false },
@@ -171,7 +186,7 @@ export async function verifyPublicContactRole(
       matchedRole: parsed.object.matchedRole?.trim() || null,
       matchedCompany: parsed.object.matchedCompany?.trim() || null,
       excerpt,
-      sourceUrls: parsed.object.sourceUrls.filter((url) => url.trim().length > 0),
+      sourceUrls: filterSourceUrlsInExcerpt(parsed.object.sourceUrls, excerpt),
     };
   } catch {
     return NOT_FOUND_RESULT;

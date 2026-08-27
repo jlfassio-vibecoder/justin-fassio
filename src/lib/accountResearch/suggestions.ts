@@ -19,6 +19,7 @@ import {
 } from '@/lib/accountResearch/suggestionFields';
 import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
 import {
+  findLatestAcceptedDirectoryCitation,
   yelpMatchFromDirectoryCitation,
   type YelpDirectoryCitationMetadata,
 } from '@/lib/accountResearch/verifyYelpDirectoryMatch';
@@ -141,9 +142,7 @@ export function pickDirectoryIdentitySuggestions(
   prospect: Prospect,
   citations: ReadonlyArray<AccountResearchCitation>,
 ): GeneratedSuggestionPayload[] {
-  const directoryCitation = citations.find(
-    (c) => c.platform === 'directory' && c.acceptance_status === 'accepted',
-  );
+  const directoryCitation = findLatestAcceptedDirectoryCitation(citations);
   if (!directoryCitation) return [];
 
   const match = yelpMatchFromDirectoryCitation(directoryCitation);

@@ -22,8 +22,6 @@ export const POST: APIRoute = async ({ request, params }) => {
     return jsonAccountResearch({ ok: false, error: 'Invalid runId' }, 400);
   }
 
-  void request;
-
   const result = await verifyYelpDirectoryMatchOnRun(auth.supabase, runId);
   if (!result.ok) {
     const status =
