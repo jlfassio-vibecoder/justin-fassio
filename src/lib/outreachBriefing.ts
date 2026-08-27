@@ -6,7 +6,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import type { AllocateChannelsForDayResult } from '@/lib/outreachChannelAllocation';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
-import { listCallToday, listHotLeads, listWarmLeads } from '@/lib/outreachLeadLists';
+import { listOutreachLeads } from '@/lib/outreachLeadLists';
+import { buildFollowUpQueue } from '@/lib/outreachFollowUpQueue';
 import {
   briefingSellingDate,
   getLatestOutreachAutomationRunForDate,
@@ -35,6 +36,7 @@ export { formatRegionalPoolMessage } from '@/lib/outreachBriefingShared';
 import { AGENT_OUTREACH_PENDING_DRAFT_STATUSES } from '@/lib/outreachSelectionConstants';
 import { resolveOutreachLeadRules } from '@/lib/resolveOutreachLeadRules';
 import {
+  fetchPendingAgentProductOutreachProspectIds,
   listAgentProductOutreachDrafts,
   SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH,
 } from '@/lib/systemMessages';
@@ -270,6 +272,7 @@ export async function assembleOutreachBriefing(params: {
       callToday: [],
       hot: [],
       warm: [],
+      followUps: [],
       recentEngagement: [],
       recentConversions: [],
       performance: null,
@@ -406,13 +409,42 @@ export async function assembleOutreachBriefing(params: {
     performance: snap.snapshot.performance,
   });
 
-  const [callToday, hot, warm, recentEngagement, recentConversions] = await Promise.all([
-    listCallToday(client, asOf, resolvedLeadRules.rules),
-    listHotLeads(client, asOf, resolvedLeadRules.rules),
-    listWarmLeads(client, asOf, resolvedLeadRules.rules),
+  const [allLeads, pendingDrafts, recentEngagement, recentConversions] = await Promise.all([
+    listOutreachLeads(client, { asOf, rules: resolvedLeadRules.rules }),
+    fetchPendingAgentProductOutreachProspectIds(client, AGENT_OUTREACH_PENDING_DRAFT_STATUSES),
     loadRecentEngagement(client, since),
     loadRecentConversions(client, since),
   ]);
+  if (!pendingDrafts.ok) return { ok: false, error: pendingDrafts.error };
+
+  const productIds = [
+    ...new Set(
+      allLeads
+        .map((row) => row.lastEngagedCatalogItemId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    ),
+  ];
+  const productNamesById = new Map<string, string>();
+  if (productIds.length > 0) {
+    const { data: catalogRows } = await client
+      .from('catalog_items')
+      .select('id, name')
+      .in('id', productIds);
+    for (const row of catalogRows ?? []) {
+      if (row.name?.trim()) productNamesById.set(row.id, row.name.trim());
+    }
+  }
+
+  const followUps = buildFollowUpQueue({
+    leads: allLeads,
+    pendingProspectIds: pendingDrafts.prospectIds,
+    productNamesById,
+    asOf,
+    rules: resolvedLeadRules.rules,
+  });
+  const callToday = allLeads.filter((row) => row.callToday);
+  const hot = allLeads.filter((row) => row.leadState === 'hot');
+  const warm = allLeads.filter((row) => row.leadState === 'warm');
 
   const prepMessage =
     regionalPool && banner.status === 'empty_pool' && scopedCrmRegion
@@ -442,6 +474,7 @@ export async function assembleOutreachBriefing(params: {
     callToday,
     hot,
     warm,
+    followUps,
     recentEngagement,
     recentConversions,
     performance: snap.snapshot.performance,

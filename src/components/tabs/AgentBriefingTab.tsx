@@ -7,12 +7,21 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Input';
-import { getAgentProductOutreachDraftClient } from '@/lib/agentProductOutreachDraftClient';
+import {
+  getAgentProductOutreachDraftClient,
+  createFollowUpDraftClient,
+} from '@/lib/agentProductOutreachDraftClient';
 import type { CatalogItem } from '@/lib/catalog';
 import { buildCatalogItemEmailCardHtml } from '@/lib/catalogItemEmailCardHtml';
 import { useOptionalLineContext } from '@/lib/lineContext';
-import { formatRegionalPoolMessage, type OutreachBriefingDto } from '@/lib/outreachBriefingShared';
-import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
+import {
+  formatFollowUpRelativeTime,
+  formatRegionalPoolMessage,
+  type OutreachBriefingDto,
+  type OutreachFollowUpRow,
+} from '@/lib/outreachBriefingShared';
+import { FOLLOW_UP_QUEUE_VISIBLE } from '@/lib/outreachFollowUpQueue';
+import { Tag } from '@/components/ui/Tag';
 import {
   fetchOperationalTerritories,
   type OperationalTerritoryOption,
@@ -105,37 +114,71 @@ async function staffPost(
   return { ok: true, data: payload };
 }
 
-function LeadList({
-  title,
+function followUpActionLabel(action: OutreachFollowUpRow['recommendedAction']): string {
+  if (action === 'call') return 'Call';
+  if (action === 'email') return 'Email';
+  return 'Open';
+}
+
+function FollowUpQueue({
   rows,
-  onOpen,
+  emailBusyId,
+  onAction,
 }: {
-  title: string;
-  rows: OutreachLeadRow[];
-  onOpen: (row: OutreachLeadRow) => void;
+  rows: OutreachFollowUpRow[];
+  emailBusyId: number | null;
+  onAction: (row: OutreachFollowUpRow) => void;
 }) {
   return (
     <Card>
-      <CardTitle className="text-[15px]">{title}</CardTitle>
+      <CardTitle className="text-[15px]">Today’s follow-ups</CardTitle>
       <CardMeta className="mb-2">
-        {rows.length} lead{rows.length === 1 ? '' : 's'}
+        {rows.length} lead{rows.length === 1 ? '' : 's'} · Call, email, or watch
       </CardMeta>
       {rows.length === 0 ? (
         <p className="text-ink/50 m-0 text-sm">None right now.</p>
       ) : (
-        <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
-          {rows.slice(0, 12).map((row) => (
-            <li key={row.prospectId}>
-              <button
-                type="button"
-                className="text-accent-800 hover:bg-accent-50 w-full rounded-md px-2 py-1.5 text-left text-sm"
-                onClick={() => onOpen(row)}
+        <ul
+          className="m-0 flex list-none flex-col gap-2 overflow-y-auto p-0"
+          style={{
+            // ~2.5rem row content + gap-2; scroll after FOLLOW_UP_QUEUE_VISIBLE rows.
+            maxHeight: `calc(${FOLLOW_UP_QUEUE_VISIBLE} * 2.5rem + ${FOLLOW_UP_QUEUE_VISIBLE - 1} * 0.5rem)`,
+          }}
+        >
+          {rows.map((row) => {
+            const ago = formatFollowUpRelativeTime(row.lastEngagedAt);
+            const stateLabel =
+              row.leadState === 'hot' ? 'Hot' : row.leadState === 'warm' ? 'Warm' : 'Cold';
+            const stateVariant =
+              row.leadState === 'hot' ? 'accent' : row.leadState === 'warm' ? 'outline' : 'neutral';
+            return (
+              <li
+                key={row.prospectId}
+                className="flex items-start justify-between gap-3"
+                data-testid={`follow-up-row-${row.prospectId}`}
               >
-                <span className="font-medium">{row.prospectName}</span>
-                <span className="text-ink/50 ml-2 text-xs uppercase">{row.leadState}</span>
-              </button>
-            </li>
-          ))}
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{row.prospectName}</span>
+                    <Tag variant={stateVariant}>{stateLabel}</Tag>
+                    {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
+                  </div>
+                  <p className="text-ink/55 m-0 mt-0.5 text-xs">{row.reasonLine}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant={row.recommendedAction === 'watch' ? 'ghost' : 'secondary'}
+                  className="shrink-0 px-3 py-1 text-xs"
+                  disabled={emailBusyId === row.prospectId}
+                  onClick={() => onAction(row)}
+                >
+                  {emailBusyId === row.prospectId
+                    ? 'Preparing…'
+                    : followUpActionLabel(row.recommendedAction)}
+                </Button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Card>
@@ -164,6 +207,7 @@ export function AgentBriefingTab({
   const [composerProduct, setComposerProduct] = useState<CatalogItem | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
+  const [emailBusyId, setEmailBusyId] = useState<number | null>(null);
   const [appliedDeepLinkKey, setAppliedDeepLinkKey] = useState('');
   const [opsOptions, setOpsOptions] = useState<OperationalTerritoryOption[]>([]);
   const [storeTerritoryCode, setStoreTerritoryCode] = useState<'or' | 'wa'>('or');
@@ -220,6 +264,35 @@ export function AgentBriefingTab({
       setComposerOpen(true);
     },
     [catalogById],
+  );
+
+  const handleFollowUpAction = useCallback(
+    async (row: OutreachFollowUpRow) => {
+      if (row.recommendedAction === 'call') {
+        onLogCallForLead(row.prospectId);
+        return;
+      }
+      if (row.recommendedAction === 'watch') {
+        onOpenProspect({ prospectId: row.prospectId, accountStatus: row.accountStatus });
+        return;
+      }
+      setComposerError(null);
+      setEmailBusyId(row.prospectId);
+      const created = await createFollowUpDraftClient(row.prospectId);
+      if (!created.ok) {
+        setComposerError(created.error);
+        setEmailBusyId(null);
+        return;
+      }
+      await openDraftReview({
+        draftId: created.draftId,
+        catalogItemId: created.catalogItemId,
+        productName: created.productName,
+        prospectName: row.prospectName,
+      });
+      setEmailBusyId(null);
+    },
+    [onLogCallForLead, onOpenProspect, openDraftReview],
   );
 
   useEffect(() => {
@@ -690,55 +763,13 @@ export function AgentBriefingTab({
             </Card>
           )}
 
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
-            <LeadList
-              title="Call Today"
-              rows={briefing.callToday}
-              onOpen={(row) => onLogCallForLead(row.prospectId)}
-            />
-            <LeadList
-              title="Hot"
-              rows={briefing.hot}
-              onOpen={(row) => onLogCallForLead(row.prospectId)}
-            />
-            <LeadList
-              title="Warm"
-              rows={briefing.warm}
-              onOpen={(row) => onLogCallForLead(row.prospectId)}
-            />
-          </div>
+          <FollowUpQueue
+            rows={briefing.followUps ?? []}
+            emailBusyId={emailBusyId}
+            onAction={(row) => void handleFollowUpAction(row)}
+          />
 
           <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3">
-            <Card>
-              <CardTitle className="text-[15px]">Recent engagement (7d)</CardTitle>
-              {briefing.recentEngagement.length === 0 ? (
-                <p className="text-ink/50 m-0 text-sm">No opens or clicks in the last 7 days.</p>
-              ) : (
-                <ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm">
-                  {briefing.recentEngagement.map((e) => {
-                    const parts: string[] = [];
-                    if (e.clickCount > 0) {
-                      parts.push(`${e.clickCount} click${e.clickCount === 1 ? '' : 's'}`);
-                    }
-                    if (e.openCount > 0) {
-                      parts.push(`${e.openCount} open${e.openCount === 1 ? '' : 's'}`);
-                    }
-                    return (
-                      <li key={e.prospectId}>
-                        <button
-                          type="button"
-                          className="text-accent-800 hover:underline"
-                          onClick={() => onOpenProspect({ prospectId: e.prospectId })}
-                        >
-                          {e.prospectName}
-                        </button>
-                        <span className="text-ink/50 ml-2 text-xs">{parts.join(' · ')}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </Card>
             <Card>
               <CardTitle className="text-[15px]">Recent conversions (7d)</CardTitle>
               {briefing.recentConversions.length === 0 ? (

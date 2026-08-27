@@ -14,6 +14,10 @@ import {
   type ProspectOutreachEngagement,
 } from '@/lib/outreachEngagementAggregate';
 import {
+  countMessagesSentSince,
+  lastEngagedCatalogItemIdFromMessages,
+} from '@/lib/outreachFollowUpQueue';
+import {
   listConfirmedLinksForProspect,
   type GmailThreadLinkRow,
 } from '@/lib/google/gmailThreadLinks';
@@ -41,12 +45,28 @@ export type OutreachLeadRow = {
   score: number;
   rulesVersion: OutreachLeadRulesVersion;
   engagement: ProspectOutreachEngagement;
+  lastEngagedCatalogItemId: string | null;
+  emailsSentInWindow: number;
 };
 
 export type OutreachLeadKind = 'warm' | 'hot' | 'call_today';
 
 const MESSAGE_SELECT =
   'id, prospect_id, to_email, catalog_item_id, sent_at, open_count, click_count, last_opened_at, last_clicked_at, bounced_at, complained_at, status, account_contact_id';
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function leadRowExtras(
+  messages: OutreachMessageRow[],
+  asOf: Date,
+  rules: OutreachLeadRules,
+): { lastEngagedCatalogItemId: string | null; emailsSentInWindow: number } {
+  const sinceIso = new Date(asOf.getTime() - rules.warmWindowDays * MS_PER_DAY).toISOString();
+  return {
+    lastEngagedCatalogItemId: lastEngagedCatalogItemIdFromMessages(messages),
+    emailsSentInWindow: countMessagesSentSince(messages, sinceIso),
+  };
+}
 
 /** Matches listConfirmedLinksForProspect default cap, applied per prospect after batch fetch. */
 const CONFIRMED_LINKS_PER_PROSPECT = 25;
@@ -238,6 +258,7 @@ export async function getOutreachLeadForProspect(params: {
       score: evaluated.score,
       rulesVersion: evaluated.rulesVersion,
       engagement,
+      ...leadRowExtras([], asOf, rules),
     };
   }
 
@@ -288,6 +309,7 @@ export async function getOutreachLeadForProspect(params: {
     score: evaluated.score,
     rulesVersion: evaluated.rulesVersion,
     engagement,
+    ...leadRowExtras(messages, asOf, rules),
   };
 }
 
@@ -385,6 +407,7 @@ export async function listOutreachLeads(
       score: evaluated.score,
       rulesVersion: evaluated.rulesVersion,
       engagement,
+      ...leadRowExtras(bucket.messages, asOf, rules),
     };
 
     if (!kinds || kinds.length === 0) {
