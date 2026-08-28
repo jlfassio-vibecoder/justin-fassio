@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Menu, PhoneCall } from 'lucide-react';
 import { Header } from '@/components/Header';
+import { StaffMobileNavDrawer } from '@/components/StaffMobileNavDrawer';
 import { TabNav } from '@/components/TabNav';
+import { Button } from '@/components/ui/Button';
+import { lineStatusBadgeLabel } from '@/lib/lineContextStorage';
 import { LogCallModal } from '@/components/LogCallModal';
 import type { BriefingLogCallContext } from '@/components/LogCallFormModal';
 import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
@@ -102,6 +106,7 @@ export function RepCommandCenter({
         : defaultTab,
   );
   const [modalOpen, setModalOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [logCallBriefingContext, setLogCallBriefingContext] =
     useState<BriefingLogCallContext | null>(null);
   const [modalStoreId, setModalStoreId] = useState<number | null>(null);
@@ -413,37 +418,105 @@ export function RepCommandCenter({
       : 'Independent Sales Representative'
     : 'Independent Sales Representative — British Columbia';
 
+  const activeLineKey = (lineSlug ?? 'ogr') as LineKey;
+  const currentLine =
+    multiLineUi && lineCtx.representedLines.length > 0
+      ? (lineCtx.representedLines.find((row) => row.code === activeLineKey) ?? null)
+      : null;
+  const mobileLineLabel = currentLine?.name ?? (activeLineKey === 'ogr' ? 'Old Guys Rule' : 'Line');
+  const mobileLineStatus = currentLine ? lineStatusBadgeLabel(currentLine.status) : null;
+  const territoriesHref =
+    multiLineUi && lineSlug ? `/app/lines/${lineSlug}/territories` : undefined;
+
   return (
     <div className="bg-bg font-body text-ink min-h-screen">
       <header className="border-ink/15 bg-bg/95 sticky top-0 z-30 border-b backdrop-blur">
         <div className="mx-auto max-w-[1400px]">
-          <Header
-            activeLine={lineSlug ?? 'ogr'}
-            onSelectOgr={() => {
-              if (multiLineUi) navigateToLine('ogr');
-            }}
-            onLogCall={() => openModal()}
-            onOpenMessages={() => setActiveTab('messages')}
-            messagesNeedsMappingCount={messagesNeedsMappingCount}
-            multiLineUi={multiLineUi}
-            representedLines={lineCtx.representedLines}
-            onSelectLine={navigateToLine}
-            subtitle={headerSubtitle}
-            territoriesHref={
-              multiLineUi && lineSlug ? `/app/lines/${lineSlug}/territories` : undefined
-            }
-          />
-          <TabNav
-            activeTab={activeTab}
-            onChange={setActiveTab}
-            totalSkuCount={catalog.length}
-            prospectTotalCount={pipelineProspects.length}
-            accountTotalCount={activeAccounts.length}
-            contactTotalCount={contacts.length}
-            messagesNeedsMappingCount={messagesNeedsMappingCount}
-          />
+          <div className="flex items-center justify-between gap-2 px-4 py-2.5 md:hidden">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="bg-accent font-heading text-on-accent flex h-9 w-9 flex-none items-center justify-center rounded-full text-sm">
+                JF
+              </div>
+              <div className="min-w-0">
+                <p className="font-heading m-0 truncate text-sm leading-tight">{mobileLineLabel}</p>
+                {mobileLineStatus ? (
+                  <p className="text-accent-700 m-0 truncate text-[10px] font-semibold tracking-wide uppercase">
+                    {mobileLineStatus}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                type="button"
+                variant="primary"
+                className="h-9 px-3"
+                onClick={() => openModal()}
+                aria-label="Log Call"
+              >
+                <PhoneCall size={16} strokeWidth={2.75} />
+                <span>Log Call</span>
+              </Button>
+              <button
+                type="button"
+                className="border-ink/15 text-ink inline-flex h-9 w-9 items-center justify-center rounded-full border bg-transparent"
+                aria-label="Open navigation"
+                aria-expanded={mobileNavOpen}
+                onClick={() => setMobileNavOpen(true)}
+              >
+                <Menu size={18} strokeWidth={2.75} />
+              </button>
+            </div>
+          </div>
+
+          <div className="hidden md:block">
+            <Header
+              activeLine={activeLineKey}
+              onSelectOgr={() => {
+                if (multiLineUi) navigateToLine('ogr');
+              }}
+              onLogCall={() => openModal()}
+              onOpenMessages={() => setActiveTab('messages')}
+              messagesNeedsMappingCount={messagesNeedsMappingCount}
+              multiLineUi={multiLineUi}
+              representedLines={lineCtx.representedLines}
+              onSelectLine={navigateToLine}
+              subtitle={headerSubtitle}
+              territoriesHref={territoriesHref}
+            />
+            <TabNav
+              activeTab={activeTab}
+              onChange={setActiveTab}
+              totalSkuCount={catalog.length}
+              prospectTotalCount={pipelineProspects.length}
+              accountTotalCount={activeAccounts.length}
+              contactTotalCount={contacts.length}
+              messagesNeedsMappingCount={messagesNeedsMappingCount}
+            />
+          </div>
         </div>
       </header>
+
+      <StaffMobileNavDrawer
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+        activeLine={activeLineKey}
+        multiLineUi={multiLineUi}
+        representedLines={lineCtx.representedLines}
+        onSelectLine={navigateToLine}
+        onSelectOgr={() => {
+          if (multiLineUi) navigateToLine('ogr');
+        }}
+        territoriesHref={territoriesHref}
+        activeTab={activeTab}
+        onChangeTab={setActiveTab}
+        totalSkuCount={catalog.length}
+        prospectTotalCount={pipelineProspects.length}
+        accountTotalCount={activeAccounts.length}
+        contactTotalCount={contacts.length}
+        messagesNeedsMappingCount={messagesNeedsMappingCount}
+        onOpenMessages={() => setActiveTab('messages')}
+      />
 
       <main
         key={multiLineUi ? (salesLineId ?? 'loading') : 'legacy'}
