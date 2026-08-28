@@ -206,7 +206,7 @@ export function StaffMobileNavDrawer({
                 <Tag variant="accent">{messagesNeedsMappingCount}</Tag>
               ) : null}
             </button>
-            <Button variant="secondary" className="justify-start">
+            <Button type="button" variant="secondary" className="justify-start">
               <Download size={16} strokeWidth={2.75} />
               <span>Export CSV</span>
             </Button>

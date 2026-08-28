@@ -448,6 +448,7 @@ export function RepCommandCenter({
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
               <Button
+                type="button"
                 variant="primary"
                 className="h-9 px-3"
                 onClick={() => openModal()}
