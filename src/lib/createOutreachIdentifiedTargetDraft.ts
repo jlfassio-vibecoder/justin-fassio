@@ -19,6 +19,7 @@ import type { SelectedOutreachTarget } from '@/lib/outreachSelectTargets';
 import { AGENT_OUTREACH_PENDING_DRAFT_STATUSES } from '@/lib/outreachSelectionConstants';
 import { mapProspectRow, PROSPECT_SELECT, type ProspectListRow } from '@/lib/prospects';
 import {
+  escapeIlikeExact,
   listAgentProductOutreachDrafts,
   normalizeSystemMessageEmail,
   SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH,
@@ -61,7 +62,7 @@ async function isOutreachEmailSuppressed(
     .select('to_email')
     .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
     .or(SUPPRESSION_OR)
-    .ilike('to_email', email)
+    .ilike('to_email', escapeIlikeExact(email))
     .limit(10);
   if (byEmail.error) return { ok: false, error: byEmail.error.message };
   const suppressed = (byEmail.data ?? []).some(

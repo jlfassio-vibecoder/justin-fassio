@@ -533,18 +533,23 @@ export function AgentBriefingTab({
       body.city = briefingCity;
     }
     if (briefing?.sellingDate) body.preparationDate = briefing.sellingDate;
-    const result = await staffPost('/api/staff/outreach/identified-target-draft', body);
-    setRowRunPrepBusyKey(null);
-    if (!result.ok) {
-      const err = result.error;
-      setRowRunPrepMessage(
-        /no usable outreach email/i.test(err)
-          ? `Add a contact email first for ${row.prospectName}.`
-          : err,
-      );
-      return;
+    try {
+      const result = await staffPost('/api/staff/outreach/identified-target-draft', body);
+      if (!result.ok) {
+        const err = result.error;
+        setRowRunPrepMessage(
+          /no usable outreach email/i.test(err)
+            ? `Add a contact email first for ${row.prospectName}.`
+            : err,
+        );
+        return;
+      }
+      setReloadToken((n) => n + 1);
+    } catch {
+      setRowRunPrepMessage('Request failed. Try again.');
+    } finally {
+      setRowRunPrepBusyKey(null);
     }
-    setReloadToken((n) => n + 1);
   }
 
   async function runPrepNow() {

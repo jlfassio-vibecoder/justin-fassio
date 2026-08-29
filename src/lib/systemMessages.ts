@@ -226,7 +226,8 @@ export type InsertProductOutreachSendingMessageInput = {
   payload: ProductOutreachSystemMessagePayload;
 };
 
-function escapeIlikeExact(value: string): string {
+/** Escape `%`, `_`, and `\` so an ILIKE pattern matches the literal string. */
+export function escapeIlikeExact(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 }
 

@@ -102,11 +102,15 @@ const contactRow = {
   updated_at: '2026-01-01T00:00:00Z',
 };
 
-function chainFrom(table: string, contacts: unknown[] | null = [contactRow]) {
+function chainFrom(
+  table: string,
+  contacts: unknown[] | null = [contactRow],
+  options?: { suppressedSystemMessages?: unknown[] },
+) {
   const result = { data: null as unknown, error: null as unknown };
   if (table === 'prospects') result.data = prospectRow;
   if (table === 'account_contacts') result.data = contacts;
-  if (table === 'system_messages') result.data = [];
+  if (table === 'system_messages') result.data = options?.suppressedSystemMessages ?? [];
   const api: Record<string, unknown> = {};
   const self = () =>
     Object.assign(api, {
@@ -203,6 +207,28 @@ describe('createOutreachIdentifiedTargetDraft', () => {
     }
     expect(generateOgrProductOutreachDraftMock).not.toHaveBeenCalled();
     expect(selectProductForProspectMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects when live contact email is suppressed', async () => {
+    const from = vi.fn((table: string) =>
+      chainFrom(table, [contactRow], {
+        suppressedSystemMessages: [{ id: 'sup-1', to_email: 'buyer@example.com' }],
+      }),
+    );
+    const result = await createOutreachIdentifiedTargetDraft({
+      client: { from } as never,
+      prospectId: 12,
+      catalogItemId: PRODUCT_A,
+      operationalTerritoryId: 'ops-1',
+      preparationDate: '2026-08-25',
+      userId: 'staff-1',
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(409);
+      expect(result.error).toMatch(/suppressed/i);
+    }
+    expect(generateOgrProductOutreachDraftMock).not.toHaveBeenCalled();
   });
 
   it('drafts with frozen product and live contact (does not re-select product)', async () => {
