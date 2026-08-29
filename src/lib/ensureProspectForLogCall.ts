@@ -6,8 +6,7 @@ import { fetchProspectById } from '@/lib/messages';
 import type { Prospect } from '@/lib/prospects';
 
 export type EnsureProspectForLogCallResult =
-  | { ok: true; prospect: Prospect; alreadyPresent: boolean }
-  | { ok: false; error: string };
+  { ok: true; prospect: Prospect; alreadyPresent: boolean } | { ok: false; error: string };
 
 export async function ensureProspectForLogCall(params: {
   prospectId: number;
