@@ -69,18 +69,18 @@ Secure scheduled job (Vercel Cron → protected API, or equivalent on current ho
 
 ### Daily Agent Briefing contents
 
-| Block                        | Source                                                         |
-| ---------------------------- | -------------------------------------------------------------- |
-| Monthly account goal         | Phase 4                                                        |
-| Accounts opened MTD          | `converted_at`                                                 |
-| Projected attainment         | Phase 4                                                        |
-| Recommended outreach pace    | Phase 4                                                        |
-| Drafts ready today           | Agent-origin drafts in draft/queued for the day                |
-| Retail-channel allocation    | Phase 1/5 plan                                                 |
-| Top leads (quick view)       | Call today / Warm / Engaged — Phase 3 lists (Hot counted under Call today) |
-| Today’s follow-ups           | Ranked Call / Email / Watch worklist from Phase 3 + snooze     |
-| Recent account conversions   | `converted_at` list                                            |
-| Learning slices (optional)   | Phase 4 — channel/product/fit-band/lead-state when data exists |
+| Block                      | Source                                                                     |
+| -------------------------- | -------------------------------------------------------------------------- |
+| Monthly account goal       | Phase 4                                                                    |
+| Accounts opened MTD        | `converted_at`                                                             |
+| Projected attainment       | Phase 4                                                                    |
+| Recommended outreach pace  | Phase 4                                                                    |
+| Drafts ready today         | Agent-origin drafts in draft/queued for the day                            |
+| Retail-channel allocation  | Phase 1/5 plan                                                             |
+| Top leads (quick view)     | Call today / Warm / Engaged — Phase 3 lists (Hot counted under Call today) |
+| Today’s follow-ups         | Ranked Call / Email / Watch worklist from Phase 3 + snooze                 |
+| Recent account conversions | `converted_at` list                                                        |
+| Learning slices (optional) | Phase 4 — channel/product/fit-band/lead-state when data exists             |
 
 **Navigation:** Top leads Open (and Call/Email when the follow-ups queue recommends them); follow-ups rows drive Call / Email / Watch / Snooze; drafts open review/send.
 
