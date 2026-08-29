@@ -3066,7 +3066,7 @@ create trigger outreach_follow_up_snoozes_set_updated_at
   for each row execute function public.set_updated_at();
 
 -- ─────────────────────────────────────────────────────────────────────────
--- outreach_research_queue_dismissals — Briefing research-email queue dismiss.
+-- outreach_research_queue_dismissals — Briefing research-email queue dismissals.
 -- See migrations/20260829173230_outreach_research_queue_dismissals.sql.
 -- ─────────────────────────────────────────────────────────────────────────
 create table if not exists outreach_research_queue_dismissals (
