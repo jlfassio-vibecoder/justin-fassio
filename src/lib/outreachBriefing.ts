@@ -254,14 +254,18 @@ export async function filterOutreachLeadsByPrepScope(params: {
   crmRegion: string | null;
   city: string | null;
   storeTerritoryCode?: string | null;
+  /** When set, skip the prospects lookup (reuse a preloaded region/city map). */
+  regionCityById?: Map<number, { region: string | null; city: string | null }>;
 }): Promise<OutreachLeadRow[]> {
   const { leads, crmRegion, city } = params;
   if ((!crmRegion && !city) || leads.length === 0) return leads;
 
-  const byId = await loadProspectRegionCityByIds(
-    params.client,
-    leads.map((l) => l.prospectId),
-  );
+  const byId =
+    params.regionCityById ??
+    (await loadProspectRegionCityByIds(
+      params.client,
+      leads.map((l) => l.prospectId),
+    ));
   const storeCode = params.storeTerritoryCode?.trim().toLowerCase() || null;
 
   return leads.filter((lead) => {
@@ -338,14 +342,18 @@ export async function filterRecentEngagementByPrepScope(params: {
   crmRegion: string | null;
   city: string | null;
   storeTerritoryCode?: string | null;
+  /** When set, skip the prospects lookup (reuse a preloaded region/city map). */
+  regionCityById?: Map<number, { region: string | null; city: string | null }>;
 }): Promise<OutreachBriefingDto['recentEngagement']> {
   const { rows, crmRegion, city } = params;
   if ((!crmRegion && !city) || rows.length === 0) return rows;
 
-  const byId = await loadProspectRegionCityByIds(
-    params.client,
-    rows.map((r) => r.prospectId),
-  );
+  const byId =
+    params.regionCityById ??
+    (await loadProspectRegionCityByIds(
+      params.client,
+      rows.map((r) => r.prospectId),
+    ));
   const storeCode = params.storeTerritoryCode?.trim().toLowerCase() || null;
 
   return rows.filter((row) => {
@@ -595,19 +603,33 @@ export async function assembleOutreachBriefing(params: {
   if (!pendingDrafts.ok) return { ok: false, error: pendingDrafts.error };
 
   let scopedLeads = allLeads;
+  let scopedEngagement = recentEngagement;
   if (scopedCrmRegion || scopedPrepCity) {
     try {
+      const regionCityById = await loadProspectRegionCityByIds(client, [
+        ...allLeads.map((l) => l.prospectId),
+        ...recentEngagement.map((r) => r.prospectId),
+      ]);
       scopedLeads = await filterOutreachLeadsByPrepScope({
         client,
         leads: allLeads,
         crmRegion: scopedCrmRegion,
         city: scopedPrepCity,
         storeTerritoryCode: params.regionalPrepScope?.storeTerritoryCode,
+        regionCityById,
+      });
+      scopedEngagement = await filterRecentEngagementByPrepScope({
+        client,
+        rows: recentEngagement,
+        crmRegion: scopedCrmRegion,
+        city: scopedPrepCity,
+        storeTerritoryCode: params.regionalPrepScope?.storeTerritoryCode,
+        regionCityById,
       });
     } catch (err) {
       return {
         ok: false,
-        error: err instanceof Error ? err.message : 'Failed to filter follow-up leads by region',
+        error: err instanceof Error ? err.message : 'Failed to filter briefing rows by region',
       };
     }
   }
@@ -643,23 +665,6 @@ export async function assembleOutreachBriefing(params: {
     snoozedProspectIds,
   });
 
-  let scopedEngagement = recentEngagement;
-  if (scopedCrmRegion || scopedPrepCity) {
-    try {
-      scopedEngagement = await filterRecentEngagementByPrepScope({
-        client,
-        rows: recentEngagement,
-        crmRegion: scopedCrmRegion,
-        city: scopedPrepCity,
-        storeTerritoryCode: params.regionalPrepScope?.storeTerritoryCode,
-      });
-    } catch (err) {
-      return {
-        ok: false,
-        error: err instanceof Error ? err.message : 'Failed to filter recent engagement by region',
-      };
-    }
-  }
   const excludeFromEngaged = new Set<number>([
     ...callToday.map((l) => l.prospectId),
     ...warm.map((l) => l.prospectId),

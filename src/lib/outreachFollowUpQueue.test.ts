@@ -406,6 +406,27 @@ describe('buildFollowUpQueue', () => {
     expect(queue.map((r) => r.prospectId)).toEqual([2]);
   });
 
+  it('excludes future lastSentAt timestamps from the emailed window', () => {
+    const future = leadFromMessages(13, 'Future Send Shop', [
+      {
+        id: '1',
+        prospect_id: 13,
+        to_email: 'n@example.com',
+        catalog_item_id: PRODUCT_A,
+        sent_at: '2026-08-11T00:00:00Z',
+        open_count: 0,
+        click_count: 0,
+        last_opened_at: null,
+        last_clicked_at: null,
+        bounced_at: null,
+        complained_at: null,
+        status: 'sent',
+      },
+    ]);
+    const queue = buildFollowUpQueue({ leads: [future], asOf });
+    expect(queue).toHaveLength(0);
+  });
+
   it('sorts no-open rows by lastSentAt descending', () => {
     const olderSend = leadFromMessages(11, 'Older Send Co', [
       {

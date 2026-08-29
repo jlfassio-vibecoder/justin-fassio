@@ -19,10 +19,16 @@ describe('formatTelHref', () => {
     expect(formatTelHref('+1 541-555-1212')).toBe('tel:+15415551212');
   });
 
+  it('keeps only a single leading plus', () => {
+    expect(formatTelHref('+1+541-555-1212')).toBe('tel:+15415551212');
+    expect(formatTelHref('1+541+555')).toBe('tel:1541555');
+  });
+
   it('returns null for blank', () => {
     expect(formatTelHref('')).toBeNull();
     expect(formatTelHref('   ')).toBeNull();
     expect(formatTelHref(null)).toBeNull();
+    expect(formatTelHref('+')).toBeNull();
   });
 });
 

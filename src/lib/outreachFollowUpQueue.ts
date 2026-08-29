@@ -175,7 +175,7 @@ export function emailedWithinFollowUpWindow(
   windowDays: number = FOLLOW_UP_EMAILED_WINDOW_DAYS,
 ): boolean {
   const age = daysBetween(lead.engagement.lastSentAt, asOf);
-  return age != null && age <= windowDays;
+  return age != null && age >= 0 && age <= windowDays;
 }
 
 function warmOrWatchAction(input: {

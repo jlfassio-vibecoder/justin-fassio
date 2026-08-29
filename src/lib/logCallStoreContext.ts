@@ -36,9 +36,10 @@ export function formatTelHref(phone: string | null | undefined): string | null {
   if (!phone) return null;
   const trimmed = phone.trim();
   if (!trimmed) return null;
-  const digits = trimmed.replace(/[^\d+]/g, '');
-  if (!digits || digits === '+') return null;
-  return `tel:${digits}`;
+  const digitsOnly = trimmed.replace(/\D/g, '');
+  if (!digitsOnly) return null;
+  const hasLeadingPlus = trimmed.startsWith('+');
+  return `tel:${hasLeadingPlus ? `+${digitsOnly}` : digitsOnly}`;
 }
 
 export function normalizeExternalUrl(url: string | null | undefined): string | null {
