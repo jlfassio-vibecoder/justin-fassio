@@ -139,7 +139,7 @@ async function staffPost(
 function followUpActionLabel(action: OutreachFollowUpRow['recommendedAction']): string {
   if (action === 'call') return 'Call';
   if (action === 'email') return 'Email';
-  return 'Open';
+  return 'Watch';
 }
 
 function callTodayReasonChip(reasons: OutreachLeadRow['callTodayReasons']): string | null {
@@ -322,19 +322,21 @@ function FollowUpQueue({
   emailBusyId,
   snoozeBusyId,
   onAction,
+  onLogCall,
   onSnooze,
 }: {
   rows: OutreachFollowUpRow[];
   emailBusyId: number | null;
   snoozeBusyId: number | null;
   onAction: (row: OutreachFollowUpRow) => void;
+  onLogCall: (row: OutreachFollowUpRow) => void;
   onSnooze: (row: OutreachFollowUpRow) => void;
 }) {
   return (
     <Card>
       <CardTitle className="text-[15px]">Today’s follow-ups</CardTitle>
       <CardMeta className="mb-2">
-        {rows.length} lead{rows.length === 1 ? '' : 's'} · Call, email, watch, or snooze
+        {rows.length} emailed (90d) · opens first · Call, email, watch, log call, or snooze
       </CardMeta>
       {rows.length === 0 ? (
         <p className="text-ink/50 m-0 text-sm">None right now.</p>
@@ -342,7 +344,7 @@ function FollowUpQueue({
         <ul
           className="m-0 flex list-none flex-col gap-2 overflow-y-auto p-0"
           style={{
-            maxHeight: `calc(${FOLLOW_UP_QUEUE_VISIBLE} * 2.5rem + ${FOLLOW_UP_QUEUE_VISIBLE - 1} * 0.5rem)`,
+            maxHeight: `calc(${FOLLOW_UP_QUEUE_VISIBLE} * 3.25rem + ${FOLLOW_UP_QUEUE_VISIBLE - 1} * 0.5rem)`,
           }}
         >
           {rows.map((row) => {
@@ -388,6 +390,16 @@ function FollowUpQueue({
                     {emailBusyId === row.prospectId
                       ? 'Preparing…'
                       : followUpActionLabel(row.recommendedAction)}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="text-ink/50 px-2 py-0.5 text-[11px]"
+                    disabled={rowBusy}
+                    aria-label={`Log Call ${row.prospectName}`}
+                    onClick={() => onLogCall(row)}
+                  >
+                    Log Call
                   </Button>
                   <Button
                     type="button"
@@ -516,7 +528,9 @@ export function AgentBriefingTab({
       }
       setComposerError(null);
       setEmailBusyId(row.prospectId);
-      const created = await createFollowUpDraftClient(row.prospectId);
+      const created = await createFollowUpDraftClient(row.prospectId, {
+        salesLineId: lineCtx.salesLineId,
+      });
       if (!created.ok) {
         setComposerError(created.error);
         setEmailBusyId(null);
@@ -530,7 +544,21 @@ export function AgentBriefingTab({
       });
       setEmailBusyId(null);
     },
-    [onLogCallForLead, onOpenProspect, openDraftReview],
+    [lineCtx.salesLineId, onLogCallForLead, onOpenProspect, openDraftReview],
+  );
+
+  const handleFollowUpLogCall = useCallback(
+    async (row: OutreachFollowUpRow) => {
+      setComposerError(null);
+      const opened = await onLogCallForLead(row.prospectId, {
+        talkTrackHint: row.talkTrackHint,
+        lastProductName: row.lastProductName,
+      });
+      if (opened === false) {
+        setComposerError('Could not open Log Call for this store. Refresh Accounts or try again.');
+      }
+    },
+    [onLogCallForLead],
   );
 
   const handleFollowUpSnooze = useCallback(async (row: OutreachFollowUpRow) => {
@@ -1234,6 +1262,7 @@ export function AgentBriefingTab({
             emailBusyId={emailBusyId}
             snoozeBusyId={snoozeBusyId}
             onAction={(row) => void handleFollowUpAction(row)}
+            onLogCall={(row) => void handleFollowUpLogCall(row)}
             onSnooze={(row) => void handleFollowUpSnooze(row)}
           />
 

@@ -198,6 +198,13 @@ vi.mock('@/lib/supabase', () => ({
       if (table === 'lines') {
         return chainable({ data: { id: 'line-ogr' }, error: null });
       }
+      if (table === 'account_research_source_locks') {
+        return {
+          select: () => ({
+            eq: async () => ({ data: [], error: null }),
+          }),
+        };
+      }
       throw new Error(`Unexpected table: ${table}`);
     },
   },

@@ -331,7 +331,10 @@ export async function generateAgentProductOutreachDraft(input: {
   };
 }
 
-export async function createFollowUpDraftClient(prospectId: number): Promise<
+export async function createFollowUpDraftClient(
+  prospectId: number,
+  options?: { salesLineId?: string | null },
+): Promise<
   | {
       ok: true;
       draftId: string;
@@ -341,9 +344,13 @@ export async function createFollowUpDraftClient(prospectId: number): Promise<
     }
   | ApiFail
 > {
+  const salesLineId = options?.salesLineId?.trim() || undefined;
   const result = await staffFetch('/api/staff/ogr-product-email/follow-up-draft', {
     method: 'POST',
-    body: JSON.stringify({ prospectId }),
+    body: JSON.stringify({
+      prospectId,
+      ...(salesLineId ? { salesLineId } : {}),
+    }),
   });
   if ('ok' in result && result.ok === false) return result;
   const { res, payload } = result as {

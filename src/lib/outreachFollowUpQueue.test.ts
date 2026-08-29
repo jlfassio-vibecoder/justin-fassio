@@ -4,6 +4,7 @@ import { evaluateLeadState } from '@/lib/outreachLeadState';
 import { OUTREACH_LEAD_RULES } from '@/lib/outreachLeadRules';
 import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
 import {
+  FOLLOW_UP_QUEUE_VISIBLE,
   buildFollowUpQueue,
   canGenerateFollowUpEmail,
   lastClickedCatalogItemIdFromMessages,
@@ -136,7 +137,27 @@ const replyLead = leadFromMessages(
   { reply: true, lastReplyAt: '2026-08-10T09:00:00Z' },
 );
 
-const followDue = leadFromMessages(4, 'Follow Due Co', [], { followUpDue: true });
+const followDue = leadFromMessages(
+  4,
+  'Follow Due Co',
+  [
+    {
+      id: '1',
+      prospect_id: 4,
+      to_email: 'd@example.com',
+      catalog_item_id: PRODUCT_A,
+      sent_at: '2026-08-09T00:00:00Z',
+      open_count: 0,
+      click_count: 0,
+      last_opened_at: null,
+      last_clicked_at: null,
+      bounced_at: null,
+      complained_at: null,
+      status: 'sent',
+    },
+  ],
+  { followUpDue: true },
+);
 
 const warmOpenOnly = leadFromMessages(5, 'Open Only Mart', [
   {
@@ -201,21 +222,22 @@ const coldOpen = leadFromMessages(6, 'Cold Open Kiosk', [
 ]);
 
 describe('buildFollowUpQueue', () => {
-  it('ranks reply before Hot, and does not duplicate Hot as a second list item', () => {
+  it('sorts opens first by last open, then no-open by last send', () => {
     const queue = buildFollowUpQueue({
       leads: [warmClick, hotLead, replyLead, followDue],
       asOf,
       productNamesById: new Map([[PRODUCT_A, 'American Revival']]),
     });
     expect(queue.map((r) => r.prospectName)).toEqual([
-      'Reply Cafe',
       'Hot Multi Shop',
-      'Follow Due Co',
       'Warm Click Shop',
+      'Reply Cafe',
+      'Follow Due Co',
     ]);
     expect(queue.filter((r) => r.prospectId === 2)).toHaveLength(1);
     expect(queue.find((r) => r.prospectId === 2)?.recommendedAction).toBe('call');
     expect(queue.find((r) => r.prospectId === 1)?.recommendedAction).toBe('email');
+    expect(queue.find((r) => r.prospectId === 4)?.lastOpenedAt).toBeNull();
   });
 
   it('routes Warm click in cooldown to Email and Warm open-only in cooldown to Watch', () => {
@@ -269,7 +291,12 @@ describe('buildFollowUpQueue', () => {
       lastCallAtToday: '2026-08-10T14:00:00Z',
     };
     const queue = buildFollowUpQueue({ leads: [called], asOf });
-    expect(queue).toHaveLength(0);
+    expect(queue).toEqual([
+      expect.objectContaining({
+        prospectId: 2,
+        recommendedAction: 'watch',
+      }),
+    ]);
   });
 
   it('keeps Call when engagement is newer than today’s call', () => {
@@ -286,11 +313,31 @@ describe('buildFollowUpQueue', () => {
     expect(queue[0]?.recommendedAction).toBe('call');
   });
 
-  it('ranks overdue follow-up below fresh Hot', () => {
-    const overdue = leadFromMessages(7, 'Overdue Shop', [], {
-      followUpDue: true,
-      followUpOverdueDays: 5,
-    });
+  it('ranks overdue follow-up below fresh Hot when overdue has no open', () => {
+    const overdue = leadFromMessages(
+      7,
+      'Overdue Shop',
+      [
+        {
+          id: '1',
+          prospect_id: 7,
+          to_email: 'g@example.com',
+          catalog_item_id: PRODUCT_A,
+          sent_at: '2026-08-09T18:00:00Z',
+          open_count: 0,
+          click_count: 0,
+          last_opened_at: null,
+          last_clicked_at: null,
+          bounced_at: null,
+          complained_at: null,
+          status: 'sent',
+        },
+      ],
+      {
+        followUpDue: true,
+        followUpOverdueDays: 5,
+      },
+    );
     const queue = buildFollowUpQueue({
       leads: [overdue, hotLead],
       asOf,
@@ -309,6 +356,93 @@ describe('buildFollowUpQueue', () => {
     expect(queue).toHaveLength(0);
   });
 
+  it('includes cold emailed accounts with fallback watch when no rule action', () => {
+    const coldEmailed = leadFromMessages(8, 'Cold Sent Shop', [
+      {
+        id: '1',
+        prospect_id: 8,
+        to_email: 'h@example.com',
+        catalog_item_id: PRODUCT_A,
+        sent_at: '2026-07-01T00:00:00Z',
+        open_count: 0,
+        click_count: 0,
+        last_opened_at: null,
+        last_clicked_at: null,
+        bounced_at: null,
+        complained_at: null,
+        status: 'sent',
+      },
+    ]);
+    expect(coldEmailed.leadState).toBe('cold');
+    const queue = buildFollowUpQueue({ leads: [coldEmailed], asOf });
+    expect(queue).toEqual([
+      expect.objectContaining({
+        prospectId: 8,
+        recommendedAction: 'watch',
+        lastSentAt: '2026-07-01T00:00:00Z',
+        lastOpenedAt: null,
+      }),
+    ]);
+  });
+
+  it('excludes sends older than the emailed window', () => {
+    const stale = leadFromMessages(9, 'Stale Send Shop', [
+      {
+        id: '1',
+        prospect_id: 9,
+        to_email: 'i@example.com',
+        catalog_item_id: PRODUCT_A,
+        sent_at: '2026-04-01T00:00:00Z',
+        open_count: 0,
+        click_count: 0,
+        last_opened_at: null,
+        last_clicked_at: null,
+        bounced_at: null,
+        complained_at: null,
+        status: 'sent',
+      },
+    ]);
+    const queue = buildFollowUpQueue({ leads: [stale, hotLead], asOf });
+    expect(queue.map((r) => r.prospectId)).toEqual([2]);
+  });
+
+  it('sorts no-open rows by lastSentAt descending', () => {
+    const olderSend = leadFromMessages(11, 'Older Send Co', [
+      {
+        id: '1',
+        prospect_id: 11,
+        to_email: 'j@example.com',
+        catalog_item_id: PRODUCT_A,
+        sent_at: '2026-07-01T00:00:00Z',
+        open_count: 0,
+        click_count: 0,
+        last_opened_at: null,
+        last_clicked_at: null,
+        bounced_at: null,
+        complained_at: null,
+        status: 'sent',
+      },
+    ]);
+    const newerSend = leadFromMessages(12, 'Newer Send Co', [
+      {
+        id: '1',
+        prospect_id: 12,
+        to_email: 'k@example.com',
+        catalog_item_id: PRODUCT_A,
+        sent_at: '2026-08-01T00:00:00Z',
+        open_count: 0,
+        click_count: 0,
+        last_opened_at: null,
+        last_clicked_at: null,
+        bounced_at: null,
+        complained_at: null,
+        status: 'sent',
+      },
+    ]);
+    const queue = buildFollowUpQueue({ leads: [olderSend, newerSend], asOf });
+    expect(queue.map((r) => r.prospectId)).toEqual([12, 11]);
+  });
+
   it('includes talk track hint on Call rows', () => {
     const queue = buildFollowUpQueue({
       leads: [hotLead],
@@ -316,6 +450,10 @@ describe('buildFollowUpQueue', () => {
       productNamesById: new Map([[PRODUCT_A, 'American Revival']]),
     });
     expect(queue[0]?.talkTrackHint).toMatch(/clicked American Revival/i);
+  });
+
+  it('uses a 15-row visible scroll viewport', () => {
+    expect(FOLLOW_UP_QUEUE_VISIBLE).toBe(15);
   });
 });
 
