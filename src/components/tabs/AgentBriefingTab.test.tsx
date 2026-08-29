@@ -446,6 +446,75 @@ describe('AgentBriefingTab research entry', () => {
       openResearch: true,
     });
   });
+
+  it('posts identified-target-draft from research-queue Run prep', async () => {
+    const user = userEvent.setup();
+    const researchBriefing = {
+      briefing: {
+        ...briefingPayload.briefing,
+        identifiedTargets: [
+          {
+            prospectId: 44,
+            prospectName: 'Needs Email Shop',
+            catalogItemId: PRODUCT_ID,
+            productName: 'American Revival',
+            productSku: 'OGR-101',
+            productSlug: 'american-revival',
+            primaryChannel: 'golf',
+            needsEmail: true,
+          },
+        ],
+      },
+    };
+    const fetchMock = vi.fn().mockImplementation(async (path: string, init?: RequestInit) => {
+      if (
+        typeof path === 'string' &&
+        path.includes('/api/staff/outreach/identified-target-draft')
+      ) {
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            draftId: 'new-d1',
+            productName: 'American Revival',
+            reusedPending: false,
+          }),
+        };
+      }
+      if (typeof path === 'string' && path.includes('/api/staff/outreach/briefing')) {
+        return { ok: true, json: async () => researchBriefing };
+      }
+      void init;
+      return { ok: false, json: async () => ({ error: 'unexpected' }) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Needs Email Shop')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Run prep' }));
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(
+        (c) =>
+          typeof c[0] === 'string' && c[0].includes('/api/staff/outreach/identified-target-draft'),
+      );
+      expect(call).toBeTruthy();
+      const body = JSON.parse(String((call?.[1] as RequestInit)?.body ?? '{}')) as {
+        prospectId?: number;
+        catalogItemId?: string;
+        operationalTerritoryId?: string;
+        preparationDate?: string;
+      };
+      expect(body.prospectId).toBe(44);
+      expect(body.catalogItemId).toBe(PRODUCT_ID);
+      expect(body.operationalTerritoryId).toBeTruthy();
+      expect(body.preparationDate).toBe('2026-08-25');
+    });
+  });
 });
 
 describe('AgentBriefingTab regional prep controls', () => {
