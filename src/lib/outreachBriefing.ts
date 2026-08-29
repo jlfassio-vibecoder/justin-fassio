@@ -6,7 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import type { AllocateChannelsForDayResult } from '@/lib/outreachChannelAllocation';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
-import { listOutreachLeads } from '@/lib/outreachLeadLists';
+import { listOutreachLeads, type OutreachLeadRow } from '@/lib/outreachLeadLists';
 import { buildFollowUpQueue } from '@/lib/outreachFollowUpQueue';
 import { loadActiveFollowUpSnoozes } from '@/lib/outreachFollowUpSnooze';
 import { loadResearchQueueDismissals } from '@/lib/outreachResearchQueueDismiss';
@@ -243,6 +243,43 @@ async function loadRecentConversions(
     }));
 }
 
+/**
+ * Mirror draft regional filtering: when Briefing has crmRegion and/or city scope,
+ * keep only leads whose prospect region/city match.
+ */
+export async function filterOutreachLeadsByPrepScope(params: {
+  client: Client;
+  leads: OutreachLeadRow[];
+  crmRegion: string | null;
+  city: string | null;
+  storeTerritoryCode?: string | null;
+}): Promise<OutreachLeadRow[]> {
+  const { leads, crmRegion, city } = params;
+  if ((!crmRegion && !city) || leads.length === 0) return leads;
+
+  const ids = [...new Set(leads.map((l) => l.prospectId))];
+  const { data: rows, error } = await params.client
+    .from('prospects')
+    .select('id, region, city')
+    .in('id', ids);
+  if (error) throw new Error(error.message);
+
+  const byId = new Map((rows ?? []).map((p) => [p.id, p] as const));
+  const storeCode = params.storeTerritoryCode?.trim().toLowerCase() || null;
+
+  return leads.filter((lead) => {
+    const prospect = byId.get(lead.prospectId);
+    if (!prospect) return false;
+    if (crmRegion && !prospectMatchesCrmRegion(prospect.region ?? '', crmRegion, storeCode)) {
+      return false;
+    }
+    if (!prospectMatchesPrepCity(prospect.city, city)) {
+      return false;
+    }
+    return true;
+  });
+}
+
 export async function assembleOutreachBriefing(params: {
   client: Client;
   asOf?: Date;
@@ -463,9 +500,27 @@ export async function assembleOutreachBriefing(params: {
     ]);
   if (!pendingDrafts.ok) return { ok: false, error: pendingDrafts.error };
 
+  let scopedLeads = allLeads;
+  if (scopedCrmRegion || scopedPrepCity) {
+    try {
+      scopedLeads = await filterOutreachLeadsByPrepScope({
+        client,
+        leads: allLeads,
+        crmRegion: scopedCrmRegion,
+        city: scopedPrepCity,
+        storeTerritoryCode: params.regionalPrepScope?.storeTerritoryCode,
+      });
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Failed to filter follow-up leads by region',
+      };
+    }
+  }
+
   const productIds = [
     ...new Set(
-      allLeads
+      scopedLeads
         .map((row) => row.lastEngagedCatalogItemId)
         .filter((id): id is string => typeof id === 'string' && id.length > 0),
     ),
@@ -482,16 +537,16 @@ export async function assembleOutreachBriefing(params: {
   }
 
   const followUps = buildFollowUpQueue({
-    leads: allLeads,
+    leads: scopedLeads,
     pendingProspectIds: pendingDrafts.prospectIds,
     snoozedProspectIds,
     productNamesById,
     asOf,
     rules: resolvedLeadRules.rules,
   });
-  const callToday = allLeads.filter((row) => row.callToday);
-  const hot = allLeads.filter((row) => row.leadState === 'hot');
-  const warm = allLeads.filter((row) => row.leadState === 'warm');
+  const callToday = scopedLeads.filter((row) => row.callToday);
+  const hot = scopedLeads.filter((row) => row.leadState === 'hot');
+  const warm = scopedLeads.filter((row) => row.leadState === 'warm');
 
   const prepMessage =
     regionalPool && banner.status === 'empty_pool' && scopedCrmRegion

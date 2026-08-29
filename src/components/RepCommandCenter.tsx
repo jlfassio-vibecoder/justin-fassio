@@ -27,6 +27,7 @@ import { fetchCatalogSettings, type CatalogSupplierTerms } from '@/lib/catalogSe
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { persistLastLineSlug } from '@/lib/lineContextStorage';
 import { fetchNeedsMappingCount, type MessageThread } from '@/lib/messages';
+import { ensureProspectForLogCall } from '@/lib/ensureProspectForLogCall';
 import {
   isProspectsPipelineRow,
   isReactivationDirectoryRow,
@@ -382,12 +383,20 @@ export function RepCommandCenter({
   }
 
   const openLogCallForProspectId = useCallback(
-    (prospectId: number, context?: BriefingLogCallContext) => {
-      const match = prospects.find((p) => p.id === prospectId);
-      if (!match) return;
+    async (prospectId: number, context?: BriefingLogCallContext): Promise<boolean> => {
+      const resolved = await ensureProspectForLogCall({ prospectId, prospects });
+      if (!resolved.ok) {
+        return false;
+      }
+      if (!resolved.alreadyPresent) {
+        setProspects((prev) =>
+          prev.some((p) => p.id === prospectId) ? prev : [...prev, resolved.prospect],
+        );
+      }
       setLogCallBriefingContext(context ?? null);
       setModalStoreId(prospectId);
       setModalOpen(true);
+      return true;
     },
     [prospects],
   );

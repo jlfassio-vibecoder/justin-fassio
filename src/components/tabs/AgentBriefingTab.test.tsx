@@ -277,6 +277,43 @@ describe('AgentBriefingTab follow-up queue', () => {
     expect(createFollowUpDraftClientMock).not.toHaveBeenCalled();
   });
 
+  it('shows an error when Call cannot open Log Call', async () => {
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        followUps: [
+          {
+            prospectId: 42,
+            prospectName: 'Call Today Store',
+            accountStatus: 'prospect',
+            leadState: 'hot',
+            recommendedAction: 'call',
+            reasonLine: 'Follow-up due',
+            talkTrackHint: 'Follow-up scheduled — check in on your last conversation.',
+            lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastProductName: 'American Revival',
+            lastProductId: PRODUCT_ID,
+            score: 10,
+            followUpOverdueDays: null,
+          },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    const onLogCallForLead = vi.fn().mockResolvedValue(false);
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Call Today Store')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Call Call Today Store' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Could not open Log Call/i)).toBeInTheDocument();
+    });
+  });
+
   it('opens a follow-up draft for Email rows', async () => {
     mockBriefingFetch({
       briefing: {

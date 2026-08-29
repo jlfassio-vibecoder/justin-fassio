@@ -292,4 +292,244 @@ describe('assembleOutreachBriefing carryover', () => {
     if (!result.ok) return;
     expect(result.briefing.identifiedTargets.map((t) => t.prospectId)).toEqual([]);
   });
+
+  it('passes region-filtered leads into buildFollowUpQueue', async () => {
+    listOutreachLeadsMock.mockResolvedValue([
+      {
+        prospectId: 10,
+        prospectName: 'Coast Shop',
+        accountStatus: 'prospect',
+        leadState: 'warm',
+        callToday: false,
+        callTodayReasons: [],
+        score: 5,
+        rulesVersion: OUTREACH_LEAD_RULES.version,
+        engagement: {
+          prospectId: 10,
+          emailsSent: 1,
+          lastSentAt: null,
+          openCount: 1,
+          clickCount: 0,
+          messagesOpened: 1,
+          messagesClicked: 0,
+          distinctProductsOpened: 1,
+          distinctProductsClicked: 0,
+          maxClickCountOnMessage: 0,
+          lastOpenedAt: null,
+          lastClickedAt: null,
+          lastEngagementAt: null,
+          suppressed: false,
+          reply: { attributed: false, confidence: 'none', lastMessageAt: null },
+          unlinkedManualIncluded: 0,
+        },
+        lastEngagedCatalogItemId: null,
+        emailsSentInWindow: 1,
+        followUpOverdueDays: null,
+        lastCallAtToday: null,
+      },
+      {
+        prospectId: 20,
+        prospectName: 'Valley Shop',
+        accountStatus: 'prospect',
+        leadState: 'warm',
+        callToday: false,
+        callTodayReasons: [],
+        score: 4,
+        rulesVersion: OUTREACH_LEAD_RULES.version,
+        engagement: {
+          prospectId: 20,
+          emailsSent: 1,
+          lastSentAt: null,
+          openCount: 1,
+          clickCount: 0,
+          messagesOpened: 1,
+          messagesClicked: 0,
+          distinctProductsOpened: 1,
+          distinctProductsClicked: 0,
+          maxClickCountOnMessage: 0,
+          lastOpenedAt: null,
+          lastClickedAt: null,
+          lastEngagementAt: null,
+          suppressed: false,
+          reply: { attributed: false, confidence: 'none', lastMessageAt: null },
+          unlinkedManualIncluded: 0,
+        },
+        lastEngagedCatalogItemId: null,
+        emailsSentInWindow: 1,
+        followUpOverdueDays: null,
+        lastCallAtToday: null,
+      },
+    ]);
+    buildFollowUpQueueMock.mockReturnValue([
+      {
+        prospectId: 10,
+        prospectName: 'Coast Shop',
+        accountStatus: 'prospect',
+        leadState: 'warm',
+        recommendedAction: 'email',
+        reasonLine: '1 sent',
+        talkTrackHint: null,
+        lastEngagedAt: null,
+        lastProductName: null,
+        lastProductId: null,
+        score: 5,
+        followUpOverdueDays: null,
+      },
+    ]);
+
+    const thenable = (result: { data: unknown; error: unknown }) => {
+      const api: Record<string, unknown> = {};
+      const self = () => thenable(result);
+      for (const key of ['select', 'eq', 'in', 'not', 'or', 'is', 'lte', 'gte', 'order', 'limit']) {
+        api[key] = vi.fn(self);
+      }
+      api.maybeSingle = vi.fn(async () => result);
+      return {
+        ...api,
+        then(onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
+          return Promise.resolve(result).then(onFulfilled, onRejected);
+        },
+      };
+    };
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === 'prospects') {
+          return thenable({
+            data: [
+              {
+                id: 12,
+                name: 'Carryover Cafe',
+                account_status: 'prospect',
+                region: 'Oregon Coast',
+                city: 'Newport',
+              },
+              { id: 10, region: 'Oregon Coast', city: 'Newport' },
+              { id: 20, region: 'Willamette Valley', city: 'Salem' },
+            ],
+            error: null,
+          });
+        }
+        return thenable({ data: [], error: null });
+      }),
+    };
+
+    const result = await assembleOutreachBriefing({
+      client: client as never,
+      asOf: new Date('2026-08-27T18:00:00Z'),
+      regionalPrepScope: {
+        operationalTerritoryId: 'ops-pnw-west',
+        storeTerritoryCode: 'or',
+        crmRegion: 'Oregon Coast',
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const queueArg = buildFollowUpQueueMock.mock.calls[0]?.[0] as {
+      leads: Array<{ prospectId: number }>;
+    };
+    expect(queueArg.leads.map((l) => l.prospectId)).toEqual([10]);
+    expect(result.briefing.followUps.map((r) => r.prospectId)).toEqual([10]);
+  });
+
+  it('passes all leads into buildFollowUpQueue when no region/city scope', async () => {
+    getLatestOutreachAutomationRunForDateMock.mockResolvedValue({ ok: true, run: null });
+    listOutreachLeadsMock.mockResolvedValue([
+      {
+        prospectId: 10,
+        prospectName: 'Coast Shop',
+        accountStatus: 'prospect',
+        leadState: 'warm',
+        callToday: false,
+        callTodayReasons: [],
+        score: 5,
+        rulesVersion: OUTREACH_LEAD_RULES.version,
+        engagement: {
+          prospectId: 10,
+          emailsSent: 1,
+          lastSentAt: null,
+          openCount: 0,
+          clickCount: 0,
+          messagesOpened: 0,
+          messagesClicked: 0,
+          distinctProductsOpened: 0,
+          distinctProductsClicked: 0,
+          maxClickCountOnMessage: 0,
+          lastOpenedAt: null,
+          lastClickedAt: null,
+          lastEngagementAt: null,
+          suppressed: false,
+          reply: { attributed: false, confidence: 'none', lastMessageAt: null },
+          unlinkedManualIncluded: 0,
+        },
+        lastEngagedCatalogItemId: null,
+        emailsSentInWindow: 1,
+        followUpOverdueDays: null,
+        lastCallAtToday: null,
+      },
+      {
+        prospectId: 20,
+        prospectName: 'Valley Shop',
+        accountStatus: 'prospect',
+        leadState: 'warm',
+        callToday: false,
+        callTodayReasons: [],
+        score: 4,
+        rulesVersion: OUTREACH_LEAD_RULES.version,
+        engagement: {
+          prospectId: 20,
+          emailsSent: 1,
+          lastSentAt: null,
+          openCount: 0,
+          clickCount: 0,
+          messagesOpened: 0,
+          messagesClicked: 0,
+          distinctProductsOpened: 0,
+          distinctProductsClicked: 0,
+          maxClickCountOnMessage: 0,
+          lastOpenedAt: null,
+          lastClickedAt: null,
+          lastEngagementAt: null,
+          suppressed: false,
+          reply: { attributed: false, confidence: 'none', lastMessageAt: null },
+          unlinkedManualIncluded: 0,
+        },
+        lastEngagedCatalogItemId: null,
+        emailsSentInWindow: 1,
+        followUpOverdueDays: null,
+        lastCallAtToday: null,
+      },
+    ]);
+    buildFollowUpQueueMock.mockReturnValue([]);
+
+    const thenable = (result: { data: unknown; error: unknown }) => {
+      const api: Record<string, unknown> = {};
+      const self = () => thenable(result);
+      for (const key of ['select', 'eq', 'in', 'not', 'or', 'is', 'lte', 'gte', 'order', 'limit']) {
+        api[key] = vi.fn(self);
+      }
+      api.maybeSingle = vi.fn(async () => result);
+      return {
+        ...api,
+        then(onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
+          return Promise.resolve(result).then(onFulfilled, onRejected);
+        },
+      };
+    };
+    const client = {
+      from: vi.fn(() => thenable({ data: [], error: null })),
+    };
+
+    const result = await assembleOutreachBriefing({
+      client: client as never,
+      asOf: new Date('2026-08-27T18:00:00Z'),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const queueArg = buildFollowUpQueueMock.mock.calls[0]?.[0] as {
+      leads: Array<{ prospectId: number }>;
+    };
+    expect(queueArg.leads.map((l) => l.prospectId)).toEqual([10, 20]);
+  });
 });

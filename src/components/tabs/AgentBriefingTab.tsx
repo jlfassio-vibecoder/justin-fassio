@@ -68,7 +68,10 @@ type AgentBriefingTabProps = {
   deepLinkDraftId?: string | null;
   onDeepLinkConsumed?: () => void;
   onProductEmailSent?: () => void;
-  onLogCallForLead: (prospectId: number, context?: BriefingLogCallContext) => void;
+  onLogCallForLead: (
+    prospectId: number,
+    context?: BriefingLogCallContext,
+  ) => void | boolean | Promise<void | boolean>;
   briefingReloadToken?: number;
   onOpenProspect: (args: {
     prospectId: number;
@@ -311,10 +314,16 @@ export function AgentBriefingTab({
   const handleFollowUpAction = useCallback(
     async (row: OutreachFollowUpRow) => {
       if (row.recommendedAction === 'call') {
-        onLogCallForLead(row.prospectId, {
+        setComposerError(null);
+        const opened = await onLogCallForLead(row.prospectId, {
           talkTrackHint: row.talkTrackHint,
           lastProductName: row.lastProductName,
         });
+        if (opened === false) {
+          setComposerError(
+            'Could not open Log Call for this store. Refresh Accounts or try again.',
+          );
+        }
         return;
       }
       if (row.recommendedAction === 'watch') {
