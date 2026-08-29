@@ -53,7 +53,7 @@ import type { Database } from '@/types/database';
 
 type DbClient = SupabaseClient<Database>;
 
-export const OGR_OUTREACH_DRAFT_PROMPT_VERSION = 'v2';
+export const OGR_OUTREACH_DRAFT_PROMPT_VERSION = 'v3';
 export const OGR_OUTREACH_DRAFT_MODEL = 'openai/gpt-4o' as const;
 export const OGR_OUTREACH_INTRO_PREFERRED_WORDS = 50;
 export const OGR_OUTREACH_CLOSING_PREFERRED_WORDS = 40;
@@ -73,12 +73,16 @@ export const ogrOutreachDraftSchema = z.object({
     .string()
     .min(1)
     .max(OGR_PRODUCT_EMAIL_MAX_PROSE)
-    .describe('Plain-text intro under 50 words. No HTML, URLs, prices, or CRM ids.'),
+    .describe(
+      'Plain-text intro under 50 words: name the product, catalog frame, store vibe. No HTML, URLs, prices, or CRM ids.',
+    ),
   closingText: z
     .string()
     .min(1)
     .max(OGR_PRODUCT_EMAIL_MAX_PROSE)
-    .describe('Plain-text closing under 40 words. Invite a reply or call. No HTML.'),
+    .describe(
+      'Plain-text closing under 40 words: soft sell-through angle + more styles fit. No Explore/Discover CTAs. No HTML.',
+    ),
 });
 
 export type OgrOutreachDraftFields = z.infer<typeof ogrOutreachDraftSchema>;
@@ -268,20 +272,23 @@ export function buildOutreachDraftPrompt(
   assertSafePromptContext(ctx);
   const lines: string[] = [
     'You write short wholesale outreach intro and closing copy for Old Guys Rule apparel.',
+    'This is an opening email featuring one product — warm and specific, not a catalog browse pitch.',
     'Return ONLY introText and closingText as plain text.',
     'Rules:',
-    '- Pique interest; do not close the sale or hard-pitch.',
+    '- Intro: Name the product and frame it as worth checking out from the Old Guys Rule catalog (e.g. "Check out this … tee/style from our … catalog"). Tie its vibe to the store’s lifestyle or region when context supports it. Reflect Old Guys Rule’s humor + lifestyle voice — short, conversational, not salesy.',
+    '- Closing: Soft retail angle — how styles like this tend to sell (gifts, the customer type that fits the store) and that more catalog styles can match their vibe. Keep it natural; a light invite to reply is fine.',
+    '- Avoid awkward marketing verbs and CTAs: do not use Explore, Discover, Dive into, Unlock, Don’t miss, Shop now, or similar.',
+    '- Do not close the sale or hard-pitch.',
     '- No HTML, markdown links, URLs, email addresses, or CRM/product IDs.',
     '- No pricing, wholesale, landed, MSRP, USD/CAD, or cost language.',
     '- Do not invent facts (city, buyer title, inventory, availability).',
     '- Do not write a subject line, From header, or signature.',
     '- Do not greet or address the buyer by name (no "Hi Pam," / "Hello …"); the email template already adds the greeting.',
     `- Prefer intro under ${OGR_OUTREACH_INTRO_PREFERRED_WORDS} words and closing under ${OGR_OUTREACH_CLOSING_PREFERRED_WORDS} words.`,
-    '- Closing should invite a brief reply or call — not spammy CTAs.',
   ];
   if (options.shorten) {
     lines.push(
-      'SHORTEN: Previous draft was too long, greeted the buyer, or mentioned pricing. Rewrite shorter; remove any greeting and price language.',
+      'SHORTEN: Previous draft was too long, greeted the buyer, or mentioned pricing. Rewrite shorter; remove any greeting and price language. Keep the check-out / sell-through structure; still avoid Explore/Discover CTAs.',
     );
   }
   lines.push('', 'Context (use only what is present; skip empty fields):');

@@ -70,8 +70,8 @@ describe('renderOgrProductOutreachEmail', () => {
     const result = render();
     expect(result.subject).toBe('Old Guys Rule — American Revival');
     expect(result.html).toContain('<p>Hi,</p>');
-    expect(result.html).toContain('strong fit for your store');
-    expect(result.html).toContain('pricing or availability');
+    expect(result.html).toContain('Check out this style from our Old Guys Rule catalog');
+    expect(result.html).toContain('sell well as gifts');
     expect(result.html).toContain('— Alex Rivera');
     expect(result.html).toContain('justinfassio.com');
     expect(result.html).toContain('background-color:#111111');
