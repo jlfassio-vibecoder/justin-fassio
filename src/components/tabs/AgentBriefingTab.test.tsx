@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
@@ -233,6 +233,146 @@ describe('AgentBriefingTab follow-up queue', () => {
         catalogItemId: PRODUCT_ID,
         payload: { sku: 'OGR-101', slug: 'american-revival', name: 'American Revival' },
       },
+    });
+  });
+
+  it('renders Top leads quick view and Open for Warm without follow-up action', async () => {
+    const warmLead = {
+      prospectId: 77,
+      prospectName: 'Warm Shop',
+      accountStatus: 'prospect' as const,
+      leadState: 'warm' as const,
+      callToday: false,
+      callTodayReasons: [] as const,
+      score: 5,
+      rulesVersion: 'v1-provisional' as const,
+      engagement: {
+        prospectId: 77,
+        emailsSent: 1,
+        lastSentAt: null,
+        openCount: 1,
+        clickCount: 1,
+        messagesOpened: 1,
+        messagesClicked: 1,
+        distinctProductsOpened: 1,
+        distinctProductsClicked: 1,
+        maxClickCountOnMessage: 1,
+        lastOpenedAt: '2026-08-21T12:00:00Z',
+        lastClickedAt: '2026-08-21T12:00:00Z',
+        lastEngagementAt: '2026-08-21T12:00:00Z',
+        suppressed: false,
+        reply: { attributed: false, confidence: 'none' as const, lastMessageAt: null },
+        unlinkedManualIncluded: 0,
+      },
+      lastEngagedCatalogItemId: null,
+      emailsSentInWindow: 1,
+      followUpOverdueDays: null,
+      lastCallAtToday: null,
+    };
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        warm: [warmLead],
+        recentEngagement: [
+          {
+            prospectId: 88,
+            prospectName: 'Engaged Shop',
+            lastEngagedAt: '2026-08-22T10:00:00Z',
+            openCount: 2,
+            clickCount: 0,
+          },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    const onOpenProspect = vi.fn();
+    const onLogCallForLead = vi.fn();
+    render(<AgentBriefingTab {...briefingProps({ onOpenProspect, onLogCallForLead })} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('top-leads-quick-view')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Warm Shop')).toBeInTheDocument();
+    expect(screen.getByText('Engaged Shop')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open Warm Shop' }));
+    expect(onOpenProspect).toHaveBeenCalledWith({
+      prospectId: 77,
+      accountStatus: 'prospect',
+    });
+    expect(onLogCallForLead).not.toHaveBeenCalled();
+    expect(createFollowUpDraftClientMock).not.toHaveBeenCalled();
+  });
+
+  it('runs Call from Top leads when the follow-ups queue recommends Call', async () => {
+    const callLead = {
+      prospectId: 42,
+      prospectName: 'Call Today Store',
+      accountStatus: 'prospect' as const,
+      leadState: 'hot' as const,
+      callToday: true,
+      callTodayReasons: ['hot_intent'] as const,
+      score: 12,
+      rulesVersion: 'v1-provisional' as const,
+      engagement: {
+        prospectId: 42,
+        emailsSent: 1,
+        lastSentAt: null,
+        openCount: 2,
+        clickCount: 2,
+        messagesOpened: 1,
+        messagesClicked: 1,
+        distinctProductsOpened: 2,
+        distinctProductsClicked: 2,
+        maxClickCountOnMessage: 2,
+        lastOpenedAt: '2026-08-21T12:00:00Z',
+        lastClickedAt: '2026-08-21T12:00:00Z',
+        lastEngagementAt: '2026-08-21T12:00:00Z',
+        suppressed: false,
+        reply: { attributed: false, confidence: 'none' as const, lastMessageAt: null },
+        unlinkedManualIncluded: 0,
+      },
+      lastEngagedCatalogItemId: PRODUCT_ID,
+      emailsSentInWindow: 1,
+      followUpOverdueDays: null,
+      lastCallAtToday: null,
+    };
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        callToday: [callLead],
+        hot: [callLead],
+        followUps: [
+          {
+            prospectId: 42,
+            prospectName: 'Call Today Store',
+            accountStatus: 'prospect',
+            leadState: 'hot',
+            recommendedAction: 'call',
+            reasonLine: 'Hot intent',
+            talkTrackHint: 'Hot intent — lead with what they viewed online.',
+            lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastProductName: 'American Revival',
+            lastProductId: PRODUCT_ID,
+            score: 12,
+            followUpOverdueDays: null,
+          },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    const onLogCallForLead = vi.fn().mockResolvedValue(true);
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead })} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('top-lead-call-42')).toBeInTheDocument();
+    });
+
+    const topRow = screen.getByTestId('top-lead-call-42');
+    await user.click(within(topRow).getByRole('button', { name: 'Call Call Today Store' }));
+    expect(onLogCallForLead).toHaveBeenCalledWith(42, {
+      talkTrackHint: 'Hot intent — lead with what they viewed online.',
+      lastProductName: 'American Revival',
     });
   });
 

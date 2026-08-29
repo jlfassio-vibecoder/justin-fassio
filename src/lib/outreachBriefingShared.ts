@@ -12,6 +12,11 @@ import type { OutreachLeadRulesVersion } from '@/lib/outreachLeadRules';
 
 export type { OutreachFollowUpAction, OutreachFollowUpRow } from '@/lib/outreachFollowUpQueue';
 
+/** Max Call today / Hot / Warm / Engaged rows in the Briefing DTO payload. */
+export const TOP_LEADS_DTO_LIMIT = 12;
+/** Visible rows per Top leads quick-view column. */
+export const TOP_LEADS_QUICK_VIEW_VISIBLE = 8;
+
 export type OutreachPrepRunStatus = 'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
 
 export type OutreachPoolDiagnostics = {
@@ -105,8 +110,9 @@ export type OutreachBriefingDto = {
   callToday: OutreachLeadRow[];
   hot: OutreachLeadRow[];
   warm: OutreachLeadRow[];
-  /** Ranked Call / Email / Watch queue for Briefing (recs 1–2). */
+  /** Ranked Call / Email / Watch worklist for Briefing. */
   followUps: OutreachFollowUpRow[];
+  /** Recent open/click engagement, de-duped vs Call today / Warm for Top leads. */
   recentEngagement: Array<{
     prospectId: number;
     prospectName: string;
