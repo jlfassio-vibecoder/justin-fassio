@@ -17,6 +17,7 @@ import {
   socialPlatformForUrl,
 } from '@/lib/accountResearch/officialWebsiteSocialLinks';
 import { normalizeSourceUrl } from '@/lib/accountResearch/normalizeUrl';
+import { loadSourceLocks, type SourceLockMap } from '@/lib/accountResearch/locks';
 import { extractHandleFromProfileUrl } from '@/lib/accountResearch/socialProfile';
 import { computeFinalRunStatus } from '@/lib/accountResearch/orchestrate';
 import { executeAccountResearchSourceSearch } from '@/lib/accountResearch/provider';
@@ -28,7 +29,12 @@ import type { SocialSearchOutcome } from '@/lib/accountResearch/socialSourceSear
 import type { AccountResearchRun, AccountResearchSourceSearch } from '@/types/database';
 
 export type LockSourceResult =
-  | { ok: true; snapshot: AccountResearchSnapshot | null }
+  | {
+      ok: true;
+      snapshot: AccountResearchSnapshot | null;
+      /** Present when there is no research run yet (lock still retailer-wide). */
+      locksBySourceType?: SourceLockMap;
+    }
   | { ok: false; error: string; status: number };
 
 async function findLatestRun(
@@ -268,7 +274,13 @@ export async function lockAccountResearchSourceAndRefresh(args: {
   }
 
   const run = await findLatestRun(args.supabase, args.retailerId);
-  if (!run) return { ok: true, snapshot: null };
+  if (!run) {
+    return {
+      ok: true,
+      snapshot: null,
+      locksBySourceType: await loadSourceLocks(args.supabase, args.retailerId),
+    };
+  }
 
   if (args.sourceType === 'website') {
     await applyWebsiteLockIdentity({
@@ -310,7 +322,13 @@ export async function unlockAccountResearchSourceAndClear(args: {
   if (error) return { ok: false, error: error.message, status: 500 };
 
   const run = await findLatestRun(args.supabase, args.retailerId);
-  if (!run) return { ok: true, snapshot: null };
+  if (!run) {
+    return {
+      ok: true,
+      snapshot: null,
+      locksBySourceType: await loadSourceLocks(args.supabase, args.retailerId),
+    };
+  }
 
   const snapshotBefore = await loadAccountResearchSnapshot(args.supabase, run.id);
   const source = snapshotBefore?.sources.find((s) => s.source_type === args.sourceType) ?? null;

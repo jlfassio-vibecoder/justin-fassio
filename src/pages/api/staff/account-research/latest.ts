@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { isAccountResearchV1Scope } from '@/lib/accountResearch/constants';
 import { jsonAccountResearch, snapshotPayload } from '@/lib/accountResearch/http';
+import { loadSourceLocks } from '@/lib/accountResearch/locks';
 import { findLatestAccountResearch } from '@/lib/accountResearch/orchestrate';
 
 export const prerender = false;
@@ -23,7 +24,8 @@ export const GET: APIRoute = async ({ request }) => {
 
   const snapshot = await findLatestAccountResearch(auth.supabase, retailerId, scope);
   if (!snapshot) {
-    return jsonAccountResearch({ ok: true, outcome: 'none', run: null }, 200);
+    const locksBySourceType = await loadSourceLocks(auth.supabase, retailerId);
+    return jsonAccountResearch({ ok: true, outcome: 'none', run: null, locksBySourceType }, 200);
   }
 
   return jsonAccountResearch({

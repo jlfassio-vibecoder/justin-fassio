@@ -30,6 +30,7 @@ import {
   type LoadedProductMatch,
 } from '@/lib/accountResearchClient';
 import { readSearchCandidates } from '@/lib/accountResearch/candidates';
+import { normalizeSourceUrl } from '@/lib/accountResearch/normalizeUrl';
 import { generateDraftFromResearchMatch } from '@/lib/accountResearchDraftHandoff';
 import type { MatchItemResponse } from '@/lib/accountProductMatch';
 import type { AccountContact } from '@/lib/accountContacts';
@@ -149,6 +150,7 @@ export function AccountResearchPanel({
   // 'all' run yet at all — this fallback lets "Run Search All" know the
   // website is locked even before it's ever been run.
   const [websiteLockFallback, setWebsiteLockFallback] = useState(false);
+  const [websiteLockUrlFallback, setWebsiteLockUrlFallback] = useState<string | null>(null);
 
   useEffect(() => {
     latestSalesLineIdRef.current = line.salesLineId;
@@ -163,7 +165,13 @@ export function AccountResearchPanel({
   const websiteLocked =
     Boolean(snapshot?.locksBySourceType?.website) || (snapshot == null && websiteLockFallback);
   const contactDiscoveryWebsite =
-    snapshot?.run.resolved_website ?? snapshot?.locksBySourceType?.website?.locked_url ?? null;
+    snapshot?.run.resolved_website ??
+    snapshot?.locksBySourceType?.website?.locked_url ??
+    websiteLockUrlFallback;
+  const crmWebsiteUrl = useMemo(
+    () => normalizeSourceUrl(prospect.website?.trim() ?? ''),
+    [prospect.website],
+  );
   const running =
     snapshot?.run.status === 'pending' ||
     snapshot?.run.status === 'running' ||
@@ -173,7 +181,8 @@ export function AccountResearchPanel({
       busyAction?.startsWith('run-') ||
       busyAction?.startsWith('lock-') ||
       busyAction?.startsWith('unlock-') ||
-      busyAction === 'yelp-verify',
+      busyAction === 'yelp-verify' ||
+      busyAction === 'verify-website',
     );
   // Copilot suggestion ignored: Search All remains available during snapshot hydration so staff can start a new run when no prior run exists.
 
@@ -227,6 +236,13 @@ export function AccountResearchPanel({
       setDismissedCandidatesBySource({});
       setSuggestions([]);
       setMatchResult(null);
+      const lockedFromNone = latest.locksBySourceType?.website ?? null;
+      if (lockedFromNone) {
+        setWebsiteLockFallback(true);
+        setWebsiteLockUrlFallback(lockedFromNone.locked_url);
+        setLoading(false);
+        return null;
+      }
       const websiteLatest = await fetchLatestAccountResearch(prospect.id, 'website');
       if (websiteLatest.ok && websiteLatest.outcome !== 'none') {
         const hasWebsiteLock = Boolean(websiteLatest.locksBySourceType?.website);
@@ -241,21 +257,26 @@ export function AccountResearchPanel({
             locksBySourceType: websiteLatest.locksBySourceType ?? {},
           };
           setWebsiteLockFallback(hasWebsiteLock);
+          setWebsiteLockUrlFallback(websiteLatest.locksBySourceType?.website?.locked_url ?? null);
           setSnapshot(snap);
           setDismissedCandidatesBySource({});
           setLoading(false);
           return snap;
         }
       }
-      setWebsiteLockFallback(
-        websiteLatest.ok &&
-          websiteLatest.outcome !== 'none' &&
-          Boolean(websiteLatest.locksBySourceType?.website),
-      );
+      if (websiteLatest.ok && websiteLatest.outcome === 'none') {
+        const websiteLock = websiteLatest.locksBySourceType?.website ?? null;
+        setWebsiteLockFallback(Boolean(websiteLock));
+        setWebsiteLockUrlFallback(websiteLock?.locked_url ?? null);
+      } else {
+        setWebsiteLockFallback(false);
+        setWebsiteLockUrlFallback(null);
+      }
       setLoading(false);
       return null;
     }
     setWebsiteLockFallback(false);
+    setWebsiteLockUrlFallback(null);
     const snap: AccountResearchSnapshotDto = {
       run: latest.run,
       sources: latest.sources,
@@ -526,9 +547,55 @@ export function AccountResearchPanel({
       setError(result.error);
       return;
     }
+    if (result.run == null) {
+      if (source.source_type === 'website') {
+        setWebsiteLockFallback(true);
+        setWebsiteLockUrlFallback(result.locksBySourceType.website?.locked_url ?? url);
+      }
+      await hydrateAll();
+      return;
+    }
     setSnapshot(result);
     setDismissedCandidatesBySource({});
-    if (source.source_type === 'website') setWebsiteLockFallback(true);
+    if (source.source_type === 'website') {
+      setWebsiteLockFallback(true);
+      setWebsiteLockUrlFallback(result.locksBySourceType.website?.locked_url ?? url);
+    }
+    await Promise.all([hydrateSuggestions(result.run.id), hydrateMatch(result.run.id)]);
+  }
+
+  async function handleVerifyCrmWebsite() {
+    if (!crmWebsiteUrl) {
+      setError('Add a website on the account first.');
+      return;
+    }
+    if (websiteLocked) return;
+    setBusyAction('verify-website');
+    setError(null);
+    setProgress('Confirming CRM website…');
+    const result = await lockAccountResearchSource({
+      retailerId: prospect.id,
+      sourceType: 'website',
+      url: crmWebsiteUrl,
+    });
+    setBusyAction(null);
+    setProgress(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    const lockedUrl =
+      result.locksBySourceType.website?.locked_url ??
+      (result.run ? result.run.resolved_website : null) ??
+      crmWebsiteUrl;
+    setWebsiteLockFallback(true);
+    setWebsiteLockUrlFallback(lockedUrl);
+    if (result.run == null) {
+      await hydrateAll();
+      return;
+    }
+    setSnapshot(result);
+    setDismissedCandidatesBySource({});
     await Promise.all([hydrateSuggestions(result.run.id), hydrateMatch(result.run.id)]);
   }
 
@@ -569,9 +636,20 @@ export function AccountResearchPanel({
       setError(result.error);
       return;
     }
+    if (result.run == null) {
+      if (source.source_type === 'website') {
+        setWebsiteLockFallback(false);
+        setWebsiteLockUrlFallback(null);
+      }
+      await hydrateAll();
+      return;
+    }
     setSnapshot(result);
     setDismissedCandidatesBySource({});
-    if (source.source_type === 'website') setWebsiteLockFallback(false);
+    if (source.source_type === 'website') {
+      setWebsiteLockFallback(false);
+      setWebsiteLockUrlFallback(null);
+    }
     setSelectedCandidateBySource((prev) => {
       const next = { ...prev };
       delete next[source.id];
@@ -665,6 +743,20 @@ export function AccountResearchPanel({
         </Button>
         <Button
           variant="secondary"
+          disabled={running || !crmWebsiteUrl || websiteLocked}
+          onClick={() => void handleVerifyCrmWebsite()}
+          title={
+            !crmWebsiteUrl
+              ? 'Add a website on the account first'
+              : websiteLocked
+                ? 'Website already locked'
+                : `Lock ${crmWebsiteUrl} from the CRM account`
+          }
+        >
+          {busyAction === 'verify-website' ? 'Verifying…' : 'Website Verified'}
+        </Button>
+        <Button
+          variant="secondary"
           disabled={running || !websiteLocked}
           onClick={() => void runResearch('all', false)}
         >
@@ -687,9 +779,9 @@ export function AccountResearchPanel({
       </div>
       {!websiteLocked ? (
         <p className="text-ink/55 m-0 text-xs">
-          Lock the official website first — Run Search All scrapes it for social channels and
-          Shopify evidence instead of guessing. If they have no website, lock their Facebook or
-          Instagram page URL instead.
+          {crmWebsiteUrl
+            ? 'Confirm the CRM website with Website Verified, or run Website Search to discover and lock a URL — then Run Search All scrapes it for social channels and Shopify evidence.'
+            : 'Lock the official website first — Run Search All scrapes it for social channels and Shopify evidence instead of guessing. If they have no website, lock their Facebook or Instagram page URL instead.'}
         </p>
       ) : null}
 
@@ -1053,8 +1145,9 @@ export function AccountResearchPanel({
         </>
       ) : (
         <p className="text-ink/50 m-0 text-sm">
-          Run Website Search first, pick and lock in the official URL, then run the rest to gather
-          social evidence before product match.
+          {crmWebsiteUrl
+            ? 'Confirm the CRM website with Website Verified, then Run Search All for social evidence — or Run Website Search if you need to discover a different URL.'
+            : 'Run Website Search first, pick and lock in the official URL, then run the rest to gather social evidence before product match.'}
         </p>
       )}
 

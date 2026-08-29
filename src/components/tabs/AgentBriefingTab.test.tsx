@@ -515,6 +515,71 @@ describe('AgentBriefingTab research entry', () => {
       expect(body.preparationDate).toBe('2026-08-25');
     });
   });
+
+  it('posts research-queue-dismiss from Dismiss and reloads briefing', async () => {
+    const user = userEvent.setup();
+    let dismissed = false;
+    const researchBriefing = {
+      briefing: {
+        ...briefingPayload.briefing,
+        identifiedTargets: [
+          {
+            prospectId: 44,
+            prospectName: 'Needs Email Shop',
+            catalogItemId: PRODUCT_ID,
+            productName: 'American Revival',
+            productSku: 'OGR-101',
+            productSlug: 'american-revival',
+            primaryChannel: 'golf',
+            needsEmail: true,
+          },
+        ],
+      },
+    };
+    const fetchMock = vi.fn().mockImplementation(async (path: string) => {
+      if (typeof path === 'string' && path.includes('/api/staff/outreach/research-queue-dismiss')) {
+        dismissed = true;
+        return { ok: true, json: async () => ({ ok: true }) };
+      }
+      if (typeof path === 'string' && path.includes('/api/staff/outreach/briefing')) {
+        return {
+          ok: true,
+          json: async () =>
+            dismissed
+              ? { briefing: { ...researchBriefing.briefing, identifiedTargets: [] } }
+              : researchBriefing,
+        };
+      }
+      return { ok: false, json: async () => ({ error: 'unexpected' }) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Needs Email Shop')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/staff/outreach/research-queue-dismiss',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+    const dismissCall = fetchMock.mock.calls.find(
+      (c) =>
+        typeof c[0] === 'string' && c[0].includes('/api/staff/outreach/research-queue-dismiss'),
+    );
+    const body = JSON.parse(String((dismissCall?.[1] as RequestInit)?.body ?? '{}')) as {
+      prospectId?: number;
+    };
+    expect(body.prospectId).toBe(44);
+    await waitFor(() => {
+      expect(screen.queryByText('Needs Email Shop')).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe('AgentBriefingTab regional prep controls', () => {

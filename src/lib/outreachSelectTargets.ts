@@ -28,6 +28,7 @@ import {
   type OutreachExclusionReason,
 } from '@/lib/outreachEligibility';
 import { loadOutreachProductPool, selectProductForProspect } from '@/lib/outreachProductSelection';
+import { loadResearchQueueDismissals } from '@/lib/outreachResearchQueueDismiss';
 import type { ProductWeightSource } from '@/lib/outreachProductWeights';
 import type { FitBandWeightSource } from '@/lib/outreachFitBandWeights';
 import {
@@ -418,6 +419,18 @@ export async function selectOutreachTargets(
   const skipChannelAllocation = Boolean(input.skipChannelAllocation);
   const allowMissingEmail = Boolean(input.allowMissingEmail);
 
+  let researchQueueDismissals = new Set<number>();
+  if (allowMissingEmail) {
+    try {
+      researchQueueDismissals = await loadResearchQueueDismissals(client);
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Failed to load research queue dismissals',
+      };
+    }
+  }
+
   const prospects = prospectsResult.prospects.filter((p) => {
     // Copilot suggestion ignored: load already drops inactive RLAs; renaming this leftover gate would expand the exclusion union without a consumer.
     if (!prospectPassesOutreachPool(p)) {
@@ -476,6 +489,10 @@ export async function selectOutreachTargets(
     const picked = pickOutreachContact(contactsResult.byAccountId.get(prospect.id) ?? []);
     if (!picked) {
       if (allowMissingEmail) {
+        if (researchQueueDismissals.has(prospect.id)) {
+          excluded.push({ prospectId: prospect.id, reason: 'research_queue_dismissed' });
+          continue;
+        }
         pickedRows.push({ prospect, contact: null, toEmail: null, needsEmail: true });
         needsEmailQueuedCount += 1;
         continue;
