@@ -253,6 +253,8 @@ export function AgentBriefingTab({
   const [composerError, setComposerError] = useState<string | null>(null);
   const [emailBusyId, setEmailBusyId] = useState<number | null>(null);
   const [snoozeBusyId, setSnoozeBusyId] = useState<number | null>(null);
+  const [rowRunPrepBusyKey, setRowRunPrepBusyKey] = useState<string | null>(null);
+  const [rowRunPrepMessage, setRowRunPrepMessage] = useState<string | null>(null);
   const [appliedDeepLinkKey, setAppliedDeepLinkKey] = useState('');
   const [opsOptions, setOpsOptions] = useState<OperationalTerritoryOption[]>([]);
   const [storeTerritoryCode, setStoreTerritoryCode] = useState<'or' | 'wa'>('or');
@@ -502,6 +504,49 @@ export function AgentBriefingTab({
     }
   }
 
+  async function runIdentifiedTargetPrep(row: {
+    prospectId: number;
+    catalogItemId: string;
+    prospectName: string;
+  }) {
+    if (!isOgrLine) {
+      setRowRunPrepMessage('Row prep is available on OGR only.');
+      return;
+    }
+    if (!resolvedOpsTerritoryId) {
+      setRowRunPrepMessage('Select a territory first.');
+      return;
+    }
+    const busyKey = `${row.prospectId}-${row.catalogItemId}`;
+    setRowRunPrepBusyKey(busyKey);
+    setRowRunPrepMessage(null);
+    const body: Record<string, unknown> = {
+      prospectId: row.prospectId,
+      catalogItemId: row.catalogItemId,
+      operationalTerritoryId: resolvedOpsTerritoryId,
+      storeTerritoryCode,
+    };
+    if (briefingRegion && briefingRegion !== 'ALL') {
+      body.crmRegion = briefingRegion;
+    }
+    if (briefingCity && briefingCity !== 'ALL') {
+      body.city = briefingCity;
+    }
+    if (briefing?.sellingDate) body.preparationDate = briefing.sellingDate;
+    const result = await staffPost('/api/staff/outreach/identified-target-draft', body);
+    setRowRunPrepBusyKey(null);
+    if (!result.ok) {
+      const err = result.error;
+      setRowRunPrepMessage(
+        /no usable outreach email/i.test(err)
+          ? `Add a contact email first for ${row.prospectName}.`
+          : err,
+      );
+      return;
+    }
+    setReloadToken((n) => n + 1);
+  }
+
   async function runPrepNow() {
     if (!isOgrLine) {
       setPrepMessage('Regional prep is available on OGR only.');
@@ -741,8 +786,13 @@ export function AgentBriefingTab({
             <CardTitle className="text-[15px]">Outreach queue — research email</CardTitle>
             <CardMeta className="mb-2">
               {briefing.identifiedTargets.length} identified · use Research to find a contact email,
-              then re-run prep to generate drafts
+              then Run prep on the row
             </CardMeta>
+            {rowRunPrepMessage ? (
+              <p className="text-accent-800 m-0 mb-2 text-sm" role="status">
+                {rowRunPrepMessage}
+              </p>
+            ) : null}
             {briefing.identifiedTargets.length === 0 ? (
               <p className="text-ink/50 m-0 text-sm">
                 No identified accounts for this region yet. Run prep to rank up to 25 accounts.
@@ -759,50 +809,70 @@ export function AgentBriefingTab({
                     </tr>
                   </thead>
                   <tbody>
-                    {briefing.identifiedTargets.map((t) => (
-                      <tr key={`${t.prospectId}-${t.catalogItemId}`} className="hover:bg-bg/80">
-                        <td className="border-ink/[0.06] border-b p-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
-                              className="text-accent-800 font-medium hover:underline"
-                              onClick={() =>
-                                onOpenProspect({
-                                  prospectId: t.prospectId,
-                                  accountStatus: 'prospect',
-                                })
-                              }
-                            >
-                              {t.prospectName}
-                            </button>
-                            <button
-                              type="button"
-                              className="text-ink/55 hover:text-accent-800 text-xs hover:underline"
-                              onClick={() =>
-                                onOpenProspect({
-                                  prospectId: t.prospectId,
-                                  accountStatus: 'prospect',
-                                  openResearch: true,
-                                })
-                              }
-                            >
-                              Research
-                            </button>
-                          </div>
-                        </td>
-                        <td className="border-ink/[0.06] border-b p-2">{t.productName}</td>
-                        <td className="border-ink/[0.06] border-b p-2">
-                          {t.primaryChannel ?? '—'}
-                        </td>
-                        <td className="border-ink/[0.06] border-b p-2">
-                          {t.needsEmail ? (
-                            <span className="text-accent-800">Needs research</span>
-                          ) : (
-                            <span className="text-ink/60">On file</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    {briefing.identifiedTargets.map((t) => {
+                      const rowKey = `${t.prospectId}-${t.catalogItemId}`;
+                      const rowBusy = rowRunPrepBusyKey === rowKey;
+                      return (
+                        <tr key={rowKey} className="hover:bg-bg/80">
+                          <td className="border-ink/[0.06] border-b p-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                className="text-accent-800 font-medium hover:underline"
+                                onClick={() =>
+                                  onOpenProspect({
+                                    prospectId: t.prospectId,
+                                    accountStatus: 'prospect',
+                                  })
+                                }
+                              >
+                                {t.prospectName}
+                              </button>
+                              <button
+                                type="button"
+                                className="text-ink/55 hover:text-accent-800 text-xs hover:underline"
+                                onClick={() =>
+                                  onOpenProspect({
+                                    prospectId: t.prospectId,
+                                    accountStatus: 'prospect',
+                                    openResearch: true,
+                                  })
+                                }
+                              >
+                                Research
+                              </button>
+                              <button
+                                type="button"
+                                className="text-ink/55 hover:text-accent-800 text-xs hover:underline disabled:opacity-50"
+                                disabled={
+                                  rowBusy || Boolean(rowRunPrepBusyKey) || !resolvedOpsTerritoryId
+                                }
+                                onClick={() =>
+                                  void runIdentifiedTargetPrep({
+                                    prospectId: t.prospectId,
+                                    catalogItemId: t.catalogItemId,
+                                    prospectName: t.prospectName,
+                                  })
+                                }
+                              >
+                                {rowBusy ? 'Running…' : 'Run prep'}
+                              </button>
+                            </div>
+                          </td>
+                          <td className="border-ink/[0.06] border-b p-2">{t.productName}</td>
+                          <td className="border-ink/[0.06] border-b p-2">
+                            {t.primaryChannel ?? '—'}
+                          </td>
+                          <td className="border-ink/[0.06] border-b p-2">
+                            {t.needsEmail ? (
+                              <span className="text-accent-800">Needs research</span>
+                            ) : (
+                              <span className="text-ink/60">On file</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
