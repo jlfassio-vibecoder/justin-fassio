@@ -63,7 +63,12 @@ describe('AccountResearchPanel', () => {
     generateSuggestionsMock.mockReset();
     listSuggestionsMock.mockResolvedValue({ ok: true, suggestions: [] });
     loadMatchMock.mockResolvedValue(null);
-    fetchLatestMock.mockResolvedValue({ ok: true, outcome: 'none', run: null });
+    fetchLatestMock.mockResolvedValue({
+      ok: true,
+      outcome: 'none',
+      run: null,
+      locksBySourceType: {},
+    });
     runUntilDoneMock.mockImplementation(async (runId: string) => ({
       ok: true,
       processed: true,
@@ -99,6 +104,90 @@ describe('AccountResearchPanel', () => {
     expect(await screen.findByText(/Lock the official website first/i)).toBeInTheDocument();
   });
 
+  it('disables Website Verified when the CRM account has no website', async () => {
+    render(<AccountResearchPanel prospect={prospect} />);
+    expect(await screen.findByRole('button', { name: /Website Verified/i })).toBeDisabled();
+  });
+
+  it('locks the CRM website via Website Verified and enables Run Search All', async () => {
+    const user = userEvent.setup();
+    const withWebsite = prospectFixture({
+      id: 7,
+      name: 'Test Shop',
+      category: 'golf_retail',
+      website: 'https://trailoutfitters.com',
+    });
+    const websiteLock = {
+      retailer_id: 7,
+      source_type: 'website' as const,
+      locked_url: 'https://trailoutfitters.com',
+      locked_url_normalized: 'https://trailoutfitters.com',
+      locked_by: null,
+      locked_at: new Date().toISOString(),
+    };
+    let locked = false;
+    lockResearchMock.mockImplementation(async () => {
+      locked = true;
+      return {
+        ok: true,
+        run: null,
+        locksBySourceType: { website: websiteLock },
+      };
+    });
+    fetchLatestMock.mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        outcome: 'none',
+        run: null,
+        locksBySourceType: locked ? { website: websiteLock } : {},
+      }),
+    );
+
+    render(<AccountResearchPanel prospect={withWebsite} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Website Verified/i })).toBeEnabled();
+      expect(screen.getByRole('button', { name: /Run Search All/i })).toBeDisabled();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Website Verified/i }));
+
+    expect(lockResearchMock).toHaveBeenCalledWith({
+      retailerId: 7,
+      sourceType: 'website',
+      url: 'https://trailoutfitters.com/',
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Run Search All/i })).toBeEnabled(),
+    );
+    expect(screen.getByRole('button', { name: /Website Verified/i })).toBeDisabled();
+  });
+
+  it('enables Run Search All when latest hydrate returns a website lock with no run', async () => {
+    fetchLatestMock.mockResolvedValue({
+      ok: true,
+      outcome: 'none',
+      run: null,
+      locksBySourceType: {
+        website: {
+          retailer_id: 7,
+          source_type: 'website',
+          locked_url: 'https://trailoutfitters.com',
+          locked_url_normalized: 'https://trailoutfitters.com',
+          locked_by: null,
+          locked_at: new Date().toISOString(),
+        },
+      },
+    });
+
+    render(<AccountResearchPanel prospect={prospect} />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Run Search All/i })).toBeEnabled(),
+    );
+    expect(screen.getByText('Contact discovery panel')).toBeInTheDocument();
+  });
+
   it('enables and starts Run Search All once the website is locked (found via the website-scope fallback fetch)', async () => {
     const user = userEvent.setup();
     fetchLatestMock.mockImplementation((_retailerId: number, scope: string) => {
@@ -128,7 +217,7 @@ describe('AccountResearchPanel', () => {
           },
         });
       }
-      return Promise.resolve({ ok: true, outcome: 'none', run: null });
+      return Promise.resolve({ ok: true, outcome: 'none', run: null, locksBySourceType: {} });
     });
     startResearchMock.mockResolvedValue({
       ok: true,

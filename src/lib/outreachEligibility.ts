@@ -27,7 +27,8 @@ export type OutreachExclusionReason =
   | 'email_already_selected'
   | 'prospect_already_selected'
   | 'no_product_in_pool'
-  | 'no_product_after_dedup';
+  | 'no_product_after_dedup'
+  | 'research_queue_dismissed';
 
 export type RankableOutreachProspect = {
   id: number;

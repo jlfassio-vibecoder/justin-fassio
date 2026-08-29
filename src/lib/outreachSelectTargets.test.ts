@@ -84,6 +84,7 @@ function mockSelectClient(opts: {
   sendsByProspect?: unknown[];
   sendsByEmail?: unknown[];
   recentProductSends?: unknown[];
+  researchQueueDismissals?: Array<{ prospect_id: number }>;
 }): DbClient {
   const lineId = 'line-ogr';
   let sendQueryCount = 0;
@@ -115,6 +116,9 @@ function mockSelectClient(opts: {
     }
     if (table === 'account_contacts') {
       return chain({ data: opts.contacts ?? [], error: null });
+    }
+    if (table === 'outreach_research_queue_dismissals') {
+      return chain({ data: opts.researchQueueDismissals ?? [], error: null });
     }
     if (table === 'system_messages') {
       return {
@@ -328,6 +332,61 @@ describe('selectOutreachTargets', () => {
     expect(result.excluded).not.toEqual(
       expect.arrayContaining([{ prospectId: 3, reason: 'no_usable_email' }]),
     );
+  });
+
+  it('excludes dismissed prospects from needsEmail queue but still selects when email exists', async () => {
+    const client = mockSelectClient({
+      prospects: [prospectRow(3, 'Dismissed Shop'), prospectRow(4, 'Has Email Shop')],
+      contacts: [
+        {
+          id: 'c-4',
+          account_id: 4,
+          role: 'buyer',
+          full_name: 'Pat',
+          title: null,
+          phone: null,
+          email: 'pat@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+      pendingProspectIds: [],
+      suppressed: [],
+      researchQueueDismissals: [{ prospect_id: 3 }, { prospect_id: 4 }],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 25,
+      preparationDate: '2026-08-12',
+      allowMissingEmail: true,
+      skipChannelAllocation: true,
+      rankMode: 'fit_score',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.excluded).toEqual(
+      expect.arrayContaining([{ prospectId: 3, reason: 'research_queue_dismissed' }]),
+    );
+    expect(result.targets.map((t) => t.prospectId)).toEqual([4]);
+    expect(result.targets[0]?.needsEmail).toBe(false);
   });
 
   it('excludes prospects with suppressed email or prospect id', async () => {

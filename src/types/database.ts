@@ -1994,6 +1994,38 @@ export interface Database {
           },
         ];
       };
+      outreach_research_queue_dismissals: {
+        Row: {
+          prospect_id: number;
+          dismissed_by: string | null;
+          dismissed_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          prospect_id: number;
+          dismissed_by?: string | null;
+          dismissed_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          prospect_id?: number;
+          dismissed_by?: string | null;
+          dismissed_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'outreach_research_queue_dismissals_prospect_id_fkey';
+            columns: ['prospect_id'];
+            isOneToOne: true;
+            referencedRelation: 'prospects';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       account_conversion_attribution: {
         Row: {
           id: string;

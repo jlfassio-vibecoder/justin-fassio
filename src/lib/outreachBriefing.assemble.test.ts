@@ -8,6 +8,7 @@ const listAgentProductOutreachDraftsMock = vi.fn();
 const listOutreachLeadsMock = vi.fn();
 const fetchPendingAgentProductOutreachProspectIdsMock = vi.fn();
 const loadActiveFollowUpSnoozesMock = vi.fn();
+const loadResearchQueueDismissalsMock = vi.fn();
 const resolveOutreachLeadRulesMock = vi.fn();
 const selectOutreachTargetsMock = vi.fn();
 const buildFollowUpQueueMock = vi.fn();
@@ -46,6 +47,10 @@ vi.mock('@/lib/outreachLeadLists', () => ({
 
 vi.mock('@/lib/outreachFollowUpSnooze', () => ({
   loadActiveFollowUpSnoozes: (...args: unknown[]) => loadActiveFollowUpSnoozesMock(...args),
+}));
+
+vi.mock('@/lib/outreachResearchQueueDismiss', () => ({
+  loadResearchQueueDismissals: (...args: unknown[]) => loadResearchQueueDismissalsMock(...args),
 }));
 
 vi.mock('@/lib/resolveOutreachLeadRules', () => ({
@@ -154,6 +159,7 @@ describe('assembleOutreachBriefing carryover', () => {
       prospectIds: new Set([12]),
     });
     loadActiveFollowUpSnoozesMock.mockResolvedValue(new Set());
+    loadResearchQueueDismissalsMock.mockResolvedValue(new Set());
     resolveOutreachLeadRulesMock.mockResolvedValue({
       rules: OUTREACH_LEAD_RULES,
       source: 'provisional',
@@ -235,5 +241,55 @@ describe('assembleOutreachBriefing carryover', () => {
       }),
     ]);
     expect(result.briefing.identifiedTargets.map((t) => t.prospectId)).toEqual([99]);
+  });
+
+  it('excludes research-queue dismissals from identifiedTargets', async () => {
+    loadResearchQueueDismissalsMock.mockResolvedValue(new Set([99]));
+    const thenable = (result: { data: unknown; error: unknown }) => {
+      const api: Record<string, unknown> = {};
+      const self = () => thenable(result);
+      for (const key of ['select', 'eq', 'in', 'not', 'or', 'is', 'lte', 'gte', 'order', 'limit']) {
+        api[key] = vi.fn(self);
+      }
+      api.maybeSingle = vi.fn(async () => result);
+      return {
+        ...api,
+        then(onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
+          return Promise.resolve(result).then(onFulfilled, onRejected);
+        },
+      };
+    };
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === 'prospects') {
+          return thenable({
+            data: [
+              {
+                id: 12,
+                name: 'Carryover Cafe',
+                account_status: 'prospect',
+                region: 'Oregon Coast',
+              },
+            ],
+            error: null,
+          });
+        }
+        return thenable({ data: [], error: null });
+      }),
+    };
+
+    const result = await assembleOutreachBriefing({
+      client: client as never,
+      asOf: new Date('2026-08-27T18:00:00Z'),
+      regionalPrepScope: {
+        operationalTerritoryId: 'ops-pnw-west',
+        storeTerritoryCode: 'or',
+        crmRegion: 'Oregon Coast',
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.briefing.identifiedTargets.map((t) => t.prospectId)).toEqual([]);
   });
 });

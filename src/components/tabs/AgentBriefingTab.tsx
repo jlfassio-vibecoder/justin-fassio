@@ -255,6 +255,7 @@ export function AgentBriefingTab({
   const [snoozeBusyId, setSnoozeBusyId] = useState<number | null>(null);
   const [rowRunPrepBusyKey, setRowRunPrepBusyKey] = useState<string | null>(null);
   const [rowRunPrepMessage, setRowRunPrepMessage] = useState<string | null>(null);
+  const [rowDismissBusyId, setRowDismissBusyId] = useState<number | null>(null);
   const [appliedDeepLinkKey, setAppliedDeepLinkKey] = useState('');
   const [opsOptions, setOpsOptions] = useState<OperationalTerritoryOption[]>([]);
   const [storeTerritoryCode, setStoreTerritoryCode] = useState<'or' | 'wa'>('or');
@@ -351,6 +352,25 @@ export function AgentBriefingTab({
     }
     setReloadToken((n) => n + 1);
   }, []);
+
+  async function dismissResearchQueueRow(row: { prospectId: number }) {
+    setRowDismissBusyId(row.prospectId);
+    setRowRunPrepMessage(null);
+    try {
+      const result = await staffPost('/api/staff/outreach/research-queue-dismiss', {
+        prospectId: row.prospectId,
+      });
+      if (!result.ok) {
+        setRowRunPrepMessage(result.error);
+        return;
+      }
+      setReloadToken((n) => n + 1);
+    } catch {
+      setRowRunPrepMessage('Request failed. Try again.');
+    } finally {
+      setRowDismissBusyId(null);
+    }
+  }
 
   useEffect(() => {
     if (!isOgrLine) return;
@@ -791,7 +811,7 @@ export function AgentBriefingTab({
             <CardTitle className="text-[15px]">Outreach queue — research email</CardTitle>
             <CardMeta className="mb-2">
               {briefing.identifiedTargets.length} identified · use Research to find a contact email,
-              then Run prep on the row
+              then Run prep on the row · Dismiss if no email can be found
             </CardMeta>
             {rowRunPrepMessage ? (
               <p className="text-accent-800 m-0 mb-2 text-sm" role="status">
@@ -817,6 +837,8 @@ export function AgentBriefingTab({
                     {briefing.identifiedTargets.map((t) => {
                       const rowKey = `${t.prospectId}-${t.catalogItemId}`;
                       const rowBusy = rowRunPrepBusyKey === rowKey;
+                      const dismissBusy = rowDismissBusyId === t.prospectId;
+                      const anyRowBusy = Boolean(rowRunPrepBusyKey) || Boolean(rowDismissBusyId);
                       return (
                         <tr key={rowKey} className="hover:bg-bg/80">
                           <td className="border-ink/[0.06] border-b p-2">
@@ -849,9 +871,7 @@ export function AgentBriefingTab({
                               <button
                                 type="button"
                                 className="text-ink/55 hover:text-accent-800 text-xs hover:underline disabled:opacity-50"
-                                disabled={
-                                  rowBusy || Boolean(rowRunPrepBusyKey) || !resolvedOpsTerritoryId
-                                }
+                                disabled={rowBusy || anyRowBusy || !resolvedOpsTerritoryId}
                                 onClick={() =>
                                   void runIdentifiedTargetPrep({
                                     prospectId: t.prospectId,
@@ -861,6 +881,16 @@ export function AgentBriefingTab({
                                 }
                               >
                                 {rowBusy ? 'Running…' : 'Run prep'}
+                              </button>
+                              <button
+                                type="button"
+                                className="text-ink/55 hover:text-accent-800 text-xs hover:underline disabled:opacity-50"
+                                disabled={dismissBusy || anyRowBusy}
+                                onClick={() =>
+                                  void dismissResearchQueueRow({ prospectId: t.prospectId })
+                                }
+                              >
+                                {dismissBusy ? 'Dismissing…' : 'Dismiss'}
                               </button>
                             </div>
                           </td>

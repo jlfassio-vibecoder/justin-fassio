@@ -9,6 +9,7 @@ import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
 import { listOutreachLeads } from '@/lib/outreachLeadLists';
 import { buildFollowUpQueue } from '@/lib/outreachFollowUpQueue';
 import { loadActiveFollowUpSnoozes } from '@/lib/outreachFollowUpSnooze';
+import { loadResearchQueueDismissals } from '@/lib/outreachResearchQueueDismiss';
 import {
   briefingSellingDate,
   getLatestOutreachAutomationRunForDate,
@@ -419,9 +420,23 @@ export async function assembleOutreachBriefing(params: {
     if (latestRegional.run) identifiedSourceRun = latestRegional.run;
   }
 
+  let researchQueueDismissals: Set<number>;
+  try {
+    researchQueueDismissals = await loadResearchQueueDismissals(client);
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Failed to load research queue dismissals',
+    };
+  }
   const identifiedTargets = parseIdentifiedTargetsFromPrepAllocation(
     identifiedSourceRun?.channelAllocation,
-  ).filter((t) => t.needsEmail && !pendingDraftProspectIds.has(t.prospectId));
+  ).filter(
+    (t) =>
+      t.needsEmail &&
+      !pendingDraftProspectIds.has(t.prospectId) &&
+      !researchQueueDismissals.has(t.prospectId),
+  );
 
   const channelAllocation =
     run?.channelAllocation &&
