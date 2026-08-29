@@ -1,5 +1,5 @@
 /**
- * Daily Briefing follow-up queue: one ranked list with Call / Email / Watch.
+ * Daily Briefing follow-up queue: emailed accounts (90d) with Call / Email / Watch.
  * Pure ranking over Phase 3 lead rows — no DB, no Resend.
  */
 
@@ -10,10 +10,12 @@ import { OUTREACH_LEAD_RULES } from '@/lib/outreachLeadRules';
 import type { OutreachMessageRow } from '@/lib/outreachEngagementAggregate';
 
 export const FOLLOW_UP_WATCH_DAYS = 7;
+/** Include prospects with a product outreach send in this many days. */
+export const FOLLOW_UP_EMAILED_WINDOW_DAYS = 90;
 /** Max rows returned to Briefing (server assemble). */
 export const FOLLOW_UP_QUEUE_LIMIT = 500;
 /** Visible rows before the Briefing list scrolls. */
-export const FOLLOW_UP_QUEUE_VISIBLE = 20;
+export const FOLLOW_UP_QUEUE_VISIBLE = 15;
 
 export type OutreachFollowUpAction = 'call' | 'email' | 'watch';
 
@@ -26,6 +28,8 @@ export type OutreachFollowUpRow = {
   reasonLine: string;
   talkTrackHint: string | null;
   lastEngagedAt: string | null;
+  lastOpenedAt: string | null;
+  lastSentAt: string | null;
   lastProductName: string | null;
   lastProductId: string | null;
   score: number;
@@ -164,6 +168,16 @@ function engagementAfterCall(lead: OutreachLeadRow, lastCallAt: string): boolean
   return Boolean(signal && signal > lastCallAt);
 }
 
+/** True when the prospect received a product outreach send within the emailed window. */
+export function emailedWithinFollowUpWindow(
+  lead: OutreachLeadRow,
+  asOf: Date,
+  windowDays: number = FOLLOW_UP_EMAILED_WINDOW_DAYS,
+): boolean {
+  const age = daysBetween(lead.engagement.lastSentAt, asOf);
+  return age != null && age >= 0 && age <= windowDays;
+}
+
 function warmOrWatchAction(input: {
   lead: OutreachLeadRow;
   asOf: Date;
@@ -281,14 +295,21 @@ function reasonLine(lead: OutreachLeadRow, productName: string | null): string {
   return parts.join(' · ') || 'Engaged recently';
 }
 
-function rankBucket(row: OutreachFollowUpRow, lead: OutreachLeadRow): number {
-  if (lead.callTodayReasons.includes('attributed_reply')) return 0;
-  if (lead.callTodayReasons.includes('hot_intent')) return 1;
-  if (lead.callTodayReasons.includes('follow_up_due_today')) return 2;
-  if (row.recommendedAction === 'email' && lead.engagement.clickCount > 0) return 3;
-  if (row.recommendedAction === 'email') return 4;
-  if (lead.callTodayReasons.includes('follow_up_overdue')) return 6;
-  return 5;
+function compareFollowUpRows(
+  a: { row: OutreachFollowUpRow; lead: OutreachLeadRow },
+  b: { row: OutreachFollowUpRow; lead: OutreachLeadRow },
+): number {
+  const aOpened = Boolean(a.row.lastOpenedAt);
+  const bOpened = Boolean(b.row.lastOpenedAt);
+  if (aOpened !== bOpened) return aOpened ? -1 : 1;
+  if (aOpened && bOpened) {
+    const openCmp = (b.row.lastOpenedAt ?? '').localeCompare(a.row.lastOpenedAt ?? '');
+    if (openCmp !== 0) return openCmp;
+  } else {
+    const sentCmp = (b.row.lastSentAt ?? '').localeCompare(a.row.lastSentAt ?? '');
+    if (sentCmp !== 0) return sentCmp;
+  }
+  return a.row.prospectName.localeCompare(b.row.prospectName);
 }
 
 export function buildFollowUpQueue(input: {
@@ -299,6 +320,7 @@ export function buildFollowUpQueue(input: {
   asOf?: Date;
   rules?: OutreachLeadRules;
   limit?: number;
+  emailedWindowDays?: number;
 }): OutreachFollowUpRow[] {
   const asOf = input.asOf ?? new Date();
   const rules = input.rules ?? OUTREACH_LEAD_RULES;
@@ -306,20 +328,23 @@ export function buildFollowUpQueue(input: {
   const snoozed = input.snoozedProspectIds ?? new Set<number>();
   const names = input.productNamesById ?? new Map<string, string>();
   const limit = input.limit ?? FOLLOW_UP_QUEUE_LIMIT;
+  const emailedWindowDays = input.emailedWindowDays ?? FOLLOW_UP_EMAILED_WINDOW_DAYS;
 
   const byId = new Map<number, { row: OutreachFollowUpRow; lead: OutreachLeadRow }>();
 
   for (const lead of input.leads) {
     if (lead.accountStatus === 'active_account') continue;
     if (snoozed.has(lead.prospectId)) continue;
+    if (lead.engagement.suppressed) continue;
+    if (!emailedWithinFollowUpWindow(lead, asOf, emailedWindowDays)) continue;
 
-    const action = recommendedAction({
-      lead,
-      asOf,
-      rules,
-      hasPendingDraft: pending.has(lead.prospectId),
-    });
-    if (!action) continue;
+    const action =
+      recommendedAction({
+        lead,
+        asOf,
+        rules,
+        hasPendingDraft: pending.has(lead.prospectId),
+      }) ?? 'watch';
     const productId = lead.lastEngagedCatalogItemId ?? null;
     const productName = productId ? (names.get(productId) ?? null) : null;
     const row: OutreachFollowUpRow = {
@@ -331,6 +356,8 @@ export function buildFollowUpQueue(input: {
       reasonLine: reasonLine(lead, productName),
       talkTrackHint: action === 'call' ? buildFollowUpTalkTrackHint(lead, productName) : null,
       lastEngagedAt: signalAt(lead),
+      lastOpenedAt: lead.engagement.lastOpenedAt,
+      lastSentAt: lead.engagement.lastSentAt,
       lastProductName: productName,
       lastProductId: productId,
       score: lead.score,
@@ -342,15 +369,7 @@ export function buildFollowUpQueue(input: {
     byId.set(lead.prospectId, { row, lead });
   }
 
-  const ranked = [...byId.values()].sort((a, b) => {
-    const bucket = rankBucket(a.row, a.lead) - rankBucket(b.row, b.lead);
-    if (bucket !== 0) return bucket;
-    const atA = a.row.lastEngagedAt ?? '';
-    const atB = b.row.lastEngagedAt ?? '';
-    if (atA !== atB) return atB.localeCompare(atA);
-    if (b.row.score !== a.row.score) return b.row.score - a.row.score;
-    return a.row.prospectName.localeCompare(b.row.prospectName);
-  });
+  const ranked = [...byId.values()].sort(compareFollowUpRows);
 
   return ranked.slice(0, limit).map((x) => x.row);
 }

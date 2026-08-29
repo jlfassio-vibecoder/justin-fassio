@@ -17,7 +17,7 @@ export const prerender = false;
 
 /**
  * Staff Briefing: reuse or generate a follow-up Product Outreach draft.
- * Body: { prospectId }. Never calls Resend.
+ * Body: { prospectId, salesLineId? }. Never calls Resend.
  */
 export const POST: APIRoute = async ({ request }) => {
   const gate = await requireApprovedStaffClient(request);

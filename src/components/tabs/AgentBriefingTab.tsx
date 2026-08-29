@@ -18,9 +18,11 @@ import { useOptionalLineContext } from '@/lib/lineContext';
 import {
   formatFollowUpRelativeTime,
   formatRegionalPoolMessage,
+  TOP_LEADS_QUICK_VIEW_VISIBLE,
   type OutreachBriefingDto,
   type OutreachFollowUpRow,
 } from '@/lib/outreachBriefingShared';
+import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
 import { FOLLOW_UP_QUEUE_VISIBLE } from '@/lib/outreachFollowUpQueue';
 import { Tag } from '@/components/ui/Tag';
 import {
@@ -68,7 +70,10 @@ type AgentBriefingTabProps = {
   deepLinkDraftId?: string | null;
   onDeepLinkConsumed?: () => void;
   onProductEmailSent?: () => void;
-  onLogCallForLead: (prospectId: number, context?: BriefingLogCallContext) => void;
+  onLogCallForLead: (
+    prospectId: number,
+    context?: BriefingLogCallContext,
+  ) => void | boolean | Promise<void | boolean>;
   briefingReloadToken?: number;
   onOpenProspect: (args: {
     prospectId: number;
@@ -134,7 +139,182 @@ async function staffPost(
 function followUpActionLabel(action: OutreachFollowUpRow['recommendedAction']): string {
   if (action === 'call') return 'Call';
   if (action === 'email') return 'Email';
-  return 'Open';
+  return 'Watch';
+}
+
+function callTodayReasonChip(reasons: OutreachLeadRow['callTodayReasons']): string | null {
+  if (reasons.includes('attributed_reply')) return 'Replied';
+  if (reasons.includes('hot_intent')) return 'Hot';
+  if (reasons.includes('follow_up_overdue')) return 'Overdue';
+  if (reasons.includes('follow_up_due_today')) return 'Due today';
+  return null;
+}
+
+function TopLeadsQuickView({
+  callToday,
+  hotCount,
+  warm,
+  recentEngagement,
+  followUpsById,
+  emailBusyId,
+  onOpenProspect,
+  onFollowUpAction,
+}: {
+  callToday: OutreachLeadRow[];
+  hotCount: number;
+  warm: OutreachLeadRow[];
+  recentEngagement: OutreachBriefingDto['recentEngagement'];
+  followUpsById: ReadonlyMap<number, OutreachFollowUpRow>;
+  emailBusyId: number | null;
+  onOpenProspect: (args: { prospectId: number; accountStatus?: string }) => void;
+  onFollowUpAction: (row: OutreachFollowUpRow) => void;
+}) {
+  const callRows = callToday.slice(0, TOP_LEADS_QUICK_VIEW_VISIBLE);
+  const warmRows = warm.filter((row) => !row.callToday).slice(0, TOP_LEADS_QUICK_VIEW_VISIBLE);
+  const engagedRows = recentEngagement.slice(0, TOP_LEADS_QUICK_VIEW_VISIBLE);
+
+  function renderLeadActions(prospectId: number, prospectName: string, accountStatus?: string) {
+    const queueRow = followUpsById.get(prospectId);
+    const busy = emailBusyId === prospectId;
+    return (
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        {queueRow && queueRow.recommendedAction !== 'watch' ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="px-3 py-1 text-xs"
+            disabled={busy}
+            aria-label={
+              busy
+                ? `Preparing follow-up for ${prospectName}`
+                : `${followUpActionLabel(queueRow.recommendedAction)} ${prospectName}`
+            }
+            onClick={() => onFollowUpAction(queueRow)}
+          >
+            {busy ? 'Preparing…' : followUpActionLabel(queueRow.recommendedAction)}
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          variant="ghost"
+          className="px-2 py-0.5 text-[11px]"
+          aria-label={`Open ${prospectName}`}
+          onClick={() => onOpenProspect({ prospectId, accountStatus })}
+        >
+          Open
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Card data-testid="top-leads-quick-view">
+      <CardTitle className="text-[15px]">Top leads</CardTitle>
+      <CardMeta className="mb-3">Quick view · work the queue below for today’s actions</CardMeta>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+        <div>
+          <p className="text-ink/50 m-0 mb-2 text-xs uppercase">
+            Call today
+            {hotCount > 0 ? (
+              <span className="text-ink/40 normal-case"> · {hotCount} hot</span>
+            ) : null}
+          </p>
+          {callRows.length === 0 ? (
+            <p className="text-ink/50 m-0 text-sm">None</p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {callRows.map((row) => {
+                const reason = callTodayReasonChip(row.callTodayReasons);
+                const ago = formatFollowUpRelativeTime(row.engagement.lastEngagementAt);
+                return (
+                  <li
+                    key={row.prospectId}
+                    className="flex items-start justify-between gap-2"
+                    data-testid={`top-lead-call-${row.prospectId}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-sm font-medium">{row.prospectName}</span>
+                        {reason ? <Tag variant="accent">{reason}</Tag> : null}
+                        {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
+                      </div>
+                    </div>
+                    {renderLeadActions(row.prospectId, row.prospectName, row.accountStatus)}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div>
+          <p className="text-ink/50 m-0 mb-2 text-xs uppercase">Warm</p>
+          {warmRows.length === 0 ? (
+            <p className="text-ink/50 m-0 text-sm">None</p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {warmRows.map((row) => {
+                const ago = formatFollowUpRelativeTime(row.engagement.lastEngagementAt);
+                return (
+                  <li
+                    key={row.prospectId}
+                    className="flex items-start justify-between gap-2"
+                    data-testid={`top-lead-warm-${row.prospectId}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-sm font-medium">{row.prospectName}</span>
+                        <Tag variant="outline">Warm</Tag>
+                        {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
+                      </div>
+                    </div>
+                    {renderLeadActions(row.prospectId, row.prospectName, row.accountStatus)}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div>
+          <p className="text-ink/50 m-0 mb-2 text-xs uppercase">Engaged</p>
+          {engagedRows.length === 0 ? (
+            <p className="text-ink/50 m-0 text-sm">None</p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {engagedRows.map((row) => {
+                const ago = formatFollowUpRelativeTime(row.lastEngagedAt);
+                return (
+                  <li
+                    key={row.prospectId}
+                    className="flex items-start justify-between gap-2"
+                    data-testid={`top-lead-engaged-${row.prospectId}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-sm font-medium">{row.prospectName}</span>
+                        {row.clickCount > 0 ? (
+                          <Tag variant="outline">
+                            {row.clickCount} click{row.clickCount === 1 ? '' : 's'}
+                          </Tag>
+                        ) : row.openCount > 0 ? (
+                          <Tag variant="neutral">
+                            {row.openCount} open{row.openCount === 1 ? '' : 's'}
+                          </Tag>
+                        ) : null}
+                        {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
+                      </div>
+                    </div>
+                    {renderLeadActions(row.prospectId, row.prospectName)}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 function FollowUpQueue({
@@ -142,19 +322,21 @@ function FollowUpQueue({
   emailBusyId,
   snoozeBusyId,
   onAction,
+  onLogCall,
   onSnooze,
 }: {
   rows: OutreachFollowUpRow[];
   emailBusyId: number | null;
   snoozeBusyId: number | null;
   onAction: (row: OutreachFollowUpRow) => void;
+  onLogCall: (row: OutreachFollowUpRow) => void;
   onSnooze: (row: OutreachFollowUpRow) => void;
 }) {
   return (
     <Card>
       <CardTitle className="text-[15px]">Today’s follow-ups</CardTitle>
       <CardMeta className="mb-2">
-        {rows.length} lead{rows.length === 1 ? '' : 's'} · Call, email, watch, or snooze
+        {rows.length} emailed (90d) · opens first · Call, email, watch, log call, or snooze
       </CardMeta>
       {rows.length === 0 ? (
         <p className="text-ink/50 m-0 text-sm">None right now.</p>
@@ -162,7 +344,7 @@ function FollowUpQueue({
         <ul
           className="m-0 flex list-none flex-col gap-2 overflow-y-auto p-0"
           style={{
-            maxHeight: `calc(${FOLLOW_UP_QUEUE_VISIBLE} * 2.5rem + ${FOLLOW_UP_QUEUE_VISIBLE - 1} * 0.5rem)`,
+            maxHeight: `calc(${FOLLOW_UP_QUEUE_VISIBLE} * 3.25rem + ${FOLLOW_UP_QUEUE_VISIBLE - 1} * 0.5rem)`,
           }}
         >
           {rows.map((row) => {
@@ -208,6 +390,16 @@ function FollowUpQueue({
                     {emailBusyId === row.prospectId
                       ? 'Preparing…'
                       : followUpActionLabel(row.recommendedAction)}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="text-ink/50 px-2 py-0.5 text-[11px]"
+                    disabled={rowBusy}
+                    aria-label={`Log Call ${row.prospectName}`}
+                    onClick={() => onLogCall(row)}
+                  >
+                    Log Call
                   </Button>
                   <Button
                     type="button"
@@ -269,6 +461,13 @@ export function AgentBriefingTab({
   const pendingDeepLinkKey = `${pendingSku ?? ''}:${pendingDraftId ?? ''}`;
 
   const catalogById = useMemo(() => new Map(catalog.map((item) => [item.id, item])), [catalog]);
+  const followUpsById = useMemo(() => {
+    const map = new Map<number, OutreachFollowUpRow>();
+    for (const row of briefing?.followUps ?? []) {
+      map.set(row.prospectId, row);
+    }
+    return map;
+  }, [briefing?.followUps]);
 
   const closeComposer = useCallback(() => {
     setComposerOpen(false);
@@ -311,10 +510,16 @@ export function AgentBriefingTab({
   const handleFollowUpAction = useCallback(
     async (row: OutreachFollowUpRow) => {
       if (row.recommendedAction === 'call') {
-        onLogCallForLead(row.prospectId, {
+        setComposerError(null);
+        const opened = await onLogCallForLead(row.prospectId, {
           talkTrackHint: row.talkTrackHint,
           lastProductName: row.lastProductName,
         });
+        if (opened === false) {
+          setComposerError(
+            'Could not open Log Call for this store. Refresh Accounts or try again.',
+          );
+        }
         return;
       }
       if (row.recommendedAction === 'watch') {
@@ -323,7 +528,9 @@ export function AgentBriefingTab({
       }
       setComposerError(null);
       setEmailBusyId(row.prospectId);
-      const created = await createFollowUpDraftClient(row.prospectId);
+      const created = await createFollowUpDraftClient(row.prospectId, {
+        salesLineId: lineCtx.salesLineId,
+      });
       if (!created.ok) {
         setComposerError(created.error);
         setEmailBusyId(null);
@@ -337,7 +544,21 @@ export function AgentBriefingTab({
       });
       setEmailBusyId(null);
     },
-    [onLogCallForLead, onOpenProspect, openDraftReview],
+    [lineCtx.salesLineId, onLogCallForLead, onOpenProspect, openDraftReview],
+  );
+
+  const handleFollowUpLogCall = useCallback(
+    async (row: OutreachFollowUpRow) => {
+      setComposerError(null);
+      const opened = await onLogCallForLead(row.prospectId, {
+        talkTrackHint: row.talkTrackHint,
+        lastProductName: row.lastProductName,
+      });
+      if (opened === false) {
+        setComposerError('Could not open Log Call for this store. Refresh Accounts or try again.');
+      }
+    },
+    [onLogCallForLead],
   );
 
   const handleFollowUpSnooze = useCallback(async (row: OutreachFollowUpRow) => {
@@ -1025,11 +1246,23 @@ export function AgentBriefingTab({
             </Card>
           )}
 
+          <TopLeadsQuickView
+            callToday={briefing.callToday ?? []}
+            hotCount={(briefing.hot ?? []).length}
+            warm={briefing.warm ?? []}
+            recentEngagement={briefing.recentEngagement ?? []}
+            followUpsById={followUpsById}
+            emailBusyId={emailBusyId}
+            onOpenProspect={onOpenProspect}
+            onFollowUpAction={(row) => void handleFollowUpAction(row)}
+          />
+
           <FollowUpQueue
             rows={briefing.followUps ?? []}
             emailBusyId={emailBusyId}
             snoozeBusyId={snoozeBusyId}
             onAction={(row) => void handleFollowUpAction(row)}
+            onLogCall={(row) => void handleFollowUpLogCall(row)}
             onSnooze={(row) => void handleFollowUpSnooze(row)}
           />
 

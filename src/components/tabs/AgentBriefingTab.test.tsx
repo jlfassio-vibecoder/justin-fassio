@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
@@ -7,6 +7,12 @@ import type { OutreachBriefingDto } from '@/lib/outreachBriefingShared';
 
 const getAgentProductOutreachDraftClientMock = vi.fn();
 const createFollowUpDraftClientMock = vi.fn();
+const { useOptionalLineContextMock } = vi.hoisted(() => ({
+  useOptionalLineContextMock: vi.fn(() => ({
+    multiLineUi: false,
+    salesLineId: null as string | null,
+  })),
+}));
 
 vi.mock('@/lib/agentProductOutreachDraftClient', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/agentProductOutreachDraftClient')>();
@@ -29,10 +35,7 @@ vi.mock('@/components/OgrProductEmailComposerModal', () => ({
 }));
 
 vi.mock('@/lib/lineContext', () => ({
-  useOptionalLineContext: () => ({
-    multiLineUi: false,
-    salesLineId: null,
-  }),
+  useOptionalLineContext: () => useOptionalLineContextMock(),
 }));
 
 vi.mock('@/lib/supabase', () => ({
@@ -212,6 +215,10 @@ describe('AgentBriefingTab draft review', () => {
 describe('AgentBriefingTab follow-up queue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useOptionalLineContextMock.mockReturnValue({
+      multiLineUi: false,
+      salesLineId: null,
+    });
     createFollowUpDraftClientMock.mockResolvedValue({
       ok: true,
       draftId: DRAFT_ID,
@@ -236,6 +243,148 @@ describe('AgentBriefingTab follow-up queue', () => {
     });
   });
 
+  it('renders Top leads quick view and Open for Warm without follow-up action', async () => {
+    const warmLead = {
+      prospectId: 77,
+      prospectName: 'Warm Shop',
+      accountStatus: 'prospect' as const,
+      leadState: 'warm' as const,
+      callToday: false,
+      callTodayReasons: [],
+      score: 5,
+      rulesVersion: 'v1-provisional' as const,
+      engagement: {
+        prospectId: 77,
+        emailsSent: 1,
+        lastSentAt: null,
+        openCount: 1,
+        clickCount: 1,
+        messagesOpened: 1,
+        messagesClicked: 1,
+        distinctProductsOpened: 1,
+        distinctProductsClicked: 1,
+        maxClickCountOnMessage: 1,
+        lastOpenedAt: '2026-08-21T12:00:00Z',
+        lastClickedAt: '2026-08-21T12:00:00Z',
+        lastEngagementAt: '2026-08-21T12:00:00Z',
+        suppressed: false,
+        reply: { attributed: false, confidence: 'none' as const, lastMessageAt: null },
+        unlinkedManualIncluded: 0,
+      },
+      lastEngagedCatalogItemId: null,
+      emailsSentInWindow: 1,
+      followUpOverdueDays: null,
+      lastCallAtToday: null,
+    };
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        warm: [warmLead],
+        recentEngagement: [
+          {
+            prospectId: 88,
+            prospectName: 'Engaged Shop',
+            lastEngagedAt: '2026-08-22T10:00:00Z',
+            openCount: 2,
+            clickCount: 0,
+          },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    const onOpenProspect = vi.fn();
+    const onLogCallForLead = vi.fn();
+    render(<AgentBriefingTab {...briefingProps({ onOpenProspect, onLogCallForLead })} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('top-leads-quick-view')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Warm Shop')).toBeInTheDocument();
+    expect(screen.getByText('Engaged Shop')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open Warm Shop' }));
+    expect(onOpenProspect).toHaveBeenCalledWith({
+      prospectId: 77,
+      accountStatus: 'prospect',
+    });
+    expect(onLogCallForLead).not.toHaveBeenCalled();
+    expect(createFollowUpDraftClientMock).not.toHaveBeenCalled();
+  });
+
+  it('runs Call from Top leads when the follow-ups queue recommends Call', async () => {
+    const callLead = {
+      prospectId: 42,
+      prospectName: 'Call Today Store',
+      accountStatus: 'prospect' as const,
+      leadState: 'hot' as const,
+      callToday: true,
+      callTodayReasons: ['hot_intent' as const],
+      score: 12,
+      rulesVersion: 'v1-provisional' as const,
+      engagement: {
+        prospectId: 42,
+        emailsSent: 1,
+        lastSentAt: null,
+        openCount: 2,
+        clickCount: 2,
+        messagesOpened: 1,
+        messagesClicked: 1,
+        distinctProductsOpened: 2,
+        distinctProductsClicked: 2,
+        maxClickCountOnMessage: 2,
+        lastOpenedAt: '2026-08-21T12:00:00Z',
+        lastClickedAt: '2026-08-21T12:00:00Z',
+        lastEngagementAt: '2026-08-21T12:00:00Z',
+        suppressed: false,
+        reply: { attributed: false, confidence: 'none' as const, lastMessageAt: null },
+        unlinkedManualIncluded: 0,
+      },
+      lastEngagedCatalogItemId: PRODUCT_ID,
+      emailsSentInWindow: 1,
+      followUpOverdueDays: null,
+      lastCallAtToday: null,
+    };
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        callToday: [callLead],
+        hot: [callLead],
+        followUps: [
+          {
+            prospectId: 42,
+            prospectName: 'Call Today Store',
+            accountStatus: 'prospect',
+            leadState: 'hot',
+            recommendedAction: 'call',
+            reasonLine: 'Hot intent',
+            talkTrackHint: 'Hot intent — lead with what they viewed online.',
+            lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastOpenedAt: '2026-08-21T12:00:00Z',
+            lastSentAt: '2026-08-20T12:00:00Z',
+            lastProductName: 'American Revival',
+            lastProductId: PRODUCT_ID,
+            score: 12,
+            followUpOverdueDays: null,
+          },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    const onLogCallForLead = vi.fn().mockResolvedValue(true);
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead })} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('top-lead-call-42')).toBeInTheDocument();
+    });
+
+    const topRow = screen.getByTestId('top-lead-call-42');
+    await user.click(within(topRow).getByRole('button', { name: 'Call Call Today Store' }));
+    expect(onLogCallForLead).toHaveBeenCalledWith(42, {
+      talkTrackHint: 'Hot intent — lead with what they viewed online.',
+      lastProductName: 'American Revival',
+    });
+  });
+
   it('opens log call for Call rows', async () => {
     mockBriefingFetch({
       briefing: {
@@ -250,6 +399,8 @@ describe('AgentBriefingTab follow-up queue', () => {
             reasonLine: 'Follow-up due',
             talkTrackHint: 'Follow-up scheduled — check in on your last conversation.',
             lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastOpenedAt: '2026-08-21T12:00:00Z',
+            lastSentAt: '2026-08-20T12:00:00Z',
             lastProductName: 'American Revival',
             lastProductId: PRODUCT_ID,
             score: 10,
@@ -277,6 +428,45 @@ describe('AgentBriefingTab follow-up queue', () => {
     expect(createFollowUpDraftClientMock).not.toHaveBeenCalled();
   });
 
+  it('shows an error when Call cannot open Log Call', async () => {
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        followUps: [
+          {
+            prospectId: 42,
+            prospectName: 'Call Today Store',
+            accountStatus: 'prospect',
+            leadState: 'hot',
+            recommendedAction: 'call',
+            reasonLine: 'Follow-up due',
+            talkTrackHint: 'Follow-up scheduled — check in on your last conversation.',
+            lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastOpenedAt: '2026-08-21T12:00:00Z',
+            lastSentAt: '2026-08-20T12:00:00Z',
+            lastProductName: 'American Revival',
+            lastProductId: PRODUCT_ID,
+            score: 10,
+            followUpOverdueDays: null,
+          },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    const onLogCallForLead = vi.fn().mockResolvedValue(false);
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Call Today Store')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Call Call Today Store' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Could not open Log Call/i)).toBeInTheDocument();
+    });
+  });
+
   it('opens a follow-up draft for Email rows', async () => {
     mockBriefingFetch({
       briefing: {
@@ -291,6 +481,8 @@ describe('AgentBriefingTab follow-up queue', () => {
             reasonLine: '1 product clicked',
             talkTrackHint: null,
             lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastOpenedAt: '2026-08-21T12:00:00Z',
+            lastSentAt: '2026-08-20T12:00:00Z',
             lastProductName: 'American Revival',
             lastProductId: PRODUCT_ID,
             score: 5,
@@ -310,10 +502,54 @@ describe('AgentBriefingTab follow-up queue', () => {
     await user.click(screen.getByRole('button', { name: 'Email Warm Lead Shop' }));
 
     await waitFor(() => {
-      expect(createFollowUpDraftClientMock).toHaveBeenCalledWith(44);
+      expect(createFollowUpDraftClientMock).toHaveBeenCalledWith(44, { salesLineId: null });
       expect(screen.getByTestId('composer-modal')).toBeInTheDocument();
     });
     expect(onLogCallForLead).not.toHaveBeenCalled();
+  });
+
+  it('passes salesLineId when creating a follow-up draft on a multi-line context', async () => {
+    useOptionalLineContextMock.mockReturnValue({
+      multiLineUi: true,
+      salesLineId: '11111111-1111-4111-8111-111111111111',
+    });
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        followUps: [
+          {
+            prospectId: 44,
+            prospectName: 'Warm Lead Shop',
+            accountStatus: 'prospect',
+            leadState: 'warm',
+            recommendedAction: 'email',
+            reasonLine: '1 product clicked',
+            talkTrackHint: null,
+            lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastOpenedAt: '2026-08-21T12:00:00Z',
+            lastSentAt: '2026-08-20T12:00:00Z',
+            lastProductName: 'American Revival',
+            lastProductId: PRODUCT_ID,
+            score: 5,
+            followUpOverdueDays: null,
+          },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Warm Lead Shop')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Email Warm Lead Shop' }));
+
+    await waitFor(() => {
+      expect(createFollowUpDraftClientMock).toHaveBeenCalledWith(44, {
+        salesLineId: '11111111-1111-4111-8111-111111111111',
+      });
+    });
   });
 
   it('opens the drawer for Watch rows', async () => {
@@ -330,6 +566,8 @@ describe('AgentBriefingTab follow-up queue', () => {
             reasonLine: '1 product opened',
             talkTrackHint: null,
             lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastOpenedAt: '2026-08-21T12:00:00Z',
+            lastSentAt: '2026-08-20T12:00:00Z',
             lastProductName: null,
             lastProductId: PRODUCT_ID,
             score: 1,
@@ -347,13 +585,55 @@ describe('AgentBriefingTab follow-up queue', () => {
       expect(screen.getByText('Clicked Prospect')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Open Clicked Prospect' }));
+    await user.click(screen.getByRole('button', { name: 'Watch Clicked Prospect' }));
 
     expect(onOpenProspect).toHaveBeenCalledWith({
       prospectId: 55,
       accountStatus: 'prospect',
     });
     expect(onLogCallForLead).not.toHaveBeenCalled();
+  });
+
+  it('opens Log Call from Email follow-up rows', async () => {
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        followUps: [
+          {
+            prospectId: 44,
+            prospectName: 'Warm Lead Shop',
+            accountStatus: 'prospect',
+            leadState: 'warm',
+            recommendedAction: 'email',
+            reasonLine: '1 product clicked',
+            talkTrackHint: null,
+            lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastOpenedAt: '2026-08-21T12:00:00Z',
+            lastSentAt: '2026-08-20T12:00:00Z',
+            lastProductName: 'American Revival',
+            lastProductId: PRODUCT_ID,
+            score: 5,
+            followUpOverdueDays: null,
+          },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    const onLogCallForLead = vi.fn().mockResolvedValue(true);
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Warm Lead Shop')).toBeInTheDocument();
+      expect(screen.getByText(/emailed \(90d\) · opens first/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Log Call Warm Lead Shop' }));
+
+    expect(onLogCallForLead).toHaveBeenCalledWith(44, {
+      talkTrackHint: null,
+      lastProductName: 'American Revival',
+    });
+    expect(createFollowUpDraftClientMock).not.toHaveBeenCalled();
   });
 
   it('snoozes a follow-up row until tomorrow', async () => {
@@ -370,6 +650,8 @@ describe('AgentBriefingTab follow-up queue', () => {
             reasonLine: 'Hot intent',
             talkTrackHint: 'Hot intent on the product — lead with what they viewed online.',
             lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastOpenedAt: '2026-08-21T12:00:00Z',
+            lastSentAt: '2026-08-20T12:00:00Z',
             lastProductName: 'American Revival',
             lastProductId: PRODUCT_ID,
             score: 10,
