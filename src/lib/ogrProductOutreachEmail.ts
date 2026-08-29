@@ -8,11 +8,11 @@ import {
 
 /** Default intro for staff compose UI + server fallback. */
 export const OGR_PRODUCT_EMAIL_DEFAULT_INTRO =
-  'I thought this Old Guys Rule style could be a strong fit for your store.';
+  'Check out this style from our Old Guys Rule catalog. It blends humor with lifestyle in a way that lands well with coastal and outdoor shops.';
 
 /** Default closing for staff compose UI + server fallback. */
 export const OGR_PRODUCT_EMAIL_DEFAULT_CLOSING =
-  "Let me know if you'd like pricing or availability.";
+  'We find styles like this sell well as gifts or to customers who connect with that vibe. We have many more that can fit your store as well.';
 
 const SITE_FOOTER = 'justinfassio.com';
 const MUTED_FOOTER_STYLE = 'margin:16px 0 0 0;font-size:12px;line-height:1.4;color:#888888;';

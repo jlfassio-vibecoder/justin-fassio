@@ -209,7 +209,7 @@ describe('buildSafeOutreachPromptContext', () => {
     expect(prompt).not.toContain('sam@example.com');
     expect(prompt).not.toContain(target.accountContactId);
     expect(prompt).not.toContain(target.catalogItemId);
-    expect(OGR_OUTREACH_DRAFT_PROMPT_VERSION).toBe('v2');
+    expect(OGR_OUTREACH_DRAFT_PROMPT_VERSION).toBe('v3');
     assertSafePromptContext(ctx);
     const json = JSON.stringify(ctx);
     for (const key of PUBLIC_PRESENTATION_FORBIDDEN_KEYS) {
@@ -363,16 +363,19 @@ describe('golden outreach prompt fixtures', () => {
     });
     expect(buildOutreachDraftPrompt(ctx)).toMatchInlineSnapshot(`
       "You write short wholesale outreach intro and closing copy for Old Guys Rule apparel.
+      This is an opening email featuring one product — warm and specific, not a catalog browse pitch.
       Return ONLY introText and closingText as plain text.
       Rules:
-      - Pique interest; do not close the sale or hard-pitch.
+      - Intro: Name the product and frame it as worth checking out from the Old Guys Rule catalog (e.g. "Check out this … tee/style from our … catalog"). Tie its vibe to the store’s lifestyle or region when context supports it. Reflect Old Guys Rule’s humor + lifestyle voice — short, conversational, not salesy.
+      - Closing: Soft retail angle — how styles like this tend to sell (gifts, the customer type that fits the store) and that more catalog styles can match their vibe. Keep it natural; a light invite to reply is fine.
+      - Avoid awkward marketing verbs and CTAs: do not use Explore, Discover, Dive into, Unlock, Don’t miss, Shop now, or similar.
+      - Do not close the sale or hard-pitch.
       - No HTML, markdown links, URLs, email addresses, or CRM/product IDs.
       - No pricing, wholesale, landed, MSRP, USD/CAD, or cost language.
       - Do not invent facts (city, buyer title, inventory, availability).
       - Do not write a subject line, From header, or signature.
       - Do not greet or address the buyer by name (no "Hi Pam," / "Hello …"); the email template already adds the greeting.
       - Prefer intro under 50 words and closing under 40 words.
-      - Closing should invite a brief reply or call — not spammy CTAs.
 
       Context (use only what is present; skip empty fields):
       Store name: Golf Shop
@@ -434,16 +437,19 @@ describe('golden outreach prompt fixtures', () => {
     });
     expect(buildOutreachDraftPrompt(ctx)).toMatchInlineSnapshot(`
       "You write short wholesale outreach intro and closing copy for Old Guys Rule apparel.
+      This is an opening email featuring one product — warm and specific, not a catalog browse pitch.
       Return ONLY introText and closingText as plain text.
       Rules:
-      - Pique interest; do not close the sale or hard-pitch.
+      - Intro: Name the product and frame it as worth checking out from the Old Guys Rule catalog (e.g. "Check out this … tee/style from our … catalog"). Tie its vibe to the store’s lifestyle or region when context supports it. Reflect Old Guys Rule’s humor + lifestyle voice — short, conversational, not salesy.
+      - Closing: Soft retail angle — how styles like this tend to sell (gifts, the customer type that fits the store) and that more catalog styles can match their vibe. Keep it natural; a light invite to reply is fine.
+      - Avoid awkward marketing verbs and CTAs: do not use Explore, Discover, Dive into, Unlock, Don’t miss, Shop now, or similar.
+      - Do not close the sale or hard-pitch.
       - No HTML, markdown links, URLs, email addresses, or CRM/product IDs.
       - No pricing, wholesale, landed, MSRP, USD/CAD, or cost language.
       - Do not invent facts (city, buyer title, inventory, availability).
       - Do not write a subject line, From header, or signature.
       - Do not greet or address the buyer by name (no "Hi Pam," / "Hello …"); the email template already adds the greeting.
       - Prefer intro under 50 words and closing under 40 words.
-      - Closing should invite a brief reply or call — not spammy CTAs.
 
       Context (use only what is present; skip empty fields):
       Store name: Golf Shop
@@ -472,16 +478,19 @@ describe('golden outreach prompt fixtures', () => {
     });
     expect(buildOutreachDraftPrompt(ctx)).toMatchInlineSnapshot(`
       "You write short wholesale outreach intro and closing copy for Old Guys Rule apparel.
+      This is an opening email featuring one product — warm and specific, not a catalog browse pitch.
       Return ONLY introText and closingText as plain text.
       Rules:
-      - Pique interest; do not close the sale or hard-pitch.
+      - Intro: Name the product and frame it as worth checking out from the Old Guys Rule catalog (e.g. "Check out this … tee/style from our … catalog"). Tie its vibe to the store’s lifestyle or region when context supports it. Reflect Old Guys Rule’s humor + lifestyle voice — short, conversational, not salesy.
+      - Closing: Soft retail angle — how styles like this tend to sell (gifts, the customer type that fits the store) and that more catalog styles can match their vibe. Keep it natural; a light invite to reply is fine.
+      - Avoid awkward marketing verbs and CTAs: do not use Explore, Discover, Dive into, Unlock, Don’t miss, Shop now, or similar.
+      - Do not close the sale or hard-pitch.
       - No HTML, markdown links, URLs, email addresses, or CRM/product IDs.
       - No pricing, wholesale, landed, MSRP, USD/CAD, or cost language.
       - Do not invent facts (city, buyer title, inventory, availability).
       - Do not write a subject line, From header, or signature.
       - Do not greet or address the buyer by name (no "Hi Pam," / "Hello …"); the email template already adds the greeting.
       - Prefer intro under 50 words and closing under 40 words.
-      - Closing should invite a brief reply or call — not spammy CTAs.
 
       Context (use only what is present; skip empty fields):
       Store name: Golf Shop
