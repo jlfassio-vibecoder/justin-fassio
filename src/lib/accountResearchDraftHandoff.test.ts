@@ -147,6 +147,31 @@ describe('accountResearchDraftHandoff', () => {
     expect(mocks.generateDraft).not.toHaveBeenCalled();
   });
 
+  it('requires a non-empty recipient email before generating from account email pick', async () => {
+    const prospect = prospectFixture({ id: 7, name: 'Kelowna Golf' });
+    const catalog = catalogItemStub({
+      publicSlug: 'american-revival',
+      sku: 'OGR-101',
+      name: 'American Revival',
+    });
+
+    const result = await generateDraftFromAccountEmailPick({
+      prospect,
+      catalogItem: catalog,
+      contact: {
+        accountContactId: 'c1',
+        toEmail: '   ',
+        toName: 'Sam',
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Select a saved contact with an email to send product email.',
+    });
+    expect(mocks.generateDraft).not.toHaveBeenCalled();
+  });
+
   it('generates draft from account email pick without catalog lookup', async () => {
     const prospect = prospectFixture({ id: 7, name: 'Kelowna Golf' });
     const catalog = catalogItemStub({

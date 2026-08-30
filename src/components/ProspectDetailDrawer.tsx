@@ -95,6 +95,7 @@ export function ProspectDetailDrawer({
     setResearchDraft(null);
     setResearchDraftProduct(null);
   }
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   if (prospectId !== emailBoundProspectId) {
     setEmailBoundProspectId(prospectId);
     setEmailFlow('closed');

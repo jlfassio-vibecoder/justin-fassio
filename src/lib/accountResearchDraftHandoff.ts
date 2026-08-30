@@ -169,6 +169,9 @@ export async function generateDraftFromAccountEmailPick(input: {
   if (!input.contact.accountContactId.trim()) {
     return { ok: false, error: 'Select a saved contact with an email to send product email.' };
   }
+  if (!input.contact.toEmail.trim()) {
+    return { ok: false, error: 'Select a saved contact with an email to send product email.' };
+  }
   if (!(input.catalogItem.publicSlug ?? '').trim()) {
     return { ok: false, error: 'Selected product is not published for outreach email.' };
   }
