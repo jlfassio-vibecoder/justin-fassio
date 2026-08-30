@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  foldRecentEngagementMessages,
   prepareBriefingLeadLists,
   prepareRecentEngagementForBriefing,
 } from '@/lib/outreachBriefing';
@@ -99,6 +100,50 @@ describe('prepareBriefingLeadLists', () => {
     expect(result.warm).toHaveLength(5);
     expect(result.warm[0]?.prospectId).toBe(1);
   });
+
+  it('pins attributed_reply Call today rows ahead of higher-score Hot', () => {
+    const leads = [
+      stubLead(1, 'Hot High Score', {
+        leadState: 'hot',
+        callToday: true,
+        score: 20,
+        callTodayReasons: ['hot_intent'],
+      }),
+      stubLead(2, 'Replied Lower Score', {
+        leadState: 'warm',
+        callToday: true,
+        score: 8,
+        callTodayReasons: ['attributed_reply'],
+      }),
+    ];
+    const result = prepareBriefingLeadLists({
+      leads,
+      snoozedProspectIds: new Set(),
+    });
+    expect(result.callToday.map((l) => l.prospectId)).toEqual([2, 1]);
+  });
+
+  it('pins on_site Call today rows ahead of attributed_reply', () => {
+    const leads = [
+      stubLead(1, 'Replied', {
+        leadState: 'hot',
+        callToday: true,
+        score: 20,
+        callTodayReasons: ['attributed_reply'],
+      }),
+      stubLead(2, 'On Site', {
+        leadState: 'warm',
+        callToday: true,
+        score: 5,
+        callTodayReasons: ['on_site'],
+      }),
+    ];
+    const result = prepareBriefingLeadLists({
+      leads,
+      snoozedProspectIds: new Set(),
+    });
+    expect(result.callToday.map((l) => l.prospectId)).toEqual([2, 1]);
+  });
 });
 
 describe('prepareRecentEngagementForBriefing', () => {
@@ -132,5 +177,48 @@ describe('prepareRecentEngagementForBriefing', () => {
       limit: 10,
     });
     expect(prepared.map((r) => r.prospectId)).toEqual([1, 3]);
+  });
+});
+
+describe('foldRecentEngagementMessages', () => {
+  it('sums open and click counts across messages for the same prospect', () => {
+    const since = '2026-08-20T00:00:00Z';
+    const folded = foldRecentEngagementMessages(
+      [
+        {
+          prospect_id: 10,
+          open_count: 2,
+          click_count: 1,
+          last_opened_at: '2026-08-22T10:00:00Z',
+          last_clicked_at: '2026-08-22T11:00:00Z',
+          to_name: 'Coast Shop',
+        },
+        {
+          prospect_id: 10,
+          open_count: 3,
+          click_count: 2,
+          last_opened_at: '2026-08-23T10:00:00Z',
+          last_clicked_at: null,
+          to_name: 'Coast Shop',
+        },
+        {
+          prospect_id: null,
+          open_count: 9,
+          click_count: 9,
+          last_opened_at: '2026-08-23T12:00:00Z',
+          last_clicked_at: '2026-08-23T12:00:00Z',
+          to_name: 'Unlinked',
+        },
+      ],
+      since,
+    );
+    const row = folded.get(10);
+    expect(row).toEqual({
+      prospectName: 'Coast Shop',
+      lastEngagedAt: '2026-08-23T10:00:00Z',
+      openCount: 5,
+      clickCount: 3,
+    });
+    expect(folded.size).toBe(1);
   });
 });

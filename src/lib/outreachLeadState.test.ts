@@ -332,7 +332,7 @@ describe('evaluateLeadState', () => {
     expect(result.callTodayReasons).toEqual(['follow_up_due_today']);
   });
 
-  it('attributed reply within 3 days adds Call Today reason', () => {
+  it('attributed reply always adds Call Today reason (no age window)', () => {
     const engagement = aggregateProspectOutreachEngagement({
       prospectId: 1,
       messages: [msg({ id: '1', sent_at: '2026-08-01T00:00:00Z' })],
@@ -344,6 +344,22 @@ describe('evaluateLeadState', () => {
     });
     const result = evaluateLeadState({ engagement, asOf });
     expect(result.callTodayReasons).toContain('attributed_reply');
+    expect(result.callToday).toBe(true);
     expect(result.score).toBeGreaterThanOrEqual(OUTREACH_LEAD_RULES.pointsAttributedReply);
+  });
+
+  it('attributed reply older than replyCallTodayDays still pins Call Today', () => {
+    const engagement = aggregateProspectOutreachEngagement({
+      prospectId: 1,
+      messages: [msg({ id: '1', sent_at: '2026-07-01T00:00:00Z' })],
+      reply: {
+        attributed: true,
+        confidence: 'confirmed_link_after_send',
+        lastMessageAt: '2026-07-15T00:00:00Z',
+      },
+    });
+    const result = evaluateLeadState({ engagement, asOf });
+    expect(result.callTodayReasons).toContain('attributed_reply');
+    expect(result.callToday).toBe(true);
   });
 });

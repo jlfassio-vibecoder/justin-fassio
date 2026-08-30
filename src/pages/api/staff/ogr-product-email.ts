@@ -15,6 +15,7 @@ import {
   buildOgrProductUrl,
   resolvePublicSiteOrigin,
 } from '@/lib/productUrls';
+import { appendPresenceVisitToken } from '@/lib/presenceVisitToken';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import { sendOgrProductOutreachEmail } from '@/lib/sendOgrProductOutreachEmail';
 import { resolvePricingMarketForRetailerLineAccount } from '@/lib/resolveAccountPricingMarket';
@@ -254,7 +255,7 @@ export const POST: APIRoute = async ({ request }) => {
       emailMarket === 'us'
         ? buildOgrProductUrl(presentation.slug, origin, 'us')
         : buildOgrProductUrl(presentation.slug, origin);
-    const catalogHref =
+    let catalogHref =
       emailMarket === 'us' ? buildOgrCollectionUrl(origin, 'us') : buildOgrCollectionUrl(origin);
 
     const [{ data: profile }, { data: userData }] = await Promise.all([
@@ -277,7 +278,7 @@ export const POST: APIRoute = async ({ request }) => {
       emails: [profile?.email, userData.user?.email, CONTACT_EMAIL],
     });
 
-    const message = renderOgrProductOutreachEmail({
+    let message = renderOgrProductOutreachEmail({
       presentation,
       productHref,
       catalogHref,
@@ -313,6 +314,27 @@ export const POST: APIRoute = async ({ request }) => {
         error: ledger.error,
       });
       return jsonError('Failed to prepare email log', 500);
+    }
+
+    if (crm.association.prospectId != null) {
+      productHref = appendPresenceVisitToken(productHref, {
+        prospectId: crm.association.prospectId,
+        systemMessageId: ledger.id,
+      });
+      catalogHref = appendPresenceVisitToken(catalogHref, {
+        prospectId: crm.association.prospectId,
+        systemMessageId: ledger.id,
+      });
+      message = renderOgrProductOutreachEmail({
+        presentation,
+        productHref,
+        catalogHref,
+        signatureName: sender.signatureName,
+        recipientName: recipientNameResult.value,
+        subject: subjectResult.value,
+        introText: introResult.value,
+        closingText: closingResult.value,
+      });
     }
 
     const sendResult = await sendOgrProductOutreachEmail({

@@ -49,6 +49,12 @@ export type OutreachLeadRow = {
   emailsSentInWindow: number;
   followUpOverdueDays: number | null;
   lastCallAtToday: string | null;
+  /** First-party public-site presence (Briefing / Top Leads). */
+  sitePresence?: {
+    lastSeenAt: string;
+    lastPath: string | null;
+    active: boolean;
+  } | null;
 };
 
 export type OutreachLeadKind = 'warm' | 'hot' | 'call_today';
