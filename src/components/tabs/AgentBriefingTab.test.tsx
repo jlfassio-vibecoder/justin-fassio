@@ -4,6 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
 import { catalogItemStub } from '@/lib/catalog';
 import type { OutreachBriefingDto } from '@/lib/outreachBriefingShared';
+import {
+  BC_PROSPECT_TERRITORY,
+  EMPTY_PROSPECT_PLANNING,
+  EMPTY_PROSPECT_TAXONOMY,
+  type Prospect,
+} from '@/lib/prospects';
 
 const getAgentProductOutreachDraftClientMock = vi.fn();
 const createFollowUpDraftClientMock = vi.fn();
@@ -32,6 +38,38 @@ vi.mock('@/components/OgrProductEmailComposerModal', () => ({
     open: boolean;
     draft?: { id: string } | null;
   }) => (open && draft ? <div data-testid="composer-modal">Draft {draft.id}</div> : null),
+}));
+
+vi.mock('@/components/ProspectDetailDrawer', () => ({
+  ProspectDetailDrawer: ({
+    prospect,
+    initialScrollToResearch,
+  }: {
+    prospect: Prospect | null;
+    initialScrollToResearch?: boolean;
+  }) =>
+    prospect ? (
+      <div data-testid="prospect-detail-drawer">
+        <span>{prospect.name}</span>
+        {initialScrollToResearch ? <span data-testid="research-scroll" /> : null}
+      </div>
+    ) : null,
+}));
+
+vi.mock('@/components/AccountDetailDrawer', () => ({
+  AccountDetailDrawer: ({
+    account,
+    initialSection,
+  }: {
+    account: Prospect | null;
+    initialSection?: string;
+  }) =>
+    account ? (
+      <div data-testid="account-detail-drawer">
+        <span>{account.name}</span>
+        {initialSection === 'research' ? <span data-testid="research-scroll" /> : null}
+      </div>
+    ) : null,
 }));
 
 vi.mock('@/lib/lineContext', () => ({
@@ -120,11 +158,45 @@ const briefingPayload: { briefing: OutreachBriefingDto } = {
   },
 };
 
+function prospectStub(
+  id: number,
+  name: string,
+  accountStatus: Prospect['accountStatus'] = 'prospect',
+): Prospect {
+  return {
+    id,
+    name,
+    category: 'golf_retail',
+    region: 'Oregon Coast',
+    city: 'Newport',
+    address: '',
+    phone: '',
+    fit: '',
+    accountStatus,
+    convertedAt: null,
+    initialOrderDate: null,
+    notes: null,
+    ...EMPTY_PROSPECT_PLANNING,
+    ...EMPTY_PROSPECT_TAXONOMY,
+    ...BC_PROSPECT_TERRITORY,
+  };
+}
+
+const defaultProspects = [
+  prospectStub(12, 'Coastal Golf'),
+  prospectStub(44, 'Needs Email Shop'),
+  prospectStub(42, 'Call Today Store'),
+  prospectStub(55, 'Clicked Prospect'),
+  prospectStub(77, 'Warm Shop'),
+  prospectStub(88, 'Engaged Shop'),
+];
+
 function briefingProps(overrides: Record<string, unknown> = {}) {
   return {
     catalog: [catalogItem],
+    prospects: defaultProspects,
     onLogCallForLead: vi.fn(),
-    onOpenProspect: vi.fn(),
+    onLogCall: vi.fn(),
     ...overrides,
   };
 }
@@ -292,9 +364,8 @@ describe('AgentBriefingTab follow-up queue', () => {
       },
     });
     const user = userEvent.setup();
-    const onOpenProspect = vi.fn();
     const onLogCallForLead = vi.fn();
-    render(<AgentBriefingTab {...briefingProps({ onOpenProspect, onLogCallForLead })} />);
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead })} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('top-leads-quick-view')).toBeInTheDocument();
@@ -303,10 +374,8 @@ describe('AgentBriefingTab follow-up queue', () => {
     expect(screen.getByText('Engaged Shop')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Open Warm Shop' }));
-    expect(onOpenProspect).toHaveBeenCalledWith({
-      prospectId: 77,
-      accountStatus: 'prospect',
-    });
+    expect(screen.getByTestId('prospect-detail-drawer')).toHaveTextContent('Warm Shop');
+    expect(screen.queryByTestId('research-scroll')).not.toBeInTheDocument();
     expect(onLogCallForLead).not.toHaveBeenCalled();
     expect(createFollowUpDraftClientMock).not.toHaveBeenCalled();
   });
@@ -411,8 +480,7 @@ describe('AgentBriefingTab follow-up queue', () => {
     });
     const user = userEvent.setup();
     const onLogCallForLead = vi.fn();
-    const onOpenProspect = vi.fn();
-    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead, onOpenProspect })} />);
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead })} />);
 
     await waitFor(() => {
       expect(screen.getByText('Call Today Store')).toBeInTheDocument();
@@ -424,7 +492,7 @@ describe('AgentBriefingTab follow-up queue', () => {
       talkTrackHint: 'Follow-up scheduled — check in on your last conversation.',
       lastProductName: 'American Revival',
     });
-    expect(onOpenProspect).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('prospect-detail-drawer')).not.toBeInTheDocument();
     expect(createFollowUpDraftClientMock).not.toHaveBeenCalled();
   });
 
@@ -578,8 +646,7 @@ describe('AgentBriefingTab follow-up queue', () => {
     });
     const user = userEvent.setup();
     const onLogCallForLead = vi.fn();
-    const onOpenProspect = vi.fn();
-    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead, onOpenProspect })} />);
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead })} />);
 
     await waitFor(() => {
       expect(screen.getByText('Clicked Prospect')).toBeInTheDocument();
@@ -587,10 +654,8 @@ describe('AgentBriefingTab follow-up queue', () => {
 
     await user.click(screen.getByRole('button', { name: 'Watch Clicked Prospect' }));
 
-    expect(onOpenProspect).toHaveBeenCalledWith({
-      prospectId: 55,
-      accountStatus: 'prospect',
-    });
+    expect(screen.getByTestId('prospect-detail-drawer')).toHaveTextContent('Clicked Prospect');
+    expect(screen.queryByTestId('research-scroll')).not.toBeInTheDocument();
     expect(onLogCallForLead).not.toHaveBeenCalled();
   });
 
@@ -713,8 +778,7 @@ describe('AgentBriefingTab research entry', () => {
 
   it('opens prospect drawer research from draft row Research button', async () => {
     const user = userEvent.setup();
-    const onOpenProspect = vi.fn();
-    render(<AgentBriefingTab {...briefingProps({ onOpenProspect })} />);
+    render(<AgentBriefingTab {...briefingProps()} />);
 
     await waitFor(() => {
       expect(screen.getByText('Coastal Golf')).toBeInTheDocument();
@@ -722,11 +786,22 @@ describe('AgentBriefingTab research entry', () => {
 
     await user.click(screen.getByRole('button', { name: 'Research' }));
 
-    expect(onOpenProspect).toHaveBeenCalledWith({
-      prospectId: 12,
-      accountStatus: 'prospect',
-      openResearch: true,
+    expect(screen.getByTestId('prospect-detail-drawer')).toHaveTextContent('Coastal Golf');
+    expect(screen.getByTestId('research-scroll')).toBeInTheDocument();
+  });
+
+  it('shows an error when Research store is missing from the directory', async () => {
+    const user = userEvent.setup();
+    render(<AgentBriefingTab {...briefingProps({ prospects: [] })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Coastal Golf')).toBeInTheDocument();
     });
+
+    await user.click(screen.getByRole('button', { name: 'Research' }));
+
+    expect(screen.queryByTestId('prospect-detail-drawer')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/not in the loaded directory/i);
   });
 
   it('disables Run prep until a usable contact email is on file', async () => {

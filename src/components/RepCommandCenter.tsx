@@ -176,22 +176,6 @@ export function RepCommandCenter({
     setDeepLinkTerritory(null);
   }, []);
 
-  const openProspectDeepLink = useCallback(
-    (args: { prospectId: number; accountStatus?: string; openResearch?: boolean }) => {
-      setDeepLinkOpenResearch(args.openResearch === true);
-      if (args.accountStatus === 'active_account') {
-        setDeepLinkAccountId(args.prospectId);
-        setDeepLinkProspectId(null);
-        setActiveTab('accounts');
-        return;
-      }
-      setDeepLinkProspectId(args.prospectId);
-      setDeepLinkAccountId(null);
-      setActiveTab('prospects');
-    },
-    [],
-  );
-
   const openLiveChat = useCallback((thread: MessageThread) => {
     if (thread.channel !== 'live_chat') return;
     setOpenLiveChats((prev) => upsertOpenLiveChat(prev, thread));
@@ -549,13 +533,20 @@ export function RepCommandCenter({
               {activeTab === 'briefing' && (
                 <AgentBriefingTab
                   catalog={catalog}
+                  prospects={prospects}
                   deepLinkSku={deepLinkSku}
                   deepLinkDraftId={deepLinkDraftId}
                   onDeepLinkConsumed={clearCatalogDeepLink}
                   onProductEmailSent={() => setActivityHistoryReloadToken((n) => n + 1)}
                   onLogCallForLead={openLogCallForProspectId}
                   briefingReloadToken={briefingReloadToken}
-                  onOpenProspect={openProspectDeepLink}
+                  onLogCall={(prospect) => openModal(prospect)}
+                  onNotesSaved={(id, notes) => {
+                    setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
+                  }}
+                  onProspectUpdated={(prospect) => {
+                    setProspects((prev) => prev.map((p) => (p.id === prospect.id ? prospect : p)));
+                  }}
                 />
               )}
               {activeTab === 'catalog' && (
