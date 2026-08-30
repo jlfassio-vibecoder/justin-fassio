@@ -178,7 +178,7 @@ export function ProspectDetailDrawer({
             >
               <span className="min-w-0">{prospect.name}</span>
               <CopyUrlButton
-                url={[prospect.name, prospect.city?.trim()].filter(Boolean).join(', ')}
+                url={[prospect.name?.trim(), prospect.city?.trim()].filter(Boolean).join(', ')}
                 label="Copy name"
                 className="mt-1"
               />

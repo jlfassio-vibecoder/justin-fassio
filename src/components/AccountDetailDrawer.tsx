@@ -520,7 +520,7 @@ export function AccountDetailDrawer({
             >
               <span className="min-w-0">{account.name}</span>
               <CopyUrlButton
-                url={[account.name, account.city?.trim()].filter(Boolean).join(', ')}
+                url={[account.name?.trim(), account.city?.trim()].filter(Boolean).join(', ')}
                 label="Copy name"
                 className="mt-1"
               />
