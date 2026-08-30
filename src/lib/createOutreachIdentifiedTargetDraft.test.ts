@@ -269,6 +269,28 @@ describe('createOutreachIdentifiedTargetDraft', () => {
     expect(generateOgrProductOutreachDraftMock).not.toHaveBeenCalled();
   });
 
+  it('allows Run prep when only a shared contact email is in cooldown on another account', async () => {
+    loadLatestProductOutreachSendsMock.mockResolvedValue({
+      ok: true,
+      byProspectId: new Map(),
+      byEmail: new Map([['buyer@example.com', '2026-08-20T12:00:00Z']]),
+    });
+    const from = vi.fn((table: string) => chainFrom(table));
+    const result = await createOutreachIdentifiedTargetDraft({
+      client: { from } as never,
+      prospectId: 12,
+      catalogItemId: PRODUCT_A,
+      operationalTerritoryId: 'ops-1',
+      preparationDate: '2026-08-25',
+      userId: 'staff-1',
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.draftId).toBe('new-draft');
+    }
+    expect(generateOgrProductOutreachDraftMock).toHaveBeenCalled();
+  });
+
   it('drafts with frozen product and live contact (does not re-select product)', async () => {
     const from = vi.fn((table: string) => chainFrom(table));
     const result = await createOutreachIdentifiedTargetDraft({

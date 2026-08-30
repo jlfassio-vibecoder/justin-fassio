@@ -1152,6 +1152,11 @@ export function AgentBriefingTab({
                             ) : (
                               <span className="text-accent-800">Needs research</span>
                             )}
+                            {t.sharedEmailStoreNames.length > 0 ? (
+                              <p className="text-ink/45 m-0 mt-1 text-xs">
+                                Also on: {t.sharedEmailStoreNames.join(', ')}
+                              </p>
+                            ) : null}
                           </td>
                         </tr>
                       );

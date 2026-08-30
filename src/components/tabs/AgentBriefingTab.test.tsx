@@ -744,6 +744,7 @@ describe('AgentBriefingTab research entry', () => {
             primaryChannel: 'golf',
             needsEmail: true,
             hasUsableEmail: false,
+            sharedEmailStoreNames: [],
           },
         ],
       },
@@ -773,6 +774,7 @@ describe('AgentBriefingTab research entry', () => {
             primaryChannel: 'golf',
             needsEmail: true,
             hasUsableEmail: true,
+            sharedEmailStoreNames: ['Sister Store'],
           },
         ],
       },
@@ -805,6 +807,7 @@ describe('AgentBriefingTab research entry', () => {
     await waitFor(() => {
       expect(screen.getByText('Needs Email Shop')).toBeInTheDocument();
     });
+    expect(screen.getByText(/Also on: Sister Store/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Run prep' }));
 
@@ -844,6 +847,7 @@ describe('AgentBriefingTab research entry', () => {
             primaryChannel: 'golf',
             needsEmail: true,
             hasUsableEmail: true,
+            sharedEmailStoreNames: [],
           },
         ],
       },

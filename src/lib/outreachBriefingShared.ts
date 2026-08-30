@@ -49,6 +49,8 @@ export type OutreachBriefingIdentifiedTargetRow = {
   needsEmail: boolean;
   /** Live: usable account_contacts email for Run prep (not frozen prep snapshot). */
   hasUsableEmail: boolean;
+  /** Other store names that share this prospect's usable outreach email. */
+  sharedEmailStoreNames: string[];
 };
 
 export type OutreachAutomationRunPublic = {
@@ -163,6 +165,7 @@ export function identifiedTargetRowsFromSelected(
       needsEmail,
       // Snapshot hint; assemble overwrites from live account_contacts.
       hasUsableEmail: !needsEmail,
+      sharedEmailStoreNames: [],
     };
   });
 }
@@ -190,6 +193,13 @@ export function parseIdentifiedTargetsFromPrepAllocation(
       primaryChannel: typeof r.primaryChannel === 'string' ? r.primaryChannel : null,
       needsEmail: Boolean(r.needsEmail),
       hasUsableEmail: Boolean(r.hasUsableEmail),
+      sharedEmailStoreNames: Array.isArray(r.sharedEmailStoreNames)
+        ? r.sharedEmailStoreNames.flatMap((n) => {
+            if (typeof n !== 'string') return [];
+            const trimmed = n.trim();
+            return trimmed ? [trimmed] : [];
+          })
+        : [],
     });
   }
   return rows;

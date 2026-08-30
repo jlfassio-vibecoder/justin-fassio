@@ -19,7 +19,7 @@ import {
   isWithinOutreachCooldown,
 } from '@/lib/outreachEligibility';
 import {
-  latestProductOutreachSentAt,
+  latestProspectOutreachSentAt,
   loadLatestProductOutreachSends,
 } from '@/lib/outreachLatestSends';
 import { getLatestRegionalOutreachPrepRun } from '@/lib/outreachNightlyPrep';
@@ -175,14 +175,9 @@ export async function createOutreachIdentifiedTargetDraft(params: {
     return { ok: false, error: 'Contact email is suppressed (bounce or complaint)', status: 409 };
   }
 
-  const sends = await loadLatestProductOutreachSends(params.client, [prospectId], [picked.toEmail]);
+  const sends = await loadLatestProductOutreachSends(params.client, [prospectId]);
   if (!sends.ok) return { ok: false, error: sends.error, status: 502 };
-  const lastSentAt = latestProductOutreachSentAt(
-    prospectId,
-    picked.toEmail,
-    sends.byProspectId,
-    sends.byEmail,
-  );
+  const lastSentAt = latestProspectOutreachSentAt(prospectId, sends.byProspectId);
   if (
     isWithinOutreachCooldown(lastSentAt, {
       cooldownDays: AGENT_OUTREACH_COOLDOWN_DAYS,
