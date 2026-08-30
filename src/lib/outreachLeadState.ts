@@ -12,7 +12,7 @@ import {
 
 export type OutreachLeadState = 'cold' | 'warm' | 'hot';
 export type CallTodayReason =
-  'hot_intent' | 'attributed_reply' | 'follow_up_due_today' | 'follow_up_overdue';
+  'hot_intent' | 'attributed_reply' | 'follow_up_due_today' | 'follow_up_overdue' | 'on_site';
 
 export type FollowUpDueContext = {
   due: boolean;
@@ -134,10 +134,7 @@ export function evaluateLeadState(input: EvaluateLeadStateInput): EvaluateLeadSt
       callTodayReasons.push('hot_intent');
     }
     if (engagement.reply.attributed) {
-      const replyAge = daysBetween(engagement.reply.lastMessageAt, asOf);
-      if (replyAge != null && replyAge <= rules.replyCallTodayDays) {
-        callTodayReasons.push('attributed_reply');
-      }
+      callTodayReasons.push('attributed_reply');
     }
     const followUp = resolveFollowUpDue(input);
     if (followUp.due) {

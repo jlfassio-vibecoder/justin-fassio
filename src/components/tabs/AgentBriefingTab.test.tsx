@@ -421,12 +421,80 @@ describe('AgentBriefingTab follow-up queue', () => {
     });
     expect(screen.getByText('Warm Shop')).toBeInTheDocument();
     expect(screen.getByText('Engaged Shop')).toBeInTheDocument();
+    const warmRow = screen.getByTestId('top-lead-warm-77');
+    expect(warmRow).toHaveTextContent('1 click');
+    expect(warmRow).toHaveTextContent('1 open');
+    const engagedRow = screen.getByTestId('top-lead-engaged-88');
+    expect(engagedRow).toHaveTextContent('2 opens');
+    expect(engagedRow).not.toHaveTextContent('click');
 
     await user.click(screen.getByRole('button', { name: 'Open Warm Shop' }));
     expect(screen.getByTestId('prospect-detail-drawer')).toHaveTextContent('Warm Shop');
     expect(screen.queryByTestId('research-scroll')).not.toBeInTheDocument();
     expect(onLogCallForLead).not.toHaveBeenCalled();
     expect(createFollowUpDraftClientMock).not.toHaveBeenCalled();
+  });
+
+  it('shows open and click counts together on Call today and Engaged', async () => {
+    const callLead = {
+      prospectId: 42,
+      prospectName: 'Call Today Store',
+      accountStatus: 'prospect' as const,
+      leadState: 'hot' as const,
+      callToday: true,
+      callTodayReasons: ['hot_intent' as const],
+      score: 12,
+      rulesVersion: 'v1-provisional' as const,
+      engagement: {
+        prospectId: 42,
+        emailsSent: 2,
+        lastSentAt: null,
+        openCount: 4,
+        clickCount: 3,
+        messagesOpened: 2,
+        messagesClicked: 2,
+        distinctProductsOpened: 2,
+        distinctProductsClicked: 2,
+        maxClickCountOnMessage: 2,
+        lastOpenedAt: '2026-08-21T12:00:00Z',
+        lastClickedAt: '2026-08-21T12:00:00Z',
+        lastEngagementAt: '2026-08-21T12:00:00Z',
+        suppressed: false,
+        reply: { attributed: false, confidence: 'none' as const, lastMessageAt: null },
+        unlinkedManualIncluded: 0,
+      },
+      lastEngagedCatalogItemId: PRODUCT_ID,
+      emailsSentInWindow: 2,
+      followUpOverdueDays: null,
+      lastCallAtToday: null,
+    };
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        callToday: [callLead],
+        hot: [callLead],
+        recentEngagement: [
+          {
+            prospectId: 99,
+            prospectName: 'Both Counts Shop',
+            lastEngagedAt: '2026-08-22T10:00:00Z',
+            openCount: 5,
+            clickCount: 2,
+          },
+        ],
+      },
+    });
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('top-lead-call-42')).toBeInTheDocument();
+    });
+    const callRow = screen.getByTestId('top-lead-call-42');
+    expect(callRow).toHaveTextContent('3 clicks');
+    expect(callRow).toHaveTextContent('4 opens');
+    const engagedRow = screen.getByTestId('top-lead-engaged-99');
+    expect(engagedRow).toHaveTextContent('2 clicks');
+    expect(engagedRow).toHaveTextContent('5 opens');
   });
 
   it('runs Call from Top leads when the follow-ups queue recommends Call', async () => {

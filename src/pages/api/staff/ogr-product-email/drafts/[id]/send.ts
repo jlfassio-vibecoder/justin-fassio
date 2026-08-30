@@ -15,6 +15,7 @@ import {
   buildOgrProductUrl,
   resolvePublicSiteOrigin,
 } from '@/lib/productUrls';
+import { appendPresenceVisitToken } from '@/lib/presenceVisitToken';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import { resolveOgrPricingMarketForProductEmailDraft } from '@/lib/resolveAccountPricingMarket';
 import { sendOgrProductOutreachEmail } from '@/lib/sendOgrProductOutreachEmail';
@@ -92,6 +93,14 @@ export const POST: APIRoute = async ({ params, request }) => {
         : buildOgrProductUrl(presentation.slug, origin);
     catalogHref =
       emailMarket === 'us' ? buildOgrCollectionUrl(origin, 'us') : buildOgrCollectionUrl(origin);
+    productHref = appendPresenceVisitToken(productHref, {
+      prospectId: crm.association.prospectId,
+      systemMessageId: draft.id,
+    });
+    catalogHref = appendPresenceVisitToken(catalogHref, {
+      prospectId: crm.association.prospectId,
+      systemMessageId: draft.id,
+    });
 
     const [{ data: profile }, { data: userData }] = await Promise.all([
       gate.supabase

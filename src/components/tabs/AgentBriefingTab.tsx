@@ -155,6 +155,7 @@ function followUpActionLabel(action: OutreachFollowUpRow['recommendedAction']): 
 }
 
 function callTodayReasonChip(reasons: OutreachLeadRow['callTodayReasons']): string | null {
+  if (reasons.includes('on_site')) return 'On site';
   if (reasons.includes('attributed_reply')) return 'Replied';
   if (reasons.includes('hot_intent')) return 'Hot';
   if (reasons.includes('follow_up_overdue')) return 'Overdue';
@@ -184,6 +185,23 @@ function TopLeadsQuickView({
   const callRows = callToday.slice(0, TOP_LEADS_QUICK_VIEW_VISIBLE);
   const warmRows = warm.filter((row) => !row.callToday).slice(0, TOP_LEADS_QUICK_VIEW_VISIBLE);
   const engagedRows = recentEngagement.slice(0, TOP_LEADS_QUICK_VIEW_VISIBLE);
+
+  function engagementCountTags(openCount: number, clickCount: number) {
+    return (
+      <>
+        {clickCount > 0 ? (
+          <Tag variant="outline">
+            {clickCount} click{clickCount === 1 ? '' : 's'}
+          </Tag>
+        ) : null}
+        {openCount > 0 ? (
+          <Tag variant="neutral">
+            {openCount} open{openCount === 1 ? '' : 's'}
+          </Tag>
+        ) : null}
+      </>
+    );
+  }
 
   function renderLeadActions(prospectId: number, prospectName: string, accountStatus?: string) {
     const queueRow = followUpsById.get(prospectId);
@@ -237,7 +255,9 @@ function TopLeadsQuickView({
             <ul className="m-0 flex list-none flex-col gap-2 p-0">
               {callRows.map((row) => {
                 const reason = callTodayReasonChip(row.callTodayReasons);
-                const ago = formatFollowUpRelativeTime(row.engagement.lastEngagementAt);
+                const ago = formatFollowUpRelativeTime(
+                  row.sitePresence?.lastSeenAt ?? row.engagement.lastEngagementAt,
+                );
                 return (
                   <li
                     key={row.prospectId}
@@ -248,6 +268,8 @@ function TopLeadsQuickView({
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-medium">{row.prospectName}</span>
                         {reason ? <Tag variant="accent">{reason}</Tag> : null}
+                        {row.sitePresence?.active ? <Tag variant="accent">Active</Tag> : null}
+                        {engagementCountTags(row.engagement.openCount, row.engagement.clickCount)}
                         {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
                       </div>
                     </div>
@@ -277,6 +299,7 @@ function TopLeadsQuickView({
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-medium">{row.prospectName}</span>
                         <Tag variant="outline">Warm</Tag>
+                        {engagementCountTags(row.engagement.openCount, row.engagement.clickCount)}
                         {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
                       </div>
                     </div>
@@ -305,15 +328,7 @@ function TopLeadsQuickView({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-medium">{row.prospectName}</span>
-                        {row.clickCount > 0 ? (
-                          <Tag variant="outline">
-                            {row.clickCount} click{row.clickCount === 1 ? '' : 's'}
-                          </Tag>
-                        ) : row.openCount > 0 ? (
-                          <Tag variant="neutral">
-                            {row.openCount} open{row.openCount === 1 ? '' : 's'}
-                          </Tag>
-                        ) : null}
+                        {engagementCountTags(row.openCount, row.clickCount)}
                         {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
                       </div>
                     </div>
@@ -845,6 +860,24 @@ export function AgentBriefingTab({
     briefingCity,
     briefingChannel,
   ]);
+
+  useEffect(() => {
+    if (!isOgrLine) return;
+    if (typeof supabase.channel !== 'function') return;
+    const channel = supabase
+      .channel('briefing-site-presence')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'prospect_site_presence' },
+        () => {
+          setReloadToken((n) => n + 1);
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [isOgrLine]);
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   // Copilot suggestion ignored: a new event/token deep-link protocol is out of scope; drawer close now clears its applied deep-link state.

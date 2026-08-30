@@ -2026,6 +2026,48 @@ export interface Database {
           },
         ];
       };
+      prospect_site_presence: {
+        Row: {
+          prospect_id: number;
+          last_seen_at: string;
+          last_path: string | null;
+          system_message_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          prospect_id: number;
+          last_seen_at?: string;
+          last_path?: string | null;
+          system_message_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          prospect_id?: number;
+          last_seen_at?: string;
+          last_path?: string | null;
+          system_message_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'prospect_site_presence_prospect_id_fkey';
+            columns: ['prospect_id'];
+            isOneToOne: true;
+            referencedRelation: 'prospects';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'prospect_site_presence_system_message_id_fkey';
+            columns: ['system_message_id'];
+            isOneToOne: false;
+            referencedRelation: 'system_messages';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       account_conversion_attribution: {
         Row: {
           id: string;

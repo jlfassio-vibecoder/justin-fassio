@@ -1,6 +1,7 @@
 ---
 import '@/styles/global.css';
 import { PublicChatFab } from '@/components/chat/PublicChatFab';
+import { PresenceHeartbeat } from '@/components/presence/PresenceHeartbeat';
 
 interface Props {
   title: string;
@@ -68,6 +69,13 @@ const forceLightTheme = path === '/';
   </head>
   <body>
     <slot />
-    {!isStaffSurface ? <PublicChatFab client:idle /> : null}
+    {
+      !isStaffSurface ? (
+        <>
+          <PresenceHeartbeat client:idle />
+          <PublicChatFab client:idle />
+        </>
+      ) : null
+    }
   </body>
 </html>

@@ -36,6 +36,7 @@ import {
 } from '@/lib/crmRetailTaxonomy';
 import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outreachSelectTargets';
 import { isWithinOutreachCooldown, pickOutreachContact } from '@/lib/outreachEligibility';
+import { loadActiveSitePresence, mergeSitePresenceIntoCallToday } from '@/lib/sitePresenceBriefing';
 import {
   latestProspectOutreachSentAt,
   loadLatestProductOutreachSends,
@@ -257,6 +258,74 @@ export function prepBannerMessage(params: {
   }
 }
 
+type RecentEngagementMessageRow = {
+  prospect_id: number | null;
+  open_count: number | null;
+  click_count: number | null;
+  last_opened_at: string | null;
+  last_clicked_at: string | null;
+  to_name: string | null;
+};
+
+/**
+ * Fold product-outreach messages into per-prospect Engaged counts.
+ * Sums opens/clicks across messages (same math as Phase 3 lead aggregation).
+ * Exported for unit tests.
+ */
+export function foldRecentEngagementMessages(
+  rows: RecentEngagementMessageRow[],
+  sinceIso: string,
+): Map<
+  number,
+  {
+    prospectName: string;
+    lastEngagedAt: string;
+    openCount: number;
+    clickCount: number;
+  }
+> {
+  const byProspect = new Map<
+    number,
+    {
+      prospectName: string;
+      lastEngagedAt: string;
+      openCount: number;
+      clickCount: number;
+    }
+  >();
+
+  for (const row of rows) {
+    if (row.prospect_id == null) continue;
+    const lastOpened =
+      row.last_opened_at && row.last_opened_at >= sinceIso ? row.last_opened_at : null;
+    const lastClicked =
+      row.last_clicked_at && row.last_clicked_at >= sinceIso ? row.last_clicked_at : null;
+    if (!lastOpened && !lastClicked) continue;
+
+    const lastEngagedAt =
+      lastClicked && lastOpened
+        ? lastOpened > lastClicked
+          ? lastOpened
+          : lastClicked
+        : (lastClicked ?? lastOpened);
+    if (!lastEngagedAt) continue;
+
+    const prev = byProspect.get(row.prospect_id);
+    const openCount = (prev?.openCount ?? 0) + Math.max(0, row.open_count ?? 0);
+    const clickCount = (prev?.clickCount ?? 0) + Math.max(0, row.click_count ?? 0);
+    const nextEngaged =
+      !prev || lastEngagedAt > prev.lastEngagedAt ? lastEngagedAt : prev.lastEngagedAt;
+    byProspect.set(row.prospect_id, {
+      prospectName: (row.to_name ?? '').trim() || `Prospect #${row.prospect_id}`,
+      lastEngagedAt: nextEngaged,
+      openCount,
+      clickCount,
+    });
+  }
+
+  return byProspect;
+}
+
 async function loadRecentEngagement(
   client: Client,
   sinceIso: string,
@@ -271,43 +340,7 @@ async function loadRecentEngagement(
 
   if (error || !data) return [];
 
-  const byProspect = new Map<
-    number,
-    {
-      prospectName: string;
-      lastEngagedAt: string;
-      openCount: number;
-      clickCount: number;
-    }
-  >();
-
-  for (const row of data) {
-    if (row.prospect_id == null) continue;
-    const lastOpened =
-      row.last_opened_at && row.last_opened_at >= sinceIso ? row.last_opened_at : null;
-    const lastClicked =
-      row.last_clicked_at && row.last_clicked_at >= sinceIso ? row.last_clicked_at : null;
-    if (!lastOpened && !lastClicked) continue;
-
-    const lastEngagedAt =
-      lastOpened && lastClicked
-        ? lastOpened > lastClicked
-          ? lastOpened
-          : lastClicked
-        : (lastClicked ?? lastOpened!);
-
-    const prev = byProspect.get(row.prospect_id);
-    const openCount = Math.max(prev?.openCount ?? 0, row.open_count ?? 0);
-    const clickCount = Math.max(prev?.clickCount ?? 0, row.click_count ?? 0);
-    const nextEngaged =
-      !prev || lastEngagedAt > prev.lastEngagedAt ? lastEngagedAt : prev.lastEngagedAt;
-    byProspect.set(row.prospect_id, {
-      prospectName: (row.to_name ?? '').trim() || `Prospect #${row.prospect_id}`,
-      lastEngagedAt: nextEngaged,
-      openCount,
-      clickCount,
-    });
-  }
+  const byProspect = foldRecentEngagementMessages(data, sinceIso);
 
   const prospectIds = [...byProspect.keys()];
   if (prospectIds.length > 0) {
@@ -435,6 +468,30 @@ function sortAndCapLeadRows(
     .slice(0, limit);
 }
 
+function hasAttributedReply(lead: OutreachLeadRow): boolean {
+  return lead.callTodayReasons.includes('attributed_reply');
+}
+
+function hasOnSite(lead: OutreachLeadRow): boolean {
+  return lead.callTodayReasons.includes('on_site') || Boolean(lead.sitePresence?.active);
+}
+
+/** Call today: pin On site, then Replied, then score / name. */
+function sortAndCapCallTodayRows(
+  leads: OutreachLeadRow[],
+  limit: number = TOP_LEADS_DTO_LIMIT,
+): OutreachLeadRow[] {
+  return [...leads]
+    .sort((a, b) => {
+      const onSiteDelta = Number(hasOnSite(b)) - Number(hasOnSite(a));
+      if (onSiteDelta !== 0) return onSiteDelta;
+      const replyDelta = Number(hasAttributedReply(b)) - Number(hasAttributedReply(a));
+      if (replyDelta !== 0) return replyDelta;
+      return b.score - a.score || a.prospectName.localeCompare(b.prospectName);
+    })
+    .slice(0, limit);
+}
+
 /** Sort, drop snoozed, and cap Call today / Hot / Warm for the Briefing DTO. */
 export function prepareBriefingLeadLists(params: {
   leads: OutreachLeadRow[];
@@ -448,7 +505,7 @@ export function prepareBriefingLeadLists(params: {
   const limit = params.limit ?? TOP_LEADS_DTO_LIMIT;
   const unsnoozed = params.leads.filter((l) => !params.snoozedProspectIds.has(l.prospectId));
   return {
-    callToday: sortAndCapLeadRows(
+    callToday: sortAndCapCallTodayRows(
       unsnoozed.filter((l) => l.callToday),
       limit,
     ),
@@ -862,10 +919,67 @@ export async function assembleOutreachBriefing(params: {
     asOf,
     rules: resolvedLeadRules.rules,
   });
-  const { callToday, hot, warm } = prepareBriefingLeadLists({
+  const prepared = prepareBriefingLeadLists({
     leads: scopedLeads,
     snoozedProspectIds,
   });
+
+  const sitePresence = await loadActiveSitePresence(client, { asOf });
+  let scopedPresence = sitePresence;
+  if (scopedCrmRegion || scopedPrepCity || scopedChannel) {
+    const presenceIds = sitePresence.map((p) => p.prospectId);
+    const regionCityById =
+      presenceIds.length > 0
+        ? await loadProspectRegionCityByIds(client, presenceIds).catch(() => null)
+        : null;
+    if (regionCityById) {
+      const storeCode = params.regionalPrepScope?.storeTerritoryCode?.trim().toLowerCase() || null;
+      scopedPresence = sitePresence.filter((p) => {
+        const geo = regionCityById.get(p.prospectId);
+        if (!geo) return false;
+        if (
+          scopedCrmRegion &&
+          !prospectMatchesCrmRegion(geo.region ?? '', scopedCrmRegion, storeCode)
+        ) {
+          return false;
+        }
+        if (!prospectMatchesPrepCity(geo.city, scopedPrepCity)) return false;
+        if (!prospectMatchesPrepChannel(geo.category, scopedChannel)) return false;
+        return true;
+      });
+    }
+  }
+
+  const scopedLeadIds = new Set(scopedLeads.map((l) => l.prospectId));
+  const presenceNameIds = scopedPresence
+    .map((p) => p.prospectId)
+    .filter((id) => !scopedLeadIds.has(id));
+  const prospectNames = new Map<number, string>();
+  for (const l of scopedLeads) prospectNames.set(l.prospectId, l.prospectName);
+  if (presenceNameIds.length > 0) {
+    const { data: nameRows } = await client
+      .from('prospects')
+      .select('id, name')
+      .in('id', presenceNameIds);
+    for (const row of nameRows ?? []) {
+      if (row.name?.trim()) prospectNames.set(row.id, row.name.trim());
+    }
+  }
+
+  const callTodayMerged = mergeSitePresenceIntoCallToday({
+    callToday: prepared.callToday,
+    allLeads: scopedLeads,
+    presence: scopedPresence,
+    prospectNames,
+  });
+  const { callToday, hot, warm } = {
+    callToday: prepareBriefingLeadLists({
+      leads: callTodayMerged.map((row) => ({ ...row, callToday: true })),
+      snoozedProspectIds,
+    }).callToday,
+    hot: prepared.hot,
+    warm: prepared.warm,
+  };
 
   const excludeFromEngaged = new Set<number>([
     ...callToday.map((l) => l.prospectId),
