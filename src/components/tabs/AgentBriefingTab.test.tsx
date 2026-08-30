@@ -729,6 +729,34 @@ describe('AgentBriefingTab research entry', () => {
     });
   });
 
+  it('disables Run prep until a usable contact email is on file', async () => {
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        identifiedTargets: [
+          {
+            prospectId: 44,
+            prospectName: 'Needs Email Shop',
+            catalogItemId: PRODUCT_ID,
+            productName: 'American Revival',
+            productSku: 'OGR-101',
+            productSlug: 'american-revival',
+            primaryChannel: 'golf',
+            needsEmail: true,
+            hasUsableEmail: false,
+          },
+        ],
+      },
+    });
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Needs Email Shop')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Run prep' })).toBeDisabled();
+    expect(screen.getByText('Needs research')).toBeInTheDocument();
+  });
+
   it('posts identified-target-draft from research-queue Run prep', async () => {
     const user = userEvent.setup();
     const researchBriefing = {
@@ -744,6 +772,7 @@ describe('AgentBriefingTab research entry', () => {
             productSlug: 'american-revival',
             primaryChannel: 'golf',
             needsEmail: true,
+            hasUsableEmail: true,
           },
         ],
       },
@@ -814,6 +843,7 @@ describe('AgentBriefingTab research entry', () => {
             productSlug: 'american-revival',
             primaryChannel: 'golf',
             needsEmail: true,
+            hasUsableEmail: true,
           },
         ],
       },

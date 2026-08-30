@@ -778,10 +778,29 @@ export function AgentBriefingTab({
       const result = await staffPost('/api/staff/outreach/identified-target-draft', body);
       if (!result.ok) {
         const err = result.error;
+        if (/emailed within the last|cooldown/i.test(err)) {
+          setBriefing((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  identifiedTargets: prev.identifiedTargets.filter(
+                    (t) => t.prospectId !== row.prospectId,
+                  ),
+                }
+              : prev,
+          );
+          setRowRunPrepMessage(
+            `${row.prospectName} was emailed recently — removed from this queue until cooldown ends.`,
+          );
+          setReloadToken((n) => n + 1);
+          return;
+        }
         setRowRunPrepMessage(
           /no usable outreach email/i.test(err)
             ? `Add a contact email first for ${row.prospectName}.`
-            : err,
+            : /suppressed/i.test(err)
+              ? `Contact email for ${row.prospectName} is suppressed (bounce or complaint).`
+              : err,
         );
         return;
       }
@@ -1060,6 +1079,7 @@ export function AgentBriefingTab({
                       const rowBusy = rowRunPrepBusyKey === rowKey;
                       const dismissBusy = rowDismissBusyId === t.prospectId;
                       const anyRowBusy = Boolean(rowRunPrepBusyKey) || Boolean(rowDismissBusyId);
+                      const canRunPrep = t.hasUsableEmail;
                       return (
                         <tr key={rowKey} className="hover:bg-bg/80">
                           <td className="border-ink/[0.06] border-b p-2">
@@ -1092,7 +1112,14 @@ export function AgentBriefingTab({
                               <button
                                 type="button"
                                 className="text-ink/55 hover:text-accent-800 text-xs hover:underline disabled:opacity-50"
-                                disabled={rowBusy || anyRowBusy || !resolvedOpsTerritoryId}
+                                disabled={
+                                  rowBusy || anyRowBusy || !resolvedOpsTerritoryId || !canRunPrep
+                                }
+                                title={
+                                  canRunPrep
+                                    ? 'Create a prep draft with the contact email on file'
+                                    : 'Add a contact email (Research) before Run prep'
+                                }
                                 onClick={() =>
                                   void runIdentifiedTargetPrep({
                                     prospectId: t.prospectId,
@@ -1120,10 +1147,10 @@ export function AgentBriefingTab({
                             {t.primaryChannel ?? '—'}
                           </td>
                           <td className="border-ink/[0.06] border-b p-2">
-                            {t.needsEmail ? (
-                              <span className="text-accent-800">Needs research</span>
-                            ) : (
+                            {t.hasUsableEmail ? (
                               <span className="text-ink/60">On file</span>
+                            ) : (
+                              <span className="text-accent-800">Needs research</span>
                             )}
                           </td>
                         </tr>
