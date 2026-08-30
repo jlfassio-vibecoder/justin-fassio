@@ -13,10 +13,21 @@ import {
 import { isPrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
 import { generateOgrProductOutreachDraft } from '@/lib/generateOgrProductOutreachDraft';
 import { parseIdentifiedTargetsFromPrepAllocation } from '@/lib/outreachBriefingShared';
-import { pickOutreachContact, resolveProspectOutreachChannels } from '@/lib/outreachEligibility';
+import {
+  pickOutreachContact,
+  resolveProspectOutreachChannels,
+  isWithinOutreachCooldown,
+} from '@/lib/outreachEligibility';
+import {
+  latestProductOutreachSentAt,
+  loadLatestProductOutreachSends,
+} from '@/lib/outreachLatestSends';
 import { getLatestRegionalOutreachPrepRun } from '@/lib/outreachNightlyPrep';
 import type { SelectedOutreachTarget } from '@/lib/outreachSelectTargets';
-import { AGENT_OUTREACH_PENDING_DRAFT_STATUSES } from '@/lib/outreachSelectionConstants';
+import {
+  AGENT_OUTREACH_COOLDOWN_DAYS,
+  AGENT_OUTREACH_PENDING_DRAFT_STATUSES,
+} from '@/lib/outreachSelectionConstants';
 import { mapProspectRow, PROSPECT_SELECT, type ProspectListRow } from '@/lib/prospects';
 import {
   escapeIlikeExact,
@@ -162,6 +173,26 @@ export async function createOutreachIdentifiedTargetDraft(params: {
   if (!suppression.ok) return { ok: false, error: suppression.error, status: 502 };
   if (suppression.suppressed) {
     return { ok: false, error: 'Contact email is suppressed (bounce or complaint)', status: 409 };
+  }
+
+  const sends = await loadLatestProductOutreachSends(params.client, [prospectId], [picked.toEmail]);
+  if (!sends.ok) return { ok: false, error: sends.error, status: 502 };
+  const lastSentAt = latestProductOutreachSentAt(
+    prospectId,
+    picked.toEmail,
+    sends.byProspectId,
+    sends.byEmail,
+  );
+  if (
+    isWithinOutreachCooldown(lastSentAt, {
+      cooldownDays: AGENT_OUTREACH_COOLDOWN_DAYS,
+    })
+  ) {
+    return {
+      ok: false,
+      error: `Account was emailed within the last ${AGENT_OUTREACH_COOLDOWN_DAYS} days — wait for cooldown before creating another prep draft`,
+      status: 409,
+    };
   }
 
   const channels = resolveProspectOutreachChannels(prospect);

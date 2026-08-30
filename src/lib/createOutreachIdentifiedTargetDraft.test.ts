@@ -4,6 +4,7 @@ const listAgentProductOutreachDraftsMock = vi.fn();
 const generateOgrProductOutreachDraftMock = vi.fn();
 const getLatestRegionalOutreachPrepRunMock = vi.fn();
 const selectProductForProspectMock = vi.fn();
+const loadLatestProductOutreachSendsMock = vi.fn();
 
 vi.mock('@/lib/systemMessages', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/systemMessages')>();
@@ -37,6 +38,15 @@ vi.mock('@/lib/outreachProductSelection', async (importOriginal) => {
   return {
     ...actual,
     selectProductForProspect: (...args: unknown[]) => selectProductForProspectMock(...args),
+  };
+});
+
+vi.mock('@/lib/outreachLatestSends', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/outreachLatestSends')>();
+  return {
+    ...actual,
+    loadLatestProductOutreachSends: (...args: unknown[]) =>
+      loadLatestProductOutreachSendsMock(...args),
   };
 });
 
@@ -129,6 +139,11 @@ describe('createOutreachIdentifiedTargetDraft', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listAgentProductOutreachDraftsMock.mockResolvedValue({ ok: true, drafts: [] });
+    loadLatestProductOutreachSendsMock.mockResolvedValue({
+      ok: true,
+      byProspectId: new Map(),
+      byEmail: new Map(),
+    });
     getLatestRegionalOutreachPrepRunMock.mockResolvedValue({
       ok: true,
       run: {
@@ -227,6 +242,29 @@ describe('createOutreachIdentifiedTargetDraft', () => {
     if (!result.ok) {
       expect(result.status).toBe(409);
       expect(result.error).toMatch(/suppressed/i);
+    }
+    expect(generateOgrProductOutreachDraftMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects when prospect is within outreach cooldown', async () => {
+    loadLatestProductOutreachSendsMock.mockResolvedValue({
+      ok: true,
+      byProspectId: new Map([[12, '2026-08-20T12:00:00Z']]),
+      byEmail: new Map(),
+    });
+    const from = vi.fn((table: string) => chainFrom(table));
+    const result = await createOutreachIdentifiedTargetDraft({
+      client: { from } as never,
+      prospectId: 12,
+      catalogItemId: PRODUCT_A,
+      operationalTerritoryId: 'ops-1',
+      preparationDate: '2026-08-25',
+      userId: 'staff-1',
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(409);
+      expect(result.error).toMatch(/cooldown/i);
     }
     expect(generateOgrProductOutreachDraftMock).not.toHaveBeenCalled();
   });

@@ -25,6 +25,8 @@ import {
   prospectMatchesPrepCity,
 } from '@/lib/geoCatalog';
 import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outreachSelectTargets';
+import { isWithinOutreachCooldown } from '@/lib/outreachEligibility';
+import { loadLatestProductOutreachSends } from '@/lib/outreachLatestSends';
 import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
 import {
   formatRegionalPoolMessage,
@@ -42,7 +44,10 @@ export type {
   OutreachPoolDiagnostics,
 } from '@/lib/outreachBriefingShared';
 export { formatRegionalPoolMessage } from '@/lib/outreachBriefingShared';
-import { AGENT_OUTREACH_PENDING_DRAFT_STATUSES } from '@/lib/outreachSelectionConstants';
+import {
+  AGENT_OUTREACH_COOLDOWN_DAYS,
+  AGENT_OUTREACH_PENDING_DRAFT_STATUSES,
+} from '@/lib/outreachSelectionConstants';
 import { resolveOutreachLeadRules } from '@/lib/resolveOutreachLeadRules';
 import {
   fetchPendingAgentProductOutreachProspectIds,
@@ -568,7 +573,7 @@ export async function assembleOutreachBriefing(params: {
       error: err instanceof Error ? err.message : 'Failed to load research queue dismissals',
     };
   }
-  const identifiedTargets = parseIdentifiedTargetsFromPrepAllocation(
+  let identifiedTargets = parseIdentifiedTargetsFromPrepAllocation(
     identifiedSourceRun?.channelAllocation,
   ).filter(
     (t) =>
@@ -576,6 +581,21 @@ export async function assembleOutreachBriefing(params: {
       !pendingDraftProspectIds.has(t.prospectId) &&
       !researchQueueDismissals.has(t.prospectId),
   );
+
+  if (identifiedTargets.length > 0) {
+    const sends = await loadLatestProductOutreachSends(
+      client,
+      identifiedTargets.map((t) => t.prospectId),
+    );
+    if (!sends.ok) return { ok: false, error: sends.error };
+    identifiedTargets = identifiedTargets.filter((t) => {
+      const lastSentAt = sends.byProspectId.get(t.prospectId) ?? null;
+      return !isWithinOutreachCooldown(lastSentAt, {
+        asOf,
+        cooldownDays: AGENT_OUTREACH_COOLDOWN_DAYS,
+      });
+    });
+  }
 
   const channelAllocation =
     run?.channelAllocation &&
