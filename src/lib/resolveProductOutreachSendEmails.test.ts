@@ -72,4 +72,30 @@ describe('resolveProductOutreachSendEmails', () => {
       'solo@example.com',
     ]);
   });
+
+  it('does not fan out to an unrelated fallbackTo for Primary contacts', () => {
+    expect(
+      resolveProductOutreachSendEmails(
+        {
+          isPrimary: true,
+          email: 'primary@example.com',
+          alternateEmail: 'alt@example.com',
+        },
+        'unrelated@example.com',
+      ),
+    ).toEqual(['primary@example.com', 'alt@example.com']);
+  });
+
+  it('uses fallbackTo alone when Primary has no usable emails', () => {
+    expect(
+      resolveProductOutreachSendEmails(
+        {
+          isPrimary: true,
+          email: '  ',
+          alternateEmail: null,
+        },
+        'fallback@example.com',
+      ),
+    ).toEqual(['fallback@example.com']);
+  });
 });

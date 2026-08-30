@@ -13,6 +13,8 @@ function normalizeSendEmail(email: string): string {
 /**
  * Resolve Resend `to` addresses for a product outreach send.
  * Primary contacts with a distinct valid alternate get two addresses; otherwise one.
+ * `fallbackTo` only reorders when it matches a contact email, or is used alone when
+ * the contact has no usable email fields.
  */
 export function resolveProductOutreachSendEmails(
   contact: ProductOutreachSendContact | null | undefined,
@@ -40,13 +42,12 @@ export function resolveProductOutreachSendEmails(
 
   push(contact.email);
   push(contact.alternateEmail);
-  push(normalizedFallback);
 
-  if (ordered.length === 0 && normalizedFallback) {
-    return [normalizedFallback];
+  if (ordered.length === 0) {
+    return normalizedFallback ? [normalizedFallback] : [];
   }
 
-  // Prefer intended `to` first when it was one of the contact addresses.
+  // Prefer intended `to` first when it matches a contact address (ordering only).
   if (normalizedFallback && ordered.includes(normalizedFallback)) {
     return [normalizedFallback, ...ordered.filter((e) => e !== normalizedFallback)];
   }
