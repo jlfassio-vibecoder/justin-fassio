@@ -194,9 +194,11 @@ export function parseIdentifiedTargetsFromPrepAllocation(
       needsEmail: Boolean(r.needsEmail),
       hasUsableEmail: Boolean(r.hasUsableEmail),
       sharedEmailStoreNames: Array.isArray(r.sharedEmailStoreNames)
-        ? r.sharedEmailStoreNames.filter(
-            (n): n is string => typeof n === 'string' && n.trim() !== '',
-          )
+        ? r.sharedEmailStoreNames.flatMap((n) => {
+            if (typeof n !== 'string') return [];
+            const trimmed = n.trim();
+            return trimmed ? [trimmed] : [];
+          })
         : [],
     });
   }
