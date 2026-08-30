@@ -269,6 +269,7 @@ describe('LogCallModal', () => {
         title: 'Buyer',
         phone: null,
         email: 'new@example.com',
+        alternateEmail: null,
         isPrimary: false,
         notes: null,
         createdAt: '',

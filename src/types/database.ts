@@ -2152,6 +2152,7 @@ export interface Database {
           title: string | null;
           phone: string | null;
           email: string | null;
+          alternate_email: string | null;
           is_primary: boolean;
           notes: string | null;
           created_at: string;
@@ -2165,6 +2166,7 @@ export interface Database {
           title?: string | null;
           phone?: string | null;
           email?: string | null;
+          alternate_email?: string | null;
           is_primary?: boolean;
           notes?: string | null;
           created_at?: string;
@@ -2178,6 +2180,7 @@ export interface Database {
           title?: string | null;
           phone?: string | null;
           email?: string | null;
+          alternate_email?: string | null;
           is_primary?: boolean;
           notes?: string | null;
           created_at?: string;

@@ -45,6 +45,7 @@ const sampleRow: AccountContactRow = {
   title: 'Softgoods',
   phone: '250-555-0100',
   email: 'pat@example.com',
+  alternate_email: 'pat.alt@example.com',
   is_primary: true,
   notes: null,
   created_at: '2026-08-01T00:00:00Z',
@@ -60,6 +61,7 @@ function contact(
     title: null,
     phone: null,
     email: null,
+    alternateEmail: null,
     isPrimary: false,
     notes: null,
     createdAt: '',
@@ -88,6 +90,7 @@ describe('accountContacts', () => {
       title: 'Softgoods',
       phone: '250-555-0100',
       email: 'pat@example.com',
+      alternateEmail: 'pat.alt@example.com',
       isPrimary: true,
       notes: null,
       createdAt: '2026-08-01T00:00:00Z',
@@ -129,6 +132,29 @@ describe('accountContacts', () => {
     expect(
       classifyAccountContactDuplicate(list, { fullName: 'New', email: 'new@example.com' }),
     ).toBe(null);
+  });
+
+  it('classifyAccountContactDuplicate: alternate emails are hard collisions', () => {
+    const list = [
+      contact({
+        id: 'a',
+        fullName: 'Pat Buyer',
+        email: 'pat@example.com',
+        alternateEmail: 'pat.alt@example.com',
+      }),
+    ];
+    expect(
+      classifyAccountContactDuplicate(list, {
+        fullName: 'Other',
+        email: 'pat.alt@example.com',
+      }),
+    ).toEqual({ kind: 'email', contact: list[0] });
+    expect(
+      classifyAccountContactDuplicate(list, {
+        fullName: 'Other',
+        alternateEmail: 'pat@example.com',
+      }),
+    ).toEqual({ kind: 'email', contact: list[0] });
   });
 
   it('findPrimaryAccountContact returns the primary row', () => {

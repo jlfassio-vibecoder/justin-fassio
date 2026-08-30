@@ -22,6 +22,9 @@ import { resolvePricingMarketForRetailerLineAccount } from '@/lib/resolveAccount
 import { normalizePublicMarket, type PublicMarket } from '@/lib/pricingMarket';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
 import { replayUnmatchedResendEvents } from '@/lib/resendWebhook';
+import { fetchAccountContactById } from '@/lib/accountContacts';
+import { resolveProductOutreachSendEmails } from '@/lib/resolveProductOutreachSendEmails';
+import { sendSiblingProductOutreachEmails } from '@/lib/sendSiblingProductOutreachEmails';
 import {
   insertProductOutreachSendingMessage,
   markProductOutreachMessageFailed,
@@ -223,6 +226,24 @@ export const POST: APIRoute = async ({ request }) => {
       return jsonError(crm.error, 400);
     }
 
+    let sendContact = null;
+    if (crm.association.accountContactId) {
+      const loadedContact = await fetchAccountContactById(
+        gate.supabase,
+        crm.association.accountContactId,
+      );
+      if (loadedContact.error) {
+        return jsonError(loadedContact.error, 500);
+      }
+      sendContact = loadedContact.data;
+    }
+    const recipients = resolveProductOutreachSendEmails(sendContact, to);
+    if (recipients.length === 0) {
+      return jsonError('A valid recipient email is required', 400);
+    }
+    const primaryTo = recipients[0]!;
+    const siblingEmails = recipients.slice(1);
+
     let retailerLineAccountId: string | undefined;
     if (retailerLineAccountIdResult.value) {
       if (!salesLineIdResult.value) {
@@ -292,7 +313,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     const ledger = await insertProductOutreachSendingMessage(gate.supabase, {
       catalogItemId: productId,
-      toEmail: to,
+      toEmail: primaryTo,
       toName: recipientNameResult.value,
       subject: message.subject,
       prospectId: crm.association.prospectId,
@@ -361,7 +382,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const sendResult = await sendOgrProductOutreachEmail({
-      to,
+      to: primaryTo,
       subject: message.subject,
       html: message.html,
       text: message.text,
@@ -414,6 +435,26 @@ export const POST: APIRoute = async ({ request }) => {
         resendEmailId: sendResult.resendEmailId,
         error: persist.error,
       });
+      if (siblingEmails.length > 0) {
+        await sendSiblingProductOutreachEmails({
+          client: gate.supabase,
+          emails: siblingEmails,
+          product: loaded.product,
+          presentation,
+          emailMarket,
+          requestOrigin: new URL(request.url).origin,
+          toName: recipientNameResult.value ?? null,
+          subject: subjectResult.value || message.subject,
+          introText: introResult.value ?? '',
+          closingText: closingResult.value ?? '',
+          signatureName: sender.signatureName,
+          fromDisplayName: sender.fromDisplayName,
+          prospectId: crm.association.prospectId,
+          accountContactId: crm.association.accountContactId,
+          retailerLineAccountId: retailerLineAccountId ?? null,
+          sentBy: gate.userId,
+        });
+      }
       return new Response(
         JSON.stringify({
           ok: true,
@@ -431,6 +472,27 @@ export const POST: APIRoute = async ({ request }) => {
     const admin = getServiceRoleClient();
     if (admin) {
       await replayUnmatchedResendEvents(admin, sendResult.resendEmailId);
+    }
+
+    if (siblingEmails.length > 0) {
+      await sendSiblingProductOutreachEmails({
+        client: gate.supabase,
+        emails: siblingEmails,
+        product: loaded.product,
+        presentation,
+        emailMarket,
+        requestOrigin: new URL(request.url).origin,
+        toName: recipientNameResult.value ?? null,
+        subject: subjectResult.value || message.subject,
+        introText: introResult.value ?? '',
+        closingText: closingResult.value ?? '',
+        signatureName: sender.signatureName,
+        fromDisplayName: sender.fromDisplayName,
+        prospectId: crm.association.prospectId,
+        accountContactId: crm.association.accountContactId,
+        retailerLineAccountId: retailerLineAccountId ?? null,
+        sentBy: gate.userId,
+      });
     }
 
     return new Response(

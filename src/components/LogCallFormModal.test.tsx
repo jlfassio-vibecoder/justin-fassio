@@ -225,6 +225,7 @@ describe('LogCallFormModal store dial context', () => {
           title: 'Buyer',
           phone: '541-555-9999',
           email: 'jordan@coast.example',
+          alternateEmail: null,
           isPrimary: true,
           notes: 'Prefers morning calls.',
           createdAt: '2026-08-01T00:00:00Z',

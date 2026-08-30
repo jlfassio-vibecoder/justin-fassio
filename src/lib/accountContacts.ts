@@ -2,12 +2,14 @@ import { supabase } from '@/lib/supabase';
 import { resolveOgrLineId } from '@/lib/lines';
 import { accountStatusFromRelationship } from '@/lib/ogrCommercial';
 import { fetchOperationalLineAccount } from '@/lib/retailerLineAccounts';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   AccountContact as AccountContactRow,
   AccountContactInsert,
   AccountContactRole,
   AccountContactUpdate,
   AccountStatus,
+  Database,
 } from '@/types/database';
 
 export const ACCOUNT_CONTACT_ROLES = [
@@ -27,7 +29,7 @@ export function accountContactRoleLabel(role: AccountContactRole): string {
 }
 
 export const ACCOUNT_CONTACT_SELECT =
-  'id, account_id, role, full_name, title, phone, email, is_primary, notes, created_at, updated_at' as const;
+  'id, account_id, role, full_name, title, phone, email, alternate_email, is_primary, notes, created_at, updated_at' as const;
 
 export interface AccountContact {
   id: string;
@@ -37,6 +39,7 @@ export interface AccountContact {
   title: string | null;
   phone: string | null;
   email: string | null;
+  alternateEmail: string | null;
   isPrimary: boolean;
   notes: string | null;
   createdAt: string;
@@ -100,6 +103,7 @@ export function mapAccountContactRow(row: AccountContactRow): AccountContact {
     title: row.title,
     phone: row.phone,
     email: row.email,
+    alternateEmail: row.alternate_email,
     isPrimary: row.is_primary,
     notes: row.notes,
     createdAt: row.created_at,
@@ -125,6 +129,25 @@ export async function fetchContactsForAccount(
     data: ((data ?? []) as AccountContactRow[]).map(mapAccountContactRow),
     error: null,
   };
+}
+
+export async function fetchAccountContactById(
+  client: SupabaseClient<Database>,
+  contactId: string,
+): Promise<{ data: AccountContact | null; error: string | null }> {
+  const { data, error } = await client
+    .from('account_contacts')
+    .select(ACCOUNT_CONTACT_SELECT)
+    .eq('id', contactId)
+    .maybeSingle();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+  if (!data) {
+    return { data: null, error: null };
+  }
+  return { data: mapAccountContactRow(data as AccountContactRow), error: null };
 }
 
 export type FetchAllContactsOptions = {
@@ -446,14 +469,20 @@ export function normalizeContactFullName(fullName: string | null | undefined): s
   return (fullName ?? '').trim().toLowerCase();
 }
 
-/** Exact email match (case-insensitive). Hard duplicate. */
+/** Exact email match against email or alternate_email (case-insensitive). Hard duplicate. */
 export function findExactEmailDuplicate(
   contacts: readonly AccountContact[],
   email: string | null | undefined,
 ): AccountContact | null {
   const normalized = normalizeContactEmail(email);
   if (!normalized) return null;
-  return contacts.find((c) => normalizeContactEmail(c.email) === normalized) ?? null;
+  return (
+    contacts.find(
+      (c) =>
+        normalizeContactEmail(c.email) === normalized ||
+        normalizeContactEmail(c.alternateEmail) === normalized,
+    ) ?? null
+  );
 }
 
 /** Name-only match when there is no email collision. Soft warning. */
@@ -469,13 +498,15 @@ export function findNameOnlyDuplicate(
 export type AccountContactDuplicateMatch =
   { kind: 'email'; contact: AccountContact } | { kind: 'name'; contact: AccountContact };
 
-/** Classify same-account duplicate: email hard, else name soft. */
+/** Classify same-account duplicate: email/alternate hard, else name soft. */
 export function classifyAccountContactDuplicate(
   contacts: readonly AccountContact[],
-  input: { fullName: string; email?: string | null },
+  input: { fullName: string; email?: string | null; alternateEmail?: string | null },
 ): AccountContactDuplicateMatch | null {
   const byEmail = findExactEmailDuplicate(contacts, input.email);
   if (byEmail) return { kind: 'email', contact: byEmail };
+  const byAlternate = findExactEmailDuplicate(contacts, input.alternateEmail);
+  if (byAlternate) return { kind: 'email', contact: byAlternate };
   const byName = findNameOnlyDuplicate(contacts, input.fullName);
   if (byName) return { kind: 'name', contact: byName };
   return null;

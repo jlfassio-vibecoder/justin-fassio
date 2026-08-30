@@ -721,6 +721,7 @@ create table if not exists account_contacts (
   title text,
   phone text,
   email text,
+  alternate_email text,
   is_primary boolean not null default false,
   notes text,
   created_at timestamptz not null default now(),

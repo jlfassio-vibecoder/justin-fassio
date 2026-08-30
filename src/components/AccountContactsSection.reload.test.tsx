@@ -45,6 +45,7 @@ function contact(
     title: 'Buyer',
     phone: '250-555-0100',
     email: 'pat@example.com',
+    alternateEmail: null,
     isPrimary: true,
     notes: null,
     createdAt: '',

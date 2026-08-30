@@ -21,6 +21,9 @@ import { resolveOgrPricingMarketForProductEmailDraft } from '@/lib/resolveAccoun
 import { sendOgrProductOutreachEmail } from '@/lib/sendOgrProductOutreachEmail';
 import { getServiceRoleClient } from '@/lib/supabaseAdmin';
 import { replayUnmatchedResendEvents } from '@/lib/resendWebhook';
+import { fetchAccountContactById } from '@/lib/accountContacts';
+import { resolveProductOutreachSendEmails } from '@/lib/resolveProductOutreachSendEmails';
+import { sendSiblingProductOutreachEmails } from '@/lib/sendSiblingProductOutreachEmails';
 import {
   getAgentProductOutreachDraftById,
   markAgentProductOutreachDraftSent,
@@ -65,6 +68,22 @@ export const POST: APIRoute = async ({ params, request }) => {
     accountContactId: draft.accountContactId,
   });
   if (!crm.ok) return jsonError(crm.error, 400);
+
+  let sendContact = null;
+  if (crm.association.accountContactId) {
+    const loadedContact = await fetchAccountContactById(
+      gate.supabase,
+      crm.association.accountContactId,
+    );
+    if (loadedContact.error) {
+      return jsonError(loadedContact.error, 500);
+    }
+    sendContact = loadedContact.data;
+  }
+  const recipients = resolveProductOutreachSendEmails(sendContact, draft.toEmail);
+  const siblingEmails = recipients.filter(
+    (email) => email.toLowerCase() !== draft.toEmail.trim().toLowerCase(),
+  );
 
   const loaded = await loadPublishedOgrProductForEmail(gate.supabase, draft.catalogItemId);
   if (!loaded.ok) {
@@ -204,6 +223,26 @@ export const POST: APIRoute = async ({ params, request }) => {
         resendEmailId: sendResult.resendEmailId,
         error: persist.error,
       });
+      if (siblingEmails.length > 0) {
+        await sendSiblingProductOutreachEmails({
+          client: gate.supabase,
+          emails: siblingEmails,
+          product: loaded.product,
+          presentation,
+          emailMarket,
+          requestOrigin: new URL(request.url).origin,
+          toName: draft.toName,
+          subject: draft.subject,
+          introText: draft.introText,
+          closingText: draft.closingText,
+          signatureName: sender.signatureName,
+          fromDisplayName: sender.fromDisplayName,
+          prospectId: crm.association.prospectId,
+          accountContactId: crm.association.accountContactId,
+          retailerLineAccountId: draft.retailerLineAccountId,
+          sentBy: gate.userId,
+        });
+      }
       return jsonOk({
         systemMessageId: draft.id,
         resendEmailId: sendResult.resendEmailId,
@@ -214,6 +253,27 @@ export const POST: APIRoute = async ({ params, request }) => {
     const admin = getServiceRoleClient();
     if (admin) {
       await replayUnmatchedResendEvents(admin, sendResult.resendEmailId);
+    }
+
+    if (siblingEmails.length > 0) {
+      await sendSiblingProductOutreachEmails({
+        client: gate.supabase,
+        emails: siblingEmails,
+        product: loaded.product,
+        presentation,
+        emailMarket,
+        requestOrigin: new URL(request.url).origin,
+        toName: draft.toName,
+        subject: draft.subject,
+        introText: draft.introText,
+        closingText: draft.closingText,
+        signatureName: sender.signatureName,
+        fromDisplayName: sender.fromDisplayName,
+        prospectId: crm.association.prospectId,
+        accountContactId: crm.association.accountContactId,
+        retailerLineAccountId: draft.retailerLineAccountId,
+        sentBy: gate.userId,
+      });
     }
 
     return jsonOk({
