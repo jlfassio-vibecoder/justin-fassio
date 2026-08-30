@@ -222,11 +222,12 @@ function hasVerifiedGeo(row: PrepRow): boolean {
 function isFalsePositiveContainment(sheetName: string, prospectName: string): boolean {
   const sheet = compactNameKey(sheetName);
   const prospect = compactNameKey(prospectName);
-  // "Mook" must not match "Tillamook"
-  if (sheet.includes('mook') && prospect.includes('tillamook') && !prospect.includes('mook')) {
-    return true;
-  }
-  if (sheet.includes('mook') && /tillamook/i.test(prospectName) && !/mook/i.test(prospectName)) {
+  // "Mook" / "The Mook…" must not match "Tillamook" (compact "tillamook" contains "mook").
+  if (
+    sheet.includes('mook') &&
+    !sheet.includes('tillamook') &&
+    (prospect.includes('tillamook') || /tillamook/i.test(prospectName))
+  ) {
     return true;
   }
   return false;
@@ -299,10 +300,6 @@ function classifyContactDuplicate(
   const byName = contacts.find((c) => (c.fullName ?? '').trim().toLowerCase() === name);
   if (byName) return { kind: 'name', contact: byName };
   return null;
-}
-
-function qualityIsStrong(quality: string): boolean {
-  return /a\+\+|verified|excellent|very strong/i.test(quality);
 }
 
 function contactNotes(row: PrepRow): string | null {
@@ -417,7 +414,7 @@ async function upsertContact(prospectId: number, row: PrepRow, report: string[])
   }
 
   const hasPrimary = contacts.some((c) => c.isPrimary);
-  const makePrimary = qualityIsStrong(row.contactQuality) ? !hasPrimary : !hasPrimary;
+  const makePrimary = !hasPrimary;
   const { error: insErr } = await client.from('account_contacts').insert({
     account_id: prospectId,
     role,

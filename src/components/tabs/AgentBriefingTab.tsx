@@ -549,6 +549,8 @@ export function AgentBriefingTab({
     (args: OpenBriefingStoreArgs) => {
       const found = prospectsById.get(args.prospectId);
       if (!found) {
+        setDetailStore(null);
+        setOpenResearchForId(null);
         setDrawerError(
           `Account #${args.prospectId} is not in the loaded directory. Refresh and try again.`,
         );

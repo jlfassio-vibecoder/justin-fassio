@@ -19,7 +19,7 @@ import {
   prospectMatchesCrmRegion,
   prospectMatchesPrepCity,
 } from '@/lib/geoCatalog';
-import { normalizePrepChannel } from '@/lib/crmRetailTaxonomy';
+import { normalizePrepChannel, prospectMatchesPrepChannel } from '@/lib/crmRetailTaxonomy';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
 import type { OutreachGoalSettings } from '@/lib/outreachGoals';
 import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
@@ -193,6 +193,7 @@ async function findPrepRun(params: {
 
   const prepCity = normalizePrepCity(params.city);
   query = prepCity ? query.eq('prep_city', prepCity) : query.is('prep_city', null);
+  // Copilot suggestion ignored: run identity has no prep_channel column yet; channel only scopes selection + pending-draft counts.
 
   const { data, error } = await query.maybeSingle();
   if (error) return { ok: false, error: error.message };
@@ -336,10 +337,12 @@ export async function countPendingDraftsForRegionalScope(
     storeTerritoryCode?: string | null;
     crmRegion?: string | null;
     city?: string | null;
+    channel?: string | null;
   },
 ): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
   const crmRegion = normalizePrepCrmRegion(params.crmRegion);
   const prepCity = normalizePrepCity(params.city);
+  const prepChannel = normalizePrepChannel(params.channel);
   const storeCode = params.storeTerritoryCode?.trim().toLowerCase() || null;
 
   const pageSize = 100;
@@ -370,8 +373,8 @@ export async function countPendingDraftsForRegionalScope(
 
   if (draftsByProspect.size === 0) return { ok: true, count: 0 };
 
-  // No CRM region or city filter (ALL): count every pending agent draft.
-  if (!crmRegion && !prepCity) {
+  // No CRM region, city, or channel filter (ALL): count every pending agent draft.
+  if (!crmRegion && !prepCity && !prepChannel) {
     let total = 0;
     for (const n of draftsByProspect.values()) total += n;
     return { ok: true, count: total };
@@ -384,7 +387,7 @@ export async function countPendingDraftsForRegionalScope(
     const chunk = ids.slice(i, i + chunkSize);
     const { data, error } = await client
       .from('prospects')
-      .select('id, region, city')
+      .select('id, region, city, category')
       .in('id', chunk);
     if (error) return { ok: false, error: error.message };
     for (const row of data ?? []) {
@@ -392,6 +395,9 @@ export async function countPendingDraftsForRegionalScope(
         continue;
       }
       if (!prospectMatchesPrepCity(row.city, prepCity)) {
+        continue;
+      }
+      if (!prospectMatchesPrepChannel(row.category, prepChannel)) {
         continue;
       }
       matching.add(row.id);
@@ -716,6 +722,7 @@ async function continuePrep(params: {
         storeTerritoryCode,
         crmRegion,
         city,
+        channel,
       })
     : await countPendingDraftsForPreparationDate(client, runDate);
   if (!pending.ok) {
