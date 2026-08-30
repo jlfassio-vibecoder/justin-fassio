@@ -28,6 +28,7 @@ import {
   resolveProductOutreachCrmAssociation,
   stampProductOutreachMessageSent,
   stampResendEmailIdWithRetry,
+  SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL,
   validateProductOutreachRetailerLineAccount,
 } from '@/lib/systemMessages';
 
@@ -335,6 +336,28 @@ export const POST: APIRoute = async ({ request }) => {
         introText: introResult.value,
         closingText: closingResult.value,
       });
+      const { error: stampedPayloadError } = await gate.supabase
+        .from('system_messages')
+        .update({
+          payload: {
+            sku: loaded.product.sku,
+            name: loaded.product.name,
+            slug: presentation.slug,
+            productHref,
+            ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
+          },
+        })
+        .eq('id', ledger.id)
+        .eq('origin', SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL)
+        .eq('status', 'sending');
+      if (stampedPayloadError) {
+        console.error('[ogrProductOutreachEmail]', {
+          workflow: 'system_message_stamp_presence_href',
+          productId,
+          systemMessageId: ledger.id,
+          error: stampedPayloadError.message,
+        });
+      }
     }
 
     const sendResult = await sendOgrProductOutreachEmail({

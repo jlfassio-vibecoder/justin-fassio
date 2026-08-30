@@ -61,6 +61,7 @@ vi.mock('@/lib/resendWebhook', () => ({
 }));
 
 vi.mock('@/lib/systemMessages', () => ({
+  SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL: 'manual_product_email',
   resolveProductOutreachCrmAssociation: (...args: unknown[]) =>
     resolveProductOutreachCrmAssociationMock(...args),
   insertProductOutreachSendingMessage: (...args: unknown[]) =>
@@ -132,7 +133,11 @@ function mockStaffGate(
   });
   const eq = vi.fn().mockReturnValue({ maybeSingle });
   const select = vi.fn().mockReturnValue({ eq });
-  const from = vi.fn().mockReturnValue({ select });
+  const updateFinalEq = vi.fn().mockResolvedValue({ data: null, error: null });
+  const updateMidEq2 = vi.fn().mockReturnValue({ eq: updateFinalEq });
+  const updateMidEq1 = vi.fn().mockReturnValue({ eq: updateMidEq2 });
+  const update = vi.fn().mockReturnValue({ eq: updateMidEq1 });
+  const from = vi.fn().mockReturnValue({ select, update });
   const getUser = vi.fn().mockResolvedValue({
     data: {
       user: {

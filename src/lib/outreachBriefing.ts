@@ -950,9 +950,10 @@ export async function assembleOutreachBriefing(params: {
     }
   }
 
+  const scopedLeadIds = new Set(scopedLeads.map((l) => l.prospectId));
   const presenceNameIds = scopedPresence
     .map((p) => p.prospectId)
-    .filter((id) => !scopedLeads.some((l) => l.prospectId === id));
+    .filter((id) => !scopedLeadIds.has(id));
   const prospectNames = new Map<number, string>();
   for (const l of scopedLeads) prospectNames.set(l.prospectId, l.prospectName);
   if (presenceNameIds.length > 0) {

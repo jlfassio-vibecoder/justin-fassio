@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   appendPresenceVisitToken,
   isPresenceActive,
+  resolvePresenceSigningSecret,
   signPresenceVisitToken,
   verifyPresenceVisitToken,
 } from '@/lib/presenceVisitToken';
@@ -51,6 +52,27 @@ describe('presenceVisitToken', () => {
     expect(
       href.startsWith('https://justinfassio.com/old-guys-rule-wholesale/american-revival'),
     ).toBe(true);
+  });
+
+  it('does not fall back to SUPABASE_SERVICE_ROLE_KEY for signing', () => {
+    const prevPresence = process.env.PRESENCE_VISIT_TOKEN_SECRET;
+    const prevService = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    delete process.env.PRESENCE_VISIT_TOKEN_SECRET;
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-must-not-sign-presence';
+    try {
+      expect(resolvePresenceSigningSecret()).toBeNull();
+      expect(
+        signPresenceVisitToken({
+          prospectId: 1,
+          systemMessageId: '11111111-1111-1111-1111-111111111111',
+        }),
+      ).toBeNull();
+    } finally {
+      if (prevPresence === undefined) delete process.env.PRESENCE_VISIT_TOKEN_SECRET;
+      else process.env.PRESENCE_VISIT_TOKEN_SECRET = prevPresence;
+      if (prevService === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+      else process.env.SUPABASE_SERVICE_ROLE_KEY = prevService;
+    }
   });
 
   it('isPresenceActive respects the active window', () => {

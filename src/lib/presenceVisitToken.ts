@@ -41,15 +41,7 @@ export function resolvePresenceSigningSecret(): string | null {
       import.meta.env.PRESENCE_VISIT_TOKEN_SECRET.trim()) ||
     (typeof process !== 'undefined' && process.env.PRESENCE_VISIT_TOKEN_SECRET?.trim()) ||
     '';
-  if (dedicated) return dedicated;
-  const fallback =
-    (typeof import.meta !== 'undefined' &&
-      import.meta.env &&
-      typeof import.meta.env.SUPABASE_SERVICE_ROLE_KEY === 'string' &&
-      import.meta.env.SUPABASE_SERVICE_ROLE_KEY.trim()) ||
-    (typeof process !== 'undefined' && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) ||
-    '';
-  return fallback || null;
+  return dedicated || null;
 }
 
 function hmacSign(secret: string, body: string): Buffer {

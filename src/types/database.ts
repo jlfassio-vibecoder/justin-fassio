@@ -2059,6 +2059,13 @@ export interface Database {
             referencedRelation: 'prospects';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'prospect_site_presence_system_message_id_fkey';
+            columns: ['system_message_id'];
+            isOneToOne: false;
+            referencedRelation: 'system_messages';
+            referencedColumns: ['id'];
+          },
         ];
       };
       account_conversion_attribution: {
