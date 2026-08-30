@@ -177,7 +177,11 @@ export function ProspectDetailDrawer({
               className="font-heading flex items-start gap-1.5 text-xl leading-tight"
             >
               <span className="min-w-0">{prospect.name}</span>
-              <CopyUrlButton url={prospect.name} label="Copy name" className="mt-1" />
+              <CopyUrlButton
+                url={[prospect.name?.trim(), prospect.city?.trim()].filter(Boolean).join(', ')}
+                label="Copy name"
+                className="mt-1"
+              />
             </p>
             <p className="text-ink/60 m-0 mt-1 text-xs tracking-wide uppercase">
               ID {prospect.id} · {STATUS_LABEL[prospect.accountStatus]}

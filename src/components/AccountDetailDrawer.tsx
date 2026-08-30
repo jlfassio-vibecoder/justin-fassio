@@ -519,7 +519,11 @@ export function AccountDetailDrawer({
               className="font-heading flex items-start gap-1.5 text-xl leading-tight"
             >
               <span className="min-w-0">{account.name}</span>
-              <CopyUrlButton url={account.name} label="Copy name" className="mt-1" />
+              <CopyUrlButton
+                url={[account.name?.trim(), account.city?.trim()].filter(Boolean).join(', ')}
+                label="Copy name"
+                className="mt-1"
+              />
             </p>
             <p className="text-ink/60 m-0 mt-1 text-xs tracking-wide uppercase">
               ID {account.id} · Active account
