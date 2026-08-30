@@ -10,6 +10,7 @@ import {
   suggestOperationalTerritoryForAccount,
   type OperationalTerritoryOption,
 } from '@/lib/operationalTerritories';
+import { formatAccountDetailsClipboard } from '@/lib/formatAccountDetailsClipboard';
 import type { Prospect } from '@/lib/prospects';
 import { fetchOperationalLineAccount } from '@/lib/retailerLineAccounts';
 import {
@@ -205,13 +206,17 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
   }
 
   if (!editing) {
+    const accountDetailsClipboard = formatAccountDetailsClipboard(prospect);
     return (
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-heading m-0 text-base">Account details</h3>
-          <Button type="button" variant="secondary" disabled={disabled} onClick={startEdit}>
-            Edit
-          </Button>
+          <div className="flex items-center gap-2">
+            <CopyUrlButton url={accountDetailsClipboard} label="Copy account details" />
+            <Button type="button" variant="secondary" disabled={disabled} onClick={startEdit}>
+              Edit
+            </Button>
+          </div>
         </div>
         <dl className="m-0 grid gap-3 text-sm">
           <div>
