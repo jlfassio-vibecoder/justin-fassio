@@ -29,6 +29,11 @@ import {
   prospectMatchesCrmRegion,
   prospectMatchesPrepCity,
 } from '@/lib/geoCatalog';
+import {
+  normalizePrepChannel,
+  prospectMatchesPrepChannel,
+  type PrimaryRetailChannel,
+} from '@/lib/crmRetailTaxonomy';
 import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outreachSelectTargets';
 import { isWithinOutreachCooldown, pickOutreachContact } from '@/lib/outreachEligibility';
 import {
@@ -352,20 +357,25 @@ async function loadRecentConversions(
 }
 
 /**
- * Mirror draft regional filtering: when Briefing has crmRegion and/or city scope,
- * keep only leads whose prospect region/city match.
+ * Mirror draft regional filtering: when Briefing has crmRegion, city, and/or channel scope,
+ * keep only leads whose prospect region/city/category match.
  */
 export async function filterOutreachLeadsByPrepScope(params: {
   client: Client;
   leads: OutreachLeadRow[];
   crmRegion: string | null;
   city: string | null;
+  channel?: PrimaryRetailChannel | null;
   storeTerritoryCode?: string | null;
-  /** When set, skip the prospects lookup (reuse a preloaded region/city map). */
-  regionCityById?: Map<number, { region: string | null; city: string | null }>;
+  /** When set, skip the prospects lookup (reuse a preloaded region/city/category map). */
+  regionCityById?: Map<
+    number,
+    { region: string | null; city: string | null; category: string | null }
+  >;
 }): Promise<OutreachLeadRow[]> {
   const { leads, crmRegion, city } = params;
-  if ((!crmRegion && !city) || leads.length === 0) return leads;
+  const channel = params.channel ?? null;
+  if ((!crmRegion && !city && !channel) || leads.length === 0) return leads;
 
   const byId =
     params.regionCityById ??
@@ -384,6 +394,9 @@ export async function filterOutreachLeadsByPrepScope(params: {
     if (!prospectMatchesPrepCity(prospect.city, city)) {
       return false;
     }
+    if (!prospectMatchesPrepChannel(prospect.category, channel)) {
+      return false;
+    }
     return true;
   });
 }
@@ -391,17 +404,24 @@ export async function filterOutreachLeadsByPrepScope(params: {
 async function loadProspectRegionCityByIds(
   client: Client,
   prospectIds: number[],
-): Promise<Map<number, { region: string | null; city: string | null }>> {
+): Promise<Map<number, { region: string | null; city: string | null; category: string | null }>> {
   const ids = [...new Set(prospectIds)];
-  const out = new Map<number, { region: string | null; city: string | null }>();
+  const out = new Map<
+    number,
+    { region: string | null; city: string | null; category: string | null }
+  >();
   if (ids.length === 0) return out;
   const { data: rows, error } = await client
     .from('prospects')
-    .select('id, region, city')
+    .select('id, region, city, category')
     .in('id', ids);
   if (error) throw new Error(error.message);
   for (const p of rows ?? []) {
-    out.set(p.id, { region: p.region ?? null, city: p.city ?? null });
+    out.set(p.id, {
+      region: p.region ?? null,
+      city: p.city ?? null,
+      category: p.category ?? null,
+    });
   }
   return out;
 }
@@ -448,12 +468,17 @@ export async function filterRecentEngagementByPrepScope(params: {
   rows: OutreachBriefingDto['recentEngagement'];
   crmRegion: string | null;
   city: string | null;
+  channel?: PrimaryRetailChannel | null;
   storeTerritoryCode?: string | null;
-  /** When set, skip the prospects lookup (reuse a preloaded region/city map). */
-  regionCityById?: Map<number, { region: string | null; city: string | null }>;
+  /** When set, skip the prospects lookup (reuse a preloaded region/city/category map). */
+  regionCityById?: Map<
+    number,
+    { region: string | null; city: string | null; category: string | null }
+  >;
 }): Promise<OutreachBriefingDto['recentEngagement']> {
   const { rows, crmRegion, city } = params;
-  if ((!crmRegion && !city) || rows.length === 0) return rows;
+  const channel = params.channel ?? null;
+  if ((!crmRegion && !city && !channel) || rows.length === 0) return rows;
 
   const byId =
     params.regionCityById ??
@@ -470,6 +495,9 @@ export async function filterRecentEngagementByPrepScope(params: {
       return false;
     }
     if (!prospectMatchesPrepCity(prospect.city, city)) {
+      return false;
+    }
+    if (!prospectMatchesPrepChannel(prospect.category, channel)) {
       return false;
     }
     return true;
@@ -501,6 +529,7 @@ export async function assembleOutreachBriefing(params: {
     storeTerritoryCode?: string | null;
     crmRegion?: string | null;
     city?: string | null;
+    channel?: string | null;
   };
 }): Promise<{ ok: true; briefing: OutreachBriefingDto } | { ok: false; error: string }> {
   const client = params.client;
@@ -567,11 +596,11 @@ export async function assembleOutreachBriefing(params: {
 
   const scopedCrmRegion = normalizePrepCrmRegion(params.regionalPrepScope?.crmRegion);
   const scopedPrepCity = normalizePrepCity(params.regionalPrepScope?.city);
+  const scopedChannel = normalizePrepChannel(params.regionalPrepScope?.channel);
 
   let regionalPool: OutreachPoolDiagnostics | null = null;
   if (
     params.regionalPrepScope?.operationalTerritoryId &&
-    (scopedCrmRegion || scopedPrepCity) &&
     params.regionalPrepScope.storeTerritoryCode
   ) {
     const poolDiag = await selectOutreachTargets(client, {
@@ -582,6 +611,7 @@ export async function assembleOutreachBriefing(params: {
       storeTerritoryCode: params.regionalPrepScope.storeTerritoryCode,
       crmRegion: scopedCrmRegion ?? undefined,
       city: scopedPrepCity ?? undefined,
+      channel: scopedChannel ?? undefined,
       rankMode: 'fit_score',
       skipChannelAllocation: true,
       allowMissingEmail: true,
@@ -624,7 +654,7 @@ export async function assembleOutreachBriefing(params: {
   if (draftProspectIds.length > 0) {
     const { data: names } = await client
       .from('prospects')
-      .select('id, name, account_status, region, city')
+      .select('id, name, account_status, region, city, category')
       .in('id', draftProspectIds);
     const prospectById = new Map((names ?? []).map((p) => [p.id, p] as const));
     for (const d of drafts) {
@@ -633,7 +663,7 @@ export async function assembleOutreachBriefing(params: {
       if (name) d.prospectName = name;
       if (prospect?.account_status) d.accountStatus = prospect.account_status;
     }
-    if (scopedCrmRegion || scopedPrepCity) {
+    if (scopedCrmRegion || scopedPrepCity || scopedChannel) {
       const storeCode = params.regionalPrepScope?.storeTerritoryCode?.trim().toLowerCase() || null;
       filteredDrafts = drafts.filter((d) => {
         const prospect = prospectById.get(d.prospectId);
@@ -645,6 +675,10 @@ export async function assembleOutreachBriefing(params: {
           return false;
         }
         if (!prospectMatchesPrepCity(prospect.city, scopedPrepCity)) {
+          return false;
+        }
+        const draftChannel = d.primaryChannel ?? prospect.category ?? null;
+        if (!prospectMatchesPrepChannel(draftChannel, scopedChannel)) {
           return false;
         }
         return true;
@@ -681,7 +715,8 @@ export async function assembleOutreachBriefing(params: {
     (t) =>
       t.needsEmail &&
       !pendingDraftProspectIds.has(t.prospectId) &&
-      !researchQueueDismissals.has(t.prospectId),
+      !researchQueueDismissals.has(t.prospectId) &&
+      prospectMatchesPrepChannel(t.primaryChannel, scopedChannel),
   );
 
   if (identifiedTargets.length > 0) {
@@ -769,7 +804,7 @@ export async function assembleOutreachBriefing(params: {
 
   let scopedLeads = allLeads;
   let scopedEngagement = recentEngagement;
-  if (scopedCrmRegion || scopedPrepCity) {
+  if (scopedCrmRegion || scopedPrepCity || scopedChannel) {
     try {
       const regionCityById = await loadProspectRegionCityByIds(client, [
         ...allLeads.map((l) => l.prospectId),
@@ -780,6 +815,7 @@ export async function assembleOutreachBriefing(params: {
         leads: allLeads,
         crmRegion: scopedCrmRegion,
         city: scopedPrepCity,
+        channel: scopedChannel,
         storeTerritoryCode: params.regionalPrepScope?.storeTerritoryCode,
         regionCityById,
       });
@@ -788,6 +824,7 @@ export async function assembleOutreachBriefing(params: {
         rows: recentEngagement,
         crmRegion: scopedCrmRegion,
         city: scopedPrepCity,
+        channel: scopedChannel,
         storeTerritoryCode: params.regionalPrepScope?.storeTerritoryCode,
         regionCityById,
       });

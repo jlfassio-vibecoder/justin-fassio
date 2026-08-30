@@ -1015,6 +1015,79 @@ describe('selectOutreachTargets', () => {
     );
   });
 
+  it('regional: includes null operational_territory_id when store/region filters match', async () => {
+    const contact = (id: number, email: string) => ({
+      id: `c-${id}`,
+      account_id: id,
+      role: 'buyer',
+      full_name: `Buyer ${id}`,
+      title: null,
+      phone: null,
+      email,
+      is_primary: true,
+      notes: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    });
+    const client = mockSelectClient({
+      prospects: [
+        prospectRow(50, 'Coast Golf Unassigned Ops', {
+          fit_score: 9,
+          priority: 'Tier 1',
+          operational_territory_id: null,
+          region: 'Oregon Coast',
+          category: 'golf_retail',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+        prospectRow(51, 'Wrong Ops East', {
+          fit_score: 10,
+          priority: 'Tier 1',
+          operational_territory_id: 'ops-pnw-east',
+          region: 'Oregon Coast',
+          category: 'golf_retail',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+      ],
+      contacts: [contact(50, 'coast@example.com'), contact(51, 'east@example.com')],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 5,
+      preparationDate: '2026-08-25',
+      asOf: new Date('2026-08-25T18:00:00Z'),
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      crmRegion: 'Oregon Coast',
+      channel: 'golf_retail',
+      rankMode: 'fit_score',
+      skipChannelAllocation: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets.map((t) => t.prospectId)).toEqual([50]);
+    expect(result.excluded).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ prospectId: 51, reason: 'outside_ops_territory' }),
+      ]),
+    );
+  });
+
   it('regional: includes lookalike_prospect without outreach_eligible when ops filter set', async () => {
     const client = mockSelectClient({
       prospects: [

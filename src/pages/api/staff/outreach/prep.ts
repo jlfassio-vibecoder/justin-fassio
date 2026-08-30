@@ -10,6 +10,7 @@ import {
   runOutreachNightlyPrep,
 } from '@/lib/outreachNightlyPrep';
 import { normalizePrepCity, normalizePrepCrmRegion } from '@/lib/geoCatalog';
+import { normalizePrepChannel } from '@/lib/crmRetailTaxonomy';
 import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { isWeekdayIso } from '@/lib/outreachSellingDays';
 
@@ -49,6 +50,7 @@ export const POST: APIRoute = async ({ request }) => {
   const storeTerritoryCode = storeRaw || null;
   const crmRegionRaw = typeof body.crmRegion === 'string' ? body.crmRegion.trim() : '';
   const cityRaw = typeof body.city === 'string' ? body.city.trim() : '';
+  const channelRaw = typeof body.channel === 'string' ? body.channel.trim() : '';
 
   if (storeTerritoryCode && !['or', 'wa'].includes(storeTerritoryCode)) {
     return json({ error: 'storeTerritoryCode must be "or" or "wa" when set' }, 400);
@@ -108,6 +110,7 @@ export const POST: APIRoute = async ({ request }) => {
     storeTerritoryCode,
     crmRegion: normalizePrepCrmRegion(crmRegionRaw || null),
     city: normalizePrepCity(cityRaw || null),
+    channel: normalizePrepChannel(channelRaw || null),
     limit,
   });
 

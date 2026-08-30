@@ -4,9 +4,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
 import { catalogItemStub } from '@/lib/catalog';
 import type { OutreachBriefingDto } from '@/lib/outreachBriefingShared';
+import {
+  BC_PROSPECT_TERRITORY,
+  EMPTY_PROSPECT_PLANNING,
+  EMPTY_PROSPECT_TAXONOMY,
+  type Prospect,
+} from '@/lib/prospects';
 
 const getAgentProductOutreachDraftClientMock = vi.fn();
 const createFollowUpDraftClientMock = vi.fn();
+const cancelAgentProductOutreachDraftClientMock = vi.fn();
 const { useOptionalLineContextMock } = vi.hoisted(() => ({
   useOptionalLineContextMock: vi.fn(() => ({
     multiLineUi: false,
@@ -21,6 +28,8 @@ vi.mock('@/lib/agentProductOutreachDraftClient', async (importOriginal) => {
     getAgentProductOutreachDraftClient: (...args: unknown[]) =>
       getAgentProductOutreachDraftClientMock(...args),
     createFollowUpDraftClient: (...args: unknown[]) => createFollowUpDraftClientMock(...args),
+    cancelAgentProductOutreachDraftClient: (...args: unknown[]) =>
+      cancelAgentProductOutreachDraftClientMock(...args),
   };
 });
 
@@ -32,6 +41,38 @@ vi.mock('@/components/OgrProductEmailComposerModal', () => ({
     open: boolean;
     draft?: { id: string } | null;
   }) => (open && draft ? <div data-testid="composer-modal">Draft {draft.id}</div> : null),
+}));
+
+vi.mock('@/components/ProspectDetailDrawer', () => ({
+  ProspectDetailDrawer: ({
+    prospect,
+    initialScrollToResearch,
+  }: {
+    prospect: Prospect | null;
+    initialScrollToResearch?: boolean;
+  }) =>
+    prospect ? (
+      <div data-testid="prospect-detail-drawer">
+        <span>{prospect.name}</span>
+        {initialScrollToResearch ? <span data-testid="research-scroll" /> : null}
+      </div>
+    ) : null,
+}));
+
+vi.mock('@/components/AccountDetailDrawer', () => ({
+  AccountDetailDrawer: ({
+    account,
+    initialSection,
+  }: {
+    account: Prospect | null;
+    initialSection?: string;
+  }) =>
+    account ? (
+      <div data-testid="account-detail-drawer">
+        <span>{account.name}</span>
+        {initialSection === 'research' ? <span data-testid="research-scroll" /> : null}
+      </div>
+    ) : null,
 }));
 
 vi.mock('@/lib/lineContext', () => ({
@@ -100,7 +141,7 @@ const briefingPayload: { briefing: OutreachBriefingDto } = {
         productSku: 'OGR-101',
         productSlug: 'american-revival',
         toEmail: 'buyer@coastalgolf.com',
-        primaryChannel: 'golf',
+        primaryChannel: 'golf_retail',
         createdAt: '2026-08-22T12:00:00Z',
         preparationDate: '2026-08-22',
         fromEarlierPrep: false,
@@ -120,11 +161,45 @@ const briefingPayload: { briefing: OutreachBriefingDto } = {
   },
 };
 
+function prospectStub(
+  id: number,
+  name: string,
+  accountStatus: Prospect['accountStatus'] = 'prospect',
+): Prospect {
+  return {
+    id,
+    name,
+    category: 'golf_retail',
+    region: 'Oregon Coast',
+    city: 'Newport',
+    address: '',
+    phone: '',
+    fit: '',
+    accountStatus,
+    convertedAt: null,
+    initialOrderDate: null,
+    notes: null,
+    ...EMPTY_PROSPECT_PLANNING,
+    ...EMPTY_PROSPECT_TAXONOMY,
+    ...BC_PROSPECT_TERRITORY,
+  };
+}
+
+const defaultProspects = [
+  prospectStub(12, 'Coastal Golf'),
+  prospectStub(44, 'Needs Email Shop'),
+  prospectStub(42, 'Call Today Store'),
+  prospectStub(55, 'Clicked Prospect'),
+  prospectStub(77, 'Warm Shop'),
+  prospectStub(88, 'Engaged Shop'),
+];
+
 function briefingProps(overrides: Record<string, unknown> = {}) {
   return {
     catalog: [catalogItem],
+    prospects: defaultProspects,
     onLogCallForLead: vi.fn(),
-    onOpenProspect: vi.fn(),
+    onLogCall: vi.fn(),
     ...overrides,
   };
 }
@@ -157,6 +232,52 @@ describe('AgentBriefingTab draft review', () => {
         catalogItemId: PRODUCT_ID,
         payload: { sku: 'OGR-101', slug: 'american-revival' },
       },
+    });
+  });
+
+  it('dismisses a draft from Drafts ready for review', async () => {
+    const user = userEvent.setup();
+    let draftDismissed = false;
+    cancelAgentProductOutreachDraftClientMock.mockImplementation(async () => {
+      draftDismissed = true;
+      return {
+        ok: true,
+        draft: { id: DRAFT_ID, status: 'cancelled' },
+      };
+    });
+    const fetchMock = vi.fn().mockImplementation(async (path: string) => {
+      if (typeof path === 'string' && path.includes('/api/staff/outreach/briefing')) {
+        return {
+          ok: true,
+          json: async () =>
+            draftDismissed
+              ? { briefing: { ...briefingPayload.briefing, drafts: [] } }
+              : briefingPayload,
+        };
+      }
+      return { ok: false, json: async () => ({ error: 'unexpected' }) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Dismiss draft for Coastal Golf' }),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss draft for Coastal Golf' }));
+
+    await waitFor(() => {
+      expect(cancelAgentProductOutreachDraftClientMock).toHaveBeenCalledWith(DRAFT_ID);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent(/Dismissed draft for Coastal Golf/i);
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: 'Dismiss draft for Coastal Golf' }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -292,9 +413,8 @@ describe('AgentBriefingTab follow-up queue', () => {
       },
     });
     const user = userEvent.setup();
-    const onOpenProspect = vi.fn();
     const onLogCallForLead = vi.fn();
-    render(<AgentBriefingTab {...briefingProps({ onOpenProspect, onLogCallForLead })} />);
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead })} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('top-leads-quick-view')).toBeInTheDocument();
@@ -303,10 +423,8 @@ describe('AgentBriefingTab follow-up queue', () => {
     expect(screen.getByText('Engaged Shop')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Open Warm Shop' }));
-    expect(onOpenProspect).toHaveBeenCalledWith({
-      prospectId: 77,
-      accountStatus: 'prospect',
-    });
+    expect(screen.getByTestId('prospect-detail-drawer')).toHaveTextContent('Warm Shop');
+    expect(screen.queryByTestId('research-scroll')).not.toBeInTheDocument();
     expect(onLogCallForLead).not.toHaveBeenCalled();
     expect(createFollowUpDraftClientMock).not.toHaveBeenCalled();
   });
@@ -411,8 +529,7 @@ describe('AgentBriefingTab follow-up queue', () => {
     });
     const user = userEvent.setup();
     const onLogCallForLead = vi.fn();
-    const onOpenProspect = vi.fn();
-    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead, onOpenProspect })} />);
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead })} />);
 
     await waitFor(() => {
       expect(screen.getByText('Call Today Store')).toBeInTheDocument();
@@ -424,7 +541,7 @@ describe('AgentBriefingTab follow-up queue', () => {
       talkTrackHint: 'Follow-up scheduled — check in on your last conversation.',
       lastProductName: 'American Revival',
     });
-    expect(onOpenProspect).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('prospect-detail-drawer')).not.toBeInTheDocument();
     expect(createFollowUpDraftClientMock).not.toHaveBeenCalled();
   });
 
@@ -578,8 +695,7 @@ describe('AgentBriefingTab follow-up queue', () => {
     });
     const user = userEvent.setup();
     const onLogCallForLead = vi.fn();
-    const onOpenProspect = vi.fn();
-    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead, onOpenProspect })} />);
+    render(<AgentBriefingTab {...briefingProps({ onLogCallForLead })} />);
 
     await waitFor(() => {
       expect(screen.getByText('Clicked Prospect')).toBeInTheDocument();
@@ -587,10 +703,8 @@ describe('AgentBriefingTab follow-up queue', () => {
 
     await user.click(screen.getByRole('button', { name: 'Watch Clicked Prospect' }));
 
-    expect(onOpenProspect).toHaveBeenCalledWith({
-      prospectId: 55,
-      accountStatus: 'prospect',
-    });
+    expect(screen.getByTestId('prospect-detail-drawer')).toHaveTextContent('Clicked Prospect');
+    expect(screen.queryByTestId('research-scroll')).not.toBeInTheDocument();
     expect(onLogCallForLead).not.toHaveBeenCalled();
   });
 
@@ -703,6 +817,70 @@ describe('AgentBriefingTab follow-up queue', () => {
       );
     });
   });
+
+  it('filters Today’s follow-ups by search text', async () => {
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        followUps: [
+          {
+            prospectId: 42,
+            prospectName: 'Alpha Surf',
+            accountStatus: 'prospect',
+            leadState: 'hot',
+            recommendedAction: 'call',
+            reasonLine: 'Hot intent',
+            talkTrackHint: null,
+            lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastOpenedAt: '2026-08-21T12:00:00Z',
+            lastSentAt: '2026-08-20T12:00:00Z',
+            lastProductName: 'American Revival',
+            lastProductId: PRODUCT_ID,
+            score: 10,
+            followUpOverdueDays: null,
+          },
+          {
+            prospectId: 55,
+            prospectName: 'Beta Gift',
+            accountStatus: 'prospect',
+            leadState: 'warm',
+            recommendedAction: 'email',
+            reasonLine: '1 product clicked',
+            talkTrackHint: null,
+            lastEngagedAt: '2026-08-21T11:00:00Z',
+            lastOpenedAt: '2026-08-21T11:00:00Z',
+            lastSentAt: '2026-08-20T11:00:00Z',
+            lastProductName: null,
+            lastProductId: null,
+            score: 4,
+            followUpOverdueDays: null,
+          },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(
+      <AgentBriefingTab
+        {...briefingProps({
+          prospects: [
+            ...defaultProspects,
+            prospectStub(42, 'Alpha Surf'),
+            prospectStub(55, 'Beta Gift'),
+          ],
+        })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('follow-up-row-42')).toBeInTheDocument();
+      expect(screen.getByTestId('follow-up-row-55')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByRole('searchbox', { name: /search today’s follow-ups/i }), 'beta');
+
+    expect(screen.queryByTestId('follow-up-row-42')).not.toBeInTheDocument();
+    expect(screen.getByTestId('follow-up-row-55')).toBeInTheDocument();
+  });
 });
 
 describe('AgentBriefingTab research entry', () => {
@@ -713,8 +891,7 @@ describe('AgentBriefingTab research entry', () => {
 
   it('opens prospect drawer research from draft row Research button', async () => {
     const user = userEvent.setup();
-    const onOpenProspect = vi.fn();
-    render(<AgentBriefingTab {...briefingProps({ onOpenProspect })} />);
+    render(<AgentBriefingTab {...briefingProps()} />);
 
     await waitFor(() => {
       expect(screen.getByText('Coastal Golf')).toBeInTheDocument();
@@ -722,11 +899,22 @@ describe('AgentBriefingTab research entry', () => {
 
     await user.click(screen.getByRole('button', { name: 'Research' }));
 
-    expect(onOpenProspect).toHaveBeenCalledWith({
-      prospectId: 12,
-      accountStatus: 'prospect',
-      openResearch: true,
+    expect(screen.getByTestId('prospect-detail-drawer')).toHaveTextContent('Coastal Golf');
+    expect(screen.getByTestId('research-scroll')).toBeInTheDocument();
+  });
+
+  it('shows an error when Research store is missing from the directory', async () => {
+    const user = userEvent.setup();
+    render(<AgentBriefingTab {...briefingProps({ prospects: [] })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Coastal Golf')).toBeInTheDocument();
     });
+
+    await user.click(screen.getByRole('button', { name: 'Research' }));
+
+    expect(screen.queryByTestId('prospect-detail-drawer')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/not in the loaded directory/i);
   });
 
   it('disables Run prep until a usable contact email is on file', async () => {
@@ -741,7 +929,7 @@ describe('AgentBriefingTab research entry', () => {
             productName: 'American Revival',
             productSku: 'OGR-101',
             productSlug: 'american-revival',
-            primaryChannel: 'golf',
+            primaryChannel: 'golf_retail',
             needsEmail: true,
             hasUsableEmail: false,
             sharedEmailStoreNames: [],
@@ -771,7 +959,7 @@ describe('AgentBriefingTab research entry', () => {
             productName: 'American Revival',
             productSku: 'OGR-101',
             productSlug: 'american-revival',
-            primaryChannel: 'golf',
+            primaryChannel: 'golf_retail',
             needsEmail: true,
             hasUsableEmail: true,
             sharedEmailStoreNames: ['Sister Store'],
@@ -844,7 +1032,7 @@ describe('AgentBriefingTab research entry', () => {
             productName: 'American Revival',
             productSku: 'OGR-101',
             productSlug: 'american-revival',
-            primaryChannel: 'golf',
+            primaryChannel: 'golf_retail',
             needsEmail: true,
             hasUsableEmail: true,
             sharedEmailStoreNames: [],
@@ -876,7 +1064,9 @@ describe('AgentBriefingTab research entry', () => {
       expect(screen.getByText('Needs Email Shop')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Dismiss Needs Email Shop from research queue' }),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -904,6 +1094,71 @@ describe('AgentBriefingTab regional prep controls', () => {
     mockBriefingFetch(briefingPayload);
   });
 
+  it('shows humanized Channel labels on drafts', async () => {
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Coastal Golf')).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByText('Golf Courses, Resorts & Pro Shops').length).toBeGreaterThan(0);
+    expect(screen.queryByText('golf_retail')).not.toBeInTheDocument();
+  });
+
+  it('shows Run prep now count from regional pool capped by prep limit', async () => {
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        regionalPool: {
+          inRegion: 40,
+          withUsableEmail: 12,
+          sendableNow: 5,
+          queuedWithoutEmail: 2,
+          excluded: {
+            noUsableEmail: 0,
+            pendingDraft: 10,
+            cooldown: 8,
+            contactSuppressed: 0,
+            noProduct: 0,
+            other: 0,
+          },
+        },
+      },
+    });
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Run prep now (7)' })).toBeInTheDocument();
+    });
+  });
+
+  it('disables Run prep now when regional pool has zero available accounts', async () => {
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        regionalPool: {
+          inRegion: 10,
+          withUsableEmail: 0,
+          sendableNow: 0,
+          queuedWithoutEmail: 0,
+          excluded: {
+            noUsableEmail: 2,
+            pendingDraft: 3,
+            cooldown: 5,
+            contactSuppressed: 0,
+            noProduct: 0,
+            other: 0,
+          },
+        },
+      },
+    });
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Run prep now (0)' })).toBeDisabled();
+    });
+  });
+
   it('uses Territory + Region labels and posts mapped ops + storeTerritoryCode', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockImplementation(async (path: string) => {
@@ -925,6 +1180,7 @@ describe('AgentBriefingTab regional prep controls', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Territory')).toBeInTheDocument();
       expect(screen.getByLabelText('Region')).toBeInTheDocument();
+      expect(screen.getByLabelText('Channel')).toBeInTheDocument();
     });
 
     expect(screen.queryByLabelText('Operational territory')).toBeNull();
@@ -932,6 +1188,7 @@ describe('AgentBriefingTab regional prep controls', () => {
 
     await user.selectOptions(screen.getByLabelText('Territory'), 'wa');
     await user.selectOptions(screen.getByLabelText('Region'), 'Eastern Washington');
+    await user.selectOptions(screen.getByLabelText('Channel'), 'golf_retail');
     await user.click(screen.getByRole('button', { name: /Run prep now/ }));
 
     await waitFor(() => {
@@ -942,9 +1199,23 @@ describe('AgentBriefingTab regional prep controls', () => {
       const body = JSON.parse(String((prepCall?.[1] as RequestInit)?.body ?? '{}')) as {
         operationalTerritoryId?: string;
         storeTerritoryCode?: string;
+        channel?: string;
+        limit?: number;
       };
       expect(body.storeTerritoryCode).toBe('wa');
       expect(body.operationalTerritoryId).toBe('ops-pnw-east');
+      expect(body.channel).toBe('golf_retail');
+      expect(body.limit).toBe(25);
+    });
+
+    await waitFor(() => {
+      const briefingCall = fetchMock.mock.calls.find(
+        (call) =>
+          typeof call[0] === 'string' &&
+          call[0].includes('/api/staff/outreach/briefing') &&
+          call[0].includes('channel=golf_retail'),
+      );
+      expect(briefingCall).toBeTruthy();
     });
   });
 });

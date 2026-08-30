@@ -13,6 +13,7 @@ import {
   type AccountContact,
 } from '@/lib/accountContacts';
 import type { PrimaryRetailChannel } from '@/lib/crmRetailTaxonomy';
+import { normalizePrepChannel, prospectMatchesPrepChannel } from '@/lib/crmRetailTaxonomy';
 import { prospectMatchesCrmRegion, prospectMatchesPrepCity } from '@/lib/geoCatalog';
 import {
   allocateChannelsForDay,
@@ -104,6 +105,8 @@ export type SelectOutreachTargetsInput = {
   crmRegion?: string;
   /** Optional city within the CRM region (exact, case-insensitive). */
   city?: string;
+  /** Optional primary retail channel (hard filter on prospect.category). */
+  channel?: string;
   /**
    * Ranking mode. `fit_score` = fit desc (nulls last), then id.
    * `default` = priority / fit / fit-band / channel soft rank (nightly).
@@ -337,6 +340,7 @@ export async function selectOutreachTargets(
   const storeTerritoryCode = input.storeTerritoryCode?.trim().toLowerCase() || null;
   const crmRegion = input.crmRegion?.trim() || null;
   const city = input.city?.trim() || null;
+  const channel = normalizePrepChannel(input.channel);
   const rankMode = input.rankMode ?? 'default';
   const skipChannelAllocation = Boolean(input.skipChannelAllocation);
   const allowMissingEmail = Boolean(input.allowMissingEmail);
@@ -359,7 +363,14 @@ export async function selectOutreachTargets(
       excluded.push({ prospectId: p.id, reason: 'not_prospect' });
       return false;
     }
-    if (opsTerritoryId && p.operationalTerritoryId !== opsTerritoryId) {
+    // Regional prep scopes by ops territory UUID. Unassigned ops (null) still
+    // qualify when store/region/city/channel filters pass — imports leave
+    // operational_territory_id null and never auto-backfill it.
+    if (
+      opsTerritoryId &&
+      p.operationalTerritoryId != null &&
+      p.operationalTerritoryId !== opsTerritoryId
+    ) {
       excluded.push({ prospectId: p.id, reason: 'outside_ops_territory' });
       return false;
     }
@@ -379,6 +390,10 @@ export async function selectOutreachTargets(
     }
     if (city && !prospectMatchesPrepCity(p.city, city)) {
       excluded.push({ prospectId: p.id, reason: 'outside_city' });
+      return false;
+    }
+    if (!prospectMatchesPrepChannel(p.category, channel)) {
+      excluded.push({ prospectId: p.id, reason: 'outside_channel' });
       return false;
     }
     return true;
