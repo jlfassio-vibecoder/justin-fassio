@@ -28,6 +28,7 @@ function contact(
     title: null,
     phone: null,
     email: null,
+    alternateEmail: null,
     isPrimary: false,
     notes: null,
     createdAt: '',

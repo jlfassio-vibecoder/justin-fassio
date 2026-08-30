@@ -57,6 +57,7 @@ describe('AddContactAiModal', () => {
         title: null,
         phone: null,
         email: null,
+        alternateEmail: null,
         isPrimary: true,
         notes: null,
         createdAt: '2026-08-01T00:00:00Z',

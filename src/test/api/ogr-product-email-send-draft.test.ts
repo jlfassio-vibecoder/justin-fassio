@@ -17,6 +17,8 @@ const renderOgrProductOutreachEmailMock = vi.fn();
 const sendOgrProductOutreachEmailMock = vi.fn();
 const getServiceRoleClientMock = vi.fn();
 const replayUnmatchedResendEventsMock = vi.fn();
+const fetchAccountContactByIdMock = vi.fn();
+const sendSiblingProductOutreachEmailsMock = vi.fn();
 
 vi.mock('@/lib/agentAuth', () => ({
   requireApprovedStaffClient: (...args: unknown[]) => requireApprovedStaffClientMock(...args),
@@ -45,6 +47,15 @@ vi.mock('@/lib/supabaseAdmin', () => ({
 
 vi.mock('@/lib/resendWebhook', () => ({
   replayUnmatchedResendEvents: (...args: unknown[]) => replayUnmatchedResendEventsMock(...args),
+}));
+
+vi.mock('@/lib/accountContacts', () => ({
+  fetchAccountContactById: (...args: unknown[]) => fetchAccountContactByIdMock(...args),
+}));
+
+vi.mock('@/lib/sendSiblingProductOutreachEmails', () => ({
+  sendSiblingProductOutreachEmails: (...args: unknown[]) =>
+    sendSiblingProductOutreachEmailsMock(...args),
 }));
 
 vi.mock('@/lib/loadPublishedOgrProductForEmail', () => ({
@@ -195,6 +206,8 @@ describe('POST /api/staff/ogr-product-email/drafts/[id]/send', () => {
       duplicates: 0,
       failed: 0,
     });
+    fetchAccountContactByIdMock.mockResolvedValue({ data: null, error: null });
+    sendSiblingProductOutreachEmailsMock.mockResolvedValue(undefined);
   });
 
   it('renders, sends via Resend, and marks the same draft row sent', async () => {
@@ -222,6 +235,38 @@ describe('POST /api/staff/ogr-product-email/drafts/[id]/send', () => {
       expect.objectContaining({
         resendEmailId: 're_draft_1',
         sentBy: 'approver-1',
+      }),
+    );
+    expect(sendSiblingProductOutreachEmailsMock).not.toHaveBeenCalled();
+  });
+
+  it('fans out a sibling send when the draft contact is Primary with alternate email', async () => {
+    fetchAccountContactByIdMock.mockResolvedValue({
+      data: {
+        id: CONTACT_ID,
+        accountId: 42,
+        role: 'buyer',
+        fullName: 'Sam',
+        title: null,
+        phone: null,
+        email: 'buyer@example.com',
+        alternateEmail: 'alt@example.com',
+        isPrimary: true,
+        notes: null,
+        createdAt: '',
+        updatedAt: '',
+      },
+      error: null,
+    });
+
+    const res = await POST(ctx());
+    expect(res.status).toBe(200);
+    expect(sendOgrProductOutreachEmailMock).toHaveBeenCalledOnce();
+    expect(sendSiblingProductOutreachEmailsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emails: ['alt@example.com'],
+        accountContactId: CONTACT_ID,
+        prospectId: 42,
       }),
     );
   });
