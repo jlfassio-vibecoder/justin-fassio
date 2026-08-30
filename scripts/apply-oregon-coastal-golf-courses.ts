@@ -692,6 +692,7 @@ for (const row of prepRows) {
     external_id: externalId,
     source_note: insertPayload.source_note,
     account_status: 'prospect',
+    operational_territory_id: opsTerritory.id,
   });
   report.push(`  INSERTED prospect ${insertedId}`);
   await upsertContact(insertedId, row, report);
