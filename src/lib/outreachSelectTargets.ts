@@ -45,6 +45,10 @@ import {
   normalizeSystemMessageEmail,
   SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH,
 } from '@/lib/systemMessages';
+import {
+  latestProductOutreachSentAt,
+  loadLatestProductOutreachSends,
+} from '@/lib/outreachLatestSends';
 import type { AccountContact as AccountContactRow, Database } from '@/types/database';
 
 type DbClient = SupabaseClient<Database>;
@@ -265,80 +269,8 @@ async function loadSuppressedKeys(
   return { ok: true, emails, prospectIds };
 }
 
-function rememberLatestSend(
-  row: { prospect_id: number | null; to_email: string; sent_at: string | null },
-  byProspectId: Map<number, string>,
-  byEmail: Map<string, string>,
-): void {
-  if (!row.sent_at) return;
-  if (
-    typeof row.prospect_id === 'number' &&
-    Number.isFinite(row.prospect_id) &&
-    !byProspectId.has(row.prospect_id)
-  ) {
-    byProspectId.set(row.prospect_id, row.sent_at);
-  }
-  if (typeof row.to_email === 'string' && row.to_email.trim()) {
-    const email = normalizeSystemMessageEmail(row.to_email);
-    if (!byEmail.has(email)) {
-      byEmail.set(email, row.sent_at);
-    }
-  }
-}
-
-async function loadLatestSends(
-  client: DbClient,
-  prospectIds: number[],
-  emails: string[],
-): Promise<
-  | {
-      ok: true;
-      byProspectId: Map<number, string>;
-      byEmail: Map<string, string>;
-    }
-  | { ok: false; error: string }
-> {
-  const byProspectId = new Map<number, string>();
-  const byEmail = new Map<string, string>();
-  if (prospectIds.length === 0 && emails.length === 0) {
-    return { ok: true, byProspectId, byEmail };
-  }
-
-  if (prospectIds.length > 0) {
-    const { data, error } = await client
-      .from('system_messages')
-      .select('prospect_id, to_email, sent_at')
-      .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
-      .not('sent_at', 'is', null)
-      .in('prospect_id', prospectIds)
-      .order('sent_at', { ascending: false });
-
-    if (error) {
-      return { ok: false, error: error.message };
-    }
-    for (const row of data ?? []) {
-      rememberLatestSend(row, byProspectId, byEmail);
-    }
-  }
-
-  if (emails.length > 0) {
-    const { data, error } = await client
-      .from('system_messages')
-      .select('prospect_id, to_email, sent_at')
-      .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
-      .not('sent_at', 'is', null)
-      .in('to_email', emails)
-      .order('sent_at', { ascending: false });
-
-    if (error) {
-      return { ok: false, error: error.message };
-    }
-    for (const row of data ?? []) {
-      rememberLatestSend(row, byProspectId, byEmail);
-    }
-  }
-
-  return { ok: true, byProspectId, byEmail };
+async function loadLatestSends(client: DbClient, prospectIds: number[], emails: string[]) {
+  return loadLatestProductOutreachSends(client, prospectIds, emails);
 }
 
 function latestSentAt(
@@ -347,12 +279,7 @@ function latestSentAt(
   byProspectId: Map<number, string>,
   byEmail: Map<string, string>,
 ): string | null {
-  const a = byProspectId.get(prospectId) ?? null;
-  const b = byEmail.get(toEmail) ?? null;
-  if (a && b) {
-    return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
-  }
-  return a ?? b;
+  return latestProductOutreachSentAt(prospectId, toEmail, byProspectId, byEmail);
 }
 
 type EligibleCandidate = {

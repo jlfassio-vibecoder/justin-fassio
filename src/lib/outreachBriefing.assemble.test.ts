@@ -293,6 +293,128 @@ describe('assembleOutreachBriefing carryover', () => {
     expect(result.briefing.identifiedTargets.map((t) => t.prospectId)).toEqual([]);
   });
 
+  it('excludes identifiedTargets still within outreach cooldown after send', async () => {
+    const thenable = (result: { data: unknown; error: unknown }) => {
+      const api: Record<string, unknown> = {};
+      const self = () => thenable(result);
+      for (const key of ['select', 'eq', 'in', 'not', 'or', 'is', 'lte', 'gte', 'order', 'limit']) {
+        api[key] = vi.fn(self);
+      }
+      api.maybeSingle = vi.fn(async () => result);
+      return {
+        ...api,
+        then(onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
+          return Promise.resolve(result).then(onFulfilled, onRejected);
+        },
+      };
+    };
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === 'prospects') {
+          return thenable({
+            data: [
+              {
+                id: 12,
+                name: 'Carryover Cafe',
+                account_status: 'prospect',
+                region: 'Oregon Coast',
+              },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'system_messages') {
+          return thenable({
+            data: [
+              {
+                prospect_id: 99,
+                to_email: 'needs@example.com',
+                sent_at: '2026-08-25T12:00:00Z',
+              },
+            ],
+            error: null,
+          });
+        }
+        return thenable({ data: [], error: null });
+      }),
+    };
+
+    const result = await assembleOutreachBriefing({
+      client: client as never,
+      asOf: new Date('2026-08-27T18:00:00Z'),
+      regionalPrepScope: {
+        operationalTerritoryId: 'ops-pnw-west',
+        storeTerritoryCode: 'or',
+        crmRegion: 'Oregon Coast',
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.briefing.identifiedTargets.map((t) => t.prospectId)).toEqual([]);
+  });
+
+  it('keeps identifiedTargets after cooldown window ends', async () => {
+    const thenable = (result: { data: unknown; error: unknown }) => {
+      const api: Record<string, unknown> = {};
+      const self = () => thenable(result);
+      for (const key of ['select', 'eq', 'in', 'not', 'or', 'is', 'lte', 'gte', 'order', 'limit']) {
+        api[key] = vi.fn(self);
+      }
+      api.maybeSingle = vi.fn(async () => result);
+      return {
+        ...api,
+        then(onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
+          return Promise.resolve(result).then(onFulfilled, onRejected);
+        },
+      };
+    };
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === 'prospects') {
+          return thenable({
+            data: [
+              {
+                id: 12,
+                name: 'Carryover Cafe',
+                account_status: 'prospect',
+                region: 'Oregon Coast',
+              },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'system_messages') {
+          return thenable({
+            data: [
+              {
+                prospect_id: 99,
+                to_email: 'needs@example.com',
+                sent_at: '2026-07-01T12:00:00Z',
+              },
+            ],
+            error: null,
+          });
+        }
+        return thenable({ data: [], error: null });
+      }),
+    };
+
+    const result = await assembleOutreachBriefing({
+      client: client as never,
+      asOf: new Date('2026-08-27T18:00:00Z'),
+      regionalPrepScope: {
+        operationalTerritoryId: 'ops-pnw-west',
+        storeTerritoryCode: 'or',
+        crmRegion: 'Oregon Coast',
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.briefing.identifiedTargets.map((t) => t.prospectId)).toEqual([99]);
+  });
+
   it('passes region-filtered leads into buildFollowUpQueue', async () => {
     listOutreachLeadsMock.mockResolvedValue([
       {
