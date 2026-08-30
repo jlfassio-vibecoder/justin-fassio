@@ -13,6 +13,7 @@ import {
 
 const getAgentProductOutreachDraftClientMock = vi.fn();
 const createFollowUpDraftClientMock = vi.fn();
+const cancelAgentProductOutreachDraftClientMock = vi.fn();
 const { useOptionalLineContextMock } = vi.hoisted(() => ({
   useOptionalLineContextMock: vi.fn(() => ({
     multiLineUi: false,
@@ -27,6 +28,8 @@ vi.mock('@/lib/agentProductOutreachDraftClient', async (importOriginal) => {
     getAgentProductOutreachDraftClient: (...args: unknown[]) =>
       getAgentProductOutreachDraftClientMock(...args),
     createFollowUpDraftClient: (...args: unknown[]) => createFollowUpDraftClientMock(...args),
+    cancelAgentProductOutreachDraftClient: (...args: unknown[]) =>
+      cancelAgentProductOutreachDraftClientMock(...args),
   };
 });
 
@@ -229,6 +232,52 @@ describe('AgentBriefingTab draft review', () => {
         catalogItemId: PRODUCT_ID,
         payload: { sku: 'OGR-101', slug: 'american-revival' },
       },
+    });
+  });
+
+  it('dismisses a draft from Drafts ready for review', async () => {
+    const user = userEvent.setup();
+    let draftDismissed = false;
+    cancelAgentProductOutreachDraftClientMock.mockImplementation(async () => {
+      draftDismissed = true;
+      return {
+        ok: true,
+        draft: { id: DRAFT_ID, status: 'cancelled' },
+      };
+    });
+    const fetchMock = vi.fn().mockImplementation(async (path: string) => {
+      if (typeof path === 'string' && path.includes('/api/staff/outreach/briefing')) {
+        return {
+          ok: true,
+          json: async () =>
+            draftDismissed
+              ? { briefing: { ...briefingPayload.briefing, drafts: [] } }
+              : briefingPayload,
+        };
+      }
+      return { ok: false, json: async () => ({ error: 'unexpected' }) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Dismiss draft for Coastal Golf' }),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss draft for Coastal Golf' }));
+
+    await waitFor(() => {
+      expect(cancelAgentProductOutreachDraftClientMock).toHaveBeenCalledWith(DRAFT_ID);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent(/Dismissed draft for Coastal Golf/i);
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: 'Dismiss draft for Coastal Golf' }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -768,6 +817,70 @@ describe('AgentBriefingTab follow-up queue', () => {
       );
     });
   });
+
+  it('filters Today’s follow-ups by search text', async () => {
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        followUps: [
+          {
+            prospectId: 42,
+            prospectName: 'Alpha Surf',
+            accountStatus: 'prospect',
+            leadState: 'hot',
+            recommendedAction: 'call',
+            reasonLine: 'Hot intent',
+            talkTrackHint: null,
+            lastEngagedAt: '2026-08-21T12:00:00Z',
+            lastOpenedAt: '2026-08-21T12:00:00Z',
+            lastSentAt: '2026-08-20T12:00:00Z',
+            lastProductName: 'American Revival',
+            lastProductId: PRODUCT_ID,
+            score: 10,
+            followUpOverdueDays: null,
+          },
+          {
+            prospectId: 55,
+            prospectName: 'Beta Gift',
+            accountStatus: 'prospect',
+            leadState: 'warm',
+            recommendedAction: 'email',
+            reasonLine: '1 product clicked',
+            talkTrackHint: null,
+            lastEngagedAt: '2026-08-21T11:00:00Z',
+            lastOpenedAt: '2026-08-21T11:00:00Z',
+            lastSentAt: '2026-08-20T11:00:00Z',
+            lastProductName: null,
+            lastProductId: null,
+            score: 4,
+            followUpOverdueDays: null,
+          },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(
+      <AgentBriefingTab
+        {...briefingProps({
+          prospects: [
+            ...defaultProspects,
+            prospectStub(42, 'Alpha Surf'),
+            prospectStub(55, 'Beta Gift'),
+          ],
+        })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('follow-up-row-42')).toBeInTheDocument();
+      expect(screen.getByTestId('follow-up-row-55')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByRole('searchbox', { name: /search today’s follow-ups/i }), 'beta');
+
+    expect(screen.queryByTestId('follow-up-row-42')).not.toBeInTheDocument();
+    expect(screen.getByTestId('follow-up-row-55')).toBeInTheDocument();
+  });
 });
 
 describe('AgentBriefingTab research entry', () => {
@@ -951,7 +1064,9 @@ describe('AgentBriefingTab research entry', () => {
       expect(screen.getByText('Needs Email Shop')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Dismiss Needs Email Shop from research queue' }),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(

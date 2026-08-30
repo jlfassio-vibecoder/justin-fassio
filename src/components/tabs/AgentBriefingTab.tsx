@@ -12,6 +12,7 @@ import { Input, Select } from '@/components/ui/Input';
 import {
   getAgentProductOutreachDraftClient,
   createFollowUpDraftClient,
+  cancelAgentProductOutreachDraftClient,
   composerDraftFromAgentDto,
 } from '@/lib/agentProductOutreachDraftClient';
 import type { CatalogItem } from '@/lib/catalog';
@@ -340,14 +341,52 @@ function FollowUpQueue({
   onLogCall: (row: OutreachFollowUpRow) => void;
   onSnooze: (row: OutreachFollowUpRow) => void;
 }) {
+  const [search, setSearch] = useState('');
+  const query = search.trim().toLowerCase();
+  const filteredRows = useMemo(() => {
+    if (!query) return rows;
+    return rows.filter((row) => {
+      const haystack = [
+        row.prospectName,
+        row.reasonLine,
+        row.talkTrackHint ?? '',
+        row.lastProductName ?? '',
+        row.leadState,
+        row.recommendedAction,
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [query, rows]);
+
   return (
     <Card>
-      <CardTitle className="text-[15px]">Today’s follow-ups</CardTitle>
-      <CardMeta className="mb-2">
-        {rows.length} emailed (90d) · opens first · Call, email, watch, log call, or snooze
-      </CardMeta>
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <CardTitle className="text-[15px]">Today’s follow-ups</CardTitle>
+          <CardMeta className="mb-0">
+            {rows.length} emailed (90d) · opens first · Call, email, watch, log call, or snooze
+            {query ? ` · ${filteredRows.length} match${filteredRows.length === 1 ? '' : 'es'}` : ''}
+          </CardMeta>
+        </div>
+        <label className="sr-only" htmlFor="briefing-follow-up-search">
+          Search today’s follow-ups
+        </label>
+        <Input
+          id="briefing-follow-up-search"
+          type="search"
+          className="w-full max-w-xs text-sm"
+          placeholder="Search follow-ups…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search today’s follow-ups"
+        />
+      </div>
       {rows.length === 0 ? (
         <p className="text-ink/50 m-0 text-sm">None right now.</p>
+      ) : filteredRows.length === 0 ? (
+        <p className="text-ink/50 m-0 text-sm">No follow-ups match “{search.trim()}”.</p>
       ) : (
         <ul
           className="m-0 flex list-none flex-col gap-2 overflow-y-auto p-0"
@@ -355,7 +394,7 @@ function FollowUpQueue({
             maxHeight: `calc(${FOLLOW_UP_QUEUE_VISIBLE} * 3.25rem + ${FOLLOW_UP_QUEUE_VISIBLE - 1} * 0.5rem)`,
           }}
         >
-          {rows.map((row) => {
+          {filteredRows.map((row) => {
             const ago = formatFollowUpRelativeTime(row.lastEngagedAt);
             const stateLabel =
               row.leadState === 'hot' ? 'Hot' : row.leadState === 'warm' ? 'Warm' : 'Cold';
@@ -459,6 +498,8 @@ export function AgentBriefingTab({
   const [rowRunPrepBusyKey, setRowRunPrepBusyKey] = useState<string | null>(null);
   const [rowRunPrepMessage, setRowRunPrepMessage] = useState<string | null>(null);
   const [rowDismissBusyId, setRowDismissBusyId] = useState<number | null>(null);
+  const [draftDismissBusyId, setDraftDismissBusyId] = useState<string | null>(null);
+  const [draftDismissMessage, setDraftDismissMessage] = useState<string | null>(null);
   const [appliedDeepLinkKey, setAppliedDeepLinkKey] = useState('');
   const [opsOptions, setOpsOptions] = useState<OperationalTerritoryOption[]>([]);
   const [storeTerritoryCode, setStoreTerritoryCode] = useState<'or' | 'wa'>('or');
@@ -630,6 +671,37 @@ export function AgentBriefingTab({
       setRowRunPrepMessage('Request failed. Try again.');
     } finally {
       setRowDismissBusyId(null);
+    }
+  }
+
+  async function dismissDraftRow(row: { draftId: string; prospectName: string }) {
+    setDraftDismissBusyId(row.draftId);
+    setDraftDismissMessage(null);
+    try {
+      const result = await cancelAgentProductOutreachDraftClient(row.draftId);
+      if (!result.ok) {
+        setDraftDismissMessage(result.error);
+        return;
+      }
+      setBriefing((prev) =>
+        prev
+          ? {
+              ...prev,
+              drafts: prev.drafts.filter((d) => d.draftId !== row.draftId),
+            }
+          : prev,
+      );
+      if (composerDraft?.id === row.draftId) {
+        setComposerOpen(false);
+        setComposerDraft(null);
+        setComposerProduct(null);
+      }
+      setDraftDismissMessage(`Dismissed draft for ${row.prospectName}.`);
+      setReloadToken((n) => n + 1);
+    } catch {
+      setDraftDismissMessage('Request failed. Try again.');
+    } finally {
+      setDraftDismissBusyId(null);
     }
   }
 
@@ -1174,6 +1246,11 @@ export function AgentBriefingTab({
                                 type="button"
                                 className="text-ink/55 hover:text-accent-800 text-xs hover:underline disabled:opacity-50"
                                 disabled={dismissBusy || anyRowBusy}
+                                aria-label={
+                                  dismissBusy
+                                    ? `Dismissing ${t.prospectName} from research queue`
+                                    : `Dismiss ${t.prospectName} from research queue`
+                                }
                                 onClick={() =>
                                   void dismissResearchQueueRow({ prospectId: t.prospectId })
                                 }
@@ -1216,6 +1293,11 @@ export function AgentBriefingTab({
                 ? ' · includes drafts from earlier prep'
                 : ''}
             </CardMeta>
+            {draftDismissMessage ? (
+              <p className="text-ink/60 m-0 mb-2 text-sm" role="status">
+                {draftDismissMessage}
+              </p>
+            ) : null}
             {briefing.drafts.length === 0 ? (
               <p className="text-ink/50 m-0 text-sm">No pending drafts.</p>
             ) : (
@@ -1230,63 +1312,84 @@ export function AgentBriefingTab({
                     </tr>
                   </thead>
                   <tbody>
-                    {briefing.drafts.map((d) => (
-                      <tr key={d.draftId} className="hover:bg-bg/80">
-                        <td className="border-ink/[0.06] border-b p-2">
-                          <div className="flex flex-wrap items-center gap-2">
+                    {briefing.drafts.map((d) => {
+                      const dismissBusy = draftDismissBusyId === d.draftId;
+                      return (
+                        <tr key={d.draftId} className="hover:bg-bg/80">
+                          <td className="border-ink/[0.06] border-b p-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                className="text-accent-800 font-medium hover:underline"
+                                onClick={() =>
+                                  openBriefingStore({
+                                    prospectId: d.prospectId,
+                                    accountStatus: d.accountStatus ?? 'prospect',
+                                  })
+                                }
+                              >
+                                {d.prospectName}
+                              </button>
+                              {d.fromEarlierPrep ? (
+                                <span className="text-ink/45 text-xs">from earlier prep</span>
+                              ) : null}
+                              <button
+                                type="button"
+                                className="text-ink/55 hover:text-accent-800 text-xs hover:underline"
+                                onClick={() =>
+                                  openBriefingStore({
+                                    prospectId: d.prospectId,
+                                    accountStatus: d.accountStatus ?? 'prospect',
+                                    openResearch: true,
+                                  })
+                                }
+                              >
+                                Research
+                              </button>
+                              <button
+                                type="button"
+                                className="text-ink/55 hover:text-accent-800 text-xs hover:underline disabled:opacity-50"
+                                disabled={dismissBusy || Boolean(draftDismissBusyId)}
+                                aria-label={
+                                  dismissBusy
+                                    ? `Dismissing draft for ${d.prospectName}`
+                                    : `Dismiss draft for ${d.prospectName}`
+                                }
+                                onClick={() =>
+                                  void dismissDraftRow({
+                                    draftId: d.draftId,
+                                    prospectName: d.prospectName,
+                                  })
+                                }
+                              >
+                                {dismissBusy ? 'Dismissing…' : 'Dismiss'}
+                              </button>
+                            </div>
+                          </td>
+                          <td className="border-ink/[0.06] border-b p-2">
                             <button
                               type="button"
-                              className="text-accent-800 font-medium hover:underline"
+                              className="text-accent-800 hover:underline"
                               onClick={() =>
-                                openBriefingStore({
-                                  prospectId: d.prospectId,
-                                  accountStatus: d.accountStatus ?? 'prospect',
+                                void openDraftReview({
+                                  draftId: d.draftId,
+                                  catalogItemId: d.catalogItemId,
+                                  productName: d.productName,
+                                  prospectName: d.prospectName,
                                 })
                               }
                             >
-                              {d.prospectName}
+                              {d.productName}{' '}
+                              <span className="text-ink/45 text-xs">({d.productSku})</span>
                             </button>
-                            {d.fromEarlierPrep ? (
-                              <span className="text-ink/45 text-xs">from earlier prep</span>
-                            ) : null}
-                            <button
-                              type="button"
-                              className="text-ink/55 hover:text-accent-800 text-xs hover:underline"
-                              onClick={() =>
-                                openBriefingStore({
-                                  prospectId: d.prospectId,
-                                  accountStatus: d.accountStatus ?? 'prospect',
-                                  openResearch: true,
-                                })
-                              }
-                            >
-                              Research
-                            </button>
-                          </div>
-                        </td>
-                        <td className="border-ink/[0.06] border-b p-2">
-                          <button
-                            type="button"
-                            className="text-accent-800 hover:underline"
-                            onClick={() =>
-                              void openDraftReview({
-                                draftId: d.draftId,
-                                catalogItemId: d.catalogItemId,
-                                productName: d.productName,
-                                prospectName: d.prospectName,
-                              })
-                            }
-                          >
-                            {d.productName}{' '}
-                            <span className="text-ink/45 text-xs">({d.productSku})</span>
-                          </button>
-                        </td>
-                        <td className="border-ink/[0.06] border-b p-2 text-xs">
-                          {d.primaryChannel ?? '—'}
-                        </td>
-                        <td className="border-ink/[0.06] border-b p-2 text-xs">{d.toEmail}</td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="border-ink/[0.06] border-b p-2 text-xs">
+                            {d.primaryChannel ?? '—'}
+                          </td>
+                          <td className="border-ink/[0.06] border-b p-2 text-xs">{d.toEmail}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
