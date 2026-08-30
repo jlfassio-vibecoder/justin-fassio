@@ -790,9 +790,7 @@ export function AgentBriefingTab({
               : prev,
           );
           setRowRunPrepMessage(
-            /contact email was emailed/i.test(err)
-              ? `${row.prospectName}'s contact email was emailed recently (often on another store) — removed until cooldown ends.`
-              : `${row.prospectName} was emailed recently — removed from this queue until cooldown ends.`,
+            `${row.prospectName} was emailed recently — removed from this queue until cooldown ends.`,
           );
           setReloadToken((n) => n + 1);
           return;
@@ -1154,6 +1152,11 @@ export function AgentBriefingTab({
                             ) : (
                               <span className="text-accent-800">Needs research</span>
                             )}
+                            {t.sharedEmailStoreNames.length > 0 ? (
+                              <p className="text-ink/45 m-0 mt-1 text-xs">
+                                Also on: {t.sharedEmailStoreNames.join(', ')}
+                              </p>
+                            ) : null}
                           </td>
                         </tr>
                       );

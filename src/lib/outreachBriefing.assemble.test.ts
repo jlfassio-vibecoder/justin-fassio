@@ -356,7 +356,7 @@ describe('assembleOutreachBriefing carryover', () => {
     expect(result.briefing.identifiedTargets.map((t) => t.prospectId)).toEqual([]);
   });
 
-  it('excludes identifiedTargets when their contact email is in cooldown on another account', async () => {
+  it('keeps identifiedTargets when contact email was emailed on another store', async () => {
     const thenable = (result: { data: unknown; error: unknown }) => {
       const api: Record<string, unknown> = {};
       const self = () => thenable(result);
@@ -382,6 +382,18 @@ describe('assembleOutreachBriefing carryover', () => {
                 account_status: 'prospect',
                 region: 'Oregon Coast',
               },
+              {
+                id: 99,
+                name: 'By the Sea Treasures',
+                account_status: 'prospect',
+                region: 'Oregon Coast',
+              },
+              {
+                id: 673,
+                name: 'Bandon Card & Gift Shoppe',
+                account_status: 'prospect',
+                region: 'Oregon Coast',
+              },
             ],
             error: null,
           });
@@ -392,6 +404,19 @@ describe('assembleOutreachBriefing carryover', () => {
               {
                 id: 'c-99',
                 account_id: 99,
+                role: 'buyer',
+                full_name: 'Shared Buyer',
+                title: null,
+                phone: null,
+                email: 'shared@example.com',
+                is_primary: true,
+                notes: null,
+                created_at: '2026-01-01T00:00:00Z',
+                updated_at: '2026-01-01T00:00:00Z',
+              },
+              {
+                id: 'c-673',
+                account_id: 673,
                 role: 'buyer',
                 full_name: 'Shared Buyer',
                 title: null,
@@ -434,7 +459,13 @@ describe('assembleOutreachBriefing carryover', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.briefing.identifiedTargets.map((t) => t.prospectId)).toEqual([]);
+    expect(result.briefing.identifiedTargets).toEqual([
+      expect.objectContaining({
+        prospectId: 99,
+        hasUsableEmail: true,
+        sharedEmailStoreNames: ['Bandon Card & Gift Shoppe'],
+      }),
+    ]);
   });
 
   it('keeps identifiedTargets after cooldown window ends', async () => {

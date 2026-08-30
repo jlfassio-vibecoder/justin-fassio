@@ -1,6 +1,9 @@
 /**
  * Latest product-outreach sent_at by prospect id and/or recipient email.
  * Shared by live selection, Briefing research queue, and identified-target draft create.
+ *
+ * Cooldown is prospect-scoped (multi-location owners may share one inbox).
+ * Email maps remain for diagnostics / shared-store UI — not for cooldown gates.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -99,14 +102,25 @@ export async function loadLatestProductOutreachSends(
   return { ok: true, byProspectId, byEmail };
 }
 
-/** Prefer the more recent of prospect-id and email lookups. */
+/** Latest product-outreach sent_at for this store (prospect) only — used for cooldown. */
+export function latestProspectOutreachSentAt(
+  prospectId: number,
+  byProspectId: Map<number, string>,
+): string | null {
+  return byProspectId.get(prospectId) ?? null;
+}
+
+/**
+ * Max of prospect-id and email lookups. Prefer latestProspectOutreachSentAt for cooldown
+ * (multi-location owners share inboxes across stores).
+ */
 export function latestProductOutreachSentAt(
   prospectId: number,
   toEmail: string | null | undefined,
   byProspectId: Map<number, string>,
   byEmail: Map<string, string>,
 ): string | null {
-  const a = byProspectId.get(prospectId) ?? null;
+  const a = latestProspectOutreachSentAt(prospectId, byProspectId);
   const b =
     toEmail && toEmail.trim() ? (byEmail.get(normalizeSystemMessageEmail(toEmail)) ?? null) : null;
   if (a && b) {

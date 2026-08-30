@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadLatestProductOutreachSends } from '@/lib/outreachLatestSends';
+import {
+  latestProspectOutreachSentAt,
+  latestProductOutreachSentAt,
+  loadLatestProductOutreachSends,
+} from '@/lib/outreachLatestSends';
 
 const fromMock = vi.fn();
 
@@ -64,5 +68,17 @@ describe('loadLatestProductOutreachSends', () => {
     expect(result.ok).toBe(true);
     expect(order).toHaveBeenCalled();
     expect(order.mock.results[0]?.value).not.toHaveProperty('limit');
+  });
+});
+
+describe('latestProspectOutreachSentAt', () => {
+  it('uses prospect id only and ignores email map for cooldown', () => {
+    const byProspectId = new Map([[12, '2026-08-20T12:00:00Z']]);
+    const byEmail = new Map([['a@example.com', '2026-08-28T12:00:00Z']]);
+    expect(latestProspectOutreachSentAt(12, byProspectId)).toBe('2026-08-20T12:00:00Z');
+    expect(latestProspectOutreachSentAt(99, byProspectId)).toBeNull();
+    expect(latestProductOutreachSentAt(99, 'a@example.com', byProspectId, byEmail)).toBe(
+      '2026-08-28T12:00:00Z',
+    );
   });
 });

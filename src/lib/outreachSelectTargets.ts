@@ -46,7 +46,7 @@ import {
   SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH,
 } from '@/lib/systemMessages';
 import {
-  latestProductOutreachSentAt,
+  latestProspectOutreachSentAt,
   loadLatestProductOutreachSends,
 } from '@/lib/outreachLatestSends';
 import type { AccountContact as AccountContactRow, Database } from '@/types/database';
@@ -269,17 +269,12 @@ async function loadSuppressedKeys(
   return { ok: true, emails, prospectIds };
 }
 
-async function loadLatestSends(client: DbClient, prospectIds: number[], emails: string[]) {
-  return loadLatestProductOutreachSends(client, prospectIds, emails);
+async function loadLatestSends(client: DbClient, prospectIds: number[]) {
+  return loadLatestProductOutreachSends(client, prospectIds);
 }
 
-function latestSentAt(
-  prospectId: number,
-  toEmail: string,
-  byProspectId: Map<number, string>,
-  byEmail: Map<string, string>,
-): string | null {
-  return latestProductOutreachSentAt(prospectId, toEmail, byProspectId, byEmail);
+function latestSentAt(prospectId: number, byProspectId: Map<number, string>): string | null {
+  return latestProspectOutreachSentAt(prospectId, byProspectId);
 }
 
 type EligibleCandidate = {
@@ -449,11 +444,6 @@ export async function selectOutreachTargets(
   const sendsResult = await loadLatestSends(
     client,
     pickedRows.map((row) => row.prospect.id),
-    [
-      ...new Set(
-        pickedRows.map((row) => row.toEmail).filter((email): email is string => Boolean(email)),
-      ),
-    ],
   );
   if (!sendsResult.ok) return { ok: false, error: sendsResult.error };
 
@@ -461,9 +451,7 @@ export async function selectOutreachTargets(
   let cooldownCount = 0;
 
   for (const row of pickedRows) {
-    const lastSentAt = row.toEmail
-      ? latestSentAt(row.prospect.id, row.toEmail, sendsResult.byProspectId, sendsResult.byEmail)
-      : (sendsResult.byProspectId.get(row.prospect.id) ?? null);
+    const lastSentAt = latestSentAt(row.prospect.id, sendsResult.byProspectId);
     if (
       isWithinOutreachCooldown(lastSentAt, {
         asOf,

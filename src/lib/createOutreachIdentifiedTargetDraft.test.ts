@@ -269,7 +269,7 @@ describe('createOutreachIdentifiedTargetDraft', () => {
     expect(generateOgrProductOutreachDraftMock).not.toHaveBeenCalled();
   });
 
-  it('rejects when contact email is within cooldown on another account', async () => {
+  it('allows Run prep when only a shared contact email is in cooldown on another account', async () => {
     loadLatestProductOutreachSendsMock.mockResolvedValue({
       ok: true,
       byProspectId: new Map(),
@@ -284,13 +284,11 @@ describe('createOutreachIdentifiedTargetDraft', () => {
       preparationDate: '2026-08-25',
       userId: 'staff-1',
     });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.status).toBe(409);
-      expect(result.error).toMatch(/contact email was emailed/i);
-      expect(result.error).toMatch(/shared/i);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.draftId).toBe('new-draft');
     }
-    expect(generateOgrProductOutreachDraftMock).not.toHaveBeenCalled();
+    expect(generateOgrProductOutreachDraftMock).toHaveBeenCalled();
   });
 
   it('drafts with frozen product and live contact (does not re-select product)', async () => {

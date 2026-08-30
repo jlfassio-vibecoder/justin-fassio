@@ -32,7 +32,7 @@ import {
 import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outreachSelectTargets';
 import { isWithinOutreachCooldown, pickOutreachContact } from '@/lib/outreachEligibility';
 import {
-  latestProductOutreachSentAt,
+  latestProspectOutreachSentAt,
   loadLatestProductOutreachSends,
 } from '@/lib/outreachLatestSends';
 import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
@@ -58,8 +58,10 @@ import {
 } from '@/lib/outreachSelectionConstants';
 import { resolveOutreachLeadRules } from '@/lib/resolveOutreachLeadRules';
 import {
+  escapeIlikeExact,
   fetchPendingAgentProductOutreachProspectIds,
   listAgentProductOutreachDrafts,
+  normalizeSystemMessageEmail,
   SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH,
 } from '@/lib/systemMessages';
 
@@ -67,7 +69,7 @@ type Client = SupabaseClient<Database>;
 
 /**
  * Live outreach contact email by prospect id (pickOutreachContact).
- * Used for Research Queue hasUsableEmail + shared-email cooldown.
+ * Used for Research Queue hasUsableEmail + shared-store notices.
  */
 export async function loadUsableOutreachEmailsByProspectId(
   client: Client,
@@ -93,6 +95,66 @@ export async function loadUsableOutreachEmailsByProspectId(
   for (const [accountId, contacts] of byAccount) {
     const picked = pickOutreachContact(contacts);
     if (picked) out.set(accountId, picked.toEmail);
+  }
+  return out;
+}
+
+/**
+ * Other store names that share each prospect's usable outreach email (multi-location owners).
+ */
+export async function loadSharedEmailStoreNamesByProspectId(
+  client: Client,
+  emailsByProspect: Map<number, string>,
+): Promise<Map<number, string[]>> {
+  const out = new Map<number, string[]>();
+  if (emailsByProspect.size === 0) return out;
+
+  const emails = [...new Set([...emailsByProspect.values()].map(normalizeSystemMessageEmail))];
+  if (emails.length === 0) return out;
+
+  const orFilter = emails.map((e) => `email.ilike.${escapeIlikeExact(e)}`).join(',');
+  const { data: contactRows, error: contactError } = await client
+    .from('account_contacts')
+    .select('account_id, email')
+    .or(orFilter);
+  if (contactError) throw new Error(contactError.message);
+
+  const emailToAccountIds = new Map<string, Set<number>>();
+  const accountIds = new Set<number>();
+  for (const row of contactRows ?? []) {
+    if (typeof row.account_id !== 'number' || typeof row.email !== 'string') continue;
+    const email = normalizeSystemMessageEmail(row.email);
+    if (!emails.includes(email)) continue;
+    const set = emailToAccountIds.get(email) ?? new Set<number>();
+    set.add(row.account_id);
+    emailToAccountIds.set(email, set);
+    accountIds.add(row.account_id);
+  }
+  if (accountIds.size === 0) return out;
+
+  const { data: prospectRows, error: prospectError } = await client
+    .from('prospects')
+    .select('id, name')
+    .in('id', [...accountIds]);
+  if (prospectError) throw new Error(prospectError.message);
+
+  const nameById = new Map<number, string>();
+  for (const row of prospectRows ?? []) {
+    if (typeof row.id === 'number' && typeof row.name === 'string' && row.name.trim()) {
+      nameById.set(row.id, row.name.trim());
+    }
+  }
+
+  for (const [prospectId, emailRaw] of emailsByProspect) {
+    const email = normalizeSystemMessageEmail(emailRaw);
+    const siblings = emailToAccountIds.get(email);
+    if (!siblings) continue;
+    const names = [...siblings]
+      .filter((id) => id !== prospectId)
+      .map((id) => nameById.get(id))
+      .filter((name): name is string => Boolean(name))
+      .sort((a, b) => a.localeCompare(b));
+    if (names.length > 0) out.set(prospectId, names);
   }
   return out;
 }
@@ -644,21 +706,40 @@ export async function assembleOutreachBriefing(params: {
     const sends = await loadLatestProductOutreachSends(
       client,
       identifiedTargets.map((t) => t.prospectId),
-      [...emailsByProspect.values()],
     );
     if (!sends.ok) return { ok: false, error: sends.error };
     identifiedTargets = identifiedTargets.filter((t) => {
-      const lastSentAt = latestProductOutreachSentAt(
-        t.prospectId,
-        emailsByProspect.get(t.prospectId) ?? null,
-        sends.byProspectId,
-        sends.byEmail,
-      );
+      const lastSentAt = latestProspectOutreachSentAt(t.prospectId, sends.byProspectId);
       return !isWithinOutreachCooldown(lastSentAt, {
         asOf,
         cooldownDays: AGENT_OUTREACH_COOLDOWN_DAYS,
       });
     });
+
+    if (identifiedTargets.length > 0) {
+      try {
+        const sharedNames = await loadSharedEmailStoreNamesByProspectId(
+          client,
+          new Map(
+            identifiedTargets
+              .map((t) => {
+                const email = emailsByProspect.get(t.prospectId);
+                return email ? ([t.prospectId, email] as const) : null;
+              })
+              .filter((row): row is readonly [number, string] => row != null),
+          ),
+        );
+        identifiedTargets = identifiedTargets.map((t) => ({
+          ...t,
+          sharedEmailStoreNames: sharedNames.get(t.prospectId) ?? [],
+        }));
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : 'Failed to load shared-email store names',
+        };
+      }
+    }
   }
 
   const channelAllocation =
