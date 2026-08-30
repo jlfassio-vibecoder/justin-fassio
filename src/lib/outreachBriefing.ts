@@ -4,6 +4,11 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
+import {
+  ACCOUNT_CONTACT_SELECT,
+  mapAccountContactRow,
+  type AccountContact,
+} from '@/lib/accountContacts';
 import type { AllocateChannelsForDayResult } from '@/lib/outreachChannelAllocation';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
 import { listOutreachLeads, type OutreachLeadRow } from '@/lib/outreachLeadLists';
@@ -25,7 +30,7 @@ import {
   prospectMatchesPrepCity,
 } from '@/lib/geoCatalog';
 import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outreachSelectTargets';
-import { isWithinOutreachCooldown } from '@/lib/outreachEligibility';
+import { isWithinOutreachCooldown, pickOutreachContact } from '@/lib/outreachEligibility';
 import { loadLatestProductOutreachSends } from '@/lib/outreachLatestSends';
 import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
 import {
@@ -56,6 +61,34 @@ import {
 } from '@/lib/systemMessages';
 
 type Client = SupabaseClient<Database>;
+
+/** Prospect ids that currently have a usable outreach email on an account contact. */
+export async function loadProspectIdsWithUsableOutreachEmail(
+  client: Client,
+  prospectIds: number[],
+): Promise<Set<number>> {
+  const out = new Set<number>();
+  const ids = [...new Set(prospectIds)];
+  if (ids.length === 0) return out;
+
+  const { data, error } = await client
+    .from('account_contacts')
+    .select(ACCOUNT_CONTACT_SELECT)
+    .in('account_id', ids);
+  if (error) throw new Error(error.message);
+
+  const byAccount = new Map<number, AccountContact[]>();
+  for (const row of data ?? []) {
+    const contact = mapAccountContactRow(row);
+    const list = byAccount.get(contact.accountId) ?? [];
+    list.push(contact);
+    byAccount.set(contact.accountId, list);
+  }
+  for (const [accountId, contacts] of byAccount) {
+    if (pickOutreachContact(contacts)) out.add(accountId);
+  }
+  return out;
+}
 
 function toPublicRun(run: OutreachAutomationRunRow): OutreachAutomationRunPublic {
   return {
@@ -595,6 +628,24 @@ export async function assembleOutreachBriefing(params: {
         cooldownDays: AGENT_OUTREACH_COOLDOWN_DAYS,
       });
     });
+  }
+
+  if (identifiedTargets.length > 0) {
+    try {
+      const withEmail = await loadProspectIdsWithUsableOutreachEmail(
+        client,
+        identifiedTargets.map((t) => t.prospectId),
+      );
+      identifiedTargets = identifiedTargets.map((t) => ({
+        ...t,
+        hasUsableEmail: withEmail.has(t.prospectId),
+      }));
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Failed to load research-queue contact emails',
+      };
+    }
   }
 
   const channelAllocation =

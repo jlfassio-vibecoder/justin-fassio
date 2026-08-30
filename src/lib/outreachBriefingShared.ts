@@ -47,6 +47,8 @@ export type OutreachBriefingIdentifiedTargetRow = {
   productSlug: string;
   primaryChannel: string | null;
   needsEmail: boolean;
+  /** Live: usable account_contacts email for Run prep (not frozen prep snapshot). */
+  hasUsableEmail: boolean;
 };
 
 export type OutreachAutomationRunPublic = {
@@ -148,16 +150,21 @@ export function identifiedTargetRowsFromSelected(
     needsEmail?: boolean;
   }>,
 ): OutreachBriefingIdentifiedTargetRow[] {
-  return targets.map((t) => ({
-    prospectId: t.prospectId,
-    prospectName: t.prospectName,
-    catalogItemId: t.catalogItemId,
-    productName: t.productName,
-    productSku: t.productSku,
-    productSlug: t.productSlug,
-    primaryChannel: t.primaryChannel,
-    needsEmail: Boolean(t.needsEmail),
-  }));
+  return targets.map((t) => {
+    const needsEmail = Boolean(t.needsEmail);
+    return {
+      prospectId: t.prospectId,
+      prospectName: t.prospectName,
+      catalogItemId: t.catalogItemId,
+      productName: t.productName,
+      productSku: t.productSku,
+      productSlug: t.productSlug,
+      primaryChannel: t.primaryChannel,
+      needsEmail,
+      // Snapshot hint; assemble overwrites from live account_contacts.
+      hasUsableEmail: !needsEmail,
+    };
+  });
 }
 
 export function parseIdentifiedTargetsFromPrepAllocation(
@@ -182,6 +189,7 @@ export function parseIdentifiedTargetsFromPrepAllocation(
       productSlug: String(r.productSlug ?? ''),
       primaryChannel: typeof r.primaryChannel === 'string' ? r.primaryChannel : null,
       needsEmail: Boolean(r.needsEmail),
+      hasUsableEmail: Boolean(r.hasUsableEmail),
     });
   }
   return rows;

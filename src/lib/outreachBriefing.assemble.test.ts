@@ -240,7 +240,9 @@ describe('assembleOutreachBriefing carryover', () => {
         preparationDate: '2026-08-26',
       }),
     ]);
-    expect(result.briefing.identifiedTargets.map((t) => t.prospectId)).toEqual([99]);
+    expect(result.briefing.identifiedTargets).toEqual([
+      expect.objectContaining({ prospectId: 99, hasUsableEmail: false }),
+    ]);
   });
 
   it('excludes research-queue dismissals from identifiedTargets', async () => {
@@ -396,6 +398,26 @@ describe('assembleOutreachBriefing carryover', () => {
             error: null,
           });
         }
+        if (table === 'account_contacts') {
+          return thenable({
+            data: [
+              {
+                id: 'c-99',
+                account_id: 99,
+                role: 'buyer',
+                full_name: 'Needs Email',
+                title: null,
+                phone: null,
+                email: 'needs@example.com',
+                is_primary: true,
+                notes: null,
+                created_at: '2026-01-01T00:00:00Z',
+                updated_at: '2026-01-01T00:00:00Z',
+              },
+            ],
+            error: null,
+          });
+        }
         return thenable({ data: [], error: null });
       }),
     };
@@ -412,7 +434,9 @@ describe('assembleOutreachBriefing carryover', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.briefing.identifiedTargets.map((t) => t.prospectId)).toEqual([99]);
+    expect(result.briefing.identifiedTargets).toEqual([
+      expect.objectContaining({ prospectId: 99, hasUsableEmail: true }),
+    ]);
   });
 
   it('passes region-filtered leads into buildFollowUpQueue', async () => {
