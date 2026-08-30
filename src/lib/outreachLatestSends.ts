@@ -52,13 +52,19 @@ export async function loadLatestProductOutreachSends(
   }
 
   if (prospectIds.length > 0) {
-    const { data, error } = await client
+    let prospectQuery = client
       .from('system_messages')
       .select('prospect_id, to_email, sent_at')
       .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
       .not('sent_at', 'is', null)
       .in('prospect_id', prospectIds)
       .order('sent_at', { ascending: false });
+    // Single-id callers (e.g. Run prep) only need the newest row.
+    if (prospectIds.length === 1) {
+      prospectQuery = prospectQuery.limit(1);
+    }
+
+    const { data, error } = await prospectQuery;
 
     if (error) {
       return { ok: false, error: error.message };
@@ -69,13 +75,18 @@ export async function loadLatestProductOutreachSends(
   }
 
   if (emails.length > 0) {
-    const { data, error } = await client
+    let emailQuery = client
       .from('system_messages')
       .select('prospect_id, to_email, sent_at')
       .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
       .not('sent_at', 'is', null)
       .in('to_email', emails)
       .order('sent_at', { ascending: false });
+    if (emails.length === 1) {
+      emailQuery = emailQuery.limit(1);
+    }
+
+    const { data, error } = await emailQuery;
 
     if (error) {
       return { ok: false, error: error.message };
