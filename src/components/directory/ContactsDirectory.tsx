@@ -4,6 +4,7 @@ import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { accountContactRoleLabel, type ContactDirectoryRow } from '@/lib/accountContacts';
 import { filterContacts } from '@/lib/contactFilters';
+import { primaryRetailChannelLabel } from '@/lib/crmRetailTaxonomy';
 import { CHANNEL_OPTIONS } from '@/lib/directoryOptions';
 import { allDriveableRegionOptions } from '@/lib/geoCatalog';
 
@@ -155,7 +156,7 @@ export function ContactsDirectory({
                     </td>
                     <td className="border-ink/[0.08] border-b p-2">
                       <Tag variant={channelTagVariant[c.accountCategory] ?? 'outline'}>
-                        {c.accountCategory}
+                        {primaryRetailChannelLabel(c.accountCategory)}
                       </Tag>
                     </td>
                     <td className="border-ink/[0.08] border-b p-2">

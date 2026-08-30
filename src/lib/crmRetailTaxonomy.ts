@@ -292,6 +292,26 @@ export function primaryRetailChannelLabel(value: string): string {
   return value;
 }
 
+/** Normalize Briefing/prep channel filter (`ALL` / blank → null). */
+export function normalizePrepChannel(
+  channel: string | null | undefined,
+): PrimaryRetailChannel | null {
+  const v = channel?.trim();
+  if (!v || v === 'ALL') return null;
+  if (isPrimaryRetailChannel(v)) return v;
+  if (v in LEGACY_TO_PRIMARY) return LEGACY_TO_PRIMARY[v as LegacyProspectCategory];
+  return null;
+}
+
+/** True when prospect/draft channel matches a prep channel filter (null filter = all). */
+export function prospectMatchesPrepChannel(
+  categoryOrChannel: string | null | undefined,
+  channel: PrimaryRetailChannel | null,
+): boolean {
+  if (!channel) return true;
+  return normalizePrepChannel(categoryOrChannel) === channel;
+}
+
 export function lifestyleThemeLabel(value: string): string {
   if (isLifestyleTheme(value)) return THEME_LABEL[value];
   return value;

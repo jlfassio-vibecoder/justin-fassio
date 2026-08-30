@@ -141,7 +141,7 @@ const briefingPayload: { briefing: OutreachBriefingDto } = {
         productSku: 'OGR-101',
         productSlug: 'american-revival',
         toEmail: 'buyer@coastalgolf.com',
-        primaryChannel: 'golf',
+        primaryChannel: 'golf_retail',
         createdAt: '2026-08-22T12:00:00Z',
         preparationDate: '2026-08-22',
         fromEarlierPrep: false,
@@ -929,7 +929,7 @@ describe('AgentBriefingTab research entry', () => {
             productName: 'American Revival',
             productSku: 'OGR-101',
             productSlug: 'american-revival',
-            primaryChannel: 'golf',
+            primaryChannel: 'golf_retail',
             needsEmail: true,
             hasUsableEmail: false,
             sharedEmailStoreNames: [],
@@ -959,7 +959,7 @@ describe('AgentBriefingTab research entry', () => {
             productName: 'American Revival',
             productSku: 'OGR-101',
             productSlug: 'american-revival',
-            primaryChannel: 'golf',
+            primaryChannel: 'golf_retail',
             needsEmail: true,
             hasUsableEmail: true,
             sharedEmailStoreNames: ['Sister Store'],
@@ -1032,7 +1032,7 @@ describe('AgentBriefingTab research entry', () => {
             productName: 'American Revival',
             productSku: 'OGR-101',
             productSlug: 'american-revival',
-            primaryChannel: 'golf',
+            primaryChannel: 'golf_retail',
             needsEmail: true,
             hasUsableEmail: true,
             sharedEmailStoreNames: [],
@@ -1094,6 +1094,71 @@ describe('AgentBriefingTab regional prep controls', () => {
     mockBriefingFetch(briefingPayload);
   });
 
+  it('shows humanized Channel labels on drafts', async () => {
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Coastal Golf')).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByText('Golf Courses, Resorts & Pro Shops').length).toBeGreaterThan(0);
+    expect(screen.queryByText('golf_retail')).not.toBeInTheDocument();
+  });
+
+  it('shows Run prep now count from regional pool capped by prep limit', async () => {
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        regionalPool: {
+          inRegion: 40,
+          withUsableEmail: 12,
+          sendableNow: 5,
+          queuedWithoutEmail: 2,
+          excluded: {
+            noUsableEmail: 0,
+            pendingDraft: 10,
+            cooldown: 8,
+            contactSuppressed: 0,
+            noProduct: 0,
+            other: 0,
+          },
+        },
+      },
+    });
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Run prep now (7)' })).toBeInTheDocument();
+    });
+  });
+
+  it('disables Run prep now when regional pool has zero available accounts', async () => {
+    mockBriefingFetch({
+      briefing: {
+        ...briefingPayload.briefing,
+        regionalPool: {
+          inRegion: 10,
+          withUsableEmail: 0,
+          sendableNow: 0,
+          queuedWithoutEmail: 0,
+          excluded: {
+            noUsableEmail: 2,
+            pendingDraft: 3,
+            cooldown: 5,
+            contactSuppressed: 0,
+            noProduct: 0,
+            other: 0,
+          },
+        },
+      },
+    });
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Run prep now (0)' })).toBeDisabled();
+    });
+  });
+
   it('uses Territory + Region labels and posts mapped ops + storeTerritoryCode', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockImplementation(async (path: string) => {
@@ -1115,6 +1180,7 @@ describe('AgentBriefingTab regional prep controls', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Territory')).toBeInTheDocument();
       expect(screen.getByLabelText('Region')).toBeInTheDocument();
+      expect(screen.getByLabelText('Channel')).toBeInTheDocument();
     });
 
     expect(screen.queryByLabelText('Operational territory')).toBeNull();
@@ -1122,6 +1188,7 @@ describe('AgentBriefingTab regional prep controls', () => {
 
     await user.selectOptions(screen.getByLabelText('Territory'), 'wa');
     await user.selectOptions(screen.getByLabelText('Region'), 'Eastern Washington');
+    await user.selectOptions(screen.getByLabelText('Channel'), 'golf_retail');
     await user.click(screen.getByRole('button', { name: /Run prep now/ }));
 
     await waitFor(() => {
@@ -1132,9 +1199,23 @@ describe('AgentBriefingTab regional prep controls', () => {
       const body = JSON.parse(String((prepCall?.[1] as RequestInit)?.body ?? '{}')) as {
         operationalTerritoryId?: string;
         storeTerritoryCode?: string;
+        channel?: string;
+        limit?: number;
       };
       expect(body.storeTerritoryCode).toBe('wa');
       expect(body.operationalTerritoryId).toBe('ops-pnw-east');
+      expect(body.channel).toBe('golf_retail');
+      expect(body.limit).toBe(25);
+    });
+
+    await waitFor(() => {
+      const briefingCall = fetchMock.mock.calls.find(
+        (call) =>
+          typeof call[0] === 'string' &&
+          call[0].includes('/api/staff/outreach/briefing') &&
+          call[0].includes('channel=golf_retail'),
+      );
+      expect(briefingCall).toBeTruthy();
     });
   });
 });

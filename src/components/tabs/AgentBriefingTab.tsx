@@ -21,6 +21,7 @@ import { useOptionalLineContext } from '@/lib/lineContext';
 import {
   formatFollowUpRelativeTime,
   formatRegionalPoolMessage,
+  regionalPrepAvailableCount,
   TOP_LEADS_QUICK_VIEW_VISIBLE,
   type OutreachBriefingDto,
   type OutreachFollowUpRow,
@@ -39,6 +40,8 @@ import {
   prospectMatchesCrmRegion,
   regionOptionsForTerritory,
 } from '@/lib/geoCatalog';
+import { CHANNEL_OPTIONS } from '@/lib/directoryOptions';
+import { primaryRetailChannelLabel } from '@/lib/crmRetailTaxonomy';
 import { supabase } from '@/lib/supabase';
 
 const ICON_STROKE = 2.75;
@@ -505,6 +508,7 @@ export function AgentBriefingTab({
   const [storeTerritoryCode, setStoreTerritoryCode] = useState<'or' | 'wa'>('or');
   const [briefingRegion, setBriefingRegion] = useState('ALL');
   const [briefingCity, setBriefingCity] = useState('ALL');
+  const [briefingChannel, setBriefingChannel] = useState('ALL');
   const [cityOptions, setCityOptions] = useState<string[]>([]);
   const [prepLimit, setPrepLimit] = useState(REGIONAL_PREP_DEFAULT_LIMIT);
   const [detailStore, setDetailStore] = useState<Prospect | null>(null);
@@ -528,6 +532,13 @@ export function AgentBriefingTab({
     }
     return map;
   }, [briefing?.followUps]);
+
+  const cappedPrepLimit = clampPrepLimit(prepLimit);
+  const regionalPool = briefing?.regionalPool;
+  /** Eligible for prep under current filters (cooldown, pending drafts, etc.), capped by prep limit. */
+  const runPrepBatchSize = regionalPool
+    ? Math.min(cappedPrepLimit, regionalPrepAvailableCount(regionalPool))
+    : cappedPrepLimit;
 
   const closeDetails = useCallback(() => {
     setDetailStore(null);
@@ -800,6 +811,9 @@ export function AgentBriefingTab({
       if (isOgrLine && briefingCity && briefingCity !== 'ALL') {
         qsParams.set('city', briefingCity);
       }
+      if (isOgrLine && briefingChannel && briefingChannel !== 'ALL') {
+        qsParams.set('channel', briefingChannel);
+      }
       const qs = qsParams.toString() ? `?${qsParams.toString()}` : '';
       const result = await staffGet(`/api/staff/outreach/briefing${qs}`);
       if (!active) return;
@@ -827,6 +841,7 @@ export function AgentBriefingTab({
     resolvedOpsTerritoryId,
     briefingRegion,
     briefingCity,
+    briefingChannel,
   ]);
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
@@ -885,6 +900,9 @@ export function AgentBriefingTab({
     if (briefingCity && briefingCity !== 'ALL') {
       body.city = briefingCity;
     }
+    if (briefingChannel && briefingChannel !== 'ALL') {
+      body.channel = briefingChannel;
+    }
     if (briefing?.sellingDate) body.preparationDate = briefing.sellingDate;
     try {
       const result = await staffPost('/api/staff/outreach/identified-target-draft', body);
@@ -938,13 +956,16 @@ export function AgentBriefingTab({
     const body: Record<string, unknown> = {
       operationalTerritoryId: resolvedOpsTerritoryId,
       storeTerritoryCode,
-      limit: clampPrepLimit(prepLimit),
+      limit: runPrepBatchSize,
     };
     if (briefingRegion && briefingRegion !== 'ALL') {
       body.crmRegion = briefingRegion;
     }
     if (briefingCity && briefingCity !== 'ALL') {
       body.city = briefingCity;
+    }
+    if (briefingChannel && briefingChannel !== 'ALL') {
+      body.channel = briefingChannel;
     }
     if (briefing?.sellingDate) body.preparationDate = briefing.sellingDate;
     const result = await staffPost('/api/staff/outreach/prep', body);
@@ -1020,6 +1041,7 @@ export function AgentBriefingTab({
                   setStoreTerritoryCode(next);
                   setBriefingRegion('ALL');
                   setBriefingCity('ALL');
+                  setBriefingChannel('ALL');
                 }}
                 disabled={prepBusy || loading}
                 aria-label="Territory"
@@ -1068,6 +1090,23 @@ export function AgentBriefingTab({
                   </option>
                 ))}
               </Select>
+              <label className="sr-only" htmlFor="briefing-channel">
+                Channel
+              </label>
+              <Select
+                id="briefing-channel"
+                className="w-auto min-w-[10rem]"
+                value={briefingChannel}
+                onChange={(e) => setBriefingChannel(e.target.value)}
+                disabled={prepBusy || loading}
+                aria-label="Channel"
+              >
+                {CHANNEL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
               <label className="sr-only" htmlFor="briefing-prep-limit">
                 Prep limit
               </label>
@@ -1085,9 +1124,13 @@ export function AgentBriefingTab({
               <Button
                 type="button"
                 onClick={() => void runPrepNow()}
-                disabled={prepBusy || loading || !resolvedOpsTerritoryId}
+                disabled={prepBusy || loading || !resolvedOpsTerritoryId || runPrepBatchSize === 0}
               >
-                {prepBusy ? 'Running prep…' : `Run prep now (${clampPrepLimit(prepLimit)})`}
+                {prepBusy
+                  ? 'Running prep…'
+                  : runPrepBatchSize === 0
+                    ? 'Run prep now (0)'
+                    : `Run prep now (${runPrepBatchSize})`}
               </Button>
             </>
           ) : null}
@@ -1124,6 +1167,14 @@ export function AgentBriefingTab({
                     briefing.regionalPool,
                     briefingRegionOptions.find((o) => o.value === briefingRegion)?.label ??
                       briefingRegion,
+                  )}
+                </>
+              ) : briefing.regionalPool ? (
+                <>
+                  <br />
+                  {formatRegionalPoolMessage(
+                    briefing.regionalPool,
+                    storeTerritoryCode === 'wa' ? 'Washington' : 'Oregon',
                   )}
                 </>
               ) : null}
@@ -1261,7 +1312,7 @@ export function AgentBriefingTab({
                           </td>
                           <td className="border-ink/[0.06] border-b p-2">{t.productName}</td>
                           <td className="border-ink/[0.06] border-b p-2">
-                            {t.primaryChannel ?? '—'}
+                            {t.primaryChannel ? primaryRetailChannelLabel(t.primaryChannel) : '—'}
                           </td>
                           <td className="border-ink/[0.06] border-b p-2">
                             {t.hasUsableEmail ? (
@@ -1384,7 +1435,7 @@ export function AgentBriefingTab({
                             </button>
                           </td>
                           <td className="border-ink/[0.06] border-b p-2 text-xs">
-                            {d.primaryChannel ?? '—'}
+                            {d.primaryChannel ? primaryRetailChannelLabel(d.primaryChannel) : '—'}
                           </td>
                           <td className="border-ink/[0.06] border-b p-2 text-xs">{d.toEmail}</td>
                         </tr>
@@ -1414,7 +1465,7 @@ export function AgentBriefingTab({
                   .filter(([, n]) => n > 0)
                   .map(([ch, n]) => (
                     <li key={ch} className="bg-bg rounded-md px-2.5 py-1">
-                      {ch}: <strong>{n}</strong>
+                      {primaryRetailChannelLabel(ch)}: <strong>{n}</strong>
                     </li>
                   ))}
               </ul>

@@ -38,7 +38,14 @@ function stubLead(prospectId: number, name: string): OutreachLeadRow {
   };
 }
 
-function thenableClient(prospectRows: Array<{ id: number; region: string; city?: string | null }>) {
+function thenableClient(
+  prospectRows: Array<{
+    id: number;
+    region: string;
+    city?: string | null;
+    category?: string | null;
+  }>,
+) {
   const thenable = (result: { data: unknown; error: unknown }) => {
     const api: Record<string, unknown> = {};
     const self = () => thenable(result);
@@ -119,5 +126,22 @@ describe('filterOutreachLeadsByPrepScope', () => {
       city: null,
     });
     expect(filtered).toEqual([]);
+  });
+
+  it('keeps only leads matching primary retail channel', async () => {
+    const leads = [stubLead(10, 'Golf Shop'), stubLead(20, 'Marina Shop')];
+    const client = thenableClient([
+      { id: 10, region: 'Oregon Coast', city: 'Newport', category: 'golf_retail' },
+      { id: 20, region: 'Oregon Coast', city: 'Newport', category: 'marine_retail' },
+    ]);
+    const filtered = await filterOutreachLeadsByPrepScope({
+      client: client as never,
+      leads,
+      crmRegion: null,
+      city: null,
+      channel: 'golf_retail',
+      storeTerritoryCode: 'or',
+    });
+    expect(filtered.map((l) => l.prospectId)).toEqual([10]);
   });
 });

@@ -19,6 +19,7 @@ import {
   prospectMatchesCrmRegion,
   prospectMatchesPrepCity,
 } from '@/lib/geoCatalog';
+import { normalizePrepChannel } from '@/lib/crmRetailTaxonomy';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
 import type { OutreachGoalSettings } from '@/lib/outreachGoals';
 import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
@@ -424,6 +425,8 @@ export type RunOutreachNightlyPrepInput = {
   crmRegion?: string | null;
   /** Optional city within the CRM region; ALL/null = all cities in scope. */
   city?: string | null;
+  /** Optional primary retail channel; ALL/null = all channels in scope. */
+  channel?: string | null;
   /** Regional capacity override (default 25, max 50). Ignored for nightly. */
   limit?: number;
 };
@@ -490,6 +493,7 @@ export async function runOutreachNightlyPrep(
   const storeTerritoryCode = input.storeTerritoryCode?.trim().toLowerCase() || null;
   const crmRegion = normalizePrepCrmRegion(input.crmRegion);
   const prepCity = normalizePrepCity(input.city);
+  const prepChannel = normalizePrepChannel(input.channel);
   const isRegional = Boolean(operationalTerritoryId);
   const kind: OutreachPrepKind = isRegional
     ? OUTREACH_MANUAL_REGIONAL_PREP_KIND
@@ -597,6 +601,7 @@ export async function runOutreachNightlyPrep(
         storeTerritoryCode,
         crmRegion,
         city: prepCity,
+        channel: prepChannel,
       });
     }
   }
@@ -659,6 +664,7 @@ export async function runOutreachNightlyPrep(
     storeTerritoryCode,
     crmRegion,
     city: prepCity,
+    channel: prepChannel,
   });
 }
 
@@ -677,6 +683,7 @@ async function continuePrep(params: {
   storeTerritoryCode: string | null;
   crmRegion: string | null;
   city: string | null;
+  channel: string | null;
 }): Promise<RunOutreachNightlyPrepResult> {
   const {
     client,
@@ -691,6 +698,7 @@ async function continuePrep(params: {
     storeTerritoryCode,
     crmRegion,
     city,
+    channel,
   } = params;
 
   const leadRulesRefresh = await refreshPersistedLeadRules({ client, performance });
@@ -799,6 +807,7 @@ async function continuePrep(params: {
     storeTerritoryCode: storeTerritoryCode ?? undefined,
     crmRegion: crmRegion ?? undefined,
     city: city ?? undefined,
+    channel: channel ?? undefined,
     rankMode: isRegional ? 'fit_score' : 'default',
     skipChannelAllocation: isRegional,
     allowMissingEmail: isRegional,

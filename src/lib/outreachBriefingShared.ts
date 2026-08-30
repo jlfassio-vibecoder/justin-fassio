@@ -227,7 +227,7 @@ export function formatRegionalPoolMessage(
   if (pool.excluded.contactSuppressed > 0) {
     parts.push(`${pool.excluded.contactSuppressed} suppressed`);
   }
-  const selected = pool.sendableNow + (pool.queuedWithoutEmail ?? 0);
+  const selected = regionalPrepAvailableCount(pool);
   if (selected > 0) {
     parts.push(`${selected} selected for outreach`);
     if (pool.sendableNow > 0) {
@@ -237,6 +237,11 @@ export function formatRegionalPoolMessage(
     parts.push('0 selected today');
   }
   return parts.join(' · ');
+}
+
+/** Accounts still eligible for regional prep (draft-ready + needs-email queue). */
+export function regionalPrepAvailableCount(pool: OutreachPoolDiagnostics): number {
+  return Math.max(0, pool.sendableNow + (pool.queuedWithoutEmail ?? 0));
 }
 
 export function formatFollowUpRelativeTime(

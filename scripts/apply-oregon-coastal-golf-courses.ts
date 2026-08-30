@@ -79,6 +79,7 @@ type ProspectRow = {
   external_id: string | null;
   source_note: string | null;
   account_status: string | null;
+  operational_territory_id: string | null;
 };
 
 type ContactLite = {
@@ -330,6 +331,8 @@ function prospectFieldValue(prospect: ProspectRow, fieldPath: string): unknown {
       return prospect.category ?? null;
     case 'source_note':
       return prospect.source_note ?? null;
+    case 'operational_territory_id':
+      return prospect.operational_territory_id ?? null;
     default:
       return null;
   }
@@ -442,10 +445,20 @@ if (terrErr || !territory?.id) {
   process.exit(1);
 }
 
+const { data: opsTerritory, error: opsTerrErr } = await client
+  .from('territories')
+  .select('id, code')
+  .eq('code', 'pnw-west')
+  .maybeSingle();
+if (opsTerrErr || !opsTerritory?.id) {
+  console.error(opsTerrErr?.message ?? 'Ops territory (code=pnw-west) not found');
+  process.exit(1);
+}
+
 const { data: prospects, error: prospectErr } = await client
   .from('prospects')
   .select(
-    'id, name, city, region, phone, website, address, postal_code, category, buyer_verified, import_protected, verification_status, external_id, source_note, account_status',
+    'id, name, city, region, phone, website, address, postal_code, category, buyer_verified, import_protected, verification_status, external_id, source_note, account_status, operational_territory_id',
   )
   .or('region.eq.Oregon Coast,region.eq.Oregon')
   .order('id');
@@ -541,6 +554,9 @@ for (const row of prepRows) {
     if (row.setGolfRetail && prospect.category !== 'golf_retail') {
       prospectPatch.category = 'golf_retail';
     }
+    if (!prospect.operational_territory_id) {
+      prospectPatch.operational_territory_id = opsTerritory.id;
+    }
 
     const note = buildSourceNote(row, prospect.source_note);
     if (note !== (prospect.source_note ?? '')) {
@@ -616,6 +632,7 @@ for (const row of prepRows) {
     postal_code: row.postalCode,
     phone: row.shopPhone ?? '',
     territory_id: territory.id,
+    operational_territory_id: opsTerritory.id,
     primary_district: 'Oregon Coast',
     website: row.website,
     external_id: externalId,
