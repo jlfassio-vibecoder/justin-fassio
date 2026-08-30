@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AccountDetailDrawer } from '@/components/AccountDetailDrawer';
+import { ProspectDetailDrawer } from '@/components/ProspectDetailDrawer';
 import {
   BC_PROSPECT_TERRITORY,
   EMPTY_PROSPECT_PLANNING,
@@ -52,9 +52,9 @@ vi.mock('@/lib/retailerLineAccounts', async () => {
     fetchOperationalLineAccount: vi.fn(async () => ({
       data: {
         id: 'rla-1',
-        retailerId: 7,
+        retailerId: 42,
         salesLineId: '11111111-1111-4111-8111-111111111111',
-        relationshipStatus: 'opened',
+        relationshipStatus: 'prospect',
         notes: null,
         salesLineTerritoryId: null,
       },
@@ -84,6 +84,9 @@ vi.mock('@/components/calendar/AccountCalendarSection', () => ({
 }));
 vi.mock('@/components/calendar/ScheduleMeetingModal', () => ({
   ScheduleMeetingModal: () => null,
+}));
+vi.mock('@/components/ConvertAccountModal', () => ({
+  ConvertAccountModal: () => null,
 }));
 vi.mock('@/components/messages/AccountEmailSection', () => ({
   AccountEmailSection: () => null,
@@ -183,18 +186,18 @@ vi.mock('@/components/OgrProductEmailComposerModal', () => ({
     ) : null,
 }));
 
-const ACCOUNT: Prospect = {
-  id: 7,
-  name: 'Kelowna Golf & Country Club',
+const PROSPECT: Prospect = {
+  id: 42,
+  name: 'Coastal Golf Outfitters',
   category: 'golf_retail',
-  region: 'Okanagan',
-  city: 'Kelowna',
-  address: '1297 Glenmore Dr',
-  phone: '250-762-2531',
+  region: 'Vancouver Island',
+  city: 'Victoria',
+  address: '100 Harbour Rd',
+  phone: '250-555-0100',
   fit: 'Test',
-  accountStatus: 'active_account',
-  convertedAt: '2026-01-01T00:00:00Z',
-  initialOrderDate: '2026-01-02T00:00:00Z',
+  accountStatus: 'prospect',
+  convertedAt: null,
+  initialOrderDate: null,
   notes: null,
   ...EMPTY_PROSPECT_PLANNING,
   ...EMPTY_PROSPECT_TAXONOMY,
@@ -202,31 +205,24 @@ const ACCOUNT: Prospect = {
 };
 
 function renderDrawer() {
-  return render(
-    <AccountDetailDrawer
-      account={ACCOUNT}
-      onClose={vi.fn()}
-      onLogCall={vi.fn()}
-      onLogOrder={vi.fn()}
-    />,
-  );
+  return render(<ProspectDetailDrawer prospect={PROSPECT} onClose={vi.fn()} onLogCall={vi.fn()} />);
 }
 
-describe('AccountDetailDrawer email product flow', () => {
+describe('ProspectDetailDrawer email product flow', () => {
   beforeEach(() => {
     lineState.current = { ...lineState.base };
     handoffMocks.generateDraftFromAccountEmailPick.mockReset();
     handoffMocks.generateDraftFromAccountEmailPick.mockResolvedValue({
       ok: true,
-      systemMessageId: 'draft-aa-1',
+      systemMessageId: 'draft-p-1',
       draft: {
-        id: 'draft-aa-1',
+        id: 'draft-p-1',
         to: 'buyer@example.com',
         toName: 'Sam',
         subject: 'Subject',
         introText: 'Intro',
         closingText: 'Closing',
-        prospectId: 7,
+        prospectId: 42,
         accountContactId: 'c1',
         catalogItemId: 'prod-1',
       },
@@ -239,24 +235,24 @@ describe('AccountDetailDrawer email product flow', () => {
     });
   });
 
-  it('opens the picker as a sibling overlay and keeps the account mounted', async () => {
+  it('opens the picker as a sibling overlay and keeps the prospect mounted', async () => {
     const user = userEvent.setup();
     renderDrawer();
-    expect(screen.getByRole('dialog', { name: /kelowna golf/i })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /coastal golf/i })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Email product' }));
     expect(screen.getByText('Product picker')).toBeInTheDocument();
     expect(screen.queryByText('Product composer')).not.toBeInTheDocument();
-    expect(screen.getByText('Kelowna Golf & Country Club')).toBeInTheDocument();
+    expect(screen.getByText('Coastal Golf Outfitters')).toBeInTheDocument();
     expect(document.querySelector('aside[role="dialog"]')).toHaveAttribute('inert');
   });
 
-  it('returns to the closed account on picker cancel', async () => {
+  it('returns to the closed prospect on picker cancel', async () => {
     const user = userEvent.setup();
     renderDrawer();
     await user.click(screen.getByRole('button', { name: 'Email product' }));
     await user.click(screen.getByRole('button', { name: 'Cancel picker' }));
     expect(screen.queryByText('Product picker')).not.toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: /kelowna golf/i })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /coastal golf/i })).toBeInTheDocument();
     expect(document.querySelector('aside[role="dialog"]')).not.toHaveAttribute('inert');
   });
 
@@ -266,7 +262,7 @@ describe('AccountDetailDrawer email product flow', () => {
     await user.click(screen.getByRole('button', { name: 'Email product' }));
     await user.click(screen.getByRole('button', { name: 'Email this' }));
     await waitFor(() => {
-      expect(screen.getByText('Draft review draft-aa-1')).toBeInTheDocument();
+      expect(screen.getByText('Draft review draft-p-1')).toBeInTheDocument();
     });
     expect(screen.queryByText('Manual compose')).not.toBeInTheDocument();
     expect(screen.queryByText('Product picker')).not.toBeInTheDocument();
@@ -292,10 +288,10 @@ describe('AccountDetailDrawer email product flow', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel composer' }));
     expect(screen.queryByText('Product composer')).not.toBeInTheDocument();
     expect(screen.queryByText('Product picker')).not.toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: /kelowna golf/i })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /coastal golf/i })).toBeInTheDocument();
   });
 
-  it('returns to the open account after send', async () => {
+  it('returns to the open prospect after send', async () => {
     const user = userEvent.setup();
     renderDrawer();
     await user.click(screen.getByRole('button', { name: 'Email product' }));
@@ -306,7 +302,7 @@ describe('AccountDetailDrawer email product flow', () => {
     await user.click(screen.getByRole('button', { name: 'Send product email' }));
     expect(screen.queryByText('Product picker')).not.toBeInTheDocument();
     expect(screen.queryByText('Product composer')).not.toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: /kelowna golf/i })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /coastal golf/i })).toBeInTheDocument();
   });
 
   it('keeps the picker open with an error when draft generation fails', async () => {
@@ -345,25 +341,5 @@ describe('AccountDetailDrawer email product flow', () => {
     };
     renderDrawer();
     expect(screen.queryByRole('button', { name: 'Email product' })).not.toBeInTheDocument();
-  });
-
-  it('still shows Email product when selling is blocked', () => {
-    lineState.current = {
-      ...lineState.base,
-      multiLineWrites: true,
-      lineSlug: 'eagle-peak',
-      eaglePeakSelling: false,
-      eaglePeakOutreach: true,
-      status: 'active',
-    };
-    renderDrawer();
-    expect(screen.getByRole('button', { name: 'Email product' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '+ Log Order / Reorder' })).not.toBeInTheDocument();
-  });
-
-  it('renders the Research section with AccountResearchPanel', () => {
-    renderDrawer();
-    expect(screen.getByRole('button', { name: 'Research' })).toBeInTheDocument();
-    expect(screen.getByText('Account research panel')).toBeInTheDocument();
   });
 });

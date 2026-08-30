@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { AccountContactsSection } from '@/components/AccountContactsSection';
 import { AccountDetailsEditor } from '@/components/AccountDetailsEditor';
+import { AccountEmailProductPickerModal } from '@/components/AccountEmailProductPickerModal';
 import { AccountNotesEditor } from '@/components/AccountNotesEditor';
 import { AccountCalendarSection } from '@/components/calendar/AccountCalendarSection';
 import { ScheduleMeetingModal } from '@/components/calendar/ScheduleMeetingModal';
@@ -19,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { CopyUrlButton } from '@/components/ui/CopyUrlButton';
 import { Tag } from '@/components/ui/Tag';
 import { formatAccountLocationLine } from '@/lib/accountImport/directoryPresentation';
+import { generateDraftFromAccountEmailPick } from '@/lib/accountResearchDraftHandoff';
 import { buildCatalogItemEmailCardHtml } from '@/lib/catalogItemEmailCardHtml';
 import type { CatalogItem } from '@/lib/catalog';
 import { useOptionalLineContext } from '@/lib/lineContext';
@@ -41,6 +43,8 @@ interface ProspectDetailDrawerProps {
   /** Scroll to research section when opened from Briefing. */
   initialScrollToResearch?: boolean;
 }
+
+type ProspectEmailFlow = 'closed' | 'pick' | 'generating';
 
 const STATUS_LABEL: Record<Prospect['accountStatus'], string> = {
   prospect: 'Prospect',
@@ -66,9 +70,15 @@ export function ProspectDetailDrawer({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const appliedResearchScrollRef = useRef<string | null>(null);
   const currentProspectIdRef = useRef<number | null>(prospect?.id ?? null);
+  const composerSentRef = useRef(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+  const [emailFlow, setEmailFlow] = useState<ProspectEmailFlow>('closed');
+  const [emailGenerateError, setEmailGenerateError] = useState<string | null>(null);
+  const [emailBoundProspectId, setEmailBoundProspectId] = useState<number | null>(
+    prospect?.id ?? null,
+  );
   const [researchDraft, setResearchDraft] = useState<OgrProductEmailComposerDraft | null>(null);
   const [researchDraftProduct, setResearchDraftProduct] = useState<CatalogItem | null>(null);
   const [researchDraftBoundProspectId, setResearchDraftBoundProspectId] = useState<number | null>(
@@ -85,9 +95,19 @@ export function ProspectDetailDrawer({
     setResearchDraft(null);
     setResearchDraftProduct(null);
   }
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
+  if (prospectId !== emailBoundProspectId) {
+    setEmailBoundProspectId(prospectId);
+    setEmailFlow('closed');
+    setEmailGenerateError(null);
+  }
   const rlaScope = prospect && line.salesLineId ? `${prospect.id}:${line.salesLineId}` : null;
   const retailerLineAccountId =
     rlaScope && retailerLineAccountRecord?.scope === rlaScope ? retailerLineAccountRecord.id : null;
+  const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
+  const bigFishOutreachBlocked = line.lineSlug === 'big-fish' && !line.bigFishOutreach;
+  const emailProductBlocked = eaglePeakOutreachBlocked || bigFishOutreachBlocked;
+  const overlayOpen = emailFlow !== 'closed' || researchDraft != null;
 
   useEffect(() => {
     currentProspectIdRef.current = prospect?.id ?? null;
@@ -157,11 +177,19 @@ export function ProspectDetailDrawer({
 
   const canConvert =
     prospect.accountStatus !== 'active_account' && prospect.accountStatus !== 'inactive';
-  const overlayOpen = researchDraft != null;
+
+  function handleProspectClose() {
+    if (overlayOpen) return;
+    onClose();
+  }
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-neutral-900/40" onClick={onClose} aria-hidden="true" />
+      <div
+        className="fixed inset-0 z-40 bg-neutral-900/40"
+        onClick={handleProspectClose}
+        aria-hidden="true"
+      />
       <aside
         className="border-ink/15 bg-surface fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l shadow-xl"
         role="dialog"
@@ -189,7 +217,7 @@ export function ProspectDetailDrawer({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleProspectClose}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-transparent"
             aria-label="Close"
           >
@@ -275,6 +303,18 @@ export function ProspectDetailDrawer({
         </div>
 
         <div className="border-ink/10 flex flex-col gap-2 border-t px-5 py-4">
+          {emailProductBlocked ? null : (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                composerSentRef.current = false;
+                setEmailGenerateError(null);
+                setEmailFlow('pick');
+              }}
+            >
+              Email product
+            </Button>
+          )}
           {canConvert ? (
             <Button variant="primary" onClick={() => setConvertOpen(true)}>
               Convert to Active Account
@@ -303,15 +343,86 @@ export function ProspectDetailDrawer({
           prospectId={prospect.id}
           salesLineId={line.salesLineId}
           retailerLineAccountId={retailerLineAccountId}
+          onProductReplaced={({ item, draft: nextDraft }) => {
+            setResearchDraftProduct(item);
+            setResearchDraft(nextDraft);
+          }}
           onClose={() => {
+            if (composerSentRef.current) {
+              composerSentRef.current = false;
+              return;
+            }
             setResearchDraft(null);
             setResearchDraftProduct(null);
           }}
           onSent={() => {
+            composerSentRef.current = true;
             setResearchDraft(null);
             setResearchDraftProduct(null);
           }}
         />
+      ) : null}
+
+      {emailFlow === 'pick' ? (
+        <>
+          {emailGenerateError ? (
+            <div className="fixed inset-x-0 bottom-24 z-[65] flex justify-center px-4">
+              <p
+                className="text-accent-800 bg-surface border-ink/15 m-0 rounded border px-3 py-2 text-sm shadow"
+                role="alert"
+              >
+                {emailGenerateError}
+              </p>
+            </div>
+          ) : null}
+          <AccountEmailProductPickerModal
+            open
+            accountId={prospect.id}
+            salesLineId={line.salesLineId}
+            lineSlug={line.lineSlug}
+            onClose={() => {
+              setEmailFlow('closed');
+              setEmailGenerateError(null);
+            }}
+            onPick={async (pick) => {
+              setEmailGenerateError(null);
+              setEmailFlow('generating');
+              const prospectIdAtStart = prospect.id;
+              const result = await generateDraftFromAccountEmailPick({
+                prospect,
+                catalogItem: pick.item,
+                contact: {
+                  accountContactId: pick.accountContactId ?? '',
+                  toEmail: pick.to,
+                  toName: pick.recipientName,
+                },
+                salesLineId: line.salesLineId ?? undefined,
+                retailerLineAccountId: retailerLineAccountId ?? undefined,
+              });
+              if (currentProspectIdRef.current !== prospectIdAtStart) return;
+              if (!result.ok) {
+                setEmailGenerateError(result.error);
+                setEmailFlow('pick');
+                return;
+              }
+              setResearchDraftProduct(result.catalogItem);
+              setResearchDraft(result.draft);
+              setEmailFlow('closed');
+            }}
+          />
+        </>
+      ) : null}
+
+      {emailFlow === 'generating' ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-neutral-900/40"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="bg-surface border-ink/15 m-0 rounded border px-4 py-3 text-sm shadow">
+            Generating product email…
+          </p>
+        </div>
       ) : null}
 
       <ConvertAccountModal

@@ -22,12 +22,12 @@ import {
   searchContactsByName,
   type AccountContactSearchHit,
 } from '@/lib/accountContacts';
-import type { AccountProductEmailRecipientOption } from '@/lib/accountProductEmailRecipient';
 import { apparelSeasonLabel } from '@/lib/apparelSeasons';
 import type { AccountReorderSettingsRow } from '@/lib/accountReorderSettings';
 import { demoteToProspect } from '@/lib/convertToActiveAccount';
 import type { CatalogItem } from '@/lib/catalog';
 import { buildCatalogItemEmailCardHtml } from '@/lib/catalogItemEmailCardHtml';
+import { generateDraftFromAccountEmailPick } from '@/lib/accountResearchDraftHandoff';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { resolvePricingMarketFromRlaAssignment, type PublicMarket } from '@/lib/pricingMarket';
 import { primaryRetailChannelLabel, updateProspectTaxonomy, type Prospect } from '@/lib/prospects';
@@ -50,7 +50,7 @@ export interface AccountDetailSummary {
   latestSeason: ApparelSeason | null;
 }
 
-type AccountEmailFlow = 'closed' | 'pick' | 'compose';
+type AccountEmailFlow = 'closed' | 'pick' | 'generating';
 
 const ACCOUNT_DRAWER_SECTIONS = [
   { id: 'overview', label: 'Overview' },
@@ -305,14 +305,7 @@ export function AccountDetailDrawer({
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
   const [emailFlow, setEmailFlow] = useState<AccountEmailFlow>('closed');
-  const [emailProduct, setEmailProduct] = useState<CatalogItem | null>(null);
-  const [emailTo, setEmailTo] = useState('');
-  const [emailRecipientName, setEmailRecipientName] = useState('');
-  const [emailAccountContactId, setEmailAccountContactId] = useState<string | null>(null);
-  const [emailRecipientHint, setEmailRecipientHint] = useState<string | null>(null);
-  const [emailRecipientOptions, setEmailRecipientOptions] = useState<
-    AccountProductEmailRecipientOption[]
-  >([]);
+  const [emailGenerateError, setEmailGenerateError] = useState<string | null>(null);
   const [retailerLineAccountRecord, setRetailerLineAccountRecord] = useState<{
     scope: string;
     id: string | null;
@@ -365,12 +358,7 @@ export function AccountDetailDrawer({
   if (emailSessionAccountId !== emailBoundAccountId) {
     setEmailBoundAccountId(emailSessionAccountId);
     setEmailFlow('closed');
-    setEmailProduct(null);
-    setEmailTo('');
-    setEmailRecipientName('');
-    setEmailAccountContactId(null);
-    setEmailRecipientHint(null);
-    setEmailRecipientOptions([]);
+    setEmailGenerateError(null);
   }
 
   useEffect(() => {
@@ -475,15 +463,6 @@ export function AccountDetailDrawer({
   function handleAccountClose() {
     if (emailOverlayOpen) return;
     onClose();
-  }
-
-  function resetEmailCompose() {
-    setEmailProduct(null);
-    setEmailTo('');
-    setEmailRecipientName('');
-    setEmailAccountContactId(null);
-    setEmailRecipientHint(null);
-    setEmailRecipientOptions([]);
   }
 
   function scrollToSection(sectionId: AccountDrawerSectionId) {
@@ -719,6 +698,7 @@ export function AccountDetailDrawer({
               variant="secondary"
               onClick={() => {
                 composerSentRef.current = false;
+                setEmailGenerateError(null);
                 setEmailFlow('pick');
               }}
             >
@@ -777,6 +757,10 @@ export function AccountDetailDrawer({
           prospectId={account.id}
           salesLineId={line.salesLineId}
           retailerLineAccountId={retailerLineAccountId}
+          onProductReplaced={({ item, draft: nextDraft }) => {
+            setResearchDraftProduct(item);
+            setResearchDraft(nextDraft);
+          }}
           onClose={() => {
             if (composerSentRef.current) {
               composerSentRef.current = false;
@@ -795,56 +779,65 @@ export function AccountDetailDrawer({
       ) : null}
 
       {emailFlow === 'pick' ? (
-        <AccountEmailProductPickerModal
-          open
-          accountId={account.id}
-          salesLineId={line.salesLineId}
-          lineSlug={line.lineSlug}
-          onClose={() => {
-            setEmailFlow('closed');
-            resetEmailCompose();
-          }}
-          onPick={(pick) => {
-            setEmailProduct(pick.item);
-            setEmailTo(pick.to);
-            setEmailRecipientName(pick.recipientName);
-            setEmailAccountContactId(pick.accountContactId);
-            setEmailRecipientHint(pick.recipientHint);
-            setEmailRecipientOptions(pick.recipientOptions);
-            setEmailFlow('compose');
-          }}
-        />
+        <>
+          {emailGenerateError ? (
+            <div className="fixed inset-x-0 bottom-24 z-[65] flex justify-center px-4 md:inset-x-auto md:right-0 md:w-2/3">
+              <p
+                className="text-accent-800 bg-surface border-ink/15 m-0 rounded border px-3 py-2 text-sm shadow"
+                role="alert"
+              >
+                {emailGenerateError}
+              </p>
+            </div>
+          ) : null}
+          <AccountEmailProductPickerModal
+            open
+            accountId={account.id}
+            salesLineId={line.salesLineId}
+            lineSlug={line.lineSlug}
+            onClose={() => {
+              setEmailFlow('closed');
+              setEmailGenerateError(null);
+            }}
+            onPick={async (pick) => {
+              setEmailGenerateError(null);
+              setEmailFlow('generating');
+              const accountIdAtStart = account.id;
+              const result = await generateDraftFromAccountEmailPick({
+                prospect: account,
+                catalogItem: pick.item,
+                contact: {
+                  accountContactId: pick.accountContactId ?? '',
+                  toEmail: pick.to,
+                  toName: pick.recipientName,
+                },
+                salesLineId: line.salesLineId ?? undefined,
+                retailerLineAccountId: retailerLineAccountId ?? undefined,
+              });
+              if (currentAccountIdRef.current !== accountIdAtStart) return;
+              if (!result.ok) {
+                setEmailGenerateError(result.error);
+                setEmailFlow('pick');
+                return;
+              }
+              setResearchDraftProduct(result.catalogItem);
+              setResearchDraft(result.draft);
+              setEmailFlow('closed');
+            }}
+          />
+        </>
       ) : null}
 
-      {emailFlow === 'compose' && emailProduct ? (
-        <OgrProductEmailComposerModal
-          open
-          overlayClassName="z-[60]"
-          productId={emailProduct.id}
-          productName={emailProduct.name}
-          cardHtml={buildCatalogItemEmailCardHtml(emailProduct, accountEmailMarket)}
-          defaultTo={emailTo}
-          defaultRecipientName={emailRecipientName}
-          recipientHint={emailRecipientHint}
-          prospectId={account.id}
-          accountContactId={emailAccountContactId}
-          salesLineId={line.salesLineId}
-          retailerLineAccountId={retailerLineAccountId}
-          recipientOptions={emailRecipientOptions}
-          onClose={() => {
-            if (composerSentRef.current) {
-              composerSentRef.current = false;
-              return;
-            }
-            setEmailFlow('pick');
-          }}
-          onSent={() => {
-            composerSentRef.current = true;
-            setEmailFlow('closed');
-            resetEmailCompose();
-            onProductEmailSent?.();
-          }}
-        />
+      {emailFlow === 'generating' ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-neutral-900/40"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="bg-surface border-ink/15 m-0 rounded border px-4 py-3 text-sm shadow">
+            Generating product email…
+          </p>
+        </div>
       ) : null}
     </>
   );
