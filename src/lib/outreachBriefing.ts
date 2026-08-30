@@ -31,7 +31,10 @@ import {
 } from '@/lib/geoCatalog';
 import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outreachSelectTargets';
 import { isWithinOutreachCooldown, pickOutreachContact } from '@/lib/outreachEligibility';
-import { loadLatestProductOutreachSends } from '@/lib/outreachLatestSends';
+import {
+  latestProductOutreachSentAt,
+  loadLatestProductOutreachSends,
+} from '@/lib/outreachLatestSends';
 import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
 import {
   formatRegionalPoolMessage,
@@ -62,12 +65,15 @@ import {
 
 type Client = SupabaseClient<Database>;
 
-/** Prospect ids that currently have a usable outreach email on an account contact. */
-export async function loadProspectIdsWithUsableOutreachEmail(
+/**
+ * Live outreach contact email by prospect id (pickOutreachContact).
+ * Used for Research Queue hasUsableEmail + shared-email cooldown.
+ */
+export async function loadUsableOutreachEmailsByProspectId(
   client: Client,
   prospectIds: number[],
-): Promise<Set<number>> {
-  const out = new Set<number>();
+): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
   const ids = [...new Set(prospectIds)];
   if (ids.length === 0) return out;
 
@@ -85,7 +91,8 @@ export async function loadProspectIdsWithUsableOutreachEmail(
     byAccount.set(contact.accountId, list);
   }
   for (const [accountId, contacts] of byAccount) {
-    if (pickOutreachContact(contacts)) out.add(accountId);
+    const picked = pickOutreachContact(contacts);
+    if (picked) out.set(accountId, picked.toEmail);
   }
   return out;
 }
@@ -616,36 +623,42 @@ export async function assembleOutreachBriefing(params: {
   );
 
   if (identifiedTargets.length > 0) {
-    const sends = await loadLatestProductOutreachSends(
-      client,
-      identifiedTargets.map((t) => t.prospectId),
-    );
-    if (!sends.ok) return { ok: false, error: sends.error };
-    identifiedTargets = identifiedTargets.filter((t) => {
-      const lastSentAt = sends.byProspectId.get(t.prospectId) ?? null;
-      return !isWithinOutreachCooldown(lastSentAt, {
-        asOf,
-        cooldownDays: AGENT_OUTREACH_COOLDOWN_DAYS,
-      });
-    });
-  }
-
-  if (identifiedTargets.length > 0) {
+    let emailsByProspect: Map<number, string>;
     try {
-      const withEmail = await loadProspectIdsWithUsableOutreachEmail(
+      emailsByProspect = await loadUsableOutreachEmailsByProspectId(
         client,
         identifiedTargets.map((t) => t.prospectId),
       );
-      identifiedTargets = identifiedTargets.map((t) => ({
-        ...t,
-        hasUsableEmail: withEmail.has(t.prospectId),
-      }));
     } catch (err) {
       return {
         ok: false,
         error: err instanceof Error ? err.message : 'Failed to load research-queue contact emails',
       };
     }
+
+    identifiedTargets = identifiedTargets.map((t) => ({
+      ...t,
+      hasUsableEmail: emailsByProspect.has(t.prospectId),
+    }));
+
+    const sends = await loadLatestProductOutreachSends(
+      client,
+      identifiedTargets.map((t) => t.prospectId),
+      [...emailsByProspect.values()],
+    );
+    if (!sends.ok) return { ok: false, error: sends.error };
+    identifiedTargets = identifiedTargets.filter((t) => {
+      const lastSentAt = latestProductOutreachSentAt(
+        t.prospectId,
+        emailsByProspect.get(t.prospectId) ?? null,
+        sends.byProspectId,
+        sends.byEmail,
+      );
+      return !isWithinOutreachCooldown(lastSentAt, {
+        asOf,
+        cooldownDays: AGENT_OUTREACH_COOLDOWN_DAYS,
+      });
+    });
   }
 
   const channelAllocation =

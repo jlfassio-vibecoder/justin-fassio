@@ -188,9 +188,12 @@ export async function createOutreachIdentifiedTargetDraft(params: {
       cooldownDays: AGENT_OUTREACH_COOLDOWN_DAYS,
     })
   ) {
+    const emailedThisProspect = Boolean(sends.byProspectId.get(prospectId));
     return {
       ok: false,
-      error: `Account was emailed within the last ${AGENT_OUTREACH_COOLDOWN_DAYS} days — wait for cooldown before creating another prep draft`,
+      error: emailedThisProspect
+        ? `Account was emailed within the last ${AGENT_OUTREACH_COOLDOWN_DAYS} days — wait for cooldown before creating another prep draft`
+        : `Contact email was emailed within the last ${AGENT_OUTREACH_COOLDOWN_DAYS} days (often shared with another store) — wait for cooldown before creating another prep draft`,
       status: 409,
     };
   }

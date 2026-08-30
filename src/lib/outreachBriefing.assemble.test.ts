@@ -356,6 +356,87 @@ describe('assembleOutreachBriefing carryover', () => {
     expect(result.briefing.identifiedTargets.map((t) => t.prospectId)).toEqual([]);
   });
 
+  it('excludes identifiedTargets when their contact email is in cooldown on another account', async () => {
+    const thenable = (result: { data: unknown; error: unknown }) => {
+      const api: Record<string, unknown> = {};
+      const self = () => thenable(result);
+      for (const key of ['select', 'eq', 'in', 'not', 'or', 'is', 'lte', 'gte', 'order', 'limit']) {
+        api[key] = vi.fn(self);
+      }
+      api.maybeSingle = vi.fn(async () => result);
+      return {
+        ...api,
+        then(onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
+          return Promise.resolve(result).then(onFulfilled, onRejected);
+        },
+      };
+    };
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === 'prospects') {
+          return thenable({
+            data: [
+              {
+                id: 12,
+                name: 'Carryover Cafe',
+                account_status: 'prospect',
+                region: 'Oregon Coast',
+              },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'account_contacts') {
+          return thenable({
+            data: [
+              {
+                id: 'c-99',
+                account_id: 99,
+                role: 'buyer',
+                full_name: 'Shared Buyer',
+                title: null,
+                phone: null,
+                email: 'shared@example.com',
+                is_primary: true,
+                notes: null,
+                created_at: '2026-01-01T00:00:00Z',
+                updated_at: '2026-01-01T00:00:00Z',
+              },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'system_messages') {
+          return thenable({
+            data: [
+              {
+                prospect_id: 673,
+                to_email: 'shared@example.com',
+                sent_at: '2026-08-25T12:00:00Z',
+              },
+            ],
+            error: null,
+          });
+        }
+        return thenable({ data: [], error: null });
+      }),
+    };
+
+    const result = await assembleOutreachBriefing({
+      client: client as never,
+      asOf: new Date('2026-08-27T18:00:00Z'),
+      regionalPrepScope: {
+        operationalTerritoryId: 'ops-pnw-west',
+        storeTerritoryCode: 'or',
+        crmRegion: 'Oregon Coast',
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.briefing.identifiedTargets.map((t) => t.prospectId)).toEqual([]);
+  });
+
   it('keeps identifiedTargets after cooldown window ends', async () => {
     const thenable = (result: { data: unknown; error: unknown }) => {
       const api: Record<string, unknown> = {};

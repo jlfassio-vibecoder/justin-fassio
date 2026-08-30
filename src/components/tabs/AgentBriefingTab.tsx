@@ -790,7 +790,9 @@ export function AgentBriefingTab({
               : prev,
           );
           setRowRunPrepMessage(
-            `${row.prospectName} was emailed recently — removed from this queue until cooldown ends.`,
+            /contact email was emailed/i.test(err)
+              ? `${row.prospectName}'s contact email was emailed recently (often on another store) — removed until cooldown ends.`
+              : `${row.prospectName} was emailed recently — removed from this queue until cooldown ends.`,
           );
           setReloadToken((n) => n + 1);
           return;
