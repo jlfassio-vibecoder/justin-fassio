@@ -40,6 +40,7 @@ export type SiblingProductOutreachSendInput = {
   accountContactId: string | null;
   retailerLineAccountId: string | null;
   sentBy: string;
+  wholesaleUsd?: number | null;
 };
 
 /**
@@ -132,6 +133,7 @@ export async function sendSiblingProductOutreachEmails(
       subject: input.subject,
       introText: input.introText,
       closingText: input.closingText,
+      wholesaleUsd: input.wholesaleUsd,
     });
 
     const sendResult = await sendOgrProductOutreachEmail({

@@ -309,6 +309,7 @@ export const POST: APIRoute = async ({ request }) => {
       subject: subjectResult.value,
       introText: introResult.value,
       closingText: closingResult.value,
+      wholesaleUsd: loaded.wholesaleUsd,
     });
 
     const ledger = await insertProductOutreachSendingMessage(gate.supabase, {
@@ -356,6 +357,7 @@ export const POST: APIRoute = async ({ request }) => {
         subject: subjectResult.value,
         introText: introResult.value,
         closingText: closingResult.value,
+        wholesaleUsd: loaded.wholesaleUsd,
       });
       const { error: stampedPayloadError } = await gate.supabase
         .from('system_messages')
@@ -453,6 +455,7 @@ export const POST: APIRoute = async ({ request }) => {
           accountContactId: crm.association.accountContactId,
           retailerLineAccountId: retailerLineAccountId ?? null,
           sentBy: gate.userId,
+          wholesaleUsd: loaded.wholesaleUsd,
         });
       }
       return new Response(
@@ -492,6 +495,7 @@ export const POST: APIRoute = async ({ request }) => {
         accountContactId: crm.association.accountContactId,
         retailerLineAccountId: retailerLineAccountId ?? null,
         sentBy: gate.userId,
+        wholesaleUsd: loaded.wholesaleUsd,
       });
     }
 

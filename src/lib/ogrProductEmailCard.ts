@@ -4,6 +4,7 @@ import {
   OGR_PUBLIC_BRAND_NAME,
   type PublicProductPresentation,
 } from '@/lib/publicProductPresentation';
+import { formatMerchandiseSubtotalUsd } from '@/lib/wholesalePricing';
 
 const DEFAULT_CTA_LABEL = 'View Details';
 const CATALOG_CTA_LABEL = 'View Catalog';
@@ -11,6 +12,8 @@ const CATALOG_CTA_LABEL = 'View Catalog';
 const DOMAIN_ATTRIBUTION = 'justinfassio.com';
 const FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
 const CARD_MAX_WIDTH = 560;
+const NAME_STYLE =
+  'margin:0;font-size:20px;line-height:1.3;font-weight:700;color:#111111;font-family:' + FONT_STACK;
 
 export type OgrProductEmailCardOptions = {
   /** Absolute http(s) product CTA URL. Required. Tracking/UTM belong upstream. */
@@ -24,6 +27,11 @@ export type OgrProductEmailCardOptions = {
   imageUrl?: string | null;
   /** Defaults to "View Details" (storefront card CTA). */
   ctaLabel?: string;
+  /**
+   * Staff-only wholesale USD for the name row. Not taken from PublicProductPresentation
+   * (public surfaces must stay wholesale-free).
+   */
+  wholesaleUsd?: number | null;
 };
 
 function requireAbsoluteHttpUrl(url: string, label: string): string {
@@ -70,6 +78,11 @@ function buildMetaLine(presentation: PublicProductPresentation): string {
     .join(' · ');
 }
 
+function resolveWholesaleLabel(wholesaleUsd: number | null | undefined): string | null {
+  if (wholesaleUsd == null || !Number.isFinite(wholesaleUsd) || wholesaleUsd <= 0) return null;
+  return formatMerchandiseSubtotalUsd(wholesaleUsd);
+}
+
 /**
  * Pure featured OGR product email card HTML fragment.
  * Does not send email, fetch data, or build canonical URLs.
@@ -93,6 +106,7 @@ export function renderOgrProductEmailCard(
   const tagline = presentation.tagline.trim();
   const badges = buildBadges(presentation);
   const image = resolveImage(presentation, options.imageUrl);
+  const wholesaleLabel = resolveWholesaleLabel(options.wholesaleUsd);
 
   const imageBlock = image
     ? `<tr>
@@ -110,6 +124,21 @@ export function renderOgrProductEmailCard(
           ${badges.map((b) => escapeHtml(b)).join(' · ')}
         </p>`
       : '';
+
+  const nameBlock = wholesaleLabel
+    ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 8px 0;border-collapse:collapse;">
+        <tr>
+          <td style="vertical-align:baseline;padding:0;${NAME_STYLE}">
+            <a href="${safeHref}" style="color:#111111;text-decoration:none;">${name}</a>
+          </td>
+          <td style="vertical-align:baseline;padding:0 0 0 12px;text-align:right;white-space:nowrap;${NAME_STYLE}">
+            ${escapeHtml(wholesaleLabel)}
+          </td>
+        </tr>
+      </table>`
+    : `<p style="margin:0 0 8px 0;font-size:20px;line-height:1.3;font-weight:700;color:#111111;font-family:${FONT_STACK};">
+        <a href="${safeHref}" style="color:#111111;text-decoration:none;">${name}</a>
+      </p>`;
 
   const metaBlock = meta
     ? `<p style="margin:0 0 12px 0;font-size:13px;line-height:1.4;color:#666666;font-family:${FONT_STACK};">
@@ -139,9 +168,7 @@ export function renderOgrProductEmailCard(
   <tr>
     <td style="padding:20px 16px;font-family:${FONT_STACK};">
       ${badgeBlock}
-      <p style="margin:0 0 8px 0;font-size:20px;line-height:1.3;font-weight:700;color:#111111;font-family:${FONT_STACK};">
-        <a href="${safeHref}" style="color:#111111;text-decoration:none;">${name}</a>
-      </p>
+      ${nameBlock}
       ${metaBlock}
       ${taglineBlock}
       <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">

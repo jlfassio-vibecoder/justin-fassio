@@ -50,6 +50,7 @@ function render(
     introText?: string | null;
     closingText?: string | null;
     signatureName?: string;
+    wholesaleUsd?: number | null;
   } = {},
 ) {
   const presentation = buildPublicProductPresentation(fixture(partial), { salesVolumeRank: 3 });
@@ -62,6 +63,7 @@ function render(
     subject: options.subject,
     introText: options.introText,
     closingText: options.closingText,
+    wholesaleUsd: options.wholesaleUsd,
   });
 }
 
@@ -73,11 +75,20 @@ describe('renderOgrProductOutreachEmail', () => {
     expect(result.html).toContain('Check out this style from our Old Guys Rule catalog');
     expect(result.html).toContain('sell well as gifts');
     expect(result.html).toContain('— Alex Rivera');
+    expect(result.html).toContain('Independent Rep: Old Guys Rule');
+    expect(result.html).toContain('mailto:office@justinfassio.com');
+    expect(result.html).toContain('office@justinfassio.com');
+    expect(result.html).toContain('Text me at');
+    expect(result.html).toContain('tel:8582858986');
+    expect(result.html).toContain('858-285-8986');
     expect(result.html).toContain('justinfassio.com');
     expect(result.html).toContain('background-color:#111111');
     expect(result.html).toContain('Wholesale');
     expect(result.text).toContain('Hi,');
     expect(result.text).toContain('OLD GUYS RULE');
+    expect(result.text).toContain('Independent Rep: Old Guys Rule');
+    expect(result.text).toContain('office@justinfassio.com');
+    expect(result.text).toContain('Text me at 858-285-8986');
     expect(result.text).toContain('View Details:');
     expect(result.text).toContain(HREF);
     expect(result.text).toContain('View Catalog:');
@@ -140,7 +151,7 @@ describe('renderOgrProductOutreachEmail', () => {
     expect(result.text).toContain('View Details:');
   });
 
-  it('never leaks wholesale fields', () => {
+  it('never leaks wholesale fields from the presentation alone', () => {
     const result = render({ wholesaleUsd: 13 });
     const blob = `${result.subject}\n${result.html}\n${result.text}`;
     expect(blob).not.toContain('wholesaleUsd');
@@ -148,6 +159,13 @@ describe('renderOgrProductOutreachEmail', () => {
     for (const key of PUBLIC_PRESENTATION_FORBIDDEN_KEYS) {
       expect(blob).not.toContain(key);
     }
+  });
+
+  it('includes staff wholesale on the card and text when wholesaleUsd is provided', () => {
+    const result = render({}, { wholesaleUsd: 13 });
+    expect(result.html).toContain('US$13.00');
+    expect(result.text).toContain('American Revival — US$13.00');
+    expect(result.html).not.toContain('wholesaleUsd');
   });
 
   it('throws on invalid productHref/catalogHref or empty signatureName', () => {

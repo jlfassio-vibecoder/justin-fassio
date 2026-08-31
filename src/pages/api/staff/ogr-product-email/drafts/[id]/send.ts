@@ -150,6 +150,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       subject: draft.subject,
       introText: draft.introText,
       closingText: draft.closingText,
+      wholesaleUsd: loaded.wholesaleUsd,
     });
 
     const sendResult = await sendOgrProductOutreachEmail({
@@ -241,6 +242,7 @@ export const POST: APIRoute = async ({ params, request }) => {
           accountContactId: crm.association.accountContactId,
           retailerLineAccountId: draft.retailerLineAccountId,
           sentBy: gate.userId,
+          wholesaleUsd: loaded.wholesaleUsd,
         });
       }
       return jsonOk({
@@ -273,6 +275,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         accountContactId: crm.association.accountContactId,
         retailerLineAccountId: draft.retailerLineAccountId,
         sentBy: gate.userId,
+        wholesaleUsd: loaded.wholesaleUsd,
       });
     }
 

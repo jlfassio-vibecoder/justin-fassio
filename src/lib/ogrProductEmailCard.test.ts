@@ -47,6 +47,7 @@ function renderCard(
     catalogHref?: string;
     imageUrl?: string | null;
     ctaLabel?: string;
+    wholesaleUsd?: number | null;
   } = {},
 ) {
   return renderOgrProductEmailCard(presentation, {
@@ -54,6 +55,7 @@ function renderCard(
     catalogHref: options.catalogHref ?? CATALOG_HREF,
     imageUrl: options.imageUrl,
     ctaLabel: options.ctaLabel,
+    wholesaleUsd: options.wholesaleUsd,
   });
 }
 
@@ -192,6 +194,21 @@ describe('renderOgrProductEmailCard', () => {
     for (const key of PUBLIC_PRESENTATION_FORBIDDEN_KEYS) {
       expect(html).not.toContain(key);
     }
+  });
+
+  it('shows staff wholesale beside the product name when wholesaleUsd option is set', () => {
+    const presentation = buildPublicProductPresentation(fixture({ wholesaleUsd: null }));
+    const html = renderCard(presentation, { wholesaleUsd: 13 });
+    expect(html).toContain('US$13.00');
+    expect(html).toContain('text-align:right');
+    expect(html).toContain('white-space:nowrap');
+    expect(html).not.toContain('wholesaleUsd');
+  });
+
+  it('omits the price cell when wholesaleUsd option is null or non-positive', () => {
+    const presentation = buildPublicProductPresentation(fixture());
+    expect(renderCard(presentation, { wholesaleUsd: null })).not.toMatch(/US\$/);
+    expect(renderCard(presentation, { wholesaleUsd: 0 })).not.toMatch(/US\$/);
   });
 
   it('links image, title, and Details CTA to product href; Catalog CTA to collection', () => {

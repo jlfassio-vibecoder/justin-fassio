@@ -1,11 +1,12 @@
 import type { AgentSupabase } from '@/lib/agentAuth';
 import { CATALOG_VARIANT_SELECT } from '@/lib/catalog';
+import { resolveEffectiveNumber } from '@/lib/catalogProvenance';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
 import type { CatalogVariantRow } from '@/types/database';
 
 /** Lean catalog columns needed to build a public product projection for email. */
 export const EMAIL_OGR_PRODUCT_SELECT =
-  'id, sku, public_slug, name, cat, color, tagline, sales_description, page, catalog_year, collection, msrp_cad, is_new, featured, public_sort_order, primary_image_url, alternate_image_urls, unit_of_measure, minimum_quantity, order_multiple, pack_quantity, lifestyle_themes, live_sku, status, is_publicly_published, line_id';
+  'id, sku, public_slug, name, cat, color, tagline, sales_description, page, catalog_year, collection, msrp_cad, price_usd, catalog_price_usd, price_usd_override, is_new, featured, public_sort_order, primary_image_url, alternate_image_urls, unit_of_measure, minimum_quantity, order_multiple, pack_quantity, lifestyle_themes, live_sku, status, is_publicly_published, line_id';
 
 export type EmailOgrProductRow = {
   id: string;
@@ -20,6 +21,9 @@ export type EmailOgrProductRow = {
   catalog_year: number | null;
   collection: string | null;
   msrp_cad: number;
+  price_usd: number;
+  catalog_price_usd: number | null;
+  price_usd_override: number | null;
   is_new: boolean;
   featured: boolean;
   public_sort_order: number;
@@ -37,12 +41,25 @@ export type EmailOgrProductRow = {
 };
 
 export type LoadPublishedOgrProductForEmailResult =
-  | { ok: true; product: PublicOgrProduct }
+  | { ok: true; product: PublicOgrProduct; wholesaleUsd: number | null }
   | { ok: false; reason: 'not_found' | 'not_available'; message: string };
 
 function asStringArray(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter((v): v is string => typeof v === 'string' && v.length > 0);
+}
+
+/** Effective staff wholesale USD for email cards (not placed on PublicOgrProduct). */
+export function resolveEmailWholesaleUsd(row: EmailOgrProductRow): number | null {
+  const catalogPriceUsd = Number(row.catalog_price_usd ?? row.price_usd);
+  const priceUsdOverride = row.price_usd_override == null ? null : Number(row.price_usd_override);
+  const amount = resolveEffectiveNumber({
+    override: priceUsdOverride,
+    catalog: catalogPriceUsd,
+    legacy: Number(row.price_usd),
+  });
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return amount;
 }
 
 /** Map a staff catalog row + sizes into the public product shape (wholesale always null). */
@@ -154,5 +171,9 @@ export async function loadPublishedOgrProductForEmail(
     .map((v) => (v as CatalogVariantRow).size?.trim() ?? '')
     .filter(Boolean);
 
-  return { ok: true, product: mapEmailOgrProductRow(row, availableSizes) };
+  return {
+    ok: true,
+    product: mapEmailOgrProductRow(row, availableSizes),
+    wholesaleUsd: resolveEmailWholesaleUsd(row),
+  };
 }

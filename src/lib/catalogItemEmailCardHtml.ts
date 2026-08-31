@@ -20,5 +20,9 @@ export function buildCatalogItemEmailCardHtml(
   const presentation = buildPublicProductPresentation(catalogItemToPublicOgrProduct(item), {
     publicMarket,
   });
-  return renderOgrProductEmailCard(presentation, { href, catalogHref });
+  return renderOgrProductEmailCard(presentation, {
+    href,
+    catalogHref,
+    wholesaleUsd: item.priceUsd,
+  });
 }

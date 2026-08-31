@@ -468,7 +468,11 @@ function ProductDetailDrawerInner({
     const presentation = buildPublicProductPresentation(draftToPublicOgrProduct(item, draft), {
       publicMarket: presentationMarket ?? 'ca',
     });
-    return renderOgrProductEmailCard(presentation, { href, catalogHref });
+    return renderOgrProductEmailCard(presentation, {
+      href,
+      catalogHref,
+      wholesaleUsd: parseOptionalNumber(draft.priceUsd) ?? item.catalogPriceUsd,
+    });
   }, [emailModalOpen, draft, item, presentationMarket]);
 
   const dirty = useMemo(() => {
@@ -1824,7 +1828,11 @@ function ProductDetailDrawerInner({
                         window.location.origin,
                         presentationMarket ?? 'ca',
                       );
-                      const html = renderOgrProductEmailCard(presentation, { href, catalogHref });
+                      const html = renderOgrProductEmailCard(presentation, {
+                        href,
+                        catalogHref,
+                        wholesaleUsd: parseOptionalNumber(draft.priceUsd) ?? item.catalogPriceUsd,
+                      });
                       const plainText = buildOgrProductEmailCardPlainText({
                         productName: presentation.name,
                         tagline: presentation.tagline,
