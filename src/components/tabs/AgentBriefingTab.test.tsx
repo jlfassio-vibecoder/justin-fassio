@@ -405,6 +405,7 @@ describe('AgentBriefingTab follow-up queue', () => {
           {
             prospectId: 88,
             prospectName: 'Engaged Shop',
+            accountStatus: 'active_account' as const,
             lastEngagedAt: '2026-08-22T10:00:00Z',
             openCount: 2,
             clickCount: 0,
@@ -424,9 +425,11 @@ describe('AgentBriefingTab follow-up queue', () => {
     const warmRow = screen.getByTestId('top-lead-warm-77');
     expect(warmRow).toHaveTextContent('1 click');
     expect(warmRow).toHaveTextContent('1 open');
+    expect(within(warmRow).getByLabelText('Prospect')).toHaveTextContent('Pr');
     const engagedRow = screen.getByTestId('top-lead-engaged-88');
     expect(engagedRow).toHaveTextContent('2 opens');
     expect(engagedRow).not.toHaveTextContent('click');
+    expect(within(engagedRow).getByLabelText('Active Account')).toHaveTextContent('Ac');
 
     await user.click(screen.getByRole('button', { name: 'Open Warm Shop' }));
     expect(screen.getByTestId('prospect-detail-drawer')).toHaveTextContent('Warm Shop');
@@ -477,6 +480,7 @@ describe('AgentBriefingTab follow-up queue', () => {
           {
             prospectId: 99,
             prospectName: 'Both Counts Shop',
+            accountStatus: 'prospect' as const,
             lastEngagedAt: '2026-08-22T10:00:00Z',
             openCount: 5,
             clickCount: 2,
@@ -492,9 +496,11 @@ describe('AgentBriefingTab follow-up queue', () => {
     const callRow = screen.getByTestId('top-lead-call-42');
     expect(callRow).toHaveTextContent('3 clicks');
     expect(callRow).toHaveTextContent('4 opens');
+    expect(within(callRow).getByLabelText('Prospect')).toHaveTextContent('Pr');
     const engagedRow = screen.getByTestId('top-lead-engaged-99');
     expect(engagedRow).toHaveTextContent('2 clicks');
     expect(engagedRow).toHaveTextContent('5 opens');
+    expect(within(engagedRow).getByLabelText('Prospect')).toHaveTextContent('Pr');
   });
 
   it('runs Call from Top leads when the follow-ups queue recommends Call', async () => {
@@ -910,7 +916,7 @@ describe('AgentBriefingTab follow-up queue', () => {
           {
             prospectId: 55,
             prospectName: 'Beta Gift',
-            accountStatus: 'prospect',
+            accountStatus: 'active_account',
             leadState: 'warm',
             recommendedAction: 'email',
             reasonLine: '1 product clicked',
@@ -933,7 +939,7 @@ describe('AgentBriefingTab follow-up queue', () => {
           prospects: [
             ...defaultProspects,
             prospectStub(42, 'Alpha Surf'),
-            prospectStub(55, 'Beta Gift'),
+            prospectStub(55, 'Beta Gift', 'active_account'),
           ],
         })}
       />,
@@ -943,6 +949,12 @@ describe('AgentBriefingTab follow-up queue', () => {
       expect(screen.getByTestId('follow-up-row-42')).toBeInTheDocument();
       expect(screen.getByTestId('follow-up-row-55')).toBeInTheDocument();
     });
+    expect(
+      within(screen.getByTestId('follow-up-row-42')).getByLabelText('Prospect'),
+    ).toHaveTextContent('Pr');
+    expect(
+      within(screen.getByTestId('follow-up-row-55')).getByLabelText('Active Account'),
+    ).toHaveTextContent('Ac');
 
     await user.type(screen.getByRole('searchbox', { name: /search today’s follow-ups/i }), 'beta');
 

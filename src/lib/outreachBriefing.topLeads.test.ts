@@ -152,6 +152,7 @@ describe('prepareRecentEngagementForBriefing', () => {
       {
         prospectId: 1,
         prospectName: 'Keep',
+        accountStatus: 'prospect' as const,
         lastEngagedAt: '2026-08-28T12:00:00Z',
         openCount: 1,
         clickCount: 0,
@@ -159,6 +160,7 @@ describe('prepareRecentEngagementForBriefing', () => {
       {
         prospectId: 2,
         prospectName: 'CallToday',
+        accountStatus: 'prospect' as const,
         lastEngagedAt: '2026-08-29T12:00:00Z',
         openCount: 2,
         clickCount: 1,
@@ -166,6 +168,7 @@ describe('prepareRecentEngagementForBriefing', () => {
       {
         prospectId: 3,
         prospectName: 'Older',
+        accountStatus: 'prospect' as const,
         lastEngagedAt: '2026-08-27T12:00:00Z',
         openCount: 1,
         clickCount: 0,

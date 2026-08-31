@@ -167,6 +167,18 @@ function callTodayReasonChip(reasons: OutreachLeadRow['callTodayReasons']): stri
   return null;
 }
 
+function accountKindTag(accountStatus?: string | null) {
+  const isActive = accountStatus === 'active_account';
+  return (
+    <Tag
+      variant={isActive ? 'accent' : 'neutral'}
+      aria-label={isActive ? 'Active Account' : 'Prospect'}
+    >
+      {isActive ? 'Ac' : 'Pr'}
+    </Tag>
+  );
+}
+
 function TopLeadsQuickView({
   callToday,
   hotCount,
@@ -271,6 +283,7 @@ function TopLeadsQuickView({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-medium">{row.prospectName}</span>
+                        {accountKindTag(row.accountStatus)}
                         {reason ? <Tag variant="accent">{reason}</Tag> : null}
                         {row.sitePresence?.active ? <Tag variant="accent">Active</Tag> : null}
                         {engagementCountTags(row.engagement.openCount, row.engagement.clickCount)}
@@ -302,6 +315,7 @@ function TopLeadsQuickView({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-medium">{row.prospectName}</span>
+                        {accountKindTag(row.accountStatus)}
                         <Tag variant="outline">Warm</Tag>
                         {engagementCountTags(row.engagement.openCount, row.engagement.clickCount)}
                         {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
@@ -332,11 +346,12 @@ function TopLeadsQuickView({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-medium">{row.prospectName}</span>
+                        {accountKindTag(row.accountStatus)}
                         {engagementCountTags(row.openCount, row.clickCount)}
                         {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
                       </div>
                     </div>
-                    {renderLeadActions(row.prospectId, row.prospectName)}
+                    {renderLeadActions(row.prospectId, row.prospectName, row.accountStatus)}
                   </li>
                 );
               })}
@@ -432,6 +447,7 @@ function FollowUpQueue({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{row.prospectName}</span>
+                    {accountKindTag(row.accountStatus)}
                     <Tag variant={stateVariant}>{stateLabel}</Tag>
                     {row.followUpOverdueDays != null && row.followUpOverdueDays > 0 ? (
                       <Tag variant="outline">Overdue</Tag>
