@@ -1,4 +1,5 @@
 import { catalogItemToPublicOgrProduct, type CatalogItem } from '@/lib/catalog';
+import { resolveOgrPdfCatalogUrls } from '@/lib/lineMarketingAssets';
 import { renderOgrProductEmailCard } from '@/lib/ogrProductEmailCard';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import type { PublicMarket } from '@/lib/pricingMarket';
@@ -20,9 +21,13 @@ export function buildCatalogItemEmailCardHtml(
   const presentation = buildPublicProductPresentation(catalogItemToPublicOgrProduct(item), {
     publicMarket,
   });
+  // Public-site origin (not window.location): sandboxed previews + sent mail need https:// hosts.
+  const pdfCatalog = resolveOgrPdfCatalogUrls();
   return renderOgrProductEmailCard(presentation, {
     href,
     catalogHref,
     wholesaleUsd: item.priceUsd,
+    pdfCatalogHref: pdfCatalog.pdfCatalogHref,
+    pdfCatalogCoverUrl: pdfCatalog.pdfCatalogCoverUrl,
   });
 }
