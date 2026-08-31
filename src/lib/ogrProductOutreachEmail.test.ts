@@ -51,6 +51,7 @@ function render(
     closingText?: string | null;
     signatureName?: string;
     wholesaleUsd?: number | null;
+    publicSiteOrigin?: string | null;
   } = {},
 ) {
   const presentation = buildPublicProductPresentation(fixture(partial), { salesVolumeRank: 3 });
@@ -64,6 +65,7 @@ function render(
     introText: options.introText,
     closingText: options.closingText,
     wholesaleUsd: options.wholesaleUsd,
+    publicSiteOrigin: options.publicSiteOrigin,
   });
 }
 
@@ -162,9 +164,12 @@ describe('renderOgrProductOutreachEmail', () => {
   });
 
   it('includes staff wholesale on the card and text when wholesaleUsd is provided', () => {
-    const result = render({}, { wholesaleUsd: 13 });
+    const result = render({}, { wholesaleUsd: 13, publicSiteOrigin: 'https://justinfassio.com' });
     expect(result.html).toContain('Wholesale Price');
     expect(result.html).toContain('US$13.00');
+    expect(result.html).toContain('PDF catalog');
+    expect(result.html).toContain('/marketing/old-guys-rule/OGR_2026_Catalog.pdf');
+    expect(result.html).toContain('/marketing/old-guys-rule/cover.jpg');
     expect(result.text).toContain('American Revival — Wholesale Price US$13.00');
     expect(result.html).not.toContain('wholesaleUsd');
   });

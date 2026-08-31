@@ -1,5 +1,6 @@
 import { CONTACT_EMAIL } from '@/data/landing';
 import { escapeHtml } from '@/lib/escapeHtml';
+import { resolveOgrPdfCatalogUrls } from '@/lib/lineMarketingAssets';
 import { isPublicAbsoluteImageUrl } from '@/lib/ogrPageMetadata';
 import { renderOgrProductEmailCard } from '@/lib/ogrProductEmailCard';
 import {
@@ -47,6 +48,12 @@ export type OgrProductOutreachEmailInput = {
   signatureName: string;
   /** Staff-only wholesale USD for the embedded product card name row. */
   wholesaleUsd?: number | null;
+  /** Absolute PDF catalog URL; defaults from public marketing assets. */
+  pdfCatalogHref?: string | null;
+  /** Absolute PDF cover image URL; defaults from public marketing assets. */
+  pdfCatalogCoverUrl?: string | null;
+  /** Origin override for default PDF/cover URL resolution (tests / request host). */
+  publicSiteOrigin?: string | null;
 };
 
 export type OgrProductOutreachEmail = {
@@ -192,11 +199,18 @@ export function renderOgrProductOutreachEmail(
   const closing = resolveProse(input.closingText, OGR_PRODUCT_EMAIL_DEFAULT_CLOSING);
   const greeting = buildGreeting(input.recipientName);
   const wholesaleAmount = resolveWholesaleAmount(input.wholesaleUsd);
+  const pdfDefaults = resolveOgrPdfCatalogUrls(
+    input.publicSiteOrigin?.trim() ? { explicitOrigin: input.publicSiteOrigin.trim() } : {},
+  );
+  const pdfCatalogHref = input.pdfCatalogHref?.trim() || pdfDefaults.pdfCatalogHref;
+  const pdfCatalogCoverUrl = input.pdfCatalogCoverUrl?.trim() || pdfDefaults.pdfCatalogCoverUrl;
 
   const cardHtml = renderOgrProductEmailCard(presentation, {
     href: productHref,
     catalogHref,
     wholesaleUsd: input.wholesaleUsd,
+    pdfCatalogHref,
+    pdfCatalogCoverUrl,
   });
 
   return {

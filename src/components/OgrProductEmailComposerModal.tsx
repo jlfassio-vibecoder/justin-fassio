@@ -16,6 +16,7 @@ import {
 } from '@/lib/agentProductOutreachDraftClient';
 import type { AccountProductEmailRecipientOption } from '@/lib/accountProductEmailRecipient';
 import type { CatalogItem } from '@/lib/catalog';
+import { withOgrPdfCatalogPreviewRelativeUrls } from '@/lib/lineMarketingAssets';
 import {
   defaultOgrProductEmailSubject,
   OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
@@ -103,7 +104,12 @@ export type OgrProductEmailComposerModalProps = {
 };
 
 function buildCardPreviewSrcDoc(cardHtml: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><base target="_blank" rel="noopener"></head><body style="margin:0;padding:12px;background:#ffffff;font-family:Georgia,serif;">${cardHtml}</body></html>`;
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin.replace(/\/+$/, '')
+      : '';
+  const baseHref = origin ? `<base href="${origin}/" target="_blank" />` : '';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">${baseHref}</head><body style="margin:0;padding:12px;background:#ffffff;font-family:Georgia,serif;">${cardHtml}</body></html>`;
 }
 
 function matchingRecipientOptionId(
@@ -180,6 +186,11 @@ function OgrProductEmailComposerForm({
   const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loggingWarning, setLoggingWarning] = useState<string | null>(null);
+  // Relative marketing asset paths + allow-same-origin so preview loads under CSP 'self'
+  // without injecting large data: URLs into srcDoc (which blanked the iframe).
+  const previewCardHtml = cardHtml.trim()
+    ? withOgrPdfCatalogPreviewRelativeUrls(cardHtml)
+    : cardHtml;
 
   const busy = submitting || saving || regenerating || replacingProduct;
   const hasAiCopy = generation?.copyStatus === 'ai';
@@ -621,12 +632,12 @@ function OgrProductEmailComposerForm({
               </Button>
             ) : null}
           </div>
-          {cardHtml ? (
+          {previewCardHtml ? (
             <iframe
               title="Product card preview"
-              srcDoc={buildCardPreviewSrcDoc(cardHtml)}
+              srcDoc={buildCardPreviewSrcDoc(previewCardHtml)}
               className="border-ink/15 h-56 w-full rounded-md border bg-white"
-              sandbox=""
+              sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
             />
           ) : (
             <p className="text-ink/55 m-0 text-sm">Card preview unavailable for this product.</p>

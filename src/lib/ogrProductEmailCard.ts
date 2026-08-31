@@ -32,6 +32,13 @@ export type OgrProductEmailCardOptions = {
    * (public surfaces must stay wholesale-free).
    */
   wholesaleUsd?: number | null;
+  /**
+   * Absolute http(s) PDF catalog URL. Shown under wholesale with cover when both
+   * pdfCatalogHref and pdfCatalogCoverUrl are valid absolute http(s).
+   */
+  pdfCatalogHref?: string | null;
+  /** Absolute http(s) cover image for the PDF catalog thumb. */
+  pdfCatalogCoverUrl?: string | null;
 };
 
 function requireAbsoluteHttpUrl(url: string, label: string): string {
@@ -107,6 +114,13 @@ export function renderOgrProductEmailCard(
   const badges = buildBadges(presentation);
   const image = resolveImage(presentation, options.imageUrl);
   const wholesaleAmount = resolveWholesaleAmount(options.wholesaleUsd);
+  const pdfCatalogHrefRaw = options.pdfCatalogHref?.trim() || '';
+  const pdfCatalogCoverRaw = options.pdfCatalogCoverUrl?.trim() || '';
+  const pdfCatalogHref =
+    pdfCatalogHrefRaw && isPublicAbsoluteImageUrl(pdfCatalogHrefRaw) ? pdfCatalogHrefRaw : null;
+  const pdfCatalogCoverUrl =
+    pdfCatalogCoverRaw && isPublicAbsoluteImageUrl(pdfCatalogCoverRaw) ? pdfCatalogCoverRaw : null;
+  const showPdfCatalog = Boolean(wholesaleAmount && pdfCatalogHref && pdfCatalogCoverUrl);
 
   const imageBlock = image
     ? `<tr>
@@ -125,15 +139,24 @@ export function renderOgrProductEmailCard(
         </p>`
       : '';
 
+  const pdfCatalogBlock =
+    showPdfCatalog && pdfCatalogHref && pdfCatalogCoverUrl
+      ? `<a href="${escapeHtml(pdfCatalogHref)}" style="display:inline-block;margin:10px 0 0 0;text-decoration:none;border:0;text-align:right;white-space:normal;">
+            <img src="${escapeHtml(pdfCatalogCoverUrl)}" alt="" width="80" style="display:block;width:80px;max-width:80px;height:auto;border:1px solid #e5e5e5;margin:0 0 4px auto;" />
+            <span style="display:block;font-size:11px;line-height:1.2;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#666666;font-family:${FONT_STACK};">PDF catalog</span>
+          </a>`
+      : '';
+
   const nameBlock = wholesaleAmount
     ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 8px 0;border-collapse:collapse;">
         <tr>
           <td style="vertical-align:top;padding:0;${NAME_STYLE}">
             <a href="${safeHref}" style="color:#111111;text-decoration:none;">${name}</a>
           </td>
-          <td style="vertical-align:top;padding:0 0 0 12px;text-align:right;white-space:nowrap;">
-            <p style="margin:0 0 2px 0;font-size:11px;line-height:1.2;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#666666;font-family:${FONT_STACK};">Wholesale Price</p>
-            <p style="margin:0;font-size:20px;line-height:1.3;font-weight:700;color:#111111;font-family:${FONT_STACK};">${escapeHtml(wholesaleAmount)}</p>
+          <td style="vertical-align:top;padding:0 0 0 12px;text-align:right;">
+            <p style="margin:0 0 2px 0;font-size:11px;line-height:1.2;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#666666;font-family:${FONT_STACK};white-space:nowrap;">Wholesale Price</p>
+            <p style="margin:0;font-size:20px;line-height:1.3;font-weight:700;color:#111111;font-family:${FONT_STACK};white-space:nowrap;">${escapeHtml(wholesaleAmount)}</p>
+            ${pdfCatalogBlock}
           </td>
         </tr>
       </table>`
