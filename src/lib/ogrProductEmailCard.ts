@@ -78,7 +78,7 @@ function buildMetaLine(presentation: PublicProductPresentation): string {
     .join(' · ');
 }
 
-function resolveWholesaleLabel(wholesaleUsd: number | null | undefined): string | null {
+function resolveWholesaleAmount(wholesaleUsd: number | null | undefined): string | null {
   if (wholesaleUsd == null || !Number.isFinite(wholesaleUsd) || wholesaleUsd <= 0) return null;
   return formatMerchandiseSubtotalUsd(wholesaleUsd);
 }
@@ -106,7 +106,7 @@ export function renderOgrProductEmailCard(
   const tagline = presentation.tagline.trim();
   const badges = buildBadges(presentation);
   const image = resolveImage(presentation, options.imageUrl);
-  const wholesaleLabel = resolveWholesaleLabel(options.wholesaleUsd);
+  const wholesaleAmount = resolveWholesaleAmount(options.wholesaleUsd);
 
   const imageBlock = image
     ? `<tr>
@@ -125,14 +125,15 @@ export function renderOgrProductEmailCard(
         </p>`
       : '';
 
-  const nameBlock = wholesaleLabel
+  const nameBlock = wholesaleAmount
     ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 8px 0;border-collapse:collapse;">
         <tr>
-          <td style="vertical-align:baseline;padding:0;${NAME_STYLE}">
+          <td style="vertical-align:top;padding:0;${NAME_STYLE}">
             <a href="${safeHref}" style="color:#111111;text-decoration:none;">${name}</a>
           </td>
-          <td style="vertical-align:baseline;padding:0 0 0 12px;text-align:right;white-space:nowrap;${NAME_STYLE}">
-            ${escapeHtml(wholesaleLabel)}
+          <td style="vertical-align:top;padding:0 0 0 12px;text-align:right;white-space:nowrap;">
+            <p style="margin:0 0 2px 0;font-size:11px;line-height:1.2;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#666666;font-family:${FONT_STACK};">Wholesale Price</p>
+            <p style="margin:0;font-size:20px;line-height:1.3;font-weight:700;color:#111111;font-family:${FONT_STACK};">${escapeHtml(wholesaleAmount)}</p>
           </td>
         </tr>
       </table>`

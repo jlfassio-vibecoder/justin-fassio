@@ -85,7 +85,7 @@ function proseToHtml(value: string): string {
   return escapeHtml(value).replaceAll('\n', '<br>');
 }
 
-function resolveWholesaleLabel(wholesaleUsd: number | null | undefined): string | null {
+function resolveWholesaleAmount(wholesaleUsd: number | null | undefined): string | null {
   if (wholesaleUsd == null || !Number.isFinite(wholesaleUsd) || wholesaleUsd <= 0) return null;
   return formatMerchandiseSubtotalUsd(wholesaleUsd);
 }
@@ -137,11 +137,11 @@ function buildText(input: {
   presentation: PublicProductPresentation;
   productHref: string;
   catalogHref: string;
-  wholesaleLabel: string | null;
+  wholesaleAmount: string | null;
 }): string {
   const { presentation } = input;
-  const nameLine = input.wholesaleLabel
-    ? `${presentation.name} — ${input.wholesaleLabel}`
+  const nameLine = input.wholesaleAmount
+    ? `${presentation.name} — Wholesale Price ${input.wholesaleAmount}`
     : presentation.name;
   const lines: string[] = [
     input.greeting,
@@ -191,7 +191,7 @@ export function renderOgrProductOutreachEmail(
   const intro = resolveProse(input.introText, OGR_PRODUCT_EMAIL_DEFAULT_INTRO);
   const closing = resolveProse(input.closingText, OGR_PRODUCT_EMAIL_DEFAULT_CLOSING);
   const greeting = buildGreeting(input.recipientName);
-  const wholesaleLabel = resolveWholesaleLabel(input.wholesaleUsd);
+  const wholesaleAmount = resolveWholesaleAmount(input.wholesaleUsd);
 
   const cardHtml = renderOgrProductEmailCard(presentation, {
     href: productHref,
@@ -210,7 +210,7 @@ export function renderOgrProductOutreachEmail(
       presentation,
       productHref,
       catalogHref,
-      wholesaleLabel,
+      wholesaleAmount,
     }),
   };
 }

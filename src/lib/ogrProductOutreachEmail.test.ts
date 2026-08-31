@@ -163,8 +163,9 @@ describe('renderOgrProductOutreachEmail', () => {
 
   it('includes staff wholesale on the card and text when wholesaleUsd is provided', () => {
     const result = render({}, { wholesaleUsd: 13 });
+    expect(result.html).toContain('Wholesale Price');
     expect(result.html).toContain('US$13.00');
-    expect(result.text).toContain('American Revival — US$13.00');
+    expect(result.text).toContain('American Revival — Wholesale Price US$13.00');
     expect(result.html).not.toContain('wholesaleUsd');
   });
 

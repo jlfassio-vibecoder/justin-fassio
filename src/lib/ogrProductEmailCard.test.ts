@@ -199,6 +199,7 @@ describe('renderOgrProductEmailCard', () => {
   it('shows staff wholesale beside the product name when wholesaleUsd option is set', () => {
     const presentation = buildPublicProductPresentation(fixture({ wholesaleUsd: null }));
     const html = renderCard(presentation, { wholesaleUsd: 13 });
+    expect(html).toContain('Wholesale Price');
     expect(html).toContain('US$13.00');
     expect(html).toContain('text-align:right');
     expect(html).toContain('white-space:nowrap');
