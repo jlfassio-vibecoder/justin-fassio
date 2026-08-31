@@ -294,5 +294,32 @@ describe('outreach pool eligibility', () => {
         markers: ['lookalike_prospect', 'outreach_eligible'],
       }),
     ).toBe(true);
+    expect(
+      isRlaInOutreachPool(
+        {
+          relationshipStatus: 'opened',
+          markers: ['historical_purchaser'],
+        },
+        { accountAudience: 'active_account' },
+      ),
+    ).toBe(true);
+    expect(
+      isRlaInOutreachPool(
+        {
+          relationshipStatus: 'prospect',
+          markers: [],
+        },
+        { accountAudience: 'active_account' },
+      ),
+    ).toBe(false);
+    expect(
+      isRlaInOutreachPool(
+        {
+          relationshipStatus: 'opened',
+          markers: ['historical_purchaser', 'reactivation_unresponsive'],
+        },
+        { accountAudience: 'active_account' },
+      ),
+    ).toBe(false);
   });
 });

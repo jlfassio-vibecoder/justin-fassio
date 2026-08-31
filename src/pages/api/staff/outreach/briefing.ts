@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { assembleOutreachBriefing } from '@/lib/outreachBriefing';
+import { parseOutreachAccountAudience } from '@/lib/outreachBriefingShared';
 import { resolveSalesLineQuery } from '@/lib/resolveSalesLineQuery';
 
 export const prerender = false;
@@ -35,6 +36,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     client: gate.supabase,
     salesLineId: resolved.line?.id ?? null,
     salesLineCode: resolved.line?.code ?? null,
+    accountAudience: parseOutreachAccountAudience(search.get('audience')),
     regionalPrepScope: operationalTerritoryId
       ? {
           operationalTerritoryId,

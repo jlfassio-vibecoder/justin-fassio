@@ -2886,7 +2886,7 @@ create table if not exists outreach_automation_runs (
   id uuid primary key default gen_random_uuid(),
   run_date date not null,
   kind text not null default 'nightly_prep'
-    check (kind in ('nightly_prep', 'manual_regional_prep')),
+    check (kind in ('nightly_prep', 'manual_regional_prep', 'manual_regional_active_prep')),
   status text not null
     check (status in ('running', 'succeeded', 'partial', 'empty_pool', 'failed')),
   trigger text not null
@@ -2926,7 +2926,10 @@ create table if not exists outreach_automation_runs (
   updated_at timestamptz not null default now(),
   constraint outreach_automation_runs_regional_ops_required check (
     (kind = 'nightly_prep' and operational_territory_id is null and store_territory_code is null)
-    or (kind = 'manual_regional_prep' and operational_territory_id is not null)
+    or (
+      kind in ('manual_regional_prep', 'manual_regional_active_prep')
+      and operational_territory_id is not null
+    )
   )
 );
 
@@ -2943,6 +2946,16 @@ create unique index if not exists outreach_automation_runs_regional_identity_uid
     coalesce(prep_city, '')
   )
   where kind = 'manual_regional_prep';
+
+create unique index if not exists outreach_automation_runs_regional_active_identity_uidx
+  on outreach_automation_runs (
+    run_date,
+    operational_territory_id,
+    coalesce(store_territory_code, ''),
+    coalesce(crm_region, ''),
+    coalesce(prep_city, '')
+  )
+  where kind = 'manual_regional_active_prep';
 
 create index if not exists outreach_automation_runs_crm_region_idx
   on outreach_automation_runs (crm_region)

@@ -6,6 +6,8 @@ import { ImportAccountsModal } from '@/components/accountImport/ImportAccountsMo
 import { ImportHistoryModal } from '@/components/accountImport/ImportHistoryModal';
 import { FindLookalikesModal } from '@/components/lookalike/FindLookalikesModal';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
+import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
+import type { CatalogItem } from '@/lib/catalog';
 import { Button } from '@/components/ui/Button';
 import { RowActionsMenu, type RowActionSection } from '@/components/ui/RowActionsMenu';
 import { Tag } from '@/components/ui/Tag';
@@ -44,8 +46,17 @@ import { ALL_TERRITORIES_FILTER, type Territory } from '@/lib/territories';
 
 interface ActiveAccountsTabProps {
   accounts: Prospect[];
+  catalog: CatalogItem[];
   territories?: Territory[];
   onLogCall: (account: Prospect) => void;
+  onLogCallForLead: (
+    prospectId: number,
+    context?: { talkTrackHint: string | null; lastProductName: string | null },
+  ) => void | boolean | Promise<void | boolean>;
+  briefingReloadToken?: number;
+  deepLinkSku?: string | null;
+  deepLinkDraftId?: string | null;
+  onCatalogDeepLinkConsumed?: () => void;
   onNotesSaved?: (id: number, notes: string | null) => void;
   onProspectUpdated?: (prospect: Prospect) => void;
   deepLinkAccountId?: number | null;
@@ -83,8 +94,14 @@ function isContactDue(isoDate: string | null | undefined, todayIso: string): boo
 
 export function ActiveAccountsTab({
   accounts,
+  catalog,
   territories = [],
   onLogCall,
+  onLogCallForLead,
+  briefingReloadToken = 0,
+  deepLinkSku = null,
+  deepLinkDraftId = null,
+  onCatalogDeepLinkConsumed,
   onNotesSaved,
   onProspectUpdated,
   deepLinkAccountId = null,
@@ -370,7 +387,22 @@ export function ActiveAccountsTab({
   }
 
   return (
-    <>
+    <div className="flex flex-col gap-8">
+      <AgentBriefingTab
+        audience="active_account"
+        embedded
+        catalog={catalog}
+        prospects={accounts}
+        deepLinkSku={deepLinkSku}
+        deepLinkDraftId={deepLinkDraftId}
+        onDeepLinkConsumed={onCatalogDeepLinkConsumed}
+        onProductEmailSent={onProductEmailSent}
+        onLogCallForLead={onLogCallForLead}
+        briefingReloadToken={briefingReloadToken}
+        onLogCall={onLogCall}
+        onNotesSaved={onNotesSaved}
+        onProspectUpdated={onProspectUpdated}
+      />
       <RetailerDirectory
         data-screen-label="accounts"
         retailers={visibleAccounts}
@@ -697,6 +729,6 @@ export function ActiveAccountsTab({
           reloadSettings();
         }}
       />
-    </>
+    </div>
   );
 }

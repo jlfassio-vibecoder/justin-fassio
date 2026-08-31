@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { createOutreachIdentifiedTargetDraft } from '@/lib/createOutreachIdentifiedTargetDraft';
+import { parseOutreachAccountAudience } from '@/lib/outreachBriefingShared';
 import { normalizePrepCity, normalizePrepCrmRegion } from '@/lib/geoCatalog';
 import { fetchOperationalTerritories } from '@/lib/operationalTerritories/fetchOperationalTerritories';
 import { ogrMayConsumeOperationalTerritory } from '@/lib/operationalTerritories/resolve';
@@ -94,6 +95,13 @@ export const POST: APIRoute = async ({ request }) => {
     preparationDate = defaultRegionalDate;
   }
 
+  const audienceRaw =
+    typeof body.audience === 'string'
+      ? body.audience
+      : typeof body.accountAudience === 'string'
+        ? body.accountAudience
+        : '';
+
   const created = await createOutreachIdentifiedTargetDraft({
     client: gate.supabase,
     prospectId,
@@ -104,6 +112,7 @@ export const POST: APIRoute = async ({ request }) => {
     city: normalizePrepCity(cityRaw || null),
     preparationDate,
     userId: gate.userId,
+    accountAudience: parseOutreachAccountAudience(audienceRaw),
   });
 
   if (!created.ok) {

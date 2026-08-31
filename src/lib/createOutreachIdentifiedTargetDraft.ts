@@ -95,6 +95,7 @@ export async function createOutreachIdentifiedTargetDraft(params: {
   userId: string | null;
   salesLineId?: string | null;
   retailerLineAccountId?: string | null;
+  accountAudience?: 'active_account';
 }): Promise<CreateOutreachIdentifiedTargetDraftResult> {
   const prospectId = params.prospectId;
   const catalogItemId = params.catalogItemId.trim();
@@ -124,6 +125,7 @@ export async function createOutreachIdentifiedTargetDraft(params: {
     storeTerritoryCode: params.storeTerritoryCode,
     crmRegion: params.crmRegion,
     city: params.city,
+    accountAudience: params.accountAudience,
   });
   if (!runLookup.ok) return { ok: false, error: runLookup.error, status: 502 };
   if (!runLookup.run) {

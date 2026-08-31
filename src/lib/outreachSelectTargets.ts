@@ -38,7 +38,10 @@ import {
   AGENT_OUTREACH_PREP_TZ,
   AGENT_OUTREACH_PRODUCT_DEDUP_DAYS,
 } from '@/lib/outreachSelectionConstants';
-import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
+import type {
+  OutreachAccountAudience,
+  OutreachPoolDiagnostics,
+} from '@/lib/outreachBriefingShared';
 import { mapProspectRow, PROSPECT_SELECT, type Prospect } from '@/lib/prospects';
 import {
   fetchPendingAgentProductOutreachProspectIds,
@@ -124,6 +127,8 @@ export type SelectOutreachTargetsInput = {
    * Draft generation is deferred until staff adds an email (via Research).
    */
   allowMissingEmail?: boolean;
+  /** Active Account Briefing: pool is opened accounts only (not pipeline prospects). */
+  accountAudience?: OutreachAccountAudience;
 };
 
 export type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
@@ -152,7 +157,10 @@ export function formatOutreachPreparationDate(
 
 async function loadProspectAccounts(
   client: DbClient,
-  options?: { includeLookalikeDiscovery?: boolean },
+  options?: {
+    includeLookalikeDiscovery?: boolean;
+    accountAudience?: OutreachAccountAudience;
+  },
 ): Promise<{ ok: true; prospects: Prospect[] } | { ok: false; error: string }> {
   const { data: ogr, error: ogrError } = await client
     .from('lines')
@@ -177,7 +185,10 @@ async function loadProspectAccounts(
               relationshipStatus: row.relationship_status,
               markers: row.line_account_markers,
             },
-            { includeLookalikeDiscovery: options?.includeLookalikeDiscovery },
+            {
+              includeLookalikeDiscovery: options?.includeLookalikeDiscovery,
+              accountAudience: options?.accountAudience,
+            },
           ),
         )
         .map((row) => row.retailer_id)
@@ -201,7 +212,14 @@ async function loadProspectAccounts(
   const idSet = new Set(ids);
   return {
     ok: true,
-    prospects: (data ?? []).map((row) => mapProspectRow(row)).filter((p) => idSet.has(p.id)),
+    prospects: (data ?? [])
+      .map((row) => mapProspectRow(row))
+      .filter((p) => idSet.has(p.id))
+      .map((p) =>
+        options?.accountAudience === 'active_account'
+          ? { ...p, accountStatus: 'active_account' as const }
+          : p,
+      ),
   };
 }
 
@@ -325,6 +343,7 @@ export async function selectOutreachTargets(
   const [prospectsResult, poolResult, pendingResult, suppressedResult] = await Promise.all([
     loadProspectAccounts(client, {
       includeLookalikeDiscovery: Boolean(input.operationalTerritoryId?.trim()),
+      accountAudience: input.accountAudience,
     }),
     loadOutreachProductPool(client),
     fetchPendingAgentProductOutreachProspectIds(client, AGENT_OUTREACH_PENDING_DRAFT_STATUSES),
@@ -359,7 +378,12 @@ export async function selectOutreachTargets(
 
   const prospects = prospectsResult.prospects.filter((p) => {
     // Copilot suggestion ignored: load already drops inactive RLAs; renaming this leftover gate would expand the exclusion union without a consumer.
-    if (!prospectPassesOutreachPool(p)) {
+    if (input.accountAudience === 'active_account') {
+      if (p.accountStatus !== 'active_account') {
+        excluded.push({ prospectId: p.id, reason: 'not_prospect' });
+        return false;
+      }
+    } else if (!prospectPassesOutreachPool(p)) {
       excluded.push({ prospectId: p.id, reason: 'not_prospect' });
       return false;
     }

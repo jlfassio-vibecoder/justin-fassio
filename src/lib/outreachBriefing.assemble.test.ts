@@ -787,7 +787,217 @@ describe('assembleOutreachBriefing carryover', () => {
     if (!result.ok) return;
     const queueArg = buildFollowUpQueueMock.mock.calls[0]?.[0] as {
       leads: Array<{ prospectId: number }>;
+      accountAudience?: string;
     };
     expect(queueArg.leads.map((l) => l.prospectId)).toEqual([10, 20]);
+    expect(queueArg.accountAudience).toBeUndefined();
+  });
+
+  it('active audience drops prospect leads, drafts, and identified targets', async () => {
+    listAgentProductOutreachDraftsMock.mockResolvedValue({
+      ok: true,
+      drafts: [
+        {
+          id: 'draft-prospect',
+          prospectId: 12,
+          toName: 'Prospect Cafe',
+          catalogItemId: 'c1',
+          toEmail: 'a@b.com',
+          createdAt: '2026-08-26T12:00:00.000Z',
+          payload: {
+            name: 'Hat',
+            sku: 'SKU',
+            slug: 'hat',
+            generation: { preparationDate: '2026-08-26', primaryChannel: 'golf' },
+          },
+        },
+        {
+          id: 'draft-active',
+          prospectId: 15,
+          toName: 'Active Shop',
+          catalogItemId: 'c1',
+          toEmail: 'c@d.com',
+          createdAt: '2026-08-26T13:00:00.000Z',
+          payload: {
+            name: 'Hat',
+            sku: 'SKU',
+            slug: 'hat',
+            generation: { preparationDate: '2026-08-26', primaryChannel: 'golf' },
+          },
+        },
+      ],
+    });
+    getLatestRegionalOutreachPrepRunMock.mockResolvedValue({
+      ok: true,
+      run: {
+        id: 'prior-run',
+        runDate: '2026-08-26',
+        kind: 'manual_regional_prep',
+        status: 'succeeded',
+        channelAllocation: {
+          identifiedTargets: [
+            {
+              prospectId: 99,
+              prospectName: 'Prospect Target',
+              catalogItemId: 'c1',
+              productName: 'Hat',
+              productSku: 'SKU',
+              productSlug: 'hat',
+              primaryChannel: 'golf',
+              needsEmail: true,
+            },
+            {
+              prospectId: 88,
+              prospectName: 'Active Target',
+              catalogItemId: 'c1',
+              productName: 'Hat',
+              productSku: 'SKU',
+              productSlug: 'hat',
+              primaryChannel: 'golf',
+              needsEmail: true,
+            },
+          ],
+        },
+      },
+    });
+    const warmLead = (id: number, name: string, accountStatus: 'prospect' | 'active_account') => ({
+      prospectId: id,
+      prospectName: name,
+      accountStatus,
+      leadState: 'warm' as const,
+      callToday: false,
+      callTodayReasons: [],
+      score: 5,
+      rulesVersion: OUTREACH_LEAD_RULES.version,
+      engagement: {
+        prospectId: id,
+        emailsSent: 1,
+        lastSentAt: null,
+        openCount: 0,
+        clickCount: 0,
+        messagesOpened: 0,
+        messagesClicked: 0,
+        distinctProductsOpened: 0,
+        distinctProductsClicked: 0,
+        maxClickCountOnMessage: 0,
+        lastOpenedAt: null,
+        lastClickedAt: null,
+        lastEngagementAt: null,
+        suppressed: false,
+        reply: { attributed: false, confidence: 'none', lastMessageAt: null },
+        unlinkedManualIncluded: 0,
+      },
+      lastEngagedCatalogItemId: null,
+      emailsSentInWindow: 1,
+      followUpOverdueDays: null,
+      lastCallAtToday: null,
+    });
+    listOutreachLeadsMock.mockResolvedValue([
+      warmLead(10, 'Prospect Lead', 'prospect'),
+      warmLead(20, 'Active Lead', 'active_account'),
+    ]);
+
+    const thenable = (result: { data: unknown; error: unknown }) => {
+      const api: Record<string, unknown> = {};
+      const self = () => thenable(result);
+      for (const key of ['select', 'eq', 'in', 'not', 'or', 'is', 'lte', 'gte', 'order', 'limit']) {
+        api[key] = vi.fn(self);
+      }
+      api.maybeSingle = vi.fn(async () => result);
+      return {
+        ...api,
+        then(onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
+          return Promise.resolve(result).then(onFulfilled, onRejected);
+        },
+      };
+    };
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === 'prospects') {
+          return thenable({
+            data: [
+              {
+                id: 12,
+                name: 'Prospect Cafe',
+                account_status: 'prospect',
+                region: 'Oregon Coast',
+                city: 'Newport',
+              },
+              {
+                id: 15,
+                name: 'Active Shop',
+                account_status: 'active_account',
+                region: 'Oregon Coast',
+                city: 'Newport',
+              },
+              {
+                id: 99,
+                name: 'Prospect Target',
+                account_status: 'prospect',
+                region: 'Oregon Coast',
+                city: 'Newport',
+              },
+              {
+                id: 88,
+                name: 'Active Target',
+                account_status: 'active_account',
+                region: 'Oregon Coast',
+                city: 'Newport',
+              },
+              {
+                id: 10,
+                name: 'Prospect Lead',
+                account_status: 'prospect',
+                region: 'Oregon Coast',
+                city: 'Newport',
+              },
+              {
+                id: 20,
+                name: 'Active Lead',
+                account_status: 'active_account',
+                region: 'Oregon Coast',
+                city: 'Newport',
+              },
+            ],
+            error: null,
+          });
+        }
+        return thenable({ data: null, error: null });
+      }),
+    };
+
+    const result = await assembleOutreachBriefing({
+      client: client as never,
+      asOf: new Date('2026-08-27T18:00:00Z'),
+      accountAudience: 'active_account',
+      regionalPrepScope: {
+        operationalTerritoryId: 'ops-pnw-west',
+        storeTerritoryCode: 'or',
+        crmRegion: 'Oregon Coast',
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.briefing.drafts.map((d) => d.prospectId)).toEqual([15]);
+    expect(result.briefing.identifiedTargets.map((t) => t.prospectId)).toEqual([88]);
+    const queueArg = buildFollowUpQueueMock.mock.calls[0]?.[0] as {
+      leads: Array<{ prospectId: number }>;
+      accountAudience?: string;
+    };
+    expect(queueArg.leads.map((l) => l.prospectId)).toEqual([20]);
+    expect(queueArg.accountAudience).toBe('active_account');
+    expect(selectOutreachTargetsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ accountAudience: 'active_account' }),
+    );
+    expect(getRegionalOutreachPrepRunMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ accountAudience: 'active_account' }),
+    );
+    expect(getLatestRegionalOutreachPrepRunMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ accountAudience: 'active_account' }),
+    );
   });
 });

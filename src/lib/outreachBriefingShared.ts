@@ -12,6 +12,15 @@ import type { OutreachLeadRulesVersion } from '@/lib/outreachLeadRules';
 
 export type { OutreachFollowUpAction, OutreachFollowUpRow } from '@/lib/outreachFollowUpQueue';
 
+/** Briefing / prep silo: omitted = Daily mix; active_account = opened accounts only. */
+export type OutreachAccountAudience = 'active_account';
+
+export function parseOutreachAccountAudience(
+  raw: string | null | undefined,
+): OutreachAccountAudience | undefined {
+  return raw === 'active_account' ? 'active_account' : undefined;
+}
+
 /** Max Call today / Hot / Warm / Engaged rows in the Briefing DTO payload. */
 export const TOP_LEADS_DTO_LIMIT = 12;
 /** Visible rows per Top leads quick-view column. */

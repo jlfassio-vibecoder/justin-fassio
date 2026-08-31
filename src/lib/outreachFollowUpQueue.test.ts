@@ -285,6 +285,22 @@ describe('buildFollowUpQueue', () => {
     expect(queue.some((r) => r.prospectId === 2)).toBe(true);
   });
 
+  it('includes only active accounts when audience is active_account', () => {
+    const activeWithHot = {
+      ...hotLead,
+      prospectId: 10,
+      prospectName: 'Active Hot Shop',
+      accountStatus: 'active_account' as const,
+    };
+    const queue = buildFollowUpQueue({
+      leads: [activeWithHot, hotLead],
+      asOf,
+      accountAudience: 'active_account',
+    });
+    expect(queue.some((r) => r.prospectId === 10)).toBe(true);
+    expect(queue.some((r) => r.prospectId === 2)).toBe(false);
+  });
+
   it('downgrades Call to watch when already called today without new engagement', () => {
     const called = {
       ...hotLead,

@@ -25,6 +25,7 @@ import type { OutreachGoalSettings } from '@/lib/outreachGoals';
 import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
 import { refreshPersistedLeadRules } from '@/lib/refreshPersistedLeadRules';
 import { identifiedTargetRowsFromSelected } from '@/lib/outreachBriefingShared';
+import { isActiveAccountStatus, loadResolvedAccountStatusByIds } from '@/lib/outreachAccountStatus';
 import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outreachSelectTargets';
 import { AGENT_OUTREACH_PENDING_DRAFT_STATUSES } from '@/lib/outreachSelectionConstants';
 import {
@@ -41,13 +42,32 @@ type Client = SupabaseClient<Database>;
 
 export const OUTREACH_NIGHTLY_PREP_KIND = 'nightly_prep' as const;
 export const OUTREACH_MANUAL_REGIONAL_PREP_KIND = 'manual_regional_prep' as const;
+/** Active Account Briefing regional prep — siloed from Daily Briefing regional prep. */
+export const OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND = 'manual_regional_active_prep' as const;
 export const OUTREACH_NIGHTLY_PREP_CHUNK = 5;
 export const OUTREACH_NIGHTLY_PREP_STALE_MS = 15 * 60 * 1000;
 export const OUTREACH_REGIONAL_PREP_DEFAULT_LIMIT = 25;
 export const OUTREACH_REGIONAL_PREP_MAX_LIMIT = 50;
 
 export type OutreachPrepKind =
-  typeof OUTREACH_NIGHTLY_PREP_KIND | typeof OUTREACH_MANUAL_REGIONAL_PREP_KIND;
+  | typeof OUTREACH_NIGHTLY_PREP_KIND
+  | typeof OUTREACH_MANUAL_REGIONAL_PREP_KIND
+  | typeof OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND;
+
+export function isRegionalPrepKind(kind: string | null | undefined): boolean {
+  return (
+    kind === OUTREACH_MANUAL_REGIONAL_PREP_KIND ||
+    kind === OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND
+  );
+}
+
+export function regionalPrepKindForAudience(
+  accountAudience?: 'active_account' | null,
+): typeof OUTREACH_MANUAL_REGIONAL_PREP_KIND | typeof OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND {
+  return accountAudience === 'active_account'
+    ? OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND
+    : OUTREACH_MANUAL_REGIONAL_PREP_KIND;
+}
 
 export type OutreachAutomationRunStatus =
   'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
@@ -90,9 +110,11 @@ function mapRunRow(row: DbRunRow): OutreachAutomationRunRow {
     ? (row.target_errors as Array<{ prospectId: number; error: string }>)
     : [];
   const kind =
-    row.kind === OUTREACH_MANUAL_REGIONAL_PREP_KIND
-      ? OUTREACH_MANUAL_REGIONAL_PREP_KIND
-      : OUTREACH_NIGHTLY_PREP_KIND;
+    row.kind === OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND
+      ? OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND
+      : row.kind === OUTREACH_MANUAL_REGIONAL_PREP_KIND
+        ? OUTREACH_MANUAL_REGIONAL_PREP_KIND
+        : OUTREACH_NIGHTLY_PREP_KIND;
   return {
     id: row.id,
     runDate: row.run_date,
@@ -181,7 +203,7 @@ async function findPrepRun(params: {
   let query = client
     .from('outreach_automation_runs')
     .select('*')
-    .eq('kind', OUTREACH_MANUAL_REGIONAL_PREP_KIND)
+    .eq('kind', kind)
     .eq('run_date', runDate)
     .eq('operational_territory_id', params.operationalTerritoryId ?? '');
 
@@ -209,11 +231,12 @@ export async function getRegionalOutreachPrepRun(
     storeTerritoryCode?: string | null;
     crmRegion?: string | null;
     city?: string | null;
+    accountAudience?: 'active_account';
   },
 ): Promise<{ ok: true; run: OutreachAutomationRunRow | null } | { ok: false; error: string }> {
   return findPrepRun({
     client,
-    kind: OUTREACH_MANUAL_REGIONAL_PREP_KIND,
+    kind: regionalPrepKindForAudience(params.accountAudience),
     runDate: params.runDate,
     operationalTerritoryId: params.operationalTerritoryId,
     storeTerritoryCode: params.storeTerritoryCode,
@@ -233,12 +256,14 @@ export async function getLatestRegionalOutreachPrepRun(
     storeTerritoryCode?: string | null;
     crmRegion?: string | null;
     city?: string | null;
+    accountAudience?: 'active_account';
   },
 ): Promise<{ ok: true; run: OutreachAutomationRunRow | null } | { ok: false; error: string }> {
+  const kind = regionalPrepKindForAudience(params.accountAudience);
   let query = client
     .from('outreach_automation_runs')
     .select('*')
-    .eq('kind', OUTREACH_MANUAL_REGIONAL_PREP_KIND)
+    .eq('kind', kind)
     .eq('operational_territory_id', params.operationalTerritoryId)
     .in('status', ['succeeded', 'partial', 'empty_pool'])
     .order('run_date', { ascending: false })
@@ -330,6 +355,7 @@ export async function countPendingDraftsForPreparationDate(
 /**
  * Count pending agent drafts whose prospects match a regional Briefing scope.
  * Used so Run prep now tops up to the open-batch limit, not selling date.
+ * When accountAudience is active_account, only active-account drafts count.
  */
 export async function countPendingDraftsForRegionalScope(
   client: Client,
@@ -338,6 +364,7 @@ export async function countPendingDraftsForRegionalScope(
     crmRegion?: string | null;
     city?: string | null;
     channel?: string | null;
+    accountAudience?: 'active_account';
   },
 ): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
   const crmRegion = normalizePrepCrmRegion(params.crmRegion);
@@ -373,34 +400,50 @@ export async function countPendingDraftsForRegionalScope(
 
   if (draftsByProspect.size === 0) return { ok: true, count: 0 };
 
-  // No CRM region, city, or channel filter (ALL): count every pending agent draft.
+  let matching: Set<number>;
+
+  // No CRM region, city, or channel filter (ALL): start from every pending draft prospect.
   if (!crmRegion && !prepCity && !prepChannel) {
-    let total = 0;
-    for (const n of draftsByProspect.values()) total += n;
-    return { ok: true, count: total };
+    matching = new Set(draftsByProspect.keys());
+  } else {
+    matching = new Set<number>();
+    const ids = [...draftsByProspect.keys()];
+    const chunkSize = 200;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const { data, error } = await client
+        .from('prospects')
+        .select('id, region, city, category')
+        .in('id', chunk);
+      if (error) return { ok: false, error: error.message };
+      for (const row of data ?? []) {
+        if (crmRegion && !prospectMatchesCrmRegion(row.region ?? '', crmRegion, storeCode)) {
+          continue;
+        }
+        if (!prospectMatchesPrepCity(row.city, prepCity)) {
+          continue;
+        }
+        if (!prospectMatchesPrepChannel(row.category, prepChannel)) {
+          continue;
+        }
+        matching.add(row.id);
+      }
+    }
   }
 
-  const ids = [...draftsByProspect.keys()];
-  const matching = new Set<number>();
-  const chunkSize = 200;
-  for (let i = 0; i < ids.length; i += chunkSize) {
-    const chunk = ids.slice(i, i + chunkSize);
-    const { data, error } = await client
-      .from('prospects')
-      .select('id, region, city, category')
-      .in('id', chunk);
-    if (error) return { ok: false, error: error.message };
-    for (const row of data ?? []) {
-      if (crmRegion && !prospectMatchesCrmRegion(row.region ?? '', crmRegion, storeCode)) {
-        continue;
+  if (params.accountAudience === 'active_account') {
+    try {
+      const statuses = await loadResolvedAccountStatusByIds(client, [...matching]);
+      for (const prospectId of [...matching]) {
+        if (!isActiveAccountStatus(statuses.get(prospectId))) {
+          matching.delete(prospectId);
+        }
       }
-      if (!prospectMatchesPrepCity(row.city, prepCity)) {
-        continue;
-      }
-      if (!prospectMatchesPrepChannel(row.category, prepChannel)) {
-        continue;
-      }
-      matching.add(row.id);
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Failed to resolve account status for drafts',
+      };
     }
   }
 
@@ -423,7 +466,7 @@ export type RunOutreachNightlyPrepInput = {
    */
   preparationDate?: string;
   asOf?: Date;
-  /** When set, runs manual_regional_prep for this ops territory (OGR allowlist validated by caller). */
+  /** When set, runs regional prep for this ops territory (OGR allowlist validated by caller). */
   operationalTerritoryId?: string;
   /** Optional store-geo filter within the ops region (or / wa). */
   storeTerritoryCode?: string | null;
@@ -435,6 +478,8 @@ export type RunOutreachNightlyPrepInput = {
   channel?: string | null;
   /** Regional capacity override (default 25, max 50). Ignored for nightly. */
   limit?: number;
+  /** Active Account Briefing manual prep: opened accounts only. Ignored by nightly cron. */
+  accountAudience?: 'active_account';
 };
 
 export type RunOutreachNightlyPrepResult =
@@ -486,7 +531,8 @@ function finalizeStatus(params: {
 /**
  * Prepare reviewable drafts for a selling day.
  * Nightly: idempotent per (kind, run_date).
- * Regional: idempotent per (kind, run_date, ops territory, store code); empty_pool is retryable.
+ * Regional: idempotent per (kind, run_date, ops territory, store code);
+ * empty_pool and open_batch_full are retryable for regional.
  */
 export async function runOutreachNightlyPrep(
   input: RunOutreachNightlyPrepInput,
@@ -502,7 +548,7 @@ export async function runOutreachNightlyPrep(
   const prepChannel = normalizePrepChannel(input.channel);
   const isRegional = Boolean(operationalTerritoryId);
   const kind: OutreachPrepKind = isRegional
-    ? OUTREACH_MANUAL_REGIONAL_PREP_KIND
+    ? regionalPrepKindForAudience(input.accountAudience)
     : OUTREACH_NIGHTLY_PREP_KIND;
 
   if (isRegional && input.trigger === 'cron') {
@@ -546,7 +592,13 @@ export async function runOutreachNightlyPrep(
 
   if (existing.run) {
     const run = existing.run;
-    const terminalNoop = run.status === 'succeeded' || (run.status === 'empty_pool' && !isRegional);
+    // Regional open_batch_full is retryable: pending draft counts change as staff
+    // send/dismiss, and Active vs Daily capacity is audience-scoped.
+    const regionalOpenBatchRetry =
+      isRegional && run.status === 'succeeded' && run.reason === 'open_batch_full';
+    const terminalNoop =
+      (run.status === 'succeeded' && !regionalOpenBatchRetry) ||
+      (run.status === 'empty_pool' && !isRegional);
     if (terminalNoop) {
       return { ok: true, run, noop: true };
     }
@@ -568,12 +620,13 @@ export async function runOutreachNightlyPrep(
         reason: 'stale_running',
       });
     }
-    // failed / partial / regional empty_pool (or stale→failed): retry on same row
+    // failed / partial / regional empty_pool / regional open_batch_full (or stale→failed): retry
     if (
       run.status === 'failed' ||
       run.status === 'partial' ||
       run.status === 'running' ||
-      (run.status === 'empty_pool' && isRegional)
+      (run.status === 'empty_pool' && isRegional) ||
+      regionalOpenBatchRetry
     ) {
       const reset = await updateRun(client, run.id, {
         status: 'running',
@@ -608,6 +661,7 @@ export async function runOutreachNightlyPrep(
         crmRegion,
         city: prepCity,
         channel: prepChannel,
+        accountAudience: input.accountAudience,
       });
     }
   }
@@ -640,7 +694,12 @@ export async function runOutreachNightlyPrep(
       city: prepCity,
     });
     if (again.ok && again.run) {
-      if (again.run.status === 'succeeded' || (again.run.status === 'empty_pool' && !isRegional)) {
+      const againOpenBatch =
+        isRegional && again.run.status === 'succeeded' && again.run.reason === 'open_batch_full';
+      if (
+        (again.run.status === 'succeeded' && !againOpenBatch) ||
+        (again.run.status === 'empty_pool' && !isRegional)
+      ) {
         return { ok: true, run: again.run, noop: true };
       }
       if (again.run.status === 'running') {
@@ -671,6 +730,7 @@ export async function runOutreachNightlyPrep(
     crmRegion,
     city: prepCity,
     channel: prepChannel,
+    accountAudience: input.accountAudience,
   });
 }
 
@@ -690,6 +750,7 @@ async function continuePrep(params: {
   crmRegion: string | null;
   city: string | null;
   channel: string | null;
+  accountAudience?: 'active_account';
 }): Promise<RunOutreachNightlyPrepResult> {
   const {
     client,
@@ -705,6 +766,7 @@ async function continuePrep(params: {
     crmRegion,
     city,
     channel,
+    accountAudience,
   } = params;
 
   const leadRulesRefresh = await refreshPersistedLeadRules({ client, performance });
@@ -723,6 +785,7 @@ async function continuePrep(params: {
         crmRegion,
         city,
         channel,
+        accountAudience,
       })
     : await countPendingDraftsForPreparationDate(client, runDate);
   if (!pending.ok) {
@@ -768,11 +831,30 @@ async function continuePrep(params: {
     reason = isRegional ? 'open_batch_full' : 'already_at_pace';
   }
 
+  // Preserve prior research-queue snapshot when short-circuiting capacity.
+  let allocationToStore: AllocateChannelsForDayResult | Record<string, unknown> = channelAllocation;
+  if (netCapacity === 0) {
+    const prior = await getOutreachAutomationRunById(client, runId);
+    if (
+      prior.ok &&
+      prior.run?.channelAllocation &&
+      typeof prior.run.channelAllocation === 'object'
+    ) {
+      const priorAllocation = prior.run.channelAllocation as Record<string, unknown>;
+      if (Array.isArray(priorAllocation.identifiedTargets)) {
+        allocationToStore = {
+          ...channelAllocation,
+          identifiedTargets: priorAllocation.identifiedTargets,
+        };
+      }
+    }
+  }
+
   await updateRun(client, runId, {
     capacity,
     pending_before: pendingBefore,
     net_capacity: netCapacity,
-    channel_allocation: channelAllocation,
+    channel_allocation: allocationToStore,
     reason,
   });
 
@@ -818,6 +900,7 @@ async function continuePrep(params: {
     rankMode: isRegional ? 'fit_score' : 'default',
     skipChannelAllocation: isRegional,
     allowMissingEmail: isRegional,
+    accountAudience,
   });
   if (!selected.ok) {
     await updateRun(client, runId, {

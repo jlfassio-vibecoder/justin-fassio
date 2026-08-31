@@ -321,6 +321,8 @@ export function buildFollowUpQueue(input: {
   rules?: OutreachLeadRules;
   limit?: number;
   emailedWindowDays?: number;
+  /** Daily Briefing skips actives; Active Account Briefing includes only actives. */
+  accountAudience?: 'active_account';
 }): OutreachFollowUpRow[] {
   const asOf = input.asOf ?? new Date();
   const rules = input.rules ?? OUTREACH_LEAD_RULES;
@@ -333,7 +335,11 @@ export function buildFollowUpQueue(input: {
   const byId = new Map<number, { row: OutreachFollowUpRow; lead: OutreachLeadRow }>();
 
   for (const lead of input.leads) {
-    if (lead.accountStatus === 'active_account') continue;
+    if (input.accountAudience === 'active_account') {
+      if (lead.accountStatus !== 'active_account') continue;
+    } else if (lead.accountStatus === 'active_account') {
+      continue;
+    }
     if (snoozed.has(lead.prospectId)) continue;
     if (lead.engagement.suppressed) continue;
     if (!emailedWithinFollowUpWindow(lead, asOf, emailedWindowDays)) continue;

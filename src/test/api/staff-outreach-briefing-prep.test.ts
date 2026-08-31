@@ -207,4 +207,40 @@ describe('staff outreach briefing + prep', () => {
       }),
     );
   });
+
+  it('GET briefing passes audience=active_account', async () => {
+    const res = await GET_BRIEFING({
+      request: new Request('http://localhost/api/staff/outreach/briefing?audience=active_account'),
+      url: new URL('http://localhost/api/staff/outreach/briefing?audience=active_account'),
+    } as never);
+    expect(res.status).toBe(200);
+    expect(assembleOutreachBriefingMock).toHaveBeenCalledWith(
+      expect.objectContaining({ accountAudience: 'active_account' }),
+    );
+  });
+
+  it('GET briefing omits accountAudience when audience is absent', async () => {
+    const res = await GET_BRIEFING({
+      request: new Request('http://localhost/api/staff/outreach/briefing'),
+      url: new URL('http://localhost/api/staff/outreach/briefing'),
+    } as never);
+    expect(res.status).toBe(200);
+    expect(assembleOutreachBriefingMock).toHaveBeenCalledWith(
+      expect.objectContaining({ accountAudience: undefined }),
+    );
+  });
+
+  it('POST prep passes audience=active_account', async () => {
+    const res = await POST_PREP({
+      request: new Request('http://localhost/api/staff/outreach/prep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audience: 'active_account' }),
+      }),
+    } as never);
+    expect(res.status).toBe(200);
+    expect(runOutreachNightlyPrepMock).toHaveBeenCalledWith(
+      expect.objectContaining({ accountAudience: 'active_account' }),
+    );
+  });
 });
