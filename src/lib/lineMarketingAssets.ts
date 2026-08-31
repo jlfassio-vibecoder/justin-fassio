@@ -48,10 +48,9 @@ export type OgrPdfCatalogAbsoluteUrls = {
 export function resolveOgrPdfCatalogUrls(
   originInput: ResolvePublicSiteOriginInput | string = {},
 ): OgrPdfCatalogAbsoluteUrls {
-  const origin =
-    typeof originInput === 'string'
-      ? originInput.replace(/\/+$/, '')
-      : resolvePublicSiteOrigin(originInput);
+  const origin = resolvePublicSiteOrigin(
+    typeof originInput === 'string' ? { explicitOrigin: originInput } : originInput,
+  );
   const paths = getOgrPdfCatalogPaths();
   return {
     pdfCatalogHref: absoluteUrlForMarketingPath(origin, paths.pdfPath),

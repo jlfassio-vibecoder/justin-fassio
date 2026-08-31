@@ -38,6 +38,15 @@ describe('lineMarketingAssets', () => {
     expect(urls.pdfCatalogCoverUrl).toBe('https://example.test/marketing/old-guys-rule/cover.jpg');
   });
 
+  it('normalizes string origins via resolvePublicSiteOrigin', () => {
+    const urls = resolveOgrPdfCatalogUrls('  https://example.test/  ');
+    expect(urls.pdfCatalogCoverUrl).toBe('https://example.test/marketing/old-guys-rule/cover.jpg');
+  });
+
+  it('throws when an explicit string origin is malformed', () => {
+    expect(() => resolveOgrPdfCatalogUrls('not-a-url')).toThrow();
+  });
+
   it('rewrites public cover/PDF URLs to same-origin relative paths for preview', () => {
     const urls = resolveOgrPdfCatalogUrls();
     const html = `<a href="${urls.pdfCatalogHref}"><img src="${urls.pdfCatalogCoverUrl}" alt="" /></a>`;
