@@ -1200,6 +1200,17 @@ export function AgentBriefingTab({
 
       {briefing && (
         <>
+          <TopLeadsQuickView
+            callToday={briefing.callToday ?? []}
+            hotCount={(briefing.hot ?? []).length}
+            warm={briefing.warm ?? []}
+            recentEngagement={briefing.recentEngagement ?? []}
+            followUpsById={followUpsById}
+            emailBusyId={emailBusyId}
+            onOpenProspect={openBriefingStore}
+            onFollowUpAction={(row) => void handleFollowUpAction(row)}
+          />
+
           <Card
             className={
               prep?.status === 'failed' || prep?.status === 'partial'
@@ -1527,17 +1538,6 @@ export function AgentBriefingTab({
               </ul>
             </Card>
           )}
-
-          <TopLeadsQuickView
-            callToday={briefing.callToday ?? []}
-            hotCount={(briefing.hot ?? []).length}
-            warm={briefing.warm ?? []}
-            recentEngagement={briefing.recentEngagement ?? []}
-            followUpsById={followUpsById}
-            emailBusyId={emailBusyId}
-            onOpenProspect={openBriefingStore}
-            onFollowUpAction={(row) => void handleFollowUpAction(row)}
-          />
 
           <FollowUpQueue
             rows={briefing.followUps ?? []}
