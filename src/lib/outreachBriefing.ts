@@ -347,6 +347,8 @@ async function loadRecentEngagement(
   const byProspect = foldRecentEngagementMessages(data, sinceIso);
 
   const prospectIds = [...byProspect.keys()];
+  const statuses =
+    prospectIds.length > 0 ? await loadResolvedAccountStatusByIds(client, prospectIds) : new Map();
   if (prospectIds.length > 0) {
     const { data: prospects } = await client
       .from('prospects')
@@ -359,7 +361,11 @@ async function loadRecentEngagement(
   }
 
   return [...byProspect.entries()]
-    .map(([prospectId, v]) => ({ prospectId, ...v }))
+    .map(([prospectId, v]) => ({
+      prospectId,
+      ...v,
+      accountStatus: statuses.get(prospectId) ?? ('prospect' as const),
+    }))
     .sort((a, b) => b.lastEngagedAt.localeCompare(a.lastEngagedAt))
     .slice(0, 25);
 }

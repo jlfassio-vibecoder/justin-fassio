@@ -9,6 +9,7 @@ import type { OutreachFollowUpRow } from '@/lib/outreachFollowUpQueue';
 import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
 import type { LeadRuleSource } from '@/lib/outreachLeadRuleCalibration';
 import type { OutreachLeadRulesVersion } from '@/lib/outreachLeadRules';
+import type { AccountStatus } from '@/types/database';
 
 export type { OutreachFollowUpAction, OutreachFollowUpRow } from '@/lib/outreachFollowUpQueue';
 
@@ -129,6 +130,7 @@ export type OutreachBriefingDto = {
   recentEngagement: Array<{
     prospectId: number;
     prospectName: string;
+    accountStatus: AccountStatus;
     lastEngagedAt: string;
     openCount: number;
     clickCount: number;
