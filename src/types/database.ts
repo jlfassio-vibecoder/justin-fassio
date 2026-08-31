@@ -1882,7 +1882,7 @@ export interface Database {
         Row: {
           id: string;
           run_date: string;
-          kind: 'nightly_prep' | 'manual_regional_prep';
+          kind: 'nightly_prep' | 'manual_regional_prep' | 'manual_regional_active_prep';
           status: 'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
           trigger: 'cron' | 'manual';
           capacity: number;
@@ -1910,7 +1910,7 @@ export interface Database {
         Insert: {
           id?: string;
           run_date: string;
-          kind?: 'nightly_prep' | 'manual_regional_prep';
+          kind?: 'nightly_prep' | 'manual_regional_prep' | 'manual_regional_active_prep';
           status: 'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
           trigger: 'cron' | 'manual';
           capacity?: number;
@@ -1938,7 +1938,7 @@ export interface Database {
         Update: {
           id?: string;
           run_date?: string;
-          kind?: 'nightly_prep' | 'manual_regional_prep';
+          kind?: 'nightly_prep' | 'manual_regional_prep' | 'manual_regional_active_prep';
           status?: 'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
           trigger?: 'cron' | 'manual';
           capacity?: number;

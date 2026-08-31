@@ -221,8 +221,15 @@ export function isRlaInOutreachPool(
      * Nightly prep keeps the opt-in gate.
      */
     includeLookalikeDiscovery?: boolean;
+    /** Active Account Briefing prep: all opened RLAs, not only opted-in reactivation. */
+    accountAudience?: 'active_account';
   },
 ): boolean {
+  if (options?.accountAudience === 'active_account') {
+    if (row.relationshipStatus !== 'opened') return false;
+    if (hasMarker(row.markers, 'reactivation_unresponsive')) return false;
+    return true;
+  }
   if (row.relationshipStatus === 'prospect') {
     if (
       hasMarker(row.markers, 'lookalike_prospect') &&

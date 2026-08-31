@@ -86,6 +86,10 @@ type AgentBriefingTabProps = {
   onLogCall: (prospect: Prospect) => void;
   onNotesSaved?: (id: number, notes: string | null) => void;
   onProspectUpdated?: (prospect: Prospect) => void;
+  /** Active Accounts embed: silo queues + prep to opened accounts. */
+  audience?: 'active_account';
+  /** Compact header when mounted above the Active Accounts directory. */
+  embedded?: boolean;
 };
 
 type OpenBriefingStoreArgs = {
@@ -498,6 +502,8 @@ export function AgentBriefingTab({
   onLogCall,
   onNotesSaved,
   onProspectUpdated,
+  audience,
+  embedded = false,
 }: AgentBriefingTabProps) {
   const lineCtx = useOptionalLineContext();
   const isOgrLine = !lineCtx.multiLineUi || lineCtx.lineSlug === 'ogr' || lineCtx.lineSlug == null;
@@ -831,6 +837,9 @@ export function AgentBriefingTab({
       if (isOgrLine && briefingChannel && briefingChannel !== 'ALL') {
         qsParams.set('channel', briefingChannel);
       }
+      if (audience === 'active_account') {
+        qsParams.set('audience', 'active_account');
+      }
       const qs = qsParams.toString() ? `?${qsParams.toString()}` : '';
       const result = await staffGet(`/api/staff/outreach/briefing${qs}`);
       if (!active) return;
@@ -859,6 +868,7 @@ export function AgentBriefingTab({
     briefingRegion,
     briefingCity,
     briefingChannel,
+    audience,
   ]);
 
   useEffect(() => {
@@ -939,6 +949,9 @@ export function AgentBriefingTab({
       body.channel = briefingChannel;
     }
     if (briefing?.sellingDate) body.preparationDate = briefing.sellingDate;
+    if (audience === 'active_account') {
+      body.audience = 'active_account';
+    }
     try {
       const result = await staffPost('/api/staff/outreach/identified-target-draft', body);
       if (!result.ok) {
@@ -1003,6 +1016,9 @@ export function AgentBriefingTab({
       body.channel = briefingChannel;
     }
     if (briefing?.sellingDate) body.preparationDate = briefing.sellingDate;
+    if (audience === 'active_account') {
+      body.audience = 'active_account';
+    }
     const result = await staffPost('/api/staff/outreach/prep', body);
     setPrepBusy(false);
     if (!result.ok) {
@@ -1041,15 +1057,20 @@ export function AgentBriefingTab({
     composerOpen && composerProduct ? buildCatalogItemEmailCardHtml(composerProduct, 'ca') : '';
 
   return (
-    <section className="flex flex-col gap-5" data-screen-label="briefing">
+    <section
+      className={`flex flex-col ${embedded ? 'gap-4' : 'gap-5'}`}
+      data-screen-label={embedded ? 'active-account-briefing' : 'briefing'}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <ClipboardList
-            className="text-accent-700 h-5 w-5"
+            className={`text-accent-700 ${embedded ? 'h-4 w-4' : 'h-5 w-5'}`}
             strokeWidth={ICON_STROKE}
             aria-hidden
           />
-          <h2 className="text-ink m-0 text-lg font-semibold">Daily Agent Briefing</h2>
+          <h2 className={`text-ink m-0 font-semibold ${embedded ? 'text-base' : 'text-lg'}`}>
+            {audience === 'active_account' ? 'Active Account Briefing' : 'Daily Agent Briefing'}
+          </h2>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button

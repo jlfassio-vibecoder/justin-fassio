@@ -92,6 +92,20 @@ describe('prepBannerMessage', () => {
     expect(b.message).toContain('research emails');
   });
 
+  it('active regional identified + drafts banner', () => {
+    const b = prepBannerMessage({
+      sellingDate: '2026-08-13',
+      run: run({
+        kind: 'manual_regional_active_prep',
+        selectedCount: 10,
+        producedCount: 2,
+      }),
+    });
+    expect(b.message).toContain('10 identified');
+    expect(b.message).toContain('2 drafts ready');
+    expect(b.message).toContain('8 need email research');
+  });
+
   it('formatRegionalPoolMessage explains directory vs sendable gap', () => {
     const pool: OutreachPoolDiagnostics = {
       inRegion: 35,

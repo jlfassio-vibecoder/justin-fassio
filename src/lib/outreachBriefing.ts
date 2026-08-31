@@ -20,7 +20,7 @@ import {
   getLatestOutreachAutomationRunForDate,
   getLatestRegionalOutreachPrepRun,
   getRegionalOutreachPrepRun,
-  OUTREACH_MANUAL_REGIONAL_PREP_KIND,
+  isRegionalPrepKind,
   type OutreachAutomationRunRow,
 } from '@/lib/outreachNightlyPrep';
 import {
@@ -41,7 +41,11 @@ import {
   latestProspectOutreachSentAt,
   loadLatestProductOutreachSends,
 } from '@/lib/outreachLatestSends';
-import type { OutreachPoolDiagnostics } from '@/lib/outreachBriefingShared';
+import { isActiveAccountStatus, loadResolvedAccountStatusByIds } from '@/lib/outreachAccountStatus';
+import type {
+  OutreachAccountAudience,
+  OutreachPoolDiagnostics,
+} from '@/lib/outreachBriefingShared';
 import {
   formatRegionalPoolMessage,
   parseIdentifiedTargetsFromPrepAllocation,
@@ -213,13 +217,13 @@ export function prepBannerMessage(params: {
           message: `${run.pendingBefore} pending draft${run.pendingBefore === 1 ? '' : 's'} still open for this region — finish or send them before running prep again.`,
         };
       }
-      if (run.kind === OUTREACH_MANUAL_REGIONAL_PREP_KIND && identified > 0 && n === 0) {
+      if (isRegionalPrepKind(run.kind) && identified > 0 && n === 0) {
         return {
           status: 'succeeded',
           message: `${identified} account${identified === 1 ? '' : 's'} identified for outreach — research emails, then re-run prep to draft.`,
         };
       }
-      if (run.kind === OUTREACH_MANUAL_REGIONAL_PREP_KIND && identified > n) {
+      if (isRegionalPrepKind(run.kind) && identified > n) {
         const needResearch = identified - n;
         return {
           status: 'succeeded',
@@ -580,6 +584,8 @@ export async function assembleOutreachBriefing(params: {
   /** Phase 2: when set to a non-OGR represented line, return empty book lists. */
   salesLineId?: string | null;
   salesLineCode?: string | null;
+  /** Active Accounts embed: keep only active_account rows. Omitted = Daily mix. */
+  accountAudience?: OutreachAccountAudience;
   /** When set, prep banner + drafts use this regional scope instead of latest run. */
   regionalPrepScope?: {
     operationalTerritoryId: string;
@@ -645,6 +651,7 @@ export async function assembleOutreachBriefing(params: {
         storeTerritoryCode: params.regionalPrepScope.storeTerritoryCode,
         crmRegion: params.regionalPrepScope.crmRegion,
         city: params.regionalPrepScope.city,
+        accountAudience: params.accountAudience,
       })
     : await getLatestOutreachAutomationRunForDate(client, sellingDate);
   if (!runLookup.ok) return { ok: false, error: runLookup.error };
@@ -673,6 +680,7 @@ export async function assembleOutreachBriefing(params: {
       skipChannelAllocation: true,
       allowMissingEmail: true,
       asOf,
+      accountAudience: params.accountAudience,
     });
     if (poolDiag.ok && poolDiag.diagnostics) {
       regionalPool = poolDiag.diagnostics;
@@ -752,6 +760,7 @@ export async function assembleOutreachBriefing(params: {
       storeTerritoryCode: params.regionalPrepScope.storeTerritoryCode,
       crmRegion: params.regionalPrepScope.crmRegion,
       city: params.regionalPrepScope.city,
+      accountAudience: params.accountAudience,
     });
     if (!latestRegional.ok) return { ok: false, error: latestRegional.error };
     if (latestRegional.run) identifiedSourceRun = latestRegional.run;
@@ -893,6 +902,10 @@ export async function assembleOutreachBriefing(params: {
     }
   }
 
+  if (params.accountAudience === 'active_account') {
+    scopedLeads = scopedLeads.filter((l) => l.accountStatus === 'active_account');
+  }
+
   const productIds = [
     ...new Set(
       scopedLeads
@@ -918,6 +931,7 @@ export async function assembleOutreachBriefing(params: {
     productNamesById,
     asOf,
     rules: resolvedLeadRules.rules,
+    accountAudience: params.accountAudience,
   });
   const prepared = prepareBriefingLeadLists({
     leads: scopedLeads,
@@ -947,6 +961,35 @@ export async function assembleOutreachBriefing(params: {
         if (!prospectMatchesPrepChannel(geo.category, scopedChannel)) return false;
         return true;
       });
+    }
+  }
+
+  if (params.accountAudience === 'active_account') {
+    try {
+      const statusIds = [
+        ...filteredDrafts.map((d) => d.prospectId),
+        ...identifiedTargets.map((t) => t.prospectId),
+        ...scopedEngagement.map((r) => r.prospectId),
+        ...scopedPresence.map((p) => p.prospectId),
+      ];
+      const statuses = await loadResolvedAccountStatusByIds(client, statusIds);
+      filteredDrafts = filteredDrafts.filter((d) =>
+        isActiveAccountStatus(statuses.get(d.prospectId)),
+      );
+      identifiedTargets = identifiedTargets.filter((t) =>
+        isActiveAccountStatus(statuses.get(t.prospectId)),
+      );
+      scopedEngagement = scopedEngagement.filter((r) =>
+        isActiveAccountStatus(statuses.get(r.prospectId)),
+      );
+      scopedPresence = scopedPresence.filter((p) =>
+        isActiveAccountStatus(statuses.get(p.prospectId)),
+      );
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Failed to filter briefing rows by audience',
+      };
     }
   }
 

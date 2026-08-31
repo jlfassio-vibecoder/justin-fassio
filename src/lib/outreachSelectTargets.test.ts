@@ -625,6 +625,100 @@ describe('selectOutreachTargets', () => {
     );
   });
 
+  it('active audience selects opened accounts and excludes pipeline prospects', async () => {
+    const contact = (id: string, accountId: number, email: string) => ({
+      id,
+      account_id: accountId,
+      role: 'buyer',
+      full_name: 'Buyer',
+      title: null,
+      phone: null,
+      email,
+      is_primary: true,
+      notes: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    });
+    const client = mockSelectClient({
+      prospects: [
+        prospectRow(10, 'Golf Shop'),
+        prospectRow(11, 'No Opt In', { account_status: 'active_account', fit_score: null }),
+        prospectRow(12, 'Opted In', { account_status: 'active_account', fit_score: null }),
+        prospectRow(13, 'Unresponsive', { account_status: 'active_account', fit_score: null }),
+        prospectRow(14, 'Parked', { account_status: 'inactive', fit_score: null }),
+      ],
+      rlaRows: [
+        { retailer_id: 10, relationship_status: 'prospect', line_account_markers: [] },
+        {
+          retailer_id: 11,
+          relationship_status: 'opened',
+          line_account_markers: ['historical_purchaser'],
+        },
+        {
+          retailer_id: 12,
+          relationship_status: 'opened',
+          line_account_markers: [
+            'historical_purchaser',
+            'reactivation_candidate',
+            'outreach_eligible',
+          ],
+        },
+        {
+          retailer_id: 13,
+          relationship_status: 'opened',
+          line_account_markers: [
+            'historical_purchaser',
+            'reactivation_candidate',
+            'outreach_eligible',
+            'reactivation_unresponsive',
+          ],
+        },
+        {
+          retailer_id: 14,
+          relationship_status: 'inactive',
+          line_account_markers: ['historical_purchaser'],
+        },
+      ],
+      contacts: [
+        contact('c-10', 10, 'sam@example.com'),
+        contact('c-11', 11, 'noopt@example.com'),
+        contact('c-12', 12, 'pat@example.com'),
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+      pendingProspectIds: [],
+      suppressed: [],
+      sendsByProspect: [],
+      sendsByEmail: [],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 5,
+      preparationDate: '2026-08-12',
+      asOf: new Date('2026-08-12T18:00:00Z'),
+      weights: { golf_retail: 1 },
+      accountAudience: 'active_account',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets.map((t) => t.prospectId).sort((a, b) => a - b)).toEqual([11, 12]);
+    expect(result.targets.some((t) => t.prospectId === 10)).toBe(false);
+  });
+
   it('honors precomputed channelAllocation without recomputing slots', async () => {
     const client = mockSelectClient({
       prospects: [

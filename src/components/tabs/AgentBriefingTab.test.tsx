@@ -1287,3 +1287,43 @@ describe('AgentBriefingTab regional prep controls', () => {
     });
   });
 });
+
+describe('AgentBriefingTab active audience', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('fetches briefing with audience=active_account and shows Active Account Briefing', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => briefingPayload,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentBriefingTab {...briefingProps({ audience: 'active_account', embedded: true })} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Active Account Briefing' })).toBeInTheDocument();
+    });
+    const briefingCall = fetchMock.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0].includes('/api/staff/outreach/briefing'),
+    );
+    expect(String(briefingCall?.[0])).toContain('audience=active_account');
+  });
+
+  it('omits audience on Daily Briefing fetch', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => briefingPayload,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<AgentBriefingTab {...briefingProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Daily Agent Briefing' })).toBeInTheDocument();
+    });
+    const briefingCall = fetchMock.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0].includes('/api/staff/outreach/briefing'),
+    );
+    expect(String(briefingCall?.[0])).not.toContain('audience=');
+  });
+});

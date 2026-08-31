@@ -622,8 +622,14 @@ export function RepCommandCenter({
               {activeTab === 'accounts' && (
                 <ActiveAccountsTab
                   accounts={accountsForTab}
+                  catalog={catalog}
                   territories={territories}
                   onLogCall={(account) => openModal(account)}
+                  onLogCallForLead={openLogCallForProspectId}
+                  briefingReloadToken={briefingReloadToken}
+                  deepLinkSku={deepLinkSku}
+                  deepLinkDraftId={deepLinkDraftId}
+                  onCatalogDeepLinkConsumed={clearCatalogDeepLink}
                   contactsReloadToken={contactsReloadToken}
                   onContactAdded={reloadContacts}
                   onProductEmailSent={() => setActivityHistoryReloadToken((n) => n + 1)}

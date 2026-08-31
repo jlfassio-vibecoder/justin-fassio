@@ -11,6 +11,7 @@ import {
 } from '@/lib/outreachNightlyPrep';
 import { normalizePrepCity, normalizePrepCrmRegion } from '@/lib/geoCatalog';
 import { normalizePrepChannel } from '@/lib/crmRetailTaxonomy';
+import { parseOutreachAccountAudience } from '@/lib/outreachBriefingShared';
 import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { isWeekdayIso } from '@/lib/outreachSellingDays';
 
@@ -100,6 +101,13 @@ export const POST: APIRoute = async ({ request }) => {
     }
   }
 
+  const audienceRaw =
+    typeof body.audience === 'string'
+      ? body.audience
+      : typeof body.accountAudience === 'string'
+        ? body.accountAudience
+        : '';
+
   const result = await runOutreachNightlyPrep({
     client: gate.supabase,
     trigger: 'manual',
@@ -112,6 +120,7 @@ export const POST: APIRoute = async ({ request }) => {
     city: normalizePrepCity(cityRaw || null),
     channel: normalizePrepChannel(channelRaw || null),
     limit,
+    accountAudience: parseOutreachAccountAudience(audienceRaw),
   });
 
   if (!result.ok) {
