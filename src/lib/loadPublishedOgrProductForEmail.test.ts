@@ -20,6 +20,9 @@ const publishedRow: EmailOgrProductRow = {
   catalog_year: 2025,
   collection: 'Core',
   msrp_cad: 48,
+  price_usd: 13,
+  catalog_price_usd: 13,
+  price_usd_override: null,
   is_new: true,
   featured: false,
   public_sort_order: 10,
@@ -93,6 +96,7 @@ describe('loadPublishedOgrProductForEmail', () => {
     if (!result.ok) return;
     expect(result.product.sku).toBe('OG2513');
     expect(result.product.wholesaleUsd).toBeNull();
+    expect(result.wholesaleUsd).toBe(13);
     expect(result.product.availableSizes).toEqual(['M', 'L']);
   });
 
