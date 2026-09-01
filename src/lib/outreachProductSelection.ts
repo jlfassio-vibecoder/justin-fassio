@@ -43,6 +43,8 @@ export type SelectProductInput = {
   productWeights?: ReadonlyMap<string, number>;
   globalProductWeight?: number;
   productWeightSource?: ProductWeightSource;
+  /** Active accounts: prefer invoice top-volume catalog ids when present in pool. */
+  preferredCatalogItemIds?: readonly string[];
 };
 
 function asStringArray(raw: unknown): string[] {
@@ -195,6 +197,21 @@ export function selectProductForProspect(
   const prospectChannels = normalizePrimaryChannels(
     input.prospectChannels.map((ch) => coercePrimaryRetailChannel(ch)),
   );
+
+  if (input.preferredCatalogItemIds?.length) {
+    for (const catalogItemId of input.preferredCatalogItemIds) {
+      const preferred = eligiblePool.find((p) => p.id === catalogItemId);
+      if (preferred) {
+        const productFit: ProductFitKind = channelIntersect(
+          preferred.recommendedChannels,
+          prospectChannels,
+        )
+          ? 'channel_intersect'
+          : 'global_fallback';
+        return { product: preferred, productFit };
+      }
+    }
+  }
   const themes = input.prospectLifestyleThemes ?? [];
   const weightOptions = {
     productWeights: input.productWeights,

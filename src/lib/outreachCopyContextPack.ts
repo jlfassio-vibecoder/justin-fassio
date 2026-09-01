@@ -220,6 +220,23 @@ export function contextFlagsFromPack(pack: OutreachCopyContextPack): OutreachCop
   };
 }
 
+/** Flags for active-account AI copy — matches stripped prompt inputs, not full pack. */
+export function contextFlagsFromActiveAccountPromptInput(input: {
+  pack: OutreachCopyContextPack;
+  recentPublicNotes: string[];
+  hasPurchaseHistory: boolean;
+}): OutreachCopyContextFlags {
+  return {
+    hasWebsiteHost: false,
+    acceptedNoteCount: input.recentPublicNotes.length,
+    lockedSourceCount: 0,
+    hasContactRole: Boolean(input.pack.contactRole || input.pack.contactTitle),
+    hasBriefBullets: input.pack.researchBriefBullets.length > 0,
+    hasDirectorySignals: false,
+    ...(input.hasPurchaseHistory ? { hasPurchaseHistory: true } : {}),
+  };
+}
+
 async function loadLatestResearchBrief(
   client: DbClient,
   prospectId: number,

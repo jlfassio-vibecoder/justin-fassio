@@ -1776,6 +1776,66 @@ export interface Database {
         };
         Relationships: [];
       };
+      account_invoices: {
+        Row: {
+          id: string;
+          account_id: number;
+          line_id: string;
+          invoice_number: string;
+          invoice_date: string;
+          source_filename: string;
+          bill_to_name: string | null;
+          imported_at: string;
+        };
+        Insert: {
+          id?: string;
+          account_id: number;
+          line_id: string;
+          invoice_number: string;
+          invoice_date: string;
+          source_filename: string;
+          bill_to_name?: string | null;
+          imported_at?: string;
+        };
+        Update: {
+          id?: string;
+          account_id?: number;
+          line_id?: string | null;
+          invoice_number?: string;
+          invoice_date?: string;
+          source_filename?: string;
+          bill_to_name?: string | null;
+          imported_at?: string;
+        };
+        Relationships: [];
+      };
+      account_invoice_lines: {
+        Row: {
+          id: string;
+          invoice_id: string;
+          sku_base: string;
+          style_name: string;
+          quantity: number;
+          catalog_item_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          invoice_id: string;
+          sku_base: string;
+          style_name?: string;
+          quantity: number;
+          catalog_item_id?: string | null;
+        };
+        Update: {
+          id?: string;
+          invoice_id?: string;
+          sku_base?: string;
+          style_name?: string;
+          quantity?: number;
+          catalog_item_id?: string | null;
+        };
+        Relationships: [];
+      };
       account_reorder_settings: {
         Row: {
           account_id: number;

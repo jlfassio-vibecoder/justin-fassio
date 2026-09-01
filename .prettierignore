@@ -9,5 +9,6 @@ supabase/functions
 .cursor
 docs/prospect-list.html
 docs/catalog/*.pdf
+docs/account-invoices/**/*.pdf
 docs/catalog/OGR_2026_Catalog_Live_Image_URLs/**
 docs/product-architecture.md
