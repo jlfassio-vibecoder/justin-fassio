@@ -1,6 +1,6 @@
 /** Map invoice base SKUs to published OGR catalog_items. */
 
-import { normalizeSku, skusMatch } from '@/lib/skuNormalize';
+import { normalizeSku, skusMatch } from '../skuNormalize.ts';
 
 export type CatalogSkuRow = {
   id: string;

@@ -1,6 +1,6 @@
 /** Map invoice line tokens (OG2017 M BLK …) to catalog base SKU. */
 
-import { normalizeSku } from '@/lib/skuNormalize';
+import { normalizeSku } from '../skuNormalize.ts';
 
 const BASE_SKU_RE = /^(OG[A-Z0-9]+(?:GM)?)/i;
 

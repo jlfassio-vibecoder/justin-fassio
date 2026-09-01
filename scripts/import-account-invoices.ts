@@ -9,9 +9,10 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { createClient } from '@supabase/supabase-js';
-import pdf from 'pdf-parse';
 import {
+  normalizeVintageGoodsPdfText,
   parseVintageGoodsInvoiceText,
   topVintageGoodsSkus,
 } from '../src/lib/accountInvoices/parseVintageGoodsInvoice.ts';
@@ -21,6 +22,9 @@ import {
   matchCatalogItemIdForInvoiceSku,
 } from '../src/lib/accountInvoices/matchCatalogSku.ts';
 import type { Database } from '../src/types/database.ts';
+
+const require = createRequire(import.meta.url);
+const pdf = require('pdf-parse/lib/pdf-parse.js');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const invoiceDir = join(root, 'docs/account-invoices/ogr');
@@ -93,7 +97,7 @@ async function main() {
   for (const filename of pdfFiles) {
     const buffer = readFileSync(join(invoiceDir, filename));
     const extracted = await pdf(buffer);
-    const parsed = parseVintageGoodsInvoiceText(extracted.text);
+    const parsed = parseVintageGoodsInvoiceText(normalizeVintageGoodsPdfText(extracted.text));
     if (!parsed) {
       failures.push({ filename, reason: 'Could not parse Vintage Goods invoice text' });
       continue;
@@ -106,6 +110,7 @@ async function main() {
     const account = resolveAccountForInvoice({
       filename: file.filename,
       billToName: file.parsed.billToName,
+      shipToName: file.parsed.shipToName,
       candidates,
     });
     if (!account) {

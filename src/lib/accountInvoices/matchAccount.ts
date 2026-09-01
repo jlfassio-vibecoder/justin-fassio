@@ -9,7 +9,30 @@ function normalizeAccountName(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
+}
+
+/** pdf-parse often glues words (LeMayAmerica's → LeMay America's). */
+export function normalizeBillToName(value: string): string {
+  return normalizeAccountName(value.replace(/([a-z])([A-Z][a-z]{3,})/g, '$1 $2'));
+}
+
+function tokenOverlapScore(needle: string, hay: string): number {
+  const needleTokens = normalizeBillToName(needle)
+    .split(' ')
+    .filter((t) => t.length > 1);
+  const hayTokens = new Set(
+    normalizeBillToName(hay)
+      .split(' ')
+      .filter((t) => t.length > 1),
+  );
+  if (needleTokens.length === 0 || hayTokens.size === 0) return 0;
+  let hits = 0;
+  for (const token of needleTokens) {
+    if (hayTokens.has(token)) hits += 1;
+  }
+  return hits / needleTokens.length;
 }
 
 /** `{prospectId}.pdf` or `{prospectId}-anything.pdf` */
@@ -32,14 +55,14 @@ export function matchAccountByBillToName(
   billToName: string,
   candidates: AccountMatchCandidate[],
 ): AccountMatchCandidate | null {
-  const needle = normalizeAccountName(billToName);
+  const needle = normalizeBillToName(billToName);
   if (!needle) return null;
 
   let best: AccountMatchCandidate | null = null;
   let bestScore = 0;
 
   for (const candidate of candidates) {
-    const hay = normalizeAccountName(candidate.name);
+    const hay = normalizeBillToName(candidate.name);
     if (!hay) continue;
     if (hay === needle) return candidate;
     if (hay.includes(needle) || needle.includes(hay)) {
@@ -50,12 +73,22 @@ export function matchAccountByBillToName(
       }
     }
   }
+  if (best) return best;
+
+  for (const candidate of candidates) {
+    const overlap = tokenOverlapScore(billToName, candidate.name);
+    if (overlap >= 0.75 && overlap > bestScore) {
+      best = candidate;
+      bestScore = overlap;
+    }
+  }
   return best;
 }
 
 export function resolveAccountForInvoice(input: {
   filename: string;
   billToName: string;
+  shipToName?: string;
   candidates: AccountMatchCandidate[];
   explicitProspectId?: number | null;
 }): AccountMatchCandidate | null {
@@ -68,5 +101,8 @@ export function resolveAccountForInvoice(input: {
     const byId = input.candidates.find((c) => c.id === fromFile);
     if (byId) return byId;
   }
-  return matchAccountByBillToName(input.billToName, input.candidates);
+  return (
+    matchAccountByBillToName(input.billToName, input.candidates) ??
+    (input.shipToName ? matchAccountByBillToName(input.shipToName, input.candidates) : null)
+  );
 }

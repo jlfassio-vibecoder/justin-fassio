@@ -13,6 +13,7 @@ Requires `PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env` (same a
 | Pattern                        | Example             | Match                                         |
 | ------------------------------ | ------------------- | --------------------------------------------- |
 | `{prospectId}.pdf` (preferred) | `613.pdf`           | CRM prospect id                               |
+| `Invoice{number}.pdf`          | `Invoice71878.pdf`  | Bill-to / ship-to name vs active accounts     |
 | `{Store Name}.pdf`             | `The Man Store.pdf` | Fuzzy match on **Bill To** vs active accounts |
 
 Replace the file when a newer invoice arrives, then re-run import.
