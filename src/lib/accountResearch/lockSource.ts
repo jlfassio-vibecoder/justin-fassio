@@ -6,13 +6,19 @@ import {
   buildAccountResearchContext,
   isSocialPlatform,
   mapProspectRowForResearch,
+  mergeWebsiteShopifyEvidence,
   mergeWebsiteSocialCache,
   readWebsiteSocialCache,
 } from '@/lib/accountResearch/context';
 import type { AccountResearchPlatformScope } from '@/lib/accountResearch/constants';
 import { ACCOUNT_RESEARCH_PROVIDER } from '@/lib/accountResearch/constants';
-import { fetchOfficialWebsiteSocialLinks } from '@/lib/accountResearch/officialWebsiteSocialLinks';
+import {
+  fetchOfficialWebsiteEvidence,
+  socialPlatformForUrl,
+} from '@/lib/accountResearch/officialWebsiteSocialLinks';
 import { normalizeSourceUrl } from '@/lib/accountResearch/normalizeUrl';
+import { loadSourceLocks, type SourceLockMap } from '@/lib/accountResearch/locks';
+import { extractHandleFromProfileUrl } from '@/lib/accountResearch/socialProfile';
 import { computeFinalRunStatus } from '@/lib/accountResearch/orchestrate';
 import { executeAccountResearchSourceSearch } from '@/lib/accountResearch/provider';
 import {
@@ -23,7 +29,12 @@ import type { SocialSearchOutcome } from '@/lib/accountResearch/socialSourceSear
 import type { AccountResearchRun, AccountResearchSourceSearch } from '@/types/database';
 
 export type LockSourceResult =
-  | { ok: true; snapshot: AccountResearchSnapshot | null }
+  | {
+      ok: true;
+      snapshot: AccountResearchSnapshot | null;
+      /** Present when there is no research run yet (lock still retailer-wide). */
+      locksBySourceType?: SourceLockMap;
+    }
   | { ok: false; error: string; status: number };
 
 async function findLatestRun(
@@ -173,14 +184,35 @@ async function applyWebsiteLockIdentity(args: {
 }): Promise<void> {
   const lockedHost = hostnameFromUrl(args.lockedUrl);
   let runProviderMetadata = (args.run.provider_metadata as Record<string, unknown> | null) ?? {};
+  const socialPlatform = socialPlatformForUrl(args.lockedUrl);
+  const isSocialPrimary = socialPlatform === 'facebook' || socialPlatform === 'instagram';
+  let socialLinks = readWebsiteSocialCache(runProviderMetadata);
+
+  if (socialPlatform && isSocialPrimary) {
+    const handle = extractHandleFromProfileUrl(socialPlatform, args.lockedUrl) ?? '';
+    socialLinks = {
+      ...socialLinks,
+      [socialPlatform]: {
+        url: args.lockedUrl,
+        handle,
+        source: 'staff_lock',
+      },
+    };
+    runProviderMetadata = mergeWebsiteSocialCache(runProviderMetadata, socialLinks);
+  }
 
   if (lockedHost) {
     try {
-      const fetched = await fetchOfficialWebsiteSocialLinks({
+      const fetched = await fetchOfficialWebsiteEvidence({
         officialHostname: lockedHost,
         websiteUrl: args.lockedUrl,
       });
-      runProviderMetadata = mergeWebsiteSocialCache(runProviderMetadata, fetched.links);
+      socialLinks = { ...socialLinks, ...fetched.links };
+      runProviderMetadata = mergeWebsiteSocialCache(runProviderMetadata, socialLinks);
+      runProviderMetadata = mergeWebsiteShopifyEvidence(
+        runProviderMetadata,
+        fetched.shopifyEvidence,
+      );
       runProviderMetadata.website_fetch_url = fetched.fetchUrl;
     } catch (err) {
       runProviderMetadata.website_fetch_error =
@@ -193,7 +225,9 @@ async function applyWebsiteLockIdentity(args: {
     .update({
       identity_confidence: 'high',
       identity_review_status: 'staff_confirmed',
-      identity_resolution: 'Staff locked official website',
+      identity_resolution: isSocialPrimary
+        ? 'Staff locked social profile as primary web presence'
+        : 'Staff locked official website',
       resolved_website: args.lockedUrl,
       provider_metadata: runProviderMetadata,
     })
@@ -240,7 +274,13 @@ export async function lockAccountResearchSourceAndRefresh(args: {
   }
 
   const run = await findLatestRun(args.supabase, args.retailerId);
-  if (!run) return { ok: true, snapshot: null };
+  if (!run) {
+    return {
+      ok: true,
+      snapshot: null,
+      locksBySourceType: await loadSourceLocks(args.supabase, args.retailerId),
+    };
+  }
 
   if (args.sourceType === 'website') {
     await applyWebsiteLockIdentity({
@@ -282,7 +322,13 @@ export async function unlockAccountResearchSourceAndClear(args: {
   if (error) return { ok: false, error: error.message, status: 500 };
 
   const run = await findLatestRun(args.supabase, args.retailerId);
-  if (!run) return { ok: true, snapshot: null };
+  if (!run) {
+    return {
+      ok: true,
+      snapshot: null,
+      locksBySourceType: await loadSourceLocks(args.supabase, args.retailerId),
+    };
+  }
 
   const snapshotBefore = await loadAccountResearchSnapshot(args.supabase, run.id);
   const source = snapshotBefore?.sources.find((s) => s.source_type === args.sourceType) ?? null;

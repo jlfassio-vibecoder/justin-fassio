@@ -11,16 +11,20 @@ import {
   ACCOUNT_RESEARCH_PROSPECT_SELECT,
   buildAccountResearchContext,
   mapProspectRowForResearch,
+  mergeWebsiteShopifyEvidence,
   mergeWebsiteSocialCache,
+  readWebsiteShopifyEvidence,
   readWebsiteSocialCache,
   type RunWebsiteSocialCache,
+  type ShopifyEvidence,
 } from '@/lib/accountResearch/context';
 import { mapOutcomeCitations } from '@/lib/accountResearch/citationRows';
 import { isSocialPlatform } from '@/lib/accountResearch/context';
-import { fetchOfficialWebsiteSocialLinks } from '@/lib/accountResearch/officialWebsiteSocialLinks';
+import { fetchOfficialWebsiteEvidence } from '@/lib/accountResearch/officialWebsiteSocialLinks';
 import { runSatisfiesScopeRequest } from '@/lib/accountResearch/freshness';
 import { resolveAccountIdentity, type IdentityResolution } from '@/lib/accountResearch/identity';
 import { executeAccountResearchSourceSearch } from '@/lib/accountResearch/provider';
+import { loadYelpBusinessUrlHintForRun } from '@/lib/accountResearch/verifyYelpDirectoryMatch';
 import { loadSourceLocks } from '@/lib/accountResearch/locks';
 import type { SocialSearchOutcome } from '@/lib/accountResearch/socialSourceSearch';
 import {
@@ -35,10 +39,10 @@ import type {
 } from '@/types/database';
 
 export type StartOrReuseResult =
-  | { ok: true; outcome: 'cached' | 'started'; snapshot: AccountResearchSnapshot }
+  | { ok: true; outcome: 'cached' | 'started' | 'resumed'; snapshot: AccountResearchSnapshot }
   | {
       ok: false;
-      outcome: 'active_conflict' | 'rate_limited' | 'not_found' | 'error';
+      outcome: 'active_conflict' | 'rate_limited' | 'not_found' | 'website_not_locked' | 'error';
       error: string;
       status: number;
     };
@@ -126,6 +130,95 @@ async function findLatestUsableRun(
   return null;
 }
 
+/** Only one pending/running run is allowed per retailer (unique index). */
+export async function findActiveAccountResearchRun(
+  supabase: AgentSupabase,
+  retailerId: number,
+): Promise<AccountResearchSnapshot | null> {
+  const { data: runs, error } = await supabase
+    .from('account_research_runs')
+    .select('*')
+    .eq('retailer_id', retailerId)
+    .in('status', ['pending', 'running'])
+    .order('started_at', { ascending: false })
+    .limit(1);
+  if (error || !runs || runs.length === 0) return null;
+  const run = runs[0] as AccountResearchRun;
+  return loadAccountResearchSnapshot(supabase, run.id);
+}
+
+function isStaleActiveRun(run: Pick<AccountResearchRun, 'started_at'>): boolean {
+  if (!run.started_at) return false;
+  const startedMs = Date.parse(run.started_at);
+  if (Number.isNaN(startedMs)) return false;
+  return Date.now() - startedMs >= ACCOUNT_RESEARCH_STALE_RUNNING_MS;
+}
+
+async function failNonTerminalSources(
+  supabase: AgentSupabase,
+  runId: string,
+  errorMessage: string,
+): Promise<void> {
+  await supabase
+    .from('account_research_source_searches')
+    .update({
+      status: 'failed',
+      error: errorMessage,
+      completed_at: new Date().toISOString(),
+    })
+    .eq('research_run_id', runId)
+    .in('status', ['pending', 'running']);
+}
+
+/**
+ * Fail leftover sources and mark the run terminal so a new start can proceed.
+ * Returns the finalized snapshot when successful.
+ */
+export async function finalizeStaleActiveRun(
+  supabase: AgentSupabase,
+  runId: string,
+): Promise<AccountResearchSnapshot | null> {
+  await failNonTerminalSources(supabase, runId, 'Timed out while running');
+  // finalizeAccountResearchRun only transitions from `running`; bump pending first.
+  await supabase
+    .from('account_research_runs')
+    .update({ status: 'running' })
+    .eq('id', runId)
+    .eq('status', 'pending');
+  return finalizeAccountResearchRun(supabase, runId);
+}
+
+async function resolveActiveRunConflict(
+  supabase: AgentSupabase,
+  retailerId: number,
+): Promise<
+  | { ok: true; outcome: 'resumed'; snapshot: AccountResearchSnapshot }
+  | { ok: true; retry: true }
+  | {
+      ok: false;
+      outcome: 'active_conflict';
+      error: string;
+      status: number;
+    }
+> {
+  const active = await findActiveAccountResearchRun(supabase, retailerId);
+  if (!active) {
+    return {
+      ok: false,
+      outcome: 'active_conflict',
+      error: 'An active research run already exists for this retailer',
+      status: 409,
+    };
+  }
+
+  if (isStaleActiveRun(active.run)) {
+    await finalizeStaleActiveRun(supabase, active.run.id);
+    return { ok: true, retry: true };
+  }
+
+  return { ok: true, outcome: 'resumed', snapshot: active };
+}
+
 export async function startOrReuseAccountResearch(args: {
   supabase: AgentSupabase;
   userId: string;
@@ -186,10 +279,78 @@ export async function startOrReuseAccountResearch(args: {
 
   if (rpcError) {
     if (/ACTIVE_RUN_CONFLICT/i.test(rpcError.message)) {
+      const resolved = await resolveActiveRunConflict(args.supabase, args.retailerId);
+      if (!resolved.ok) return resolved;
+      if ('outcome' in resolved) {
+        return resolved;
+      }
+      // Stale active run was finalized — retry start once.
+      const retry = await args.supabase.rpc('start_account_research_run', {
+        p_retailer_id: args.retailerId,
+        p_scope: args.scope,
+        p_trigger: trigger,
+        p_supersedes_run_id: supersedesRunId,
+      });
+      if (retry.error) {
+        if (/ACTIVE_RUN_CONFLICT/i.test(retry.error.message)) {
+          const again = await findActiveAccountResearchRun(args.supabase, args.retailerId);
+          if (again) return { ok: true, outcome: 'resumed', snapshot: again };
+          return {
+            ok: false,
+            outcome: 'active_conflict',
+            error: 'An active research run already exists for this retailer',
+            status: 409,
+          };
+        }
+        if (/WEBSITE_NOT_LOCKED/i.test(retry.error.message)) {
+          return {
+            ok: false,
+            outcome: 'website_not_locked',
+            error: 'Lock the official website before running the rest of the search.',
+            status: 409,
+          };
+        }
+        return { ok: false, outcome: 'error', error: retry.error.message, status: 500 };
+      }
+      const retryRunId =
+        retry.data && typeof retry.data === 'object' && 'run_id' in retry.data
+          ? String((retry.data as { run_id: string }).run_id)
+          : null;
+      if (!retryRunId) {
+        return {
+          ok: false,
+          outcome: 'error',
+          error: 'Start RPC returned no run_id',
+          status: 500,
+        };
+      }
+      const identity = resolveAccountIdentity({
+        businessName: prospectMapped.name,
+        city: prospectMapped.city,
+        region: prospectMapped.region,
+        phone: prospectMapped.phone,
+        website: prospectMapped.website,
+      });
+      await args.supabase
+        .from('account_research_runs')
+        .update({
+          identity_confidence: identity.identity_confidence,
+          identity_review_status: identity.identity_review_status,
+          identity_resolution: identity.identity_resolution,
+          resolved_website: identity.resolved_website,
+        })
+        .eq('id', retryRunId);
+      const snapshot = await loadAccountResearchSnapshot(args.supabase, retryRunId);
+      if (!snapshot) {
+        return { ok: false, outcome: 'error', error: 'Failed to load started run', status: 500 };
+      }
+      return { ok: true, outcome: 'started', snapshot };
+    }
+    if (/WEBSITE_NOT_LOCKED/i.test(rpcError.message)) {
       return {
         ok: false,
-        outcome: 'active_conflict',
-        error: 'An active research run already exists for this retailer',
+        outcome: 'website_not_locked',
+        error: 'Lock the official website before running the rest of the search.',
         status: 409,
       };
     }
@@ -406,16 +567,83 @@ export async function processNextAccountResearchSource(args: {
   let websiteSocialLinks: RunWebsiteSocialCache = readWebsiteSocialCache(
     (researchRun.provider_metadata as Record<string, unknown> | null) ?? {},
   );
+  let shopifyEvidence: ShopifyEvidence | null = readWebsiteShopifyEvidence(
+    (researchRun.provider_metadata as Record<string, unknown> | null) ?? {},
+  );
 
-  let lockedUrl =
-    (await loadSourceLocks(args.supabase, researchRun.retailer_id))[source.source_type]
-      ?.locked_url ?? null;
+  const priorLocks = await loadSourceLocks(args.supabase, researchRun.retailer_id);
+  let lockedUrl = priorLocks[source.source_type]?.locked_url ?? null;
+
+  // Non-website sources now discover exclusively by scraping the staff-locked
+  // official website (never an independent search) — fetch and cache it once
+  // per run, shared across every remaining source in this run.
+  if (
+    source.source_type !== 'website' &&
+    !(researchRun.provider_metadata as Record<string, unknown> | null)?.[
+      'website_social_links_fetched_at'
+    ]
+  ) {
+    const websiteLockUrl = priorLocks.website?.locked_url ?? null;
+    const websiteHost = websiteLockUrl ? hostnameFromUrl(websiteLockUrl) : null;
+
+    if (!websiteLockUrl || !websiteHost) {
+      // Defensive: the RPC precondition should already prevent this.
+      await args.supabase.rpc('complete_account_research_source_search', {
+        p_source_search_id: source.id,
+        p_status: 'blocked',
+        p_error: 'Lock the official website before running this source.',
+        p_citations: [],
+      });
+      const snap = await finalizeAccountResearchRun(args.supabase, args.runId);
+      if (!snap) return { ok: false, error: 'Failed after missing website lock', status: 500 };
+      return {
+        ok: true,
+        processed: true,
+        sourceId: source.id,
+        snapshot: snap,
+        done: snap.run.status !== 'running',
+      };
+    }
+
+    let runProviderMetadata =
+      (researchRun.provider_metadata as Record<string, unknown> | null) ?? {};
+    try {
+      const fetched = await fetchOfficialWebsiteEvidence({
+        officialHostname: websiteHost,
+        websiteUrl: websiteLockUrl,
+      });
+      websiteSocialLinks = fetched.links;
+      shopifyEvidence = fetched.shopifyEvidence;
+      runProviderMetadata = mergeWebsiteSocialCache(runProviderMetadata, fetched.links);
+      runProviderMetadata = mergeWebsiteShopifyEvidence(
+        runProviderMetadata,
+        fetched.shopifyEvidence,
+      );
+      runProviderMetadata.website_fetch_url = fetched.fetchUrl;
+    } catch (err) {
+      runProviderMetadata.website_fetch_error =
+        err instanceof Error ? err.message.slice(0, 200) : 'Website fetch failed';
+      // Mark the cache as "attempted" even on failure so later sources in this
+      // run don't retry the fetch on every claim.
+      runProviderMetadata.website_social_links_fetched_at = new Date().toISOString();
+    }
+
+    await args.supabase
+      .from('account_research_runs')
+      .update({ provider_metadata: runProviderMetadata })
+      .eq('id', args.runId);
+  }
 
   let outcome = await executeAccountResearchSourceSearch({
     sourceType: source.source_type,
     ctx: researchCtx,
     websiteSocialLinks,
+    shopifyEvidence,
     lockedUrl,
+    yelpBusinessUrlHint:
+      source.source_type === 'website'
+        ? await loadYelpBusinessUrlHintForRun(args.supabase, args.runId)
+        : null,
   });
 
   const lockAfter =
@@ -427,7 +655,12 @@ export async function processNextAccountResearchSource(args: {
       sourceType: source.source_type,
       ctx: researchCtx,
       websiteSocialLinks,
+      shopifyEvidence,
       lockedUrl,
+      yelpBusinessUrlHint:
+        source.source_type === 'website'
+          ? await loadYelpBusinessUrlHintForRun(args.supabase, args.runId)
+          : null,
     });
   } else {
     lockedUrl = lockAfter;
@@ -457,12 +690,17 @@ export async function processNextAccountResearchSource(args: {
 
     if (lockedHost) {
       try {
-        const fetched = await fetchOfficialWebsiteSocialLinks({
+        const fetched = await fetchOfficialWebsiteEvidence({
           officialHostname: lockedHost,
           websiteUrl: lockedUrl,
         });
         websiteSocialLinks = fetched.links;
+        shopifyEvidence = fetched.shopifyEvidence;
         runProviderMetadata = mergeWebsiteSocialCache(runProviderMetadata, fetched.links);
+        runProviderMetadata = mergeWebsiteShopifyEvidence(
+          runProviderMetadata,
+          fetched.shopifyEvidence,
+        );
         runProviderMetadata.website_fetch_url = fetched.fetchUrl;
       } catch (err) {
         runProviderMetadata.website_fetch_error =
@@ -562,5 +800,9 @@ export async function findLatestAccountResearch(
   retailerId: number,
   scope: AccountResearchV1Scope,
 ): Promise<AccountResearchSnapshot | null> {
+  // Prefer an in-flight run so hydrate can resume (and show sources) instead of
+  // looking empty while the unique active-run index blocks new starts.
+  const active = await findActiveAccountResearchRun(supabase, retailerId);
+  if (active) return active;
   return findLatestUsableRun(supabase, retailerId, scope);
 }

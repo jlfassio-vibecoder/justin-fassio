@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { CopyableUrl, CopyUrlButton } from '@/components/ui/CopyUrlButton';
 import { Tag } from '@/components/ui/Tag';
 import { AccountResearchContactPickModal } from '@/components/accountResearch/AccountResearchContactPickModal';
+import { ContactDiscoverPreview } from '@/components/accountResearch/ContactDiscoverPreview';
+import { ManualSourceLockFields } from '@/components/accountResearch/ManualSourceLockFields';
+import { manualSourceLockConfig } from '@/components/accountResearch/manualSourceLockConfig';
 import type { OgrProductEmailComposerDraft } from '@/components/OgrProductEmailComposerModal';
 import {
   ACCOUNT_RESEARCH_PLATFORM_SCOPES,
@@ -23,12 +27,15 @@ import {
   runAccountResearchUntilDone,
   startAccountResearch,
   unlockAccountResearchSource,
+  verifyYelpDirectoryMatch,
   type AccountResearchSnapshotDto,
   type LoadedProductMatch,
 } from '@/lib/accountResearchClient';
 import { readSearchCandidates } from '@/lib/accountResearch/candidates';
+import { normalizeSourceUrl } from '@/lib/accountResearch/normalizeUrl';
 import { generateDraftFromResearchMatch } from '@/lib/accountResearchDraftHandoff';
 import type { MatchItemResponse } from '@/lib/accountProductMatch';
+import type { AccountContact } from '@/lib/accountContacts';
 import type { CatalogItem } from '@/lib/catalog';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import type { Prospect } from '@/lib/prospects';
@@ -43,6 +50,7 @@ export type AccountResearchPanelProps = {
   prospect: Prospect;
   retailerLineAccountId?: string | null;
   onProspectUpdated?: (prospect: Prospect) => void;
+  onContactAdded?: (contact: AccountContact) => void;
   onOpenDraftComposer?: (input: {
     draft: OgrProductEmailComposerDraft;
     catalogItem: CatalogItem;
@@ -135,10 +143,12 @@ export function AccountResearchPanel({
   prospect,
   retailerLineAccountId = null,
   onProspectUpdated,
+  onContactAdded,
   onOpenDraftComposer,
 }: AccountResearchPanelProps) {
   const line = useOptionalLineContext();
   const abortRef = useRef<AbortController | null>(null);
+  const runInFlightRef = useRef(false);
   const latestSalesLineIdRef = useRef(line.salesLineId);
 
   const [snapshot, setSnapshot] = useState<AccountResearchSnapshotDto | null>(null);
@@ -154,18 +164,29 @@ export function AccountResearchPanel({
   const [selectedCandidateBySource, setSelectedCandidateBySource] = useState<
     Record<string, string>
   >({});
+  const [dismissedCandidatesBySource, setDismissedCandidatesBySource] = useState<
+    Record<string, boolean>
+  >({});
+  // Locks are retailer-wide, not run-scoped, but the panel's main `snapshot`
+  // only hydrates from the latest 'all'-scope run. Right after the dedicated
+  // website flow (a 'website'-scope run) locks the site, there may be no
+  // 'all' run yet at all — this fallback lets "Run Search All" know the
+  // website is locked even before it's ever been run.
+  const [websiteLockFallback, setWebsiteLockFallback] = useState(false);
+  const [websiteLockUrlFallback, setWebsiteLockUrlFallback] = useState<string | null>(null);
   const [retailerLocks, setRetailerLocks] = useState<Record<string, AccountResearchSourceLock>>({});
-
-  const applySnapshot = useCallback((next: AccountResearchSnapshotDto) => {
-    setSnapshot(next);
-    setRetailerLocks(readRetailerLocks(next.locksBySourceType));
-  }, []);
 
   const lockedSources = useMemo(() => orderedLockedSources(retailerLocks), [retailerLocks]);
   const lockedSourceTypes = useMemo(
     () => new Set(lockedSources.map((lock) => lock.source_type)),
     [lockedSources],
   );
+
+  useEffect(() => {
+    if (snapshot) {
+      setRetailerLocks(readRetailerLocks(snapshot.locksBySourceType));
+    }
+  }, [snapshot]);
 
   useEffect(() => {
     latestSalesLineIdRef.current = line.salesLineId;
@@ -177,6 +198,16 @@ export function AccountResearchPanel({
 
   const fresh = snapshot ? isUsableFreshRun(snapshot.run) : false;
   const identityBlocked = identityBlocksResearch(snapshot);
+  const websiteLocked =
+    Boolean(snapshot?.locksBySourceType?.website) || (snapshot == null && websiteLockFallback);
+  const contactDiscoveryWebsite =
+    snapshot?.run.resolved_website ??
+    snapshot?.locksBySourceType?.website?.locked_url ??
+    websiteLockUrlFallback;
+  const crmWebsiteUrl = useMemo(
+    () => normalizeSourceUrl(prospect.website?.trim() ?? ''),
+    [prospect.website],
+  );
   const running =
     snapshot?.run.status === 'pending' ||
     snapshot?.run.status === 'running' ||
@@ -185,7 +216,9 @@ export function AccountResearchPanel({
     Boolean(
       busyAction?.startsWith('run-') ||
       busyAction?.startsWith('lock-') ||
-      busyAction?.startsWith('unlock-'),
+      busyAction?.startsWith('unlock-') ||
+      busyAction === 'yelp-verify' ||
+      busyAction === 'verify-website',
     );
   // Copilot suggestion ignored: Search All remains available during snapshot hydration so staff can start a new run when no prior run exists.
 
@@ -195,6 +228,11 @@ export function AccountResearchPanel({
       .flat()
       .filter((c) => c.acceptance_status === 'accepted');
   }, [snapshot]);
+
+  const directoryCitation = useMemo(
+    () => citationsFlat.find((c) => c.platform === 'directory') ?? null,
+    [citationsFlat],
+  );
 
   const hydrateSuggestions = useCallback(async (runId: string) => {
     const listed = await listAccountResearchSuggestions(runId);
@@ -216,62 +254,172 @@ export function AccountResearchPanel({
     [line.salesLineId, prospect.id],
   );
 
-  const hydrateAll = useCallback(async () => {
+  const hydrateAll = useCallback(async (): Promise<AccountResearchSnapshotDto | null> => {
     setLoading(true);
     setError(null);
     const latest = await fetchLatestAccountResearch(prospect.id, 'all');
     if (!latest.ok) {
       setError(latest.error);
       setSnapshot(null);
+      setDismissedCandidatesBySource({});
+      setRetailerLocks({});
       setSuggestions([]);
       setMatchResult(null);
       setLoading(false);
-      return;
+      return null;
     }
     if (latest.outcome === 'none') {
       setSnapshot(null);
+      setDismissedCandidatesBySource({});
       setSuggestions([]);
       setMatchResult(null);
+      const lockedFromNone = latest.locksBySourceType?.website ?? null;
+      if (lockedFromNone) {
+        setWebsiteLockFallback(true);
+        setWebsiteLockUrlFallback(lockedFromNone.locked_url);
+        setRetailerLocks(readRetailerLocks(latest.locksBySourceType));
+        setLoading(false);
+        return null;
+      }
       const websiteLatest = await fetchLatestAccountResearch(prospect.id, 'website');
-      setRetailerLocks(
-        websiteLatest.ok && websiteLatest.outcome !== 'none'
-          ? readRetailerLocks(websiteLatest.locksBySourceType)
-          : {},
-      );
+      if (websiteLatest.ok && websiteLatest.outcome !== 'none') {
+        const hasWebsiteLock = Boolean(websiteLatest.locksBySourceType?.website);
+        const isActive =
+          websiteLatest.run.status === 'pending' || websiteLatest.run.status === 'running';
+        if (isActive || hasWebsiteLock) {
+          const snap: AccountResearchSnapshotDto = {
+            run: websiteLatest.run,
+            sources: websiteLatest.sources,
+            citationsBySourceId: websiteLatest.citationsBySourceId,
+            sourceFreshness: websiteLatest.sourceFreshness,
+            locksBySourceType: websiteLatest.locksBySourceType ?? {},
+          };
+          setWebsiteLockFallback(hasWebsiteLock);
+          setWebsiteLockUrlFallback(websiteLatest.locksBySourceType?.website?.locked_url ?? null);
+          setSnapshot(snap);
+          setRetailerLocks(readRetailerLocks(snap.locksBySourceType));
+          setDismissedCandidatesBySource({});
+          setLoading(false);
+          return snap;
+        }
+      }
+      if (websiteLatest.ok && websiteLatest.outcome === 'none') {
+        const websiteLock = websiteLatest.locksBySourceType?.website ?? null;
+        setWebsiteLockFallback(Boolean(websiteLock));
+        setWebsiteLockUrlFallback(websiteLock?.locked_url ?? null);
+        setRetailerLocks(readRetailerLocks(websiteLatest.locksBySourceType));
+      } else {
+        setWebsiteLockFallback(false);
+        setWebsiteLockUrlFallback(null);
+        setRetailerLocks({});
+      }
       setLoading(false);
-      return;
+      return null;
     }
-    applySnapshot({
+    setWebsiteLockFallback(false);
+    setWebsiteLockUrlFallback(null);
+    const snap: AccountResearchSnapshotDto = {
       run: latest.run,
       sources: latest.sources,
       citationsBySourceId: latest.citationsBySourceId,
       sourceFreshness: latest.sourceFreshness,
       locksBySourceType: latest.locksBySourceType ?? {},
-    });
-    await Promise.all([hydrateSuggestions(latest.run.id), hydrateMatch(latest.run.id)]);
+    };
+    setSnapshot(snap);
+    setRetailerLocks(readRetailerLocks(snap.locksBySourceType));
+    setDismissedCandidatesBySource({});
+    if (latest.run.status !== 'pending' && latest.run.status !== 'running') {
+      await Promise.all([hydrateSuggestions(latest.run.id), hydrateMatch(latest.run.id)]);
+    }
     setLoading(false);
-  }, [applySnapshot, hydrateMatch, hydrateSuggestions, prospect.id]);
+    return snap;
+  }, [hydrateMatch, hydrateSuggestions, prospect.id]);
+
+  const processRunUntilDone = useCallback(
+    async (runId: string, busyKey: string, scopeHint?: AccountResearchV1Scope) => {
+      if (runInFlightRef.current) return;
+      runInFlightRef.current = true;
+      setBusyAction(busyKey);
+      setError(null);
+      setProgress(
+        scopeHint === 'website'
+          ? 'Searching for website… This can take a minute.'
+          : 'Processing sources… This can take a minute.',
+      );
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      try {
+        const done = await runAccountResearchUntilDone(runId, {
+          signal: controller.signal,
+          onProgress: (snap) => {
+            setSnapshot(snap);
+            const completed = snap.sources.filter(
+              (s) => s.status !== 'pending' && s.status !== 'running',
+            ).length;
+            const scopeLabel =
+              snap.run.requested_scope === 'website'
+                ? 'Searching for website'
+                : 'Processing sources';
+            setProgress(
+              `${scopeLabel} (${completed}/${snap.sources.length})… This can take a minute.`,
+            );
+          },
+        });
+        if (!done.ok) {
+          if (done.error !== 'Aborted') {
+            await hydrateAll();
+            setError(done.error);
+          }
+          return;
+        }
+        setSnapshot(done);
+        await Promise.all([hydrateSuggestions(runId), hydrateMatch(runId)]);
+      } finally {
+        runInFlightRef.current = false;
+        setBusyAction(null);
+        setProgress(null);
+      }
+    },
+    [hydrateAll, hydrateMatch, hydrateSuggestions],
+  );
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await hydrateAll();
-      if (cancelled) return;
+      const snap = await hydrateAll();
+      if (cancelled || !snap) return;
+      if (snap.run.status === 'pending' || snap.run.status === 'running') {
+        const scope = isAccountResearchV1Scope(snap.run.requested_scope)
+          ? snap.run.requested_scope
+          : undefined;
+        await processRunUntilDone(snap.run.id, 'process', scope);
+      }
     })();
     return () => {
       cancelled = true;
       abortRef.current?.abort();
     };
-  }, [hydrateAll]);
+  }, [hydrateAll, processRunUntilDone]);
 
   async function runResearch(scope: AccountResearchV1Scope, forceRefresh: boolean) {
+    if (runInFlightRef.current) return;
+
     setBusyAction(forceRefresh ? 'refresh' : `run-${scope}`);
     setError(null);
-    setProgress(forceRefresh ? 'Starting refresh…' : 'Starting research…');
+    setProgress(
+      forceRefresh
+        ? 'Starting refresh…'
+        : scope === 'website'
+          ? 'Searching for website… This can take a minute.'
+          : 'Starting research… This can take a minute.',
+    );
     setSuggestions([]);
     setMatchResult(null);
+    setDismissedCandidatesBySource({});
 
-    abortRef.current?.abort();
+    runInFlightRef.current = true;
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -281,43 +429,44 @@ export function AccountResearchPanel({
       forceRefresh,
     });
     if (!started.ok) {
+      runInFlightRef.current = false;
+      if (started.outcome === 'active_conflict') {
+        const snap = await hydrateAll();
+        setBusyAction(null);
+        setProgress(null);
+        if (snap && (snap.run.status === 'pending' || snap.run.status === 'running')) {
+          const resumeScope = isAccountResearchV1Scope(snap.run.requested_scope)
+            ? snap.run.requested_scope
+            : scope;
+          await processRunUntilDone(snap.run.id, 'process', resumeScope);
+          return;
+        }
+        setError(started.error);
+        return;
+      }
       setError(started.error);
       setBusyAction(null);
       setProgress(null);
       return;
     }
 
-    applySnapshot({
+    setSnapshot({
       run: started.run,
       sources: started.sources,
       citationsBySourceId: started.citationsBySourceId,
       sourceFreshness: started.sourceFreshness,
       locksBySourceType: started.locksBySourceType ?? {},
     });
+    setDismissedCandidatesBySource({});
 
     if (started.run.status === 'pending' || started.run.status === 'running') {
-      const done = await runAccountResearchUntilDone(started.run.id, {
-        signal: controller.signal,
-        onProgress: (snap) => {
-          applySnapshot(snap);
-          const completed = snap.sources.filter(
-            (s) => s.status !== 'pending' && s.status !== 'running',
-          ).length;
-          setProgress(`Processing sources (${completed}/${snap.sources.length})…`);
-        },
-      });
-      if (!done.ok) {
-        setBusyAction(null);
-        setProgress(null);
-        if (done.error !== 'Aborted') {
-          await hydrateAll();
-          setError(done.error);
-        }
-        return;
-      }
-      applySnapshot(done);
+      // processRunUntilDone owns the in-flight flag from here
+      runInFlightRef.current = false;
+      await processRunUntilDone(started.run.id, forceRefresh ? 'refresh' : `run-${scope}`, scope);
+      return;
     }
 
+    runInFlightRef.current = false;
     setProgress(null);
     setBusyAction(null);
     await Promise.all([hydrateSuggestions(started.run.id), hydrateMatch(started.run.id)]);
@@ -421,9 +570,9 @@ export function AccountResearchPanel({
   }
 
   async function handleLockSource(source: AccountResearchSourceSearch) {
-    const url = selectedCandidateBySource[source.id];
+    const url = selectedCandidateBySource[source.id]?.trim();
     if (!url) {
-      setError('Select a URL to lock in.');
+      setError('Select a candidate or enter a URL to lock in.');
       return;
     }
     setBusyAction(`lock-${source.id}`);
@@ -440,8 +589,83 @@ export function AccountResearchPanel({
       setError(result.error);
       return;
     }
-    applySnapshot(result);
+    if (result.run == null) {
+      if (source.source_type === 'website') {
+        setWebsiteLockFallback(true);
+        setWebsiteLockUrlFallback(result.locksBySourceType.website?.locked_url ?? url);
+      }
+      setRetailerLocks(readRetailerLocks(result.locksBySourceType));
+      await hydrateAll();
+      return;
+    }
+    setSnapshot(result);
+    setDismissedCandidatesBySource({});
+    if (source.source_type === 'website') {
+      setWebsiteLockFallback(true);
+      setWebsiteLockUrlFallback(result.locksBySourceType.website?.locked_url ?? url);
+    }
     await Promise.all([hydrateSuggestions(result.run.id), hydrateMatch(result.run.id)]);
+  }
+
+  async function handleVerifyCrmWebsite() {
+    if (!crmWebsiteUrl) {
+      setError('Add a website on the account first.');
+      return;
+    }
+    if (websiteLocked) return;
+    setBusyAction('verify-website');
+    setError(null);
+    setProgress('Confirming CRM website…');
+    const result = await lockAccountResearchSource({
+      retailerId: prospect.id,
+      sourceType: 'website',
+      url: crmWebsiteUrl,
+    });
+    setBusyAction(null);
+    setProgress(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    const lockedUrl =
+      result.locksBySourceType.website?.locked_url ??
+      (result.run ? result.run.resolved_website : null) ??
+      crmWebsiteUrl;
+    setWebsiteLockFallback(true);
+    setWebsiteLockUrlFallback(lockedUrl);
+    if (result.run == null) {
+      setRetailerLocks(readRetailerLocks(result.locksBySourceType));
+      await hydrateAll();
+      return;
+    }
+    setSnapshot(result);
+    setDismissedCandidatesBySource({});
+    await Promise.all([hydrateSuggestions(result.run.id), hydrateMatch(result.run.id)]);
+  }
+
+  async function handleVerifyYelp() {
+    if (!snapshot) return;
+    setBusyAction('yelp-verify');
+    setError(null);
+    const result = await verifyYelpDirectoryMatch(snapshot.run.id);
+    if (!result.ok) {
+      setBusyAction(null);
+      setError(result.error);
+      return;
+    }
+    setSnapshot({
+      run: result.run,
+      sources: result.sources,
+      citationsBySourceId: result.citationsBySourceId,
+      sourceFreshness: result.sourceFreshness,
+      locksBySourceType: result.locksBySourceType ?? {},
+    });
+    const generated = await generateAccountResearchSuggestions(snapshot.run.id);
+    if (generated.ok) {
+      const listed = await listAccountResearchSuggestions(snapshot.run.id);
+      if (listed.ok) setSuggestions(listed.suggestions);
+    }
+    setBusyAction(null);
   }
 
   async function handleUnlockSourceLock(sourceType: AccountResearchPlatformScope) {
@@ -456,7 +680,25 @@ export function AccountResearchPanel({
       setError(result.error);
       return;
     }
-    applySnapshot(result);
+    if (result.run == null) {
+      if (sourceType === 'website') {
+        setWebsiteLockFallback(false);
+        setWebsiteLockUrlFallback(null);
+      }
+      setRetailerLocks((prev) => {
+        const next = { ...prev };
+        delete next[sourceType];
+        return next;
+      });
+      await hydrateAll();
+      return;
+    }
+    setSnapshot(result);
+    setDismissedCandidatesBySource({});
+    if (sourceType === 'website') {
+      setWebsiteLockFallback(false);
+      setWebsiteLockUrlFallback(null);
+    }
     const source = result.sources.find((row) => row.source_type === sourceType);
     if (source) {
       setSelectedCandidateBySource((prev) => {
@@ -495,17 +737,79 @@ export function AccountResearchPanel({
         </p>
       ) : null}
 
+      <section className="border-ink/10 flex flex-col gap-2 rounded-md border px-3 py-3">
+        <h4 className="text-ink/70 m-0 text-xs font-semibold tracking-wider uppercase">
+          Business verification (Yelp)
+        </h4>
+        <p className="text-ink/55 m-0 text-xs leading-relaxed">
+          Verify the physical business on Yelp before locking the official website. Blank phone and
+          address suggestions can use directory evidence after verify.
+        </p>
+        {directoryCitation ? (
+          <div className="text-ink/60 flex flex-col gap-0.5 text-xs">
+            <p className="m-0">
+              Yelp verified:{' '}
+              <span className="text-ink/80 font-medium">
+                {directoryCitation.title ?? 'Listing'}
+              </span>
+              {typeof directoryCitation.confidence === 'string' ? (
+                <span className="text-ink/55"> · {directoryCitation.confidence} confidence</span>
+              ) : null}
+            </p>
+            <p className="m-0">
+              Directory listing:{' '}
+              <CopyableUrl
+                url={directoryCitation.source_url}
+                linkClassName="text-accent-700 underline"
+              />
+            </p>
+          </div>
+        ) : (
+          <p className="text-ink/55 m-0 text-xs">Not verified on Yelp for this research run yet.</p>
+        )}
+        {!directoryCitation && snapshot && !websiteLocked ? (
+          <p className="text-ink/55 m-0 text-xs">
+            Verify on Yelp first for blank phone/address suggestions.
+          </p>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            disabled={running || !snapshot}
+            onClick={() => void handleVerifyYelp()}
+          >
+            {busyAction === 'yelp-verify' ? 'Verifying…' : 'Verify on Yelp'}
+          </Button>
+        </div>
+      </section>
+
       <div className="flex flex-wrap gap-2">
         <Button
           variant="primary"
           disabled={running}
           onClick={() => void runResearch('website', false)}
         >
-          {busyAction === 'run-website' ? 'Running…' : 'Run Website Search'}
+          {busyAction === 'run-website' || busyAction === 'process'
+            ? 'Running…'
+            : 'Run Website Search'}
         </Button>
         <Button
           variant="secondary"
-          disabled={running}
+          disabled={running || !crmWebsiteUrl || websiteLocked}
+          onClick={() => void handleVerifyCrmWebsite()}
+          title={
+            !crmWebsiteUrl
+              ? 'Add a website on the account first'
+              : websiteLocked
+                ? 'Website already locked'
+                : `Lock ${crmWebsiteUrl} from the CRM account`
+          }
+        >
+          {busyAction === 'verify-website' ? 'Verifying…' : 'Website Verified'}
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={running || !websiteLocked}
           onClick={() => void runResearch('all', false)}
         >
           {busyAction === 'run-all' ? 'Running…' : 'Run Search All'}
@@ -525,6 +829,13 @@ export function AccountResearchPanel({
           {busyAction === 'refresh' ? 'Refreshing…' : 'Refresh'}
         </Button>
       </div>
+      {!websiteLocked ? (
+        <p className="text-ink/55 m-0 text-xs">
+          {crmWebsiteUrl
+            ? 'Confirm the CRM website with Website Verified, or run Website Search to discover and lock a URL — then Run Search All scrapes it for social channels and Shopify evidence.'
+            : 'Lock the official website first — Run Search All scrapes it for social channels and Shopify evidence instead of guessing. If they have no website, lock their Facebook or Instagram page URL instead.'}
+        </p>
+      ) : null}
 
       {progress ? (
         <p className="text-ink/60 m-0 text-sm" role="status" aria-live="polite">
@@ -551,24 +862,25 @@ export function AccountResearchPanel({
                   </span>
                   <Tag variant="accent-2">Locked</Tag>
                 </div>
-                <a
-                  href={lock.locked_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-accent-800 mt-2 inline-block text-xs hover:underline"
-                >
-                  {lock.locked_url}
-                </a>
-                <div className="mt-2">
-                  <Button
-                    variant="secondary"
-                    disabled={busyAction != null}
-                    onClick={() =>
-                      void handleUnlockSourceLock(lock.source_type as AccountResearchPlatformScope)
-                    }
-                  >
-                    {busyAction === `unlock-${lock.source_type}` ? 'Unlocking…' : 'Unlock'}
-                  </Button>
+                <div className="mt-2 flex flex-col gap-2">
+                  <CopyableUrl
+                    url={lock.locked_url}
+                    className="text-xs"
+                    linkClassName="text-accent-800 text-xs hover:underline"
+                  />
+                  <div>
+                    <Button
+                      variant="secondary"
+                      disabled={busyAction != null}
+                      onClick={() =>
+                        void handleUnlockSourceLock(
+                          lock.source_type as AccountResearchPlatformScope,
+                        )
+                      }
+                    >
+                      {busyAction === `unlock-${lock.source_type}` ? 'Unlocking…' : 'Unlock'}
+                    </Button>
+                  </div>
                 </div>
               </li>
             ))}
@@ -589,7 +901,10 @@ export function AccountResearchPanel({
                   const candidates = readSearchCandidates(
                     source.provider_metadata as Record<string, unknown> | null,
                   );
+                  const candidatesDismissed = Boolean(dismissedCandidatesBySource[source.id]);
+                  const effectiveCandidates = candidatesDismissed ? [] : candidates;
                   const selected = selectedCandidateBySource[source.id] ?? '';
+                  const manualLock = manualSourceLockConfig(source.source_type);
                   return (
                     <li
                       key={source.id}
@@ -604,10 +919,10 @@ export function AccountResearchPanel({
                           {snapshot.sourceFreshness[source.id] ? ' · fresh' : ''}
                         </span>
                       </div>
-                      {candidates.length > 0 ? (
+                      {effectiveCandidates.length > 0 ? (
                         <div className="mt-2 flex flex-col gap-2">
                           <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                            {candidates.map((candidate) => (
+                            {effectiveCandidates.map((candidate) => (
                               <li key={candidate.url}>
                                 <label className="flex cursor-pointer items-start gap-2">
                                   <input
@@ -623,12 +938,13 @@ export function AccountResearchPanel({
                                       }))
                                     }
                                   />
-                                  <span>
+                                  <span className="min-w-0 flex-1">
                                     <span className="block text-xs font-medium">
                                       {candidate.title ?? candidate.url}
                                     </span>
-                                    <span className="text-ink/55 block text-[11px] break-all">
-                                      {candidate.url}
+                                    <span className="text-ink/55 flex items-start gap-1 text-[11px]">
+                                      <span className="min-w-0 break-all">{candidate.url}</span>
+                                      <CopyUrlButton url={candidate.url} />
                                     </span>
                                     {candidate.snippet ? (
                                       <span className="text-ink/60 mt-0.5 block text-[11px] leading-relaxed">
@@ -640,7 +956,7 @@ export function AccountResearchPanel({
                               </li>
                             ))}
                           </ul>
-                          <div>
+                          <div className="flex flex-wrap gap-2">
                             <Button
                               variant="primary"
                               disabled={busyAction != null || !selected}
@@ -648,7 +964,61 @@ export function AccountResearchPanel({
                             >
                               {busyAction === `lock-${source.id}` ? 'Locking…' : 'Lock in'}
                             </Button>
+                            {manualLock ? (
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                disabled={busyAction != null}
+                                onClick={() => {
+                                  setDismissedCandidatesBySource((prev) => ({
+                                    ...prev,
+                                    [source.id]: true,
+                                  }));
+                                  setSelectedCandidateBySource((prev) => {
+                                    const next = { ...prev };
+                                    delete next[source.id];
+                                    return next;
+                                  });
+                                }}
+                              >
+                                No match
+                              </Button>
+                            ) : null}
                           </div>
+                        </div>
+                      ) : manualLock ? (
+                        <div className="mt-2 flex flex-col gap-2">
+                          {candidatesDismissed && candidates.length > 0 ? (
+                            <button
+                              type="button"
+                              className="text-accent-800 self-start border-0 bg-transparent p-0 text-xs underline"
+                              disabled={busyAction != null}
+                              onClick={() =>
+                                setDismissedCandidatesBySource((prev) => {
+                                  const next = { ...prev };
+                                  delete next[source.id];
+                                  return next;
+                                })
+                              }
+                            >
+                              Show search results
+                            </button>
+                          ) : null}
+                          <ManualSourceLockFields
+                            hint={manualLock.hint}
+                            placeholder={manualLock.placeholder}
+                            ariaLabel={manualLock.ariaLabel}
+                            value={selected}
+                            disabled={busyAction != null}
+                            locking={busyAction === `lock-${source.id}`}
+                            onChange={(value) =>
+                              setSelectedCandidateBySource((prev) => ({
+                                ...prev,
+                                [source.id]: value,
+                              }))
+                            }
+                            onLock={() => void handleLockSource(source)}
+                          />
                         </div>
                       ) : null}
                     </li>
@@ -709,14 +1079,13 @@ export function AccountResearchPanel({
                                     {citation.excerpt}
                                   </p>
                                 ) : null}
-                                <a
-                                  href={citation.source_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-accent-800 mt-1 inline-block text-xs hover:underline"
+                                <CopyableUrl
+                                  url={citation.source_url}
+                                  className="mt-1 text-xs"
+                                  linkClassName="text-accent-800 text-xs hover:underline"
                                 >
                                   Open source
-                                </a>
+                                </CopyableUrl>
                               </li>
                             ))
                           )}
@@ -855,17 +1224,26 @@ export function AccountResearchPanel({
             ) : null}
           </section>
         </>
-      ) : lockedSources.length > 0 ? (
-        <p className="text-ink/50 m-0 text-sm">
-          Locked sources are saved. Run Search All to gather remaining social evidence before
-          product match.
-        </p>
       ) : (
         <p className="text-ink/50 m-0 text-sm">
-          Run Website Search first, pick and lock in the official URL, then run the rest to gather
-          social evidence before product match.
+          {crmWebsiteUrl
+            ? 'Confirm the CRM website with Website Verified, then Run Search All for social evidence — or Run Website Search if you need to discover a different URL.'
+            : 'Run Website Search first, pick and lock in the official URL, then run the rest to gather social evidence before product match.'}
         </p>
       )}
+
+      {websiteLocked ? (
+        <section>
+          <h4 className="text-ink/70 m-0 mb-2 text-xs font-semibold tracking-wider uppercase">
+            Contact discovery
+          </h4>
+          <ContactDiscoverPreview
+            accountId={prospect.id}
+            resolvedWebsite={contactDiscoveryWebsite}
+            onContactAdded={onContactAdded}
+          />
+        </section>
+      ) : null}
 
       <AccountResearchContactPickModal
         open={contactPickItem != null}

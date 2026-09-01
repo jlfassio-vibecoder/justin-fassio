@@ -36,7 +36,7 @@ export function Header({
   return (
     <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-7 py-3.5">
       <div className="gap-3.1 flex items-center">
-        <div className="bg-accent font-heading text-bg flex h-[46px] w-[46px] flex-none items-center justify-center rounded-full text-lg">
+        <div className="bg-accent font-heading text-on-accent flex h-[46px] w-[46px] flex-none items-center justify-center rounded-full text-lg">
           JF
         </div>
         <div>
@@ -58,7 +58,7 @@ export function Header({
                   onClick={() => onSelectLine?.(slug)}
                   className={cn(
                     'font-heading inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm',
-                    selected ? 'bg-accent text-bg' : 'text-ink/70 bg-transparent',
+                    selected ? 'bg-accent text-on-accent' : 'text-ink/70 bg-transparent',
                   )}
                 >
                   <span>{line.name}</span>
@@ -77,7 +77,7 @@ export function Header({
               onClick={onSelectOgr}
               className={cn(
                 'font-heading inline-flex items-center rounded-full px-3.5 py-1.5 text-sm',
-                activeLine === 'ogr' ? 'bg-accent text-bg' : 'text-ink/70 bg-transparent',
+                activeLine === 'ogr' ? 'bg-accent text-on-accent' : 'text-ink/70 bg-transparent',
               )}
             >
               Old Guys Rule

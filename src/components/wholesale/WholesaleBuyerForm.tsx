@@ -375,7 +375,7 @@ export function WholesaleBuyerForm({ draft, onSuccess, publicMarket = 'ca' }: Pr
           <button
             type="submit"
             disabled={submitting}
-            className="bg-accent-700 px-6.1 py-2.1 font-heading text-bg hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm disabled:opacity-40"
+            className="bg-accent-700 px-6.1 py-2.1 font-heading text-on-accent hover:bg-accent-600 inline-flex items-center justify-center rounded-full text-sm disabled:opacity-40"
           >
             {submitting
               ? isInquiry

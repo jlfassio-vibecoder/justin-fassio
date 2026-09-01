@@ -10,6 +10,10 @@ describe('homepage public line cards', () => {
     resolve(process.cwd(), 'src/pages/eagle-peak-wholesale/index.astro'),
     'utf8',
   );
+  const lisPage = readFileSync(
+    resolve(process.cwd(), 'src/pages/living-in-sunshine-wholesale/index.astro'),
+    'utf8',
+  );
   const bfPage = readFileSync(
     resolve(process.cwd(), 'src/pages/big-fish-wholesale/index.astro'),
     'utf8',
@@ -34,22 +38,31 @@ describe('homepage public line cards', () => {
     expect(block).not.toContain('OGR_MARKETPLACE_URL');
   });
 
-  it('keeps Eagle Peak and Big Fish View Line destinations off productUrls', () => {
+  it('keeps non-OGR View Line destinations off productUrls', () => {
+    expect(landing).toContain(
+      "LIVING_IN_SUNSHINE_WHOLESALE_PATH = '/living-in-sunshine-wholesale'",
+    );
     expect(landing).toContain("EAGLE_PEAK_WHOLESALE_PATH = '/eagle-peak-wholesale'");
     expect(landing).toContain("BIG_FISH_WHOLESALE_PATH = '/big-fish-wholesale'");
+    expect(productUrls).not.toMatch(/living-in-sunshine/);
     expect(productUrls).not.toMatch(/eagle-peak/);
     expect(productUrls).not.toMatch(/big-fish/);
   });
 
-  it('renders empty EP/BF collection pages without the OGR order pipeline', () => {
+  it('renders empty collection pages without the OGR order pipeline', () => {
+    expect(lisPage).toContain('PublicLinePublishedShowroom');
+    expect(lisPage).toContain('fetchPublicLivingInSunshineProducts');
+    expect(lisPage).toContain("row.code === 'living-in-sunshine'");
     expect(epPage).toContain('PublicLineEmptyShowroom');
     expect(epPage).toContain("row.code === 'eagle-peak'");
     expect(bfPage).toContain('comingSoon');
     expect(bfPage).toContain("row.code === 'big-fish'");
     expect(emptyShowroom).toContain('No products published yet.');
     expect(emptyShowroom).toContain('This line is coming soon.');
+    expect(lisPage).not.toContain('WholesaleShowroom');
     expect(epPage).not.toContain('WholesaleShowroom');
     expect(bfPage).not.toContain('WholesaleShowroom');
+    expect(lisPage).not.toContain('fetchPublicOgrProducts');
     expect(epPage).not.toContain('fetchPublicOgrProducts');
     expect(bfPage).not.toContain('fetchPublicOgrProducts');
   });

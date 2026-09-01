@@ -1,0 +1,10 @@
+business_name,physical_address,primary_phone,verified_email,key_personnel,crm_action,crm_id
+Englund Marine Supply (HQ),"95 Hamburg Ave (PO Box 296), Astoria, OR 97103",503-325-4341,Unspecified,Richard Baker,skipped_existing_enriched,645
+Englund Marine Supply (Newport),"880 SE Bay Blvd, Newport, OR 97365",541-265-9275,seacoast@englundmarine.com,Unspecified,skipped_existing_enriched,646
+Tillamook Sporting Goods,"2207 Main Ave N, Ste B, Tillamook, OR 97141",503-842-4334 / 877-877-7678,Unspecified,Unspecified,skipped_existing_enriched,639
+Rogue Outdoor Store,"29865 Ellensburg Ave, Gold Beach, OR 97444",541-247-7142,Unspecified,Family Owned,skipped_existing_enriched,637
+Waldron's Outdoor Sports,"330 NE Garden Valley Blvd, Roseburg, OR 97470",541-672-8992,Unspecified,Family Owned,inserted,680
+Bradbury's Gun-N-Tackle,"1809 Rogue River Hwy, Grants Pass, OR 97527",541-479-1531,dbradbury@charter.net,D. Bradbury (Implied),inserted,681
+U Save Gas & Tackle (Grants Pass),"935 Rogue River Hwy, Grants Pass, OR 97527",541-476-9871,Unspecified,Unspecified,inserted_distinct_from_harbor,682
+ShrimpDaddy's Bait & Tackle,"385 NE Spencer St, Waldport, OR 97394",541-429-1800 (list) / 541-563-9682 (CRM),Unspecified,Unspecified,skipped_existing_phone_conflict_noted,642
+U Save Gas & Tackle (Harbor - already in CRM),Harbor OR,541-440-0486,,,existing_sibling_not_on_this_list,643

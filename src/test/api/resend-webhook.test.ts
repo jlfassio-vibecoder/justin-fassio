@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const getServiceRoleClientMock = vi.fn();
 const verifyResendWebhookMock = vi.fn();
 const applyResendSystemMessageEventMock = vi.fn();
+const bufferUnmatchedResendEventMock = vi.fn();
+const replayUnmatchedResendEventsMock = vi.fn();
 
 vi.mock('@/lib/supabaseAdmin', () => ({
   getServiceRoleClient: (...args: unknown[]) => getServiceRoleClientMock(...args),
@@ -15,6 +17,8 @@ vi.mock('@/lib/resendWebhook', async () => {
     verifyResendWebhook: (...args: unknown[]) => verifyResendWebhookMock(...args),
     applyResendSystemMessageEvent: (...args: unknown[]) =>
       applyResendSystemMessageEventMock(...args),
+    bufferUnmatchedResendEvent: (...args: unknown[]) => bufferUnmatchedResendEventMock(...args),
+    replayUnmatchedResendEvents: (...args: unknown[]) => replayUnmatchedResendEventsMock(...args),
   };
 });
 
@@ -55,6 +59,13 @@ describe('POST /api/webhooks/resend', () => {
       ok: true,
       duplicate: false,
       systemMessageId: 'sm-1',
+    });
+    bufferUnmatchedResendEventMock.mockResolvedValue({ ok: true });
+    replayUnmatchedResendEventsMock.mockResolvedValue({
+      attempted: 0,
+      applied: 0,
+      duplicates: 0,
+      failed: 0,
     });
   });
 
@@ -111,7 +122,7 @@ describe('POST /api/webhooks/resend', () => {
     expect(await res.json()).toEqual({ ok: true, duplicate: true });
   });
 
-  it('returns 200 for unknown email id', async () => {
+  it('buffers unknown email id for later replay', async () => {
     applyResendSystemMessageEventMock.mockResolvedValue({
       ok: true,
       duplicate: false,
@@ -119,7 +130,14 @@ describe('POST /api/webhooks/resend', () => {
     });
     const res = await POST(requestWith({ body: JSON.stringify(deliveredPayload) }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, unknownEmail: true });
+    expect(await res.json()).toEqual({ ok: true, unknownEmail: true, buffered: true });
+    expect(bufferUnmatchedResendEventMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        resendEventId: 'msg_1',
+        event: expect.objectContaining({ emailId: 're_123' }),
+      }),
+    );
   });
 
   it('returns 200 ignored for unhandled event types', async () => {

@@ -198,6 +198,13 @@ vi.mock('@/lib/supabase', () => ({
       if (table === 'lines') {
         return chainable({ data: { id: 'line-ogr' }, error: null });
       }
+      if (table === 'account_research_source_locks') {
+        return {
+          select: () => ({
+            eq: async () => ({ data: [], error: null }),
+          }),
+        };
+      }
       throw new Error(`Unexpected table: ${table}`);
     },
   },
@@ -262,6 +269,7 @@ describe('LogCallModal', () => {
         title: 'Buyer',
         phone: null,
         email: 'new@example.com',
+        alternateEmail: null,
         isPrimary: false,
         notes: null,
         createdAt: '',

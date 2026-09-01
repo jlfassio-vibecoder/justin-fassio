@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { assembleOutreachBriefing } from '@/lib/outreachBriefing';
+import { parseOutreachAccountAudience } from '@/lib/outreachBriefingShared';
 import { resolveSalesLineQuery } from '@/lib/resolveSalesLineQuery';
 
 export const prerender = false;
@@ -25,10 +26,26 @@ export const GET: APIRoute = async ({ request, url }) => {
     return json({ error: resolved.error }, resolved.status);
   }
 
+  const operationalTerritoryId = search.get('operational_territory_id')?.trim() || '';
+  const storeTerritoryCode = search.get('store_territory_code')?.trim().toLowerCase() || '';
+  const crmRegion = search.get('crm_region')?.trim() || '';
+  const city = search.get('city')?.trim() || '';
+  const channel = search.get('channel')?.trim() || '';
+
   const assembled = await assembleOutreachBriefing({
     client: gate.supabase,
     salesLineId: resolved.line?.id ?? null,
     salesLineCode: resolved.line?.code ?? null,
+    accountAudience: parseOutreachAccountAudience(search.get('audience')),
+    regionalPrepScope: operationalTerritoryId
+      ? {
+          operationalTerritoryId,
+          storeTerritoryCode: storeTerritoryCode || null,
+          crmRegion: crmRegion || null,
+          city: city || null,
+          channel: channel || null,
+        }
+      : undefined,
   });
   if (!assembled.ok) return json({ error: assembled.error }, 500);
 

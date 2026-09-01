@@ -1,12 +1,9 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
 import { checkAgentRateLimit, rateLimitResponse } from '@/lib/agentRateLimit';
+import { hasAiGatewayAuth, LOCAL_AI_GATEWAY_AUTH_HELP } from '@/lib/aiGatewayEnv';
 import { gateStaffAiContext, parseOptionalUuidField } from '@/lib/aiLineContext';
-import {
-  generateOgrProductOutreachDraft,
-  generateOgrProductOutreachDrafts,
-  OGR_OUTREACH_BATCH_HTTP_MAX,
-} from '@/lib/generateOgrProductOutreachDraft';
+import { generateOgrProductOutreachDraft } from '@/lib/generateOgrProductOutreachDraft';
 import {
   jsonError,
   jsonOk,
@@ -169,6 +166,10 @@ export const POST: APIRoute = async ({ request }) => {
     return rateLimitResponse(limited.retryAfterSec);
   }
 
+  if (!hasAiGatewayAuth()) {
+    return jsonError(LOCAL_AI_GATEWAY_AUTH_HELP, 503);
+  }
+
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -246,23 +247,38 @@ export const POST: APIRoute = async ({ request }) => {
     if (body.targets.length === 0) {
       return jsonError('targets must not be empty', 400);
     }
-    if (body.targets.length > OGR_OUTREACH_BATCH_HTTP_MAX) {
-      return jsonError(`targets exceeds max of ${OGR_OUTREACH_BATCH_HTTP_MAX}`, 400);
+    // Staff path: one draft at a time (Add copy). Prep stubs via internal lib, not this API.
+    if (body.targets.length > 1) {
+      return jsonError('Bulk generate is not supported; add copy one draft at a time', 400);
     }
-    const targets: SelectedOutreachTarget[] = [];
-    for (const raw of body.targets) {
-      const parsed = parseTarget(raw);
-      if (!parsed.ok) return jsonError(parsed.error, 400);
-      targets.push(parsed.value);
-    }
-    const regenerate = body.regenerate === true;
-    const batch = await generateOgrProductOutreachDrafts(gate.supabase, {
-      targets,
+    const parsed = parseTarget(body.targets[0]);
+    if (!parsed.ok) return jsonError(parsed.error, 400);
+    const existingDraftId =
+      typeof body.existingDraftId === 'string' && body.existingDraftId.trim()
+        ? body.existingDraftId.trim()
+        : undefined;
+    const retailerLineAccountId =
+      gated.ctx?.retailerLineAccountId ?? parseOptionalUuidField(body.retailerLineAccountId);
+    const generated = await generateOgrProductOutreachDraft(gate.supabase, {
+      target: parsed.value,
       userId: gate.userId,
-      regenerate,
+      existingDraftId,
       salesLineId: gated.ctx?.salesLineId,
+      retailerLineAccountId,
+      copyMode: 'ai',
     });
-    return jsonOk({ results: batch.results });
+    if (!generated.ok) {
+      return jsonError(generated.error, 502);
+    }
+    return jsonOk({
+      results: [{ prospectId: parsed.value.prospectId, draftId: generated.draftId }],
+      systemMessageId: generated.draftId,
+      subject: generated.subject,
+      introText: generated.introText,
+      closingText: generated.closingText,
+      fallback: generated.fallback,
+      generation: generated.generation,
+    });
   }
 
   if (body.target == null) {
@@ -284,6 +300,7 @@ export const POST: APIRoute = async ({ request }) => {
     existingDraftId,
     salesLineId: gated.ctx?.salesLineId,
     retailerLineAccountId,
+    copyMode: 'ai',
   });
   if (!generated.ok) {
     return jsonError(generated.error, 502);
@@ -295,5 +312,6 @@ export const POST: APIRoute = async ({ request }) => {
     introText: generated.introText,
     closingText: generated.closingText,
     fallback: generated.fallback,
+    generation: generated.generation,
   });
 };

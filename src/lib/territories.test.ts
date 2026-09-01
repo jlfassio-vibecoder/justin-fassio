@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ALL_TERRITORIES_FILTER,
   BC_TERRITORY_CODE,
   isStoreTerritoryCode,
   suggestTerritoryCodeFromRegion,
   territoryCodeFromProvince,
 } from '@/lib/territories';
+
+describe('ALL_TERRITORIES_FILTER', () => {
+  it('is the directory-wide filter sentinel', () => {
+    expect(ALL_TERRITORIES_FILTER).toBe('ALL');
+  });
+});
 
 describe('territoryCodeFromProvince', () => {
   it('maps known provinces and states', () => {
@@ -30,6 +37,12 @@ describe('suggestTerritoryCodeFromRegion', () => {
     expect(suggestTerritoryCodeFromRegion('Washington')).toBe('wa');
     expect(suggestTerritoryCodeFromRegion('Alberta')).toBe('ab');
     expect(suggestTerritoryCodeFromRegion('British Columbia')).toBe('bc');
+  });
+
+  it('maps driveable CRM regions to store territories', () => {
+    expect(suggestTerritoryCodeFromRegion('Portland Metro & Gorge')).toBe('or');
+    expect(suggestTerritoryCodeFromRegion('Puget Sound')).toBe('wa');
+    expect(suggestTerritoryCodeFromRegion('NorCal Coastal')).toBe('ca');
   });
 
   it('returns null for empty and garbage (never BC-default)', () => {

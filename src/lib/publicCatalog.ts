@@ -126,6 +126,16 @@ export async function fetchPublicOgrProducts(): Promise<{
   return { data: rows.map(mapPublicOgrProductRow), error: null };
 }
 
+export async function fetchPublicLivingInSunshineProducts(): Promise<{
+  data: PublicOgrProduct[];
+  error: string | null;
+}> {
+  const { data, error } = await supabase.rpc('get_public_living_in_sunshine_products');
+  if (error) return { data: [], error: error.message };
+  const rows = (data ?? []) as PublicOgrProductRow[];
+  return { data: rows.map(mapPublicOgrProductRow), error: null };
+}
+
 export async function fetchPublicOgrProductBySlug(slug: string): Promise<{
   data: PublicOgrProduct | null;
   error: string | null;

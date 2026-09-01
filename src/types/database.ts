@@ -1882,7 +1882,7 @@ export interface Database {
         Row: {
           id: string;
           run_date: string;
-          kind: 'nightly_prep';
+          kind: 'nightly_prep' | 'manual_regional_prep' | 'manual_regional_active_prep';
           status: 'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
           trigger: 'cron' | 'manual';
           capacity: number;
@@ -1897,6 +1897,10 @@ export interface Database {
           error: string | null;
           target_errors: unknown;
           reason: string | null;
+          operational_territory_id: string | null;
+          store_territory_code: string | null;
+          crm_region: string | null;
+          prep_city: string | null;
           started_at: string;
           finished_at: string | null;
           triggered_by: string | null;
@@ -1906,7 +1910,7 @@ export interface Database {
         Insert: {
           id?: string;
           run_date: string;
-          kind?: 'nightly_prep';
+          kind?: 'nightly_prep' | 'manual_regional_prep' | 'manual_regional_active_prep';
           status: 'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
           trigger: 'cron' | 'manual';
           capacity?: number;
@@ -1921,6 +1925,10 @@ export interface Database {
           error?: string | null;
           target_errors?: unknown;
           reason?: string | null;
+          operational_territory_id?: string | null;
+          store_territory_code?: string | null;
+          crm_region?: string | null;
+          prep_city?: string | null;
           started_at?: string;
           finished_at?: string | null;
           triggered_by?: string | null;
@@ -1930,7 +1938,7 @@ export interface Database {
         Update: {
           id?: string;
           run_date?: string;
-          kind?: 'nightly_prep';
+          kind?: 'nightly_prep' | 'manual_regional_prep' | 'manual_regional_active_prep';
           status?: 'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
           trigger?: 'cron' | 'manual';
           capacity?: number;
@@ -1945,6 +1953,10 @@ export interface Database {
           error?: string | null;
           target_errors?: unknown;
           reason?: string | null;
+          operational_territory_id?: string | null;
+          store_territory_code?: string | null;
+          crm_region?: string | null;
+          prep_city?: string | null;
           started_at?: string;
           finished_at?: string | null;
           triggered_by?: string | null;
@@ -1952,6 +1964,109 @@ export interface Database {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      outreach_follow_up_snoozes: {
+        Row: {
+          prospect_id: number;
+          snoozed_until: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          prospect_id: number;
+          snoozed_until: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          prospect_id?: number;
+          snoozed_until?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'outreach_follow_up_snoozes_prospect_id_fkey';
+            columns: ['prospect_id'];
+            isOneToOne: true;
+            referencedRelation: 'prospects';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      outreach_research_queue_dismissals: {
+        Row: {
+          prospect_id: number;
+          dismissed_by: string | null;
+          dismissed_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          prospect_id: number;
+          dismissed_by?: string | null;
+          dismissed_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          prospect_id?: number;
+          dismissed_by?: string | null;
+          dismissed_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'outreach_research_queue_dismissals_prospect_id_fkey';
+            columns: ['prospect_id'];
+            isOneToOne: true;
+            referencedRelation: 'prospects';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      prospect_site_presence: {
+        Row: {
+          prospect_id: number;
+          last_seen_at: string;
+          last_path: string | null;
+          system_message_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          prospect_id: number;
+          last_seen_at?: string;
+          last_path?: string | null;
+          system_message_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          prospect_id?: number;
+          last_seen_at?: string;
+          last_path?: string | null;
+          system_message_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'prospect_site_presence_prospect_id_fkey';
+            columns: ['prospect_id'];
+            isOneToOne: true;
+            referencedRelation: 'prospects';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'prospect_site_presence_system_message_id_fkey';
+            columns: ['system_message_id'];
+            isOneToOne: false;
+            referencedRelation: 'system_messages';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       account_conversion_attribution: {
         Row: {
@@ -2037,6 +2152,7 @@ export interface Database {
           title: string | null;
           phone: string | null;
           email: string | null;
+          alternate_email: string | null;
           is_primary: boolean;
           notes: string | null;
           created_at: string;
@@ -2050,6 +2166,7 @@ export interface Database {
           title?: string | null;
           phone?: string | null;
           email?: string | null;
+          alternate_email?: string | null;
           is_primary?: boolean;
           notes?: string | null;
           created_at?: string;
@@ -2063,6 +2180,7 @@ export interface Database {
           title?: string | null;
           phone?: string | null;
           email?: string | null;
+          alternate_email?: string | null;
           is_primary?: boolean;
           notes?: string | null;
           created_at?: string;
@@ -2701,6 +2819,42 @@ export interface Database {
           },
         ];
       };
+      resend_unmatched_events: {
+        Row: {
+          id: string;
+          resend_email_id: string;
+          resend_event_id: string;
+          event_type: string;
+          occurred_at: string;
+          payload: unknown;
+          failure_reason: string | null;
+          created_at: string;
+          resolved_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          resend_email_id: string;
+          resend_event_id: string;
+          event_type: string;
+          occurred_at: string;
+          payload?: unknown;
+          failure_reason?: string | null;
+          created_at?: string;
+          resolved_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          resend_email_id?: string;
+          resend_event_id?: string;
+          event_type?: string;
+          occurred_at?: string;
+          payload?: unknown;
+          failure_reason?: string | null;
+          created_at?: string;
+          resolved_at?: string | null;
+        };
+        Relationships: [];
+      };
       product_outreach_engagement_seen: {
         Row: {
           catalog_item_id: string;
@@ -3265,6 +3419,66 @@ export interface Database {
           available_sizes: string[];
         }[];
       };
+      get_public_living_in_sunshine_products: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          sku: string;
+          public_slug: string;
+          name: string;
+          cat: string;
+          color: string | null;
+          tagline: string | null;
+          description: string | null;
+          page: number | null;
+          catalog_year: number | null;
+          collection: string | null;
+          wholesale_usd: number | null;
+          msrp_cad: number;
+          is_new: boolean;
+          featured: boolean;
+          public_sort_order: number;
+          primary_image_url: string | null;
+          alternate_image_urls: unknown;
+          unit_of_measure: string;
+          minimum_quantity: number | null;
+          order_multiple: number | null;
+          pack_quantity: number | null;
+          lifestyle_themes: unknown;
+          live_sku: string | null;
+          available_sizes: string[];
+        }[];
+      };
+      get_public_living_in_sunshine_product_by_slug: {
+        Args: { p_slug: string };
+        Returns: {
+          id: string;
+          sku: string;
+          public_slug: string;
+          name: string;
+          cat: string;
+          color: string | null;
+          tagline: string | null;
+          description: string | null;
+          page: number | null;
+          catalog_year: number | null;
+          collection: string | null;
+          wholesale_usd: number | null;
+          msrp_cad: number;
+          is_new: boolean;
+          featured: boolean;
+          public_sort_order: number;
+          primary_image_url: string | null;
+          alternate_image_urls: unknown;
+          unit_of_measure: string;
+          minimum_quantity: number | null;
+          order_multiple: number | null;
+          pack_quantity: number | null;
+          lifestyle_themes: unknown;
+          live_sku: string | null;
+          available_sizes: string[];
+        }[];
+      };
       get_public_ogr_product_by_slug: {
         Args: { p_slug: string };
         Returns: {
@@ -3451,6 +3665,9 @@ export type SystemMessageEventInsert =
   Database['public']['Tables']['system_message_events']['Insert'];
 export type SystemMessageEventUpdate =
   Database['public']['Tables']['system_message_events']['Update'];
+export type ResendUnmatchedEvent = Database['public']['Tables']['resend_unmatched_events']['Row'];
+export type ResendUnmatchedEventInsert =
+  Database['public']['Tables']['resend_unmatched_events']['Insert'];
 export type ProductOutreachEngagementSeen =
   Database['public']['Tables']['product_outreach_engagement_seen']['Row'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];

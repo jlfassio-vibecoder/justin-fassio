@@ -45,12 +45,16 @@ describe('accountResearch sources', () => {
     expect(socialQueries.every((q) => !q.includes('Bend') && q.includes('site:'))).toBe(true);
     expect(queries.some((q) => /instagram.*facebook|social media/i.test(q))).toBe(false);
     expect(SOURCE_STRATEGIES.website.buildQuery(researchContext)).toBe(
-      '"Trail Outfitters" official website Bend British Columbia',
+      'Official website of Trail Outfitters in Bend, British Columbia',
     );
     expect(SOURCE_STRATEGIES.website.buildQuery(researchContext)).not.toMatch(/About Shop/i);
   });
 
-  it('uses quoted business name plus location for website search', () => {
+  it('builds a natural-language website query without quotes, address, or phone', () => {
+    // Exa's `query` field is documented as a natural-language search, not a
+    // keyword/boolean engine — quoting the name and an exact CRM address
+    // (which rarely matches a real page's text verbatim) previously caused
+    // zero-hit failures for real, easily-Googleable businesses.
     const ctx = buildAccountResearchContext({
       prospect: prospectFixture({
         id: 18,
@@ -62,9 +66,10 @@ describe('accountResearch sources', () => {
       }),
     });
     const query = SOURCE_STRATEGIES.website.buildQuery(ctx);
-    expect(query).toBe(
-      `"Buckerfield's Kelowna" official website Kelowna British Columbia "1889 Springfield Road" 250-762-8282`,
-    );
+    expect(query).toBe(`Official website of Buckerfield's Kelowna in Kelowna, British Columbia`);
+    expect(query).not.toContain('"');
+    expect(query).not.toContain('1889 Springfield Road');
+    expect(query).not.toContain('250-762-8282');
     expect(SOURCE_STRATEGIES.website.domainFilter(ctx)).toBeUndefined();
   });
 

@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Menu, PhoneCall } from 'lucide-react';
 import { Header } from '@/components/Header';
+import { StaffMobileNavDrawer } from '@/components/StaffMobileNavDrawer';
 import { TabNav } from '@/components/TabNav';
+import { Button } from '@/components/ui/Button';
+import { lineStatusBadgeLabel } from '@/lib/lineContextStorage';
 import { LogCallModal } from '@/components/LogCallModal';
+import type { BriefingLogCallContext } from '@/components/LogCallFormModal';
 import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
 import { CatalogTab } from '@/components/tabs/CatalogTab';
 import { DashboardTab } from '@/components/tabs/DashboardTab';
@@ -22,6 +27,7 @@ import { fetchCatalogSettings, type CatalogSupplierTerms } from '@/lib/catalogSe
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { persistLastLineSlug } from '@/lib/lineContextStorage';
 import { fetchNeedsMappingCount, type MessageThread } from '@/lib/messages';
+import { ensureProspectForLogCall } from '@/lib/ensureProspectForLogCall';
 import {
   isProspectsPipelineRow,
   isReactivationDirectoryRow,
@@ -38,7 +44,7 @@ import {
   surfaceLiveChatAsPill,
   type OpenLiveChatSlot,
 } from '@/lib/staffChatDockState';
-import { fetchTerritories, type Territory } from '@/lib/territories';
+import { fetchStoreTerritories, type Territory } from '@/lib/territories';
 import type { LineKey, TabKey } from '@/types';
 
 interface RepCommandCenterProps {
@@ -101,6 +107,9 @@ export function RepCommandCenter({
         : defaultTab,
   );
   const [modalOpen, setModalOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [logCallBriefingContext, setLogCallBriefingContext] =
+    useState<BriefingLogCallContext | null>(null);
   const [modalStoreId, setModalStoreId] = useState<number | null>(null);
   const [callsReloadToken, setCallsReloadToken] = useState(0);
   const [directoryReloadToken, setDirectoryReloadToken] = useState(0);
@@ -166,22 +175,6 @@ export function RepCommandCenter({
     setDeepLinkReactivation(false);
     setDeepLinkTerritory(null);
   }, []);
-
-  const openProspectDeepLink = useCallback(
-    (args: { prospectId: number; accountStatus?: string; openResearch?: boolean }) => {
-      setDeepLinkOpenResearch(args.openResearch === true);
-      if (args.accountStatus === 'active_account') {
-        setDeepLinkAccountId(args.prospectId);
-        setDeepLinkProspectId(null);
-        setActiveTab('accounts');
-        return;
-      }
-      setDeepLinkProspectId(args.prospectId);
-      setDeepLinkAccountId(null);
-      setActiveTab('prospects');
-    },
-    [],
-  );
 
   const openLiveChat = useCallback((thread: MessageThread) => {
     if (thread.channel !== 'live_chat') return;
@@ -304,7 +297,7 @@ export function RepCommandCenter({
         fetchCatalogItems(catalogOpts),
         fetchCatalogSettings(catalogOpts),
         fetchProspects(scoped),
-        fetchTerritories(),
+        fetchStoreTerritories(),
         fetchAllContacts(scoped),
       ]);
 
@@ -368,17 +361,26 @@ export function RepCommandCenter({
   }, [activeTab]);
 
   function openModal(prospect?: Prospect) {
-    // Generic Log Call requires an explicit selection — do not default to prospects[0].
+    setLogCallBriefingContext(null);
     setModalStoreId(prospect ? prospect.id : null);
     setModalOpen(true);
   }
 
   const openLogCallForProspectId = useCallback(
-    (prospectId: number) => {
-      const match = prospects.find((p) => p.id === prospectId);
-      if (!match) return;
+    async (prospectId: number, context?: BriefingLogCallContext): Promise<boolean> => {
+      const resolved = await ensureProspectForLogCall({ prospectId, prospects });
+      if (!resolved.ok) {
+        return false;
+      }
+      if (!resolved.alreadyPresent) {
+        setProspects((prev) =>
+          prev.some((p) => p.id === prospectId) ? prev : [...prev, resolved.prospect],
+        );
+      }
+      setLogCallBriefingContext(context ?? null);
       setModalStoreId(prospectId);
       setModalOpen(true);
+      return true;
     },
     [prospects],
   );
@@ -409,37 +411,105 @@ export function RepCommandCenter({
       : 'Independent Sales Representative'
     : 'Independent Sales Representative — British Columbia';
 
+  const activeLineKey = (lineSlug ?? 'ogr') as LineKey;
+  const currentLine =
+    multiLineUi && lineCtx.representedLines.length > 0
+      ? (lineCtx.representedLines.find((row) => row.code === activeLineKey) ?? null)
+      : null;
+  const mobileLineLabel = currentLine?.name ?? (activeLineKey === 'ogr' ? 'Old Guys Rule' : 'Line');
+  const mobileLineStatus = currentLine ? lineStatusBadgeLabel(currentLine.status) : null;
+  const territoriesHref =
+    multiLineUi && lineSlug ? `/app/lines/${lineSlug}/territories` : undefined;
+
   return (
     <div className="bg-bg font-body text-ink min-h-screen">
       <header className="border-ink/15 bg-bg/95 sticky top-0 z-30 border-b backdrop-blur">
         <div className="mx-auto max-w-[1400px]">
-          <Header
-            activeLine={lineSlug ?? 'ogr'}
-            onSelectOgr={() => {
-              if (multiLineUi) navigateToLine('ogr');
-            }}
-            onLogCall={() => openModal()}
-            onOpenMessages={() => setActiveTab('messages')}
-            messagesNeedsMappingCount={messagesNeedsMappingCount}
-            multiLineUi={multiLineUi}
-            representedLines={lineCtx.representedLines}
-            onSelectLine={navigateToLine}
-            subtitle={headerSubtitle}
-            territoriesHref={
-              multiLineUi && lineSlug ? `/app/lines/${lineSlug}/territories` : undefined
-            }
-          />
-          <TabNav
-            activeTab={activeTab}
-            onChange={setActiveTab}
-            totalSkuCount={catalog.length}
-            prospectTotalCount={pipelineProspects.length}
-            accountTotalCount={activeAccounts.length}
-            contactTotalCount={contacts.length}
-            messagesNeedsMappingCount={messagesNeedsMappingCount}
-          />
+          <div className="flex items-center justify-between gap-2 px-4 py-2.5 md:hidden">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="bg-accent font-heading text-on-accent flex h-9 w-9 flex-none items-center justify-center rounded-full text-sm">
+                JF
+              </div>
+              <div className="min-w-0">
+                <p className="font-heading m-0 truncate text-sm leading-tight">{mobileLineLabel}</p>
+                {mobileLineStatus ? (
+                  <p className="text-accent-700 m-0 truncate text-[10px] font-semibold tracking-wide uppercase">
+                    {mobileLineStatus}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                type="button"
+                variant="primary"
+                className="h-9 px-3"
+                onClick={() => openModal()}
+                aria-label="Log Call"
+              >
+                <PhoneCall size={16} strokeWidth={2.75} />
+                <span>Log Call</span>
+              </Button>
+              <button
+                type="button"
+                className="border-ink/15 text-ink inline-flex h-9 w-9 items-center justify-center rounded-full border bg-transparent"
+                aria-label="Open navigation"
+                aria-expanded={mobileNavOpen}
+                onClick={() => setMobileNavOpen(true)}
+              >
+                <Menu size={18} strokeWidth={2.75} />
+              </button>
+            </div>
+          </div>
+
+          <div className="hidden md:block">
+            <Header
+              activeLine={activeLineKey}
+              onSelectOgr={() => {
+                if (multiLineUi) navigateToLine('ogr');
+              }}
+              onLogCall={() => openModal()}
+              onOpenMessages={() => setActiveTab('messages')}
+              messagesNeedsMappingCount={messagesNeedsMappingCount}
+              multiLineUi={multiLineUi}
+              representedLines={lineCtx.representedLines}
+              onSelectLine={navigateToLine}
+              subtitle={headerSubtitle}
+              territoriesHref={territoriesHref}
+            />
+            <TabNav
+              activeTab={activeTab}
+              onChange={setActiveTab}
+              totalSkuCount={catalog.length}
+              prospectTotalCount={pipelineProspects.length}
+              accountTotalCount={activeAccounts.length}
+              contactTotalCount={contacts.length}
+              messagesNeedsMappingCount={messagesNeedsMappingCount}
+            />
+          </div>
         </div>
       </header>
+
+      <StaffMobileNavDrawer
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+        activeLine={activeLineKey}
+        multiLineUi={multiLineUi}
+        representedLines={lineCtx.representedLines}
+        onSelectLine={navigateToLine}
+        onSelectOgr={() => {
+          if (multiLineUi) navigateToLine('ogr');
+        }}
+        territoriesHref={territoriesHref}
+        activeTab={activeTab}
+        onChangeTab={setActiveTab}
+        totalSkuCount={catalog.length}
+        prospectTotalCount={pipelineProspects.length}
+        accountTotalCount={activeAccounts.length}
+        contactTotalCount={contacts.length}
+        messagesNeedsMappingCount={messagesNeedsMappingCount}
+        onOpenMessages={() => setActiveTab('messages')}
+      />
 
       <main
         key={multiLineUi ? (salesLineId ?? 'loading') : 'legacy'}
@@ -463,13 +533,20 @@ export function RepCommandCenter({
               {activeTab === 'briefing' && (
                 <AgentBriefingTab
                   catalog={catalog}
+                  prospects={prospects}
                   deepLinkSku={deepLinkSku}
                   deepLinkDraftId={deepLinkDraftId}
                   onDeepLinkConsumed={clearCatalogDeepLink}
                   onProductEmailSent={() => setActivityHistoryReloadToken((n) => n + 1)}
                   onLogCallForLead={openLogCallForProspectId}
                   briefingReloadToken={briefingReloadToken}
-                  onOpenProspect={openProspectDeepLink}
+                  onLogCall={(prospect) => openModal(prospect)}
+                  onNotesSaved={(id, notes) => {
+                    setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
+                  }}
+                  onProspectUpdated={(prospect) => {
+                    setProspects((prev) => prev.map((p) => (p.id === prospect.id ? prospect : p)));
+                  }}
                 />
               )}
               {activeTab === 'catalog' && (
@@ -520,6 +597,7 @@ export function RepCommandCenter({
                   onLogCall={(prospect) => openModal(prospect)}
                   onConverted={reloadDirectory}
                   contactsReloadToken={contactsReloadToken}
+                  onContactAdded={reloadContacts}
                   onProspectCreated={(prospect) => {
                     setProspects((prev) =>
                       [...prev.filter((p) => p.id !== prospect.id), prospect].sort(
@@ -544,9 +622,16 @@ export function RepCommandCenter({
               {activeTab === 'accounts' && (
                 <ActiveAccountsTab
                   accounts={accountsForTab}
+                  catalog={catalog}
                   territories={territories}
                   onLogCall={(account) => openModal(account)}
+                  onLogCallForLead={openLogCallForProspectId}
+                  briefingReloadToken={briefingReloadToken}
+                  deepLinkSku={deepLinkSku}
+                  deepLinkDraftId={deepLinkDraftId}
+                  onCatalogDeepLinkConsumed={clearCatalogDeepLink}
                   contactsReloadToken={contactsReloadToken}
+                  onContactAdded={reloadContacts}
                   onProductEmailSent={() => setActivityHistoryReloadToken((n) => n + 1)}
                   onNotesSaved={(id, notes) => {
                     setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, notes } : p)));
@@ -617,7 +702,11 @@ export function RepCommandCenter({
         prospects={prospects}
         storeId={modalStoreId}
         catalog={catalog}
-        onClose={() => setModalOpen(false)}
+        briefingContext={logCallBriefingContext}
+        onClose={() => {
+          setModalOpen(false);
+          setLogCallBriefingContext(null);
+        }}
         onStoreChange={(id) => setModalStoreId(id)}
         onSaved={refreshAfterCallLog}
         onConverted={() => {

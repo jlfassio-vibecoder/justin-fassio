@@ -216,9 +216,9 @@ Deterministic filter first; AI only chooses among the filtered pool.
 Morning surface (Phase 5) inside Rep Command Center (`RepCommandCenter` / tabs in `src/types/index.ts`) answering:
 
 - Who should I send to? (drafts ready + pace)
-- Who should I call? (Hot / Call Today / Warm)
+- Who should I call? (Call today Top leads + Call rows in Today’s follow-ups)
 
-Includes: monthly goal, accounts opened MTD, projected attainment, recommended pace, drafts ready, channel allocation, Hot/Call Today, Warm, recent meaningful engagement, recent conversions — with navigation to prospect / account / product / draft.
+Includes: monthly goal, accounts opened MTD, projected attainment, recommended pace, drafts ready, channel allocation, Top leads quick view (Call today / Warm / Engaged), Today’s follow-ups worklist, recent conversions — with navigation to prospect / account / product / draft.
 
 Preferred home: Dashboard top or new briefing tab; secondary deep-link from `AIAssistantModal`. Default app tab today is Line Sheet (`catalog`) — Briefing may become morning default later without removing Line Sheet.
 
@@ -358,6 +358,8 @@ Until that Epic ships, every agent-created Product Outreach email requires expli
 | [phase-4-goals-attribution-learning.md](./phase-4-goals-attribution-learning.md)               | Goals, pace, learning                                                                                          |
 | [phase-5-nightly-briefing.md](./phase-5-nightly-briefing.md)                                   | Cron + morning briefing                                                                                        |
 | [account-research-before-product-selection.md](./account-research-before-product-selection.md) | **Planned:** public-web account research → profile suggestions → 1–3 product matches (before draft); GO Mode A |
+| [outreach-copy-context-personalization.md](./outreach-copy-context-personalization.md)         | **Draft:** richer research/CRM context for intro/closing; Add copy parity with prep selection meta             |
+| [../yelp-contact-enrichment.md](../yelp-contact-enrichment.md)                                 | **Planning:** Yelp business verification → contact discovery → role verification (existing CRM fields only)    |
 
 ---
 

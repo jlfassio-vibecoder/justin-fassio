@@ -1,15 +1,22 @@
 import { useState, type SubmitEvent } from 'react';
 import { X } from 'lucide-react';
+import {
+  AccountEmailProductPickerModal,
+  type AccountEmailProductPick,
+} from '@/components/AccountEmailProductPickerModal';
 import { Button } from '@/components/ui/Button';
 import { DialogBackdrop, DialogTitle } from '@/components/ui/Dialog';
 import { Field, FieldLabel, Input, Select, Textarea } from '@/components/ui/Input';
 import {
   cancelAgentProductOutreachDraftClient,
+  composerDraftFromAgentDto,
   generateAgentProductOutreachDraft,
   sendAgentProductOutreachDraft,
   updateAgentProductOutreachDraftClient,
 } from '@/lib/agentProductOutreachDraftClient';
 import type { AccountProductEmailRecipientOption } from '@/lib/accountProductEmailRecipient';
+import type { CatalogItem } from '@/lib/catalog';
+import { withOgrPdfCatalogPreviewRelativeUrls } from '@/lib/lineMarketingAssets';
 import {
   defaultOgrProductEmailSubject,
   OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
@@ -22,11 +29,17 @@ import {
   OGR_PRODUCT_EMAIL_MAX_SUBJECT,
   OGR_PRODUCT_EMAIL_MAX_TO,
 } from '@/lib/ogrProductEmailLimits';
+import { buildSelectedTargetFromDraft } from '@/lib/outreachDraftSelection';
+import {
+  formatOutreachCopyContextSummary,
+  isThinOutreachCopyContext,
+} from '@/lib/outreachCopyContextSummary';
 import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { sendOgrProductEmail } from '@/lib/sendOgrProductEmailClient';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import { staffAiPostFields } from '@/lib/staffAiClientContext';
 import type { PublicMarket } from '@/lib/pricingMarket';
+import type { ProductOutreachGenerationMeta } from '@/lib/systemMessages';
 
 const MAX_TO = OGR_PRODUCT_EMAIL_MAX_TO;
 const MAX_RECIPIENT_NAME = OGR_PRODUCT_EMAIL_MAX_RECIPIENT_NAME;
@@ -47,6 +60,13 @@ export type OgrProductEmailComposerDraft = {
   productSku?: string;
   productSlug?: string;
   productIsNew?: boolean;
+  /** Prep-frozen selection meta; used by Add copy for prompt parity. */
+  generation?: ProductOutreachGenerationMeta | null;
+};
+
+export type OgrProductReplacedPayload = {
+  item: CatalogItem;
+  draft: OgrProductEmailComposerDraft;
 };
 
 export type OgrProductEmailComposerModalProps = {
@@ -55,6 +75,10 @@ export type OgrProductEmailComposerModalProps = {
   onSent: () => void;
   /** Called after cancel draft so parent can refresh history. */
   onDraftCancelled?: () => void;
+  /** After Save draft persists intro/closing (and related fields) without sending. */
+  onDraftSaved?: (draft: OgrProductEmailComposerDraft) => void;
+  /** After Change product persists a new catalog item on the draft. */
+  onProductReplaced?: (payload: OgrProductReplacedPayload) => void;
   productId: string;
   productName: string;
   /** Already-rendered Phase 5 card fragment (not the full outreach document). */
@@ -68,7 +92,10 @@ export type OgrProductEmailComposerModalProps = {
   recipientHint?: string | null;
   prospectId?: number;
   accountContactId?: string | null;
+  /** Prospect/retailer id for replace-product picker (defaults to draft.prospectId). */
+  accountId?: number | null;
   salesLineId?: string | null;
+  lineSlug?: string | null;
   retailerLineAccountId?: string | null;
   /** Line Sheet selector. Account flow omits this; server uses RLA when present. */
   publicMarket?: PublicMarket;
@@ -77,7 +104,12 @@ export type OgrProductEmailComposerModalProps = {
 };
 
 function buildCardPreviewSrcDoc(cardHtml: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><base target="_blank" rel="noopener"></head><body style="margin:0;padding:12px;background:#ffffff;font-family:Georgia,serif;">${cardHtml}</body></html>`;
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin.replace(/\/+$/, '')
+      : '';
+  const baseHref = origin ? `<base href="${origin}/" target="_blank" />` : '';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">${baseHref}</head><body style="margin:0;padding:12px;background:#ffffff;font-family:Georgia,serif;">${cardHtml}</body></html>`;
 }
 
 function matchingRecipientOptionId(
@@ -106,6 +138,8 @@ function OgrProductEmailComposerForm({
   onClose,
   onSent,
   onDraftCancelled,
+  onDraftSaved,
+  onProductReplaced,
   productId,
   productName,
   cardHtml,
@@ -116,7 +150,9 @@ function OgrProductEmailComposerForm({
   recipientHint,
   prospectId,
   accountContactId,
+  accountId,
   salesLineId,
+  lineSlug,
   retailerLineAccountId,
   publicMarket,
   recipientOptions,
@@ -125,6 +161,9 @@ function OgrProductEmailComposerForm({
   const eaglePeakOutreachBlocked = line.lineSlug === 'eagle-peak' && !line.eaglePeakOutreach;
   const bigFishOutreachBlocked = line.lineSlug === 'big-fish' && !line.bigFishOutreach;
   const isDraftReview = draft != null;
+  const resolvedAccountId = accountId ?? draft?.prospectId ?? prospectId ?? null;
+  const resolvedSalesLineId = salesLineId ?? line.salesLineId;
+  const resolvedLineSlug = lineSlug ?? line.lineSlug;
   const [to, setTo] = useState(draft?.to ?? defaultTo ?? '');
   const [recipientName, setRecipientName] = useState(draft?.toName ?? defaultRecipientName ?? '');
   const [selectedContactId, setSelectedContactId] = useState<string | null>(() =>
@@ -137,18 +176,75 @@ function OgrProductEmailComposerForm({
   const [closingText, setClosingText] = useState(
     draft?.closingText ?? OGR_PRODUCT_EMAIL_DEFAULT_CLOSING,
   );
+  const [generation, setGeneration] = useState<ProductOutreachGenerationMeta | null>(
+    () => draft?.generation ?? null,
+  );
   const [submitting, setSubmitting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [replacingProduct, setReplacingProduct] = useState(false);
+  const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loggingWarning, setLoggingWarning] = useState<string | null>(null);
+  // Relative marketing asset paths + allow-same-origin so preview loads under CSP 'self'
+  // without injecting large data: URLs into srcDoc (which blanked the iframe).
+  const previewCardHtml = cardHtml.trim()
+    ? withOgrPdfCatalogPreviewRelativeUrls(cardHtml)
+    : cardHtml;
 
-  const busy = submitting || regenerating;
+  const busy = submitting || saving || regenerating || replacingProduct;
+  const hasAiCopy = generation?.copyStatus === 'ai';
+  const contextFlags = generation?.contextFlags;
+  const copyContextSummary =
+    hasAiCopy && contextFlags
+      ? formatOutreachCopyContextSummary(contextFlags, generation?.primaryChannel)
+      : null;
+  const showThinResearchBanner =
+    hasAiCopy && contextFlags != null && isThinOutreachCopyContext(contextFlags);
+  const canChangeProduct =
+    isDraftReview &&
+    onProductReplaced != null &&
+    resolvedAccountId != null &&
+    Number.isFinite(resolvedAccountId);
 
   function handleClose() {
     if (busy) return;
     onClose();
   }
 
-  async function handleRegenerate() {
+  async function handleReplaceProductPick(pick: AccountEmailProductPick) {
+    if (!draft || !onProductReplaced || busy) return;
+    if (pick.item.id === draft.catalogItemId) {
+      setProductPickerOpen(false);
+      return;
+    }
+    setError(null);
+    setReplacingProduct(true);
+    try {
+      const updated = await updateAgentProductOutreachDraftClient(draft.id, {
+        productId: pick.item.id,
+        salesLineId: resolvedSalesLineId,
+      });
+      if (!updated.ok) {
+        setError(updated.error);
+        return;
+      }
+      const d = updated.draft;
+      setSubject(d.subject || defaultOgrProductEmailSubject(pick.item.name));
+      setProductPickerOpen(false);
+      onProductReplaced({
+        item: pick.item,
+        draft: composerDraftFromAgentDto(d, {
+          prospectName: draft.prospectName,
+          productIsNew: pick.item.isNew,
+        }),
+      });
+    } finally {
+      setReplacingProduct(false);
+    }
+  }
+
+  async function handleAddCopy() {
     if (!draft || busy) return;
     if (eaglePeakOutreachBlocked) {
       setError('Eagle Peak outreach is not enabled');
@@ -159,17 +255,17 @@ function OgrProductEmailComposerForm({
       return;
     }
     if (draft.prospectId == null || !draft.accountContactId || !draft.catalogItemId) {
-      setError('Draft is missing CRM associations required to regenerate');
+      setError('Draft is missing CRM associations required to add copy');
       return;
     }
     const prospectName = draft.prospectName?.trim() ?? '';
     if (!prospectName) {
-      setError('Prospect name is required to regenerate');
+      setError('Prospect name is required to add copy');
       return;
     }
     const toEmail = (to.trim() || draft.to).trim();
     if (!isValidOgrProductEmailRecipient(toEmail)) {
-      setError('A valid recipient email is required to regenerate');
+      setError('A valid recipient email is required to add copy');
       return;
     }
     setError(null);
@@ -184,29 +280,24 @@ function OgrProductEmailComposerForm({
         existingDraftId: draft.id,
         salesLineId: aiFields.salesLineId,
         retailerLineAccountId: aiFields.retailerLineAccountId,
-        target: {
+        target: buildSelectedTargetFromDraft({
+          draft: {
+            id: draft.id,
+            prospectId: draft.prospectId,
+            accountContactId: draft.accountContactId,
+            catalogItemId: draft.catalogItemId,
+            payload: { generation: generation ?? null },
+          },
           preparationDate: formatOutreachPreparationDate(),
-          prospectId: draft.prospectId,
           prospectName,
-          accountContactId: draft.accountContactId,
           toEmail,
           toName: recipientName.trim() || draft.toName,
-          primaryChannel: null,
-          secondaryChannels: [],
           catalogItemId: draft.catalogItemId,
           productSku: draft.productSku ?? '',
           productName,
           productSlug: draft.productSlug ?? '',
           productIsNew: draft.productIsNew ?? false,
-          productSalesRank: null,
-          selectionReasons: {
-            priority: null,
-            fitScore: null,
-            channelMatch: false,
-            productFit: 'global_fallback',
-            exclusionsChecked: true,
-          },
-        },
+        }),
       });
       if (!generated.ok) {
         setError(generated.error);
@@ -215,6 +306,9 @@ function OgrProductEmailComposerForm({
       setSubject(generated.subject || subject);
       setIntroText(generated.introText || introText);
       setClosingText(generated.closingText || closingText);
+      if (generated.generation) {
+        setGeneration(generated.generation);
+      }
     } finally {
       setRegenerating(false);
     }
@@ -234,6 +328,61 @@ function OgrProductEmailComposerForm({
       onClose();
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleSaveDraft() {
+    if (!isDraftReview || !draft || busy) return;
+
+    const trimmedTo = to.trim();
+    if (!isValidOgrProductEmailRecipient(trimmedTo)) {
+      setError('A valid recipient email is required');
+      return;
+    }
+    if (!recipientName.trim()) {
+      setError('Recipient name is required for agent drafts');
+      return;
+    }
+    if (recipientName.trim().length > MAX_RECIPIENT_NAME) {
+      setError('Recipient name is too long');
+      return;
+    }
+    if (subject.trim().length > MAX_SUBJECT) {
+      setError('Subject is too long');
+      return;
+    }
+    if (introText.trim().length > MAX_PROSE) {
+      setError('Intro is too long');
+      return;
+    }
+    if (closingText.trim().length > MAX_PROSE) {
+      setError('Closing is too long');
+      return;
+    }
+
+    setError(null);
+    setSaving(true);
+    try {
+      const updated = await updateAgentProductOutreachDraftClient(draft.id, {
+        to: trimmedTo,
+        toName: recipientName.trim(),
+        subject: subject.trim(),
+        introText: introText.trim(),
+        closingText: closingText.trim(),
+      });
+      if (!updated.ok) {
+        setError(updated.error);
+        return;
+      }
+      const d = updated.draft;
+      onDraftSaved?.(
+        composerDraftFromAgentDto(d, {
+          prospectName: draft.prospectName,
+          productIsNew: draft.productIsNew,
+        }),
+      );
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -268,6 +417,7 @@ function OgrProductEmailComposerForm({
     }
 
     setError(null);
+    setLoggingWarning(null);
     setSubmitting(true);
     try {
       if (isDraftReview && draft) {
@@ -288,6 +438,12 @@ function OgrProductEmailComposerForm({
           return;
         }
         onSent();
+        if (sent.logged === false) {
+          setLoggingWarning(
+            'Email was delivered, but CRM logging is incomplete. Opens and clicks may not track until the send is repaired.',
+          );
+          return;
+        }
         onClose();
         return;
       }
@@ -314,6 +470,12 @@ function OgrProductEmailComposerForm({
         return;
       }
       onSent();
+      if (result.logged === false) {
+        setLoggingWarning(
+          'Email was delivered, but CRM logging is incomplete. Opens and clicks may not track until the send is repaired.',
+        );
+        return;
+      }
       onClose();
     } finally {
       setSubmitting(false);
@@ -448,16 +610,34 @@ function OgrProductEmailComposerForm({
           />
         </Field>
 
-        <div>
-          <p className="text-ink/55 m-0 mb-2 text-xs font-medium tracking-wide uppercase">
-            Product card preview
+        {copyContextSummary ? (
+          <p className="text-ink/55 m-0 text-xs" data-testid="outreach-copy-context-summary">
+            {copyContextSummary}
           </p>
-          {cardHtml ? (
+        ) : null}
+
+        <div>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-ink/55 m-0 text-xs font-medium tracking-wide uppercase">
+              Product card preview
+            </p>
+            {canChangeProduct ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setProductPickerOpen(true)}
+                disabled={busy}
+              >
+                {replacingProduct ? 'Updating…' : 'Change product'}
+              </Button>
+            ) : null}
+          </div>
+          {previewCardHtml ? (
             <iframe
               title="Product card preview"
-              srcDoc={buildCardPreviewSrcDoc(cardHtml)}
+              srcDoc={buildCardPreviewSrcDoc(previewCardHtml)}
               className="border-ink/15 h-56 w-full rounded-md border bg-white"
-              sandbox=""
+              sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
             />
           ) : (
             <p className="text-ink/55 m-0 text-sm">Card preview unavailable for this product.</p>
@@ -467,6 +647,25 @@ function OgrProductEmailComposerForm({
         {error ? (
           <p className="text-accent-800 m-0 text-sm" role="alert">
             {error}
+          </p>
+        ) : null}
+
+        {loggingWarning ? (
+          <p
+            className="text-accent-800 border-accent-200 bg-accent-50 m-0 rounded-md border px-3 py-2 text-sm"
+            role="status"
+          >
+            {loggingWarning}
+          </p>
+        ) : null}
+
+        {showThinResearchBanner ? (
+          <p
+            className="text-accent-800 border-accent-200 bg-accent-50 m-0 rounded-md border px-3 py-2 text-sm"
+            role="status"
+            data-testid="outreach-thin-research-banner"
+          >
+            No accepted citations — copy may stay generic; lock sources or accept citations.
           </p>
         ) : null}
 
@@ -484,10 +683,24 @@ function OgrProductEmailComposerForm({
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => void handleRegenerate()}
+                onClick={() => void handleSaveDraft()}
                 disabled={busy}
               >
-                {regenerating ? 'Regenerating…' : 'Regenerate copy'}
+                {saving ? 'Saving…' : 'Save draft'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void handleAddCopy()}
+                disabled={busy}
+              >
+                {regenerating
+                  ? hasAiCopy
+                    ? 'Regenerating…'
+                    : 'Adding…'
+                  : hasAiCopy
+                    ? 'Regenerate with research'
+                    : 'Add copy'}
               </Button>
             </>
           ) : (
@@ -500,6 +713,19 @@ function OgrProductEmailComposerForm({
           </Button>
         </div>
       </form>
+      {canChangeProduct && resolvedAccountId != null ? (
+        <AccountEmailProductPickerModal
+          open={productPickerOpen}
+          intent="replaceProduct"
+          accountId={resolvedAccountId}
+          salesLineId={resolvedSalesLineId}
+          lineSlug={resolvedLineSlug}
+          onClose={() => {
+            if (!replacingProduct) setProductPickerOpen(false);
+          }}
+          onPick={(pick) => void handleReplaceProductPick(pick)}
+        />
+      ) : null}
     </DialogBackdrop>
   );
 }
@@ -509,6 +735,8 @@ export function OgrProductEmailComposerModal({
   onClose,
   onSent,
   onDraftCancelled,
+  onDraftSaved,
+  onProductReplaced,
   productId,
   productName,
   cardHtml,
@@ -519,7 +747,9 @@ export function OgrProductEmailComposerModal({
   recipientHint,
   prospectId,
   accountContactId,
+  accountId,
   salesLineId,
+  lineSlug,
   retailerLineAccountId,
   publicMarket,
   recipientOptions,
@@ -527,10 +757,12 @@ export function OgrProductEmailComposerModal({
   if (!open) return null;
   return (
     <OgrProductEmailComposerForm
-      key={`${draft?.id ?? productId}:${accountContactId ?? defaultTo ?? ''}`}
+      key={`${draft?.id ?? productId}:${productId}:${accountContactId ?? defaultTo ?? ''}`}
       onClose={onClose}
       onSent={onSent}
       onDraftCancelled={onDraftCancelled}
+      onDraftSaved={onDraftSaved}
+      onProductReplaced={onProductReplaced}
       productId={productId}
       productName={productName}
       cardHtml={cardHtml}
@@ -541,7 +773,9 @@ export function OgrProductEmailComposerModal({
       recipientHint={recipientHint}
       prospectId={prospectId}
       accountContactId={accountContactId}
+      accountId={accountId}
       salesLineId={salesLineId}
+      lineSlug={lineSlug}
       retailerLineAccountId={retailerLineAccountId}
       publicMarket={publicMarket}
       recipientOptions={recipientOptions}

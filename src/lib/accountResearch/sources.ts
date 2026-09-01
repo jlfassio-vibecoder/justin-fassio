@@ -95,11 +95,11 @@ function normalizePublishedAt(raw: string | null | undefined): string | null {
   return new Date(ms).toISOString();
 }
 
-function isShopifyEvidenceUrl(url: string): boolean {
+export function isShopifyEvidenceUrl(url: string): boolean {
   const host = hostFromUrl(url);
   if (!host) return false;
   if (host.endsWith('.myshopify.com') || host === 'myshopify.com') return true;
-  if (host.includes('cdn.shopify.com') || host.includes('shopifycdn.com')) return true;
+  if (hostMatches(host, ['cdn.shopify.com', 'shopifycdn.com'])) return true;
   return false;
 }
 
@@ -108,17 +108,28 @@ function officialHostnameDomainFilter(ctx: SourceStrategyContext): string[] | un
   return [ctx.officialHostname];
 }
 
-/** Exact-name homepage query — quoted name first so Exa does keyword match, not “similar clubs”. */
+/**
+ * Homepage query for Exa's `exa_search` tool.
+ *
+ * Exa's own tool schema describes `query` as a "Natural-language web search
+ * query" — it is a neural/semantic search, not a Google-style keyword engine.
+ * An earlier version of this query wrapped the business name and street
+ * address in literal quotes and appended a bare phone number, treating it as
+ * if quotes forced exact-phrase matching and every field was an AND'd
+ * keyword. That's boolean-search syntax Exa doesn't document supporting, and
+ * an address copied verbatim from the CRM (e.g. "2725 K. L. O. Rd") rarely
+ * matches a real page's text character-for-character — the search returned
+ * zero hits for real, easily-Googleable businesses. Keep it a short natural
+ * sentence instead, using only the fields that reliably describe *what* to
+ * find rather than demanding an exact-text match.
+ */
 export function buildWebsiteSearchQuery(ctx: SourceStrategyContext): string {
   const name = ctx.businessName.trim();
   const city = ctx.city?.trim() || '';
   const province = ctx.provinceName?.trim() || ctx.region?.trim() || '';
-  const address = ctx.address?.trim() || '';
-  const phone = ctx.phone?.trim() || '';
+  const location = [city, province].filter(Boolean).join(', ');
 
-  return [`"${name}"`, 'official website', city, province, address ? `"${address}"` : '', phone]
-    .filter(Boolean)
-    .join(' ');
+  return `Official website of ${name}${location ? ` in ${location}` : ''}`;
 }
 
 export const websiteStrategy: SourceStrategy = {

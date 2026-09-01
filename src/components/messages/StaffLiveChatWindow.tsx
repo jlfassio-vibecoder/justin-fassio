@@ -160,7 +160,7 @@ export function StaffLiveChatWindow({
       <div className="pointer-events-auto relative inline-flex items-center">
         <button
           type="button"
-          className="bg-accent-700 font-heading text-bg hover:bg-accent-600 inline-flex max-w-[14rem] items-center gap-2 rounded-full py-3 pr-9 pl-4 text-sm shadow-lg"
+          className="bg-accent-700 font-heading text-on-accent hover:bg-accent-600 inline-flex max-w-[14rem] items-center gap-2 rounded-full py-3 pr-9 pl-4 text-sm shadow-lg"
           onClick={onExpand}
           aria-label={`Expand chat with ${title}`}
         >
@@ -173,7 +173,7 @@ export function StaffLiveChatWindow({
         </button>
         <button
           type="button"
-          className="text-bg/90 hover:text-bg absolute top-1/2 right-1.5 inline-flex -translate-y-1/2 rounded-full p-1"
+          className="text-on-accent/90 hover:text-on-accent absolute top-1/2 right-1.5 inline-flex -translate-y-1/2 rounded-full p-1"
           aria-label={`Close chat with ${title}`}
           onClick={(e) => {
             e.stopPropagation();
@@ -191,7 +191,7 @@ export function StaffLiveChatWindow({
       className="border-ink/15 bg-surface pointer-events-auto flex h-[min(28rem,70vh)] w-[min(20rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-xl"
       aria-label={`Live chat with ${title}`}
     >
-      <header className="border-ink/10 bg-accent-700 text-bg flex items-start justify-between gap-2 px-3 py-2.5">
+      <header className="border-ink/10 bg-accent-700 text-on-accent flex items-start justify-between gap-2 px-3 py-2.5">
         <div className="min-w-0">
           <p className="font-heading m-0 truncate text-sm leading-tight">{title}</p>
           {subtitle ? (
@@ -206,7 +206,7 @@ export function StaffLiveChatWindow({
         <div className="flex shrink-0 items-center gap-0.5">
           <button
             type="button"
-            className="text-bg/90 hover:text-bg inline-flex rounded-full p-1"
+            className="text-on-accent/90 hover:text-on-accent inline-flex rounded-full p-1"
             aria-label="Minimize chat"
             onClick={onMinimize}
           >
@@ -214,7 +214,7 @@ export function StaffLiveChatWindow({
           </button>
           <button
             type="button"
-            className="text-bg/90 hover:text-bg inline-flex rounded-full p-1"
+            className="text-on-accent/90 hover:text-on-accent inline-flex rounded-full p-1"
             aria-label="Close chat"
             onClick={onClose}
           >
@@ -234,7 +234,7 @@ export function StaffLiveChatWindow({
                 system
                   ? 'text-ink/55 text-center text-[11px]'
                   : mine
-                    ? 'bg-accent-700 text-bg ml-6 rounded-2xl rounded-br-md px-3 py-2 text-sm'
+                    ? 'bg-accent-700 text-on-accent ml-6 rounded-2xl rounded-br-md px-3 py-2 text-sm'
                     : 'bg-ink/5 text-ink mr-6 rounded-2xl rounded-bl-md px-3 py-2 text-sm'
               }
             >
@@ -270,7 +270,7 @@ export function StaffLiveChatWindow({
         <button
           type="submit"
           disabled={busy || !reply.trim()}
-          className="bg-accent-700 font-heading text-bg hover:bg-accent-600 rounded-full px-3 py-2 text-sm disabled:opacity-40"
+          className="bg-accent-700 font-heading text-on-accent hover:bg-accent-600 rounded-full px-3 py-2 text-sm disabled:opacity-40"
         >
           Send
         </button>

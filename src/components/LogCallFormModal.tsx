@@ -33,11 +33,22 @@ import {
   fetchContactActivityHistory,
   type ContactActivityItem,
 } from '@/lib/contactActivityHistory';
+import {
+  fetchLogCallSocialLinks,
+  formatTelHref,
+  normalizeExternalUrl,
+  type LogCallSocialLink,
+} from '@/lib/logCallStoreContext';
 import type { Prospect } from '@/lib/prospects';
 import { isStaffSellingUiBlocked } from '@/lib/retailerLineAccounts';
 import { formatLocalIsoDate } from '@/lib/reorderCadence';
 import { buildUsdToCadCallOrderValue } from '@/lib/calls';
 import { supabase } from '@/lib/supabase';
+
+export interface BriefingLogCallContext {
+  talkTrackHint: string | null;
+  lastProductName: string | null;
+}
 
 export interface LogCallFormModalProps {
   open: boolean;
@@ -45,6 +56,7 @@ export interface LogCallFormModalProps {
   prospects: Prospect[];
   storeId: number | null;
   catalog?: CatalogItem[];
+  briefingContext?: BriefingLogCallContext | null;
   onClose: () => void;
   onStoreChange: (id: number | null) => void;
   onSaved?: () => void;
@@ -104,6 +116,7 @@ export function LogCallFormModal({
   prospects,
   storeId,
   catalog,
+  briefingContext = null,
   onClose,
   onStoreChange,
   onSaved,
@@ -136,6 +149,7 @@ export function LogCallFormModal({
   const [syncedCategory, setSyncedCategory] = useState(selectedCategory);
   const [activityItems, setActivityItems] = useState<ContactActivityItem[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [socialLinks, setSocialLinks] = useState<LogCallSocialLink[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<SaveSuccessState | null>(null);
@@ -163,6 +177,17 @@ export function LogCallFormModal({
   );
 
   const modalCity = selected ? `${selected.city} (${selected.region})` : '';
+  const storePhone = selected?.phone?.trim() ?? '';
+  const storePhoneHref = formatTelHref(storePhone);
+  const storeWebsiteHref = normalizeExternalUrl(selected?.website ?? null);
+  const storeAddress = selected?.address?.trim() ?? '';
+  const accountNotes = selected?.notes?.trim() ?? '';
+  const selectedContact =
+    selectedContactId !== '' ? (contacts.find((c) => c.id === selectedContactId) ?? null) : null;
+  const contactPhone = selectedContact?.phone?.trim() ?? '';
+  const contactPhoneHref = formatTelHref(contactPhone);
+  const contactEmail = selectedContact?.email?.trim() ?? '';
+  const contactNotes = selectedContact?.notes?.trim() ?? '';
   const showLogForm = open && convertProspect == null;
   const showConvert = convertProspect != null;
   const isOgrCall = !line.lineSlug || line.lineSlug === 'ogr';
@@ -189,6 +214,7 @@ export function LogCallFormModal({
     setContactsReady(false);
     setActivityItems([]);
     setHistoryError(null);
+    setSocialLinks([]);
     setSelectedContactId('');
     setContactName('');
     setShowAddContact(false);
@@ -223,9 +249,10 @@ export function LogCallFormModal({
 
     let active = true;
     void (async () => {
-      const [contactsResult, historyResult] = await Promise.all([
+      const [contactsResult, historyResult, socialResult] = await Promise.all([
         fetchContactsForAccount(storeId),
         fetchContactActivityHistory({ prospectId: storeId, salesLineId: line.salesLineId }),
+        fetchLogCallSocialLinks(storeId),
       ]);
       if (!active) return;
       setContacts(contactsResult.data);
@@ -237,12 +264,26 @@ export function LogCallFormModal({
       }
       setActivityItems(historyResult.data);
       setHistoryError(historyResult.error);
+      setSocialLinks(socialResult.data);
     })();
 
     return () => {
       active = false;
     };
   }, [open, storeId, line.salesLineId, activityHistoryReloadToken]);
+
+  const briefingNotesKey =
+    open && storeId != null ? `${storeId}:${briefingContext?.talkTrackHint ?? ''}` : '';
+  const [appliedBriefingNotesKey, setAppliedBriefingNotesKey] = useState('');
+  // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
+  if (briefingNotesKey && briefingNotesKey !== appliedBriefingNotesKey) {
+    setAppliedBriefingNotesKey(briefingNotesKey);
+    const hint = briefingContext?.talkTrackHint?.trim();
+    if (hint) setNotes(hint);
+  }
+  if (!open && appliedBriefingNotesKey) {
+    setAppliedBriefingNotesKey('');
+  }
 
   function toggleFeedback(option: string) {
     setFeedback((prev) =>
@@ -478,6 +519,26 @@ export function LogCallFormModal({
               </button>
             </div>
 
+            {briefingContext && mode === 'prospect' ? (
+              <div
+                className="border-accent-200 bg-accent-50/40 text-ink/80 rounded-lg border px-3 py-2 text-sm"
+                data-testid="briefing-log-call-callout"
+              >
+                {briefingContext.talkTrackHint ? (
+                  <p className="m-0 mb-1.5">{briefingContext.talkTrackHint}</p>
+                ) : null}
+                {briefingContext.lastProductName?.trim() ? (
+                  <p className="text-ink/65 m-0 mb-1.5 text-xs">
+                    Last product: {briefingContext.lastProductName.trim()}
+                  </p>
+                ) : null}
+                <p className="text-ink/65 m-0 text-xs">
+                  Choose <strong>Closed PO / Written Order</strong> or{' '}
+                  <strong>Account Converted</strong> to convert in this session.
+                </p>
+              </div>
+            ) : null}
+
             <Field>
               <FieldLabel>{logCallStoreLabel(mode)}</FieldLabel>
               <Select
@@ -500,6 +561,96 @@ export function LogCallFormModal({
                 ))}
               </Select>
             </Field>
+
+            {selected ? (
+              <section
+                className="border-ink/10 bg-bg/50 gap-2 rounded-lg border px-3 py-2.5"
+                aria-label="Store info"
+                data-testid="log-call-store-info"
+              >
+                <h3 className="font-heading text-ink m-0 text-sm font-semibold">Store info</h3>
+                <dl className="m-0 flex flex-col gap-1.5 text-sm">
+                  <div>
+                    <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Phone</dt>
+                    <dd className="m-0 mt-0.5">
+                      {storePhoneHref ? (
+                        <a
+                          href={storePhoneHref}
+                          className="text-accent-700 font-medium underline"
+                          data-testid="log-call-store-phone"
+                        >
+                          {storePhone}
+                        </a>
+                      ) : (
+                        <span className="text-ink/55" data-testid="log-call-store-phone-empty">
+                          No store phone
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                  {storeWebsiteHref ? (
+                    <div>
+                      <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
+                        Website
+                      </dt>
+                      <dd className="m-0 mt-0.5">
+                        <a
+                          href={storeWebsiteHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent-700 break-all underline"
+                          data-testid="log-call-store-website"
+                        >
+                          {selected.website?.trim() || storeWebsiteHref}
+                        </a>
+                      </dd>
+                    </div>
+                  ) : null}
+                  {storeAddress ? (
+                    <div>
+                      <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
+                        Address
+                      </dt>
+                      <dd className="text-ink/80 m-0 mt-0.5">{storeAddress}</dd>
+                    </div>
+                  ) : null}
+                  {socialLinks.length > 0 ? (
+                    <div>
+                      <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
+                        Social
+                      </dt>
+                      <dd className="m-0 mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
+                        {socialLinks.map((link) => (
+                          <a
+                            key={link.sourceType}
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-accent-700 underline"
+                            data-testid={`log-call-social-${link.sourceType}`}
+                          >
+                            {link.label}
+                          </a>
+                        ))}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {accountNotes ? (
+                    <div>
+                      <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">
+                        Account notes
+                      </dt>
+                      <dd
+                        className="text-ink/80 m-0 mt-0.5 whitespace-pre-wrap"
+                        data-testid="log-call-account-notes"
+                      >
+                        {accountNotes}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              </section>
+            ) : null}
 
             {storeId != null ? (
               <section className="border-ink/10 gap-2 border-t pt-3" aria-label="Previous activity">
@@ -688,6 +839,49 @@ export function LogCallFormModal({
                 </Select>
               </Field>
             </div>
+
+            {selectedContact && (contactPhone || contactEmail || contactNotes) ? (
+              <div
+                className="border-ink/10 bg-bg/40 w-full rounded-md border px-2.5 py-2 text-sm"
+                data-testid="log-call-contact-dial"
+              >
+                {contactPhoneHref ? (
+                  <p className="m-0">
+                    <span className="text-ink/55 text-[11px] tracking-wider uppercase">
+                      Contact phone ·{' '}
+                    </span>
+                    <a
+                      href={contactPhoneHref}
+                      className="text-accent-700 font-medium underline"
+                      data-testid="log-call-contact-phone"
+                    >
+                      {contactPhone}
+                    </a>
+                  </p>
+                ) : contactPhone ? (
+                  <p className="text-ink/80 m-0">{contactPhone}</p>
+                ) : null}
+                {contactEmail ? (
+                  <p className="text-ink/80 m-0 mt-1">
+                    <a
+                      href={`mailto:${contactEmail}`}
+                      className="text-accent-700 underline"
+                      data-testid="log-call-contact-email"
+                    >
+                      {contactEmail}
+                    </a>
+                  </p>
+                ) : null}
+                {contactNotes ? (
+                  <p
+                    className="text-ink/80 m-0 mt-1 whitespace-pre-wrap"
+                    data-testid="log-call-contact-notes"
+                  >
+                    {contactNotes}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-2 gap-3">
               <Field>

@@ -23,8 +23,22 @@ export type AccountResearchSnapshotDto = {
 };
 
 export type LatestAccountResearchResult =
-  | { ok: true; outcome: 'none'; run: null }
+  | {
+      ok: true;
+      outcome: 'none';
+      run: null;
+      locksBySourceType: Record<string, AccountResearchSourceLock>;
+    }
   | ({ ok: true; outcome: 'found' } & AccountResearchSnapshotDto);
+
+export type LockAccountResearchResult =
+  | ({ ok: true } & AccountResearchSnapshotDto)
+  | {
+      ok: true;
+      run: null;
+      locksBySourceType: Record<string, AccountResearchSourceLock>;
+    }
+  | ApiFail;
 
 export type StartAccountResearchResult =
   | ({ ok: true; outcome: string } & AccountResearchSnapshotDto)
@@ -92,6 +106,11 @@ async function staffFetch(
   return { res, payload };
 }
 
+function parseLocksBySourceType(locksRaw: unknown): Record<string, AccountResearchSourceLock> {
+  if (!locksRaw || typeof locksRaw !== 'object' || Array.isArray(locksRaw)) return {};
+  return locksRaw as Record<string, AccountResearchSourceLock>;
+}
+
 function parseSnapshot(payload: Record<string, unknown>): AccountResearchSnapshotDto | null {
   const run = payload.run;
   const sources = payload.sources;
@@ -100,17 +119,12 @@ function parseSnapshot(payload: Record<string, unknown>): AccountResearchSnapsho
   if (!run || typeof run !== 'object' || !Array.isArray(sources)) return null;
   if (!citationsBySourceId || typeof citationsBySourceId !== 'object') return null;
   if (!sourceFreshness || typeof sourceFreshness !== 'object') return null;
-  const locksRaw = payload.locksBySourceType;
-  const locksBySourceType =
-    locksRaw && typeof locksRaw === 'object' && !Array.isArray(locksRaw)
-      ? (locksRaw as Record<string, AccountResearchSourceLock>)
-      : {};
   return {
     run: run as AccountResearchRun,
     sources: sources as AccountResearchSourceSearch[],
     citationsBySourceId: citationsBySourceId as Record<string, AccountResearchCitation[]>,
     sourceFreshness: sourceFreshness as Record<string, boolean>,
-    locksBySourceType,
+    locksBySourceType: parseLocksBySourceType(payload.locksBySourceType),
   };
 }
 
@@ -134,7 +148,12 @@ export async function fetchLatestAccountResearch(
   }
 
   if (payload.outcome === 'none' || payload.run == null) {
-    return { ok: true, outcome: 'none', run: null };
+    return {
+      ok: true,
+      outcome: 'none',
+      run: null,
+      locksBySourceType: parseLocksBySourceType(payload.locksBySourceType),
+    };
   }
 
   const snapshot = parseSnapshot(payload);
@@ -203,11 +222,68 @@ export async function processAccountResearchSource(
   };
 }
 
+export type VerifyYelpDirectoryMatchClientResult =
+  | ({
+      ok: true;
+      match: {
+        businessName: string;
+        confidence: string;
+        matchMethod: string;
+        score: number;
+        listingUrl: string;
+        categories: string[];
+      };
+      citationIds: string[];
+    } & AccountResearchSnapshotDto)
+  | ApiFail;
+
+export async function verifyYelpDirectoryMatch(
+  runId: string,
+): Promise<VerifyYelpDirectoryMatchClientResult> {
+  const result = await staffFetch(`/api/staff/account-research/${runId}/yelp-verify`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+  if (!('res' in result)) return result;
+
+  const { res, payload } = result;
+  if (!res.ok || payload.ok !== true) {
+    return {
+      ok: false,
+      error:
+        typeof payload.error === 'string' ? payload.error : `Yelp verify failed (${res.status})`,
+    };
+  }
+
+  const snapshot = parseSnapshot(payload);
+  if (!snapshot) return { ok: false, error: 'Invalid research snapshot' };
+
+  const matchPayload = payload.match;
+  if (!matchPayload || typeof matchPayload !== 'object') {
+    return { ok: false, error: 'Invalid Yelp match payload' };
+  }
+
+  const match = matchPayload as Record<string, unknown>;
+  return {
+    ok: true,
+    match: {
+      businessName: String(match.businessName ?? ''),
+      confidence: String(match.confidence ?? ''),
+      matchMethod: String(match.matchMethod ?? ''),
+      score: Number(match.score ?? 0),
+      listingUrl: String(match.listingUrl ?? ''),
+      categories: Array.isArray(match.categories) ? match.categories.map(String) : [],
+    },
+    citationIds: Array.isArray(payload.citationIds) ? payload.citationIds.map(String) : [],
+    ...snapshot,
+  };
+}
+
 export async function lockAccountResearchSource(input: {
   retailerId: number;
   sourceType: string;
   url: string;
-}): Promise<({ ok: true } & AccountResearchSnapshotDto) | ApiFail> {
+}): Promise<LockAccountResearchResult> {
   const result = await staffFetch('/api/staff/account-research/lock', {
     method: 'POST',
     body: JSON.stringify({
@@ -227,14 +303,18 @@ export async function lockAccountResearchSource(input: {
   }
 
   const snapshot = parseSnapshot(payload);
-  if (!snapshot) return { ok: false, error: 'Invalid research snapshot' };
-  return { ok: true, ...snapshot };
+  if (snapshot) return { ok: true, ...snapshot };
+  return {
+    ok: true,
+    run: null,
+    locksBySourceType: parseLocksBySourceType(payload.locksBySourceType),
+  };
 }
 
 export async function unlockAccountResearchSource(input: {
   retailerId: number;
   sourceType: string;
-}): Promise<({ ok: true } & AccountResearchSnapshotDto) | ApiFail> {
+}): Promise<LockAccountResearchResult> {
   const result = await staffFetch('/api/staff/account-research/lock', {
     method: 'POST',
     body: JSON.stringify({
@@ -254,8 +334,12 @@ export async function unlockAccountResearchSource(input: {
   }
 
   const snapshot = parseSnapshot(payload);
-  if (!snapshot) return { ok: false, error: 'Invalid research snapshot' };
-  return { ok: true, ...snapshot };
+  if (snapshot) return { ok: true, ...snapshot };
+  return {
+    ok: true,
+    run: null,
+    locksBySourceType: parseLocksBySourceType(payload.locksBySourceType),
+  };
 }
 
 export async function runAccountResearchUntilDone(

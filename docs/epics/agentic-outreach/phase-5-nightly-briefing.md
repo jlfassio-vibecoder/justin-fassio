@@ -69,26 +69,26 @@ Secure scheduled job (Vercel Cron → protected API, or equivalent on current ho
 
 ### Daily Agent Briefing contents
 
-| Block                        | Source                                                         |
-| ---------------------------- | -------------------------------------------------------------- |
-| Monthly account goal         | Phase 4                                                        |
-| Accounts opened MTD          | `converted_at`                                                 |
-| Projected attainment         | Phase 4                                                        |
-| Recommended outreach pace    | Phase 4                                                        |
-| Drafts ready today           | Agent-origin drafts in draft/queued for the day                |
-| Retail-channel allocation    | Phase 1/5 plan                                                 |
-| Hot / Call Today             | Phase 3                                                        |
-| Warm leads                   | Phase 3                                                        |
-| Recent meaningful engagement | Aggregates / recent clicks                                     |
-| Recent account conversions   | `converted_at` list                                            |
-| Learning slices (optional)   | Phase 4 — channel/product/fit-band/lead-state when data exists |
+| Block                      | Source                                                                     |
+| -------------------------- | -------------------------------------------------------------------------- |
+| Monthly account goal       | Phase 4                                                                    |
+| Accounts opened MTD        | `converted_at`                                                             |
+| Projected attainment       | Phase 4                                                                    |
+| Recommended outreach pace  | Phase 4                                                                    |
+| Drafts ready today         | Agent-origin drafts in draft/queued for the day                            |
+| Retail-channel allocation  | Phase 1/5 plan                                                             |
+| Top leads (quick view)     | Call today / Warm / Engaged — Phase 3 lists (Hot counted under Call today) |
+| Today’s follow-ups         | Ranked Call / Email / Watch worklist from Phase 3 + snooze                 |
+| Recent account conversions | `converted_at` list                                                        |
+| Learning slices (optional) | Phase 4 — channel/product/fit-band/lead-state when data exists             |
 
-**Navigation:** each row links to prospect/account, product drawer, and draft review/send.
+**Navigation:** Top leads Open (and Call/Email when the follow-ups queue recommends them); follow-ups rows drive Call / Email / Watch / Snooze; drafts open review/send.
 
 Briefing answers:
 
 - Who should I send to? → drafts ready (+ pace)
-- Who should I call? → Hot / Call Today / Warm
+- Who should I call? → Call today (Top leads) + Call rows in Today’s follow-ups
+- Who needs a nudge? → Warm / Engaged (Top leads) + Email / Watch in the follow-ups queue
 
 ### Autosend
 
@@ -185,7 +185,7 @@ Prefer first-class Briefing over burying solely in the AI chat modal.
 - [x] Secure nightly job prepares next-day drafts without sending
 - [x] Idempotent per selling day
 - [x] Failure/partial states visible to staff
-- [x] Daily Agent Briefing shows goal, pace, drafts, channels, Hot/Call Today, Warm, engagement, conversions
+- [x] Daily Agent Briefing shows goal, pace, drafts, channels, Top leads (Call today / Warm / Engaged), Today’s follow-ups, conversions
 - [x] Learning slices visible when performance data exists (measured vs provisional copy)
 - [x] Navigation from briefing to prospect/product/draft works
 - [x] Staff still sends via existing Product Email path only

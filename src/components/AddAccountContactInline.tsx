@@ -20,6 +20,7 @@ const emptyForm = {
   title: '',
   phone: '',
   email: '',
+  alternateEmail: '',
   isPrimary: false,
 };
 
@@ -70,6 +71,7 @@ export function AddAccountContactInline({
         title: form.title.trim() || null,
         phone: form.phone.trim() || null,
         email: form.email.trim() || null,
+        alternate_email: form.alternateEmail.trim() || null,
         notes: null,
         is_primary: isPrimary,
       },
@@ -109,6 +111,7 @@ export function AddAccountContactInline({
     const match = classifyAccountContactDuplicate(existingContacts, {
       fullName,
       email: form.email,
+      alternateEmail: form.alternateEmail,
     });
     if (match?.kind === 'email') {
       setDuplicate(match);
@@ -279,6 +282,16 @@ export function AddAccountContactInline({
             />
           </Field>
         </div>
+        <Field>
+          <FieldLabel>Alternate email</FieldLabel>
+          <Input
+            type="email"
+            aria-label="Alternate email"
+            value={form.alternateEmail}
+            onChange={(e) => setForm((f) => ({ ...f, alternateEmail: e.target.value }))}
+            disabled={busy}
+          />
+        </Field>
         <label className="text-ink inline-flex items-center gap-2 text-sm">
           <input
             type="checkbox"

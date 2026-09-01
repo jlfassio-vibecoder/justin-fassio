@@ -1,5 +1,6 @@
 import { useId, useMemo, useState, type SubmitEvent } from 'react';
 import { Button } from '@/components/ui/Button';
+import { CopyableUrl, CopyUrlButton } from '@/components/ui/CopyUrlButton';
 import { Field, FieldLabel, Input, Select } from '@/components/ui/Input';
 import { useOptionalLineContext } from '@/lib/lineContext';
 import {
@@ -9,6 +10,7 @@ import {
   suggestOperationalTerritoryForAccount,
   type OperationalTerritoryOption,
 } from '@/lib/operationalTerritories';
+import { formatAccountDetailsClipboard } from '@/lib/formatAccountDetailsClipboard';
 import type { Prospect } from '@/lib/prospects';
 import { fetchOperationalLineAccount } from '@/lib/retailerLineAccounts';
 import {
@@ -16,6 +18,7 @@ import {
   suggestTerritoryCodeFromRegion,
   type Territory,
 } from '@/lib/territories';
+import { regionSuggestionsForTerritory } from '@/lib/geoCatalog';
 import {
   draftFromProspect,
   shouldConfirmProtectedIdentityEdit,
@@ -23,21 +26,6 @@ import {
   validateAccountDetailsDraft,
   type AccountDetailsDraft,
 } from '@/lib/updateProspectAccountDetails';
-
-/** Common region labels for datalist suggestions — free text still allowed. */
-const ACCOUNT_DETAILS_REGION_OPTIONS = [
-  'Okanagan',
-  'Shuswap',
-  'Vancouver Island',
-  'Sea-to-Sky',
-  'Kootenays',
-  'Fraser Valley',
-  'Oregon',
-  'Washington',
-  'Alberta',
-  'British Columbia',
-  'California',
-] as const;
 
 type Props = {
   prospect: Prospect;
@@ -99,6 +87,11 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
       ? (storeTerritories.find((t) => t.id === draft.territoryId)?.code ??
         (draft.territoryId === prospect.territoryId ? prospect.territoryCode : null))
       : null;
+
+  const regionSuggestions = useMemo(
+    () => regionSuggestionsForTerritory(draftTerritoryCode ?? prospect.territoryCode),
+    [draftTerritoryCode, prospect.territoryCode],
+  );
 
   const suggestedCode = draft ? suggestTerritoryCodeFromRegion(draft.region) : null;
   const suggestedTerritory =
@@ -213,18 +206,31 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
   }
 
   if (!editing) {
+    const accountDetailsClipboard = formatAccountDetailsClipboard(prospect);
     return (
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-heading m-0 text-base">Account details</h3>
-          <Button type="button" variant="secondary" disabled={disabled} onClick={startEdit}>
-            Edit
-          </Button>
+          <div className="flex items-center gap-2">
+            <CopyUrlButton url={accountDetailsClipboard} label="Copy account details" />
+            <Button type="button" variant="secondary" disabled={disabled} onClick={startEdit}>
+              Edit
+            </Button>
+          </div>
         </div>
         <dl className="m-0 grid gap-3 text-sm">
           <div>
             <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Business name</dt>
-            <dd className="m-0 mt-0.5">{displayValue(prospect.name)}</dd>
+            <dd className="m-0 mt-0.5">
+              {prospect.name?.trim() ? (
+                <span className="inline-flex max-w-full items-start gap-1">
+                  <span className="min-w-0">{prospect.name}</span>
+                  <CopyUrlButton url={prospect.name} label="Copy name" className="mt-0.5" />
+                </span>
+              ) : (
+                '—'
+              )}
+            </dd>
           </div>
           <div>
             <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Store phone</dt>
@@ -232,7 +238,13 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
           </div>
           <div>
             <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Website</dt>
-            <dd className="m-0 mt-0.5">{displayValue(prospect.website)}</dd>
+            <dd className="m-0 mt-0.5">
+              {prospect.website?.trim() ? (
+                <CopyableUrl url={prospect.website} linkClassName="text-accent-800 text-sm" />
+              ) : (
+                '—'
+              )}
+            </dd>
           </div>
           <div>
             <dt className="text-ink/55 m-0 text-[11px] tracking-wider uppercase">Street address</dt>
@@ -347,7 +359,7 @@ export function AccountDetailsEditor({ prospect, onSaved, disabled = false }: Pr
           disabled={busy}
         />
         <datalist id={regionListId}>
-          {ACCOUNT_DETAILS_REGION_OPTIONS.map((opt) => (
+          {regionSuggestions.map((opt) => (
             <option key={opt} value={opt} />
           ))}
         </datalist>

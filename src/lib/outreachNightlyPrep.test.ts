@@ -54,12 +54,22 @@ function makeClient(overrides?: {
   existingRun?: Record<string, unknown> | null;
   insertError?: { message: string } | null;
   pendingMessageRows?: Array<Record<string, unknown>>;
+  prospectRows?: Array<{
+    id: number;
+    region: string | null;
+    city?: string | null;
+    category?: string | null;
+    account_status?: string;
+  }>;
+  rlaRows?: Array<{ retailer_id: number; relationship_status: string }>;
 }) {
   const existingRun = overrides?.existingRun ?? null;
   const runStore: { row: Record<string, unknown> | null } = {
     row: existingRun ? { ...existingRun } : null,
   };
   const pendingRows = overrides?.pendingMessageRows ?? [];
+  const prospectRows = overrides?.prospectRows ?? [];
+  const rlaRows = overrides?.rlaRows ?? [];
 
   const from = vi.fn((table: string) => {
     if (table === 'system_messages') {
@@ -73,17 +83,74 @@ function makeClient(overrides?: {
       return chain;
     }
 
+    if (table === 'prospects') {
+      const chain: Record<string, unknown> = {};
+      const self = () => chain;
+      chain.select = self;
+      chain.in = async () => ({
+        data: prospectRows.map((p) => ({
+          id: p.id,
+          region: p.region,
+          city: p.city ?? null,
+          category: p.category ?? null,
+          account_status: p.account_status ?? 'prospect',
+        })),
+        error: null,
+      });
+      return chain;
+    }
+
+    if (table === 'lines') {
+      const chain: Record<string, unknown> = {};
+      const self = () => chain;
+      chain.select = self;
+      chain.eq = self;
+      chain.maybeSingle = async () => ({ data: { id: 'line-ogr' }, error: null });
+      return chain;
+    }
+
+    if (table === 'retailer_line_accounts') {
+      const chain: Record<string, unknown> = {};
+      const self = () => chain;
+      chain.select = self;
+      chain.eq = self;
+      chain.in = async () => ({ data: rlaRows, error: null });
+      return chain;
+    }
+
     if (table !== 'outreach_automation_runs') {
       throw new Error(`unexpected table ${table}`);
     }
     return {
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            maybeSingle: async () => ({ data: runStore.row, error: null }),
-          }),
-        }),
-      }),
+      select: () => {
+        const filters: Record<string, unknown> = {};
+        const chain: Record<string, unknown> = {};
+        const self = () => chain;
+        chain.eq = (col: string, val: unknown) => {
+          filters[col] = val;
+          return chain;
+        };
+        chain.is = (col: string, val: unknown) => {
+          filters[col] = val;
+          return chain;
+        };
+        chain.order = self;
+        chain.limit = self;
+        chain.maybeSingle = async () => {
+          const row = runStore.row;
+          if (!row) return { data: null, error: null };
+          for (const [col, expected] of Object.entries(filters)) {
+            const actual = row[col];
+            if (expected === null) {
+              if (actual != null) return { data: null, error: null };
+            } else if (actual !== expected) {
+              return { data: null, error: null };
+            }
+          }
+          return { data: row, error: null };
+        };
+        return chain;
+      },
       insert: (row: Record<string, unknown>) => ({
         select: () => ({
           single: async () => {
@@ -93,7 +160,7 @@ function makeClient(overrides?: {
             const inserted = {
               id: 'run-1',
               run_date: row.run_date,
-              kind: 'nightly_prep',
+              kind: row.kind ?? 'nightly_prep',
               status: 'running',
               trigger: row.trigger,
               capacity: row.capacity ?? 0,
@@ -108,6 +175,10 @@ function makeClient(overrides?: {
               error: null,
               target_errors: [],
               reason: null,
+              operational_territory_id: row.operational_territory_id ?? null,
+              store_territory_code: row.store_territory_code ?? null,
+              crm_region: row.crm_region ?? null,
+              prep_city: row.prep_city ?? null,
               started_at: new Date().toISOString(),
               finished_at: null,
               triggered_by: row.triggered_by ?? null,
@@ -174,8 +245,28 @@ describe('runOutreachNightlyPrep', () => {
     selectOutreachTargetsMock.mockResolvedValue({
       ok: true,
       targets: [
-        { prospectId: 1, preparationDate: '2026-08-13' },
-        { prospectId: 2, preparationDate: '2026-08-13' },
+        {
+          prospectId: 1,
+          preparationDate: '2026-08-13',
+          prospectName: 'Store One',
+          toEmail: 'one@example.com',
+          catalogItemId: 'p-1',
+          productName: 'Hat',
+          productSku: 'SKU-1',
+          productSlug: 'hat',
+          primaryChannel: 'grocery',
+        },
+        {
+          prospectId: 2,
+          preparationDate: '2026-08-13',
+          prospectName: 'Store Two',
+          toEmail: 'two@example.com',
+          catalogItemId: 'p-2',
+          productName: 'Tee',
+          productSku: 'SKU-2',
+          productSlug: 'tee',
+          primaryChannel: 'golf_retail',
+        },
       ],
       excluded: [],
     });
@@ -202,6 +293,7 @@ describe('runOutreachNightlyPrep', () => {
     expect(generateOgrProductOutreachDraftsMock).toHaveBeenCalled();
     const genArg = generateOgrProductOutreachDraftsMock.mock.calls[0][1];
     expect(genArg.regenerate).toBe(false);
+    expect(genArg.copyMode).toBe('generic_stub');
     expect(genArg.automationRunId).toBe('run-1');
   });
 
@@ -446,5 +538,529 @@ describe('runOutreachNightlyPrep', () => {
     expect(result.run.reason).toBe('already_at_pace');
     expect(result.run.netCapacity).toBe(0);
     expect(selectOutreachTargetsMock).not.toHaveBeenCalled();
+  });
+
+  it('regional mode uses fixed limit, fit_score rank, and ops filters', async () => {
+    const client = makeClient();
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      limit: 25,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.run.kind).toBe('manual_regional_prep');
+    expect(result.run.capacity).toBe(25);
+    expect(selectOutreachTargetsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        capacity: 25,
+        operationalTerritoryId: 'ops-pnw-west',
+        storeTerritoryCode: 'or',
+        rankMode: 'fit_score',
+        skipChannelAllocation: true,
+        allowMissingEmail: true,
+      }),
+    );
+  });
+
+  it('regional mode nets capacity against open pending drafts', async () => {
+    const pendingMessageRows = Array.from({ length: 10 }, (_, i) => ({
+      id: `p${i}`,
+      prospect_id: i + 1,
+    }));
+    const client = makeClient({ pendingMessageRows });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      limit: 25,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.run.pendingBefore).toBe(10);
+    expect(result.run.netCapacity).toBe(15);
+    expect(selectOutreachTargetsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ capacity: 15 }),
+    );
+  });
+
+  it('regional mode skips selection when open batch is full', async () => {
+    const pendingMessageRows = Array.from({ length: 25 }, (_, i) => ({
+      id: `p${i}`,
+      prospect_id: i + 1,
+    }));
+    const client = makeClient({
+      pendingMessageRows,
+      prospectRows: Array.from({ length: 25 }, (_, i) => ({
+        id: i + 1,
+        region: 'Oregon Coast',
+      })),
+    });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      crmRegion: 'Oregon Coast',
+      limit: 25,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.run.reason).toBe('open_batch_full');
+    expect(result.run.netCapacity).toBe(0);
+    expect(result.run.pendingBefore).toBe(25);
+    expect(selectOutreachTargetsMock).not.toHaveBeenCalled();
+  });
+
+  it('regional empty_pool is retryable (not terminal noop)', async () => {
+    const client = makeClient({
+      existingRun: {
+        id: 'run-empty',
+        run_date: '2026-08-25',
+        kind: 'manual_regional_prep',
+        status: 'empty_pool',
+        trigger: 'manual',
+        capacity: 25,
+        pending_before: 0,
+        net_capacity: 25,
+        selected_count: 0,
+        produced_count: 0,
+        skipped_count: 0,
+        failed_count: 0,
+        shortfall: 25,
+        channel_allocation: {},
+        error: null,
+        target_errors: [],
+        reason: 'empty_pool',
+        operational_territory_id: 'ops-pnw-west',
+        store_territory_code: 'or',
+        started_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+        triggered_by: 'staff-1',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      limit: 25,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.noop).toBe(false);
+    expect(selectOutreachTargetsMock).toHaveBeenCalled();
+  });
+
+  it('regional prep for a driveable CRM region does not noop an all-regions run', async () => {
+    const client = makeClient({
+      existingRun: {
+        id: 'run-all-or',
+        run_date: '2026-08-25',
+        kind: 'manual_regional_prep',
+        status: 'succeeded',
+        trigger: 'manual',
+        capacity: 25,
+        pending_before: 0,
+        net_capacity: 25,
+        selected_count: 1,
+        produced_count: 1,
+        skipped_count: 0,
+        failed_count: 0,
+        shortfall: 24,
+        channel_allocation: {},
+        error: null,
+        target_errors: [],
+        reason: null,
+        operational_territory_id: 'ops-pnw-west',
+        store_territory_code: 'or',
+        crm_region: null,
+        prep_city: null,
+        started_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+        triggered_by: 'staff-1',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      crmRegion: 'Oregon Coast',
+      limit: 25,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.noop).toBe(false);
+    expect(selectOutreachTargetsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        crmRegion: 'Oregon Coast',
+      }),
+    );
+  });
+
+  it('regional prep for a city does not noop a same-region all-cities run', async () => {
+    const client = makeClient({
+      existingRun: {
+        id: 'run-coast-all-cities',
+        run_date: '2026-08-25',
+        kind: 'manual_regional_prep',
+        status: 'succeeded',
+        trigger: 'manual',
+        capacity: 25,
+        pending_before: 0,
+        net_capacity: 25,
+        selected_count: 1,
+        produced_count: 1,
+        skipped_count: 0,
+        failed_count: 0,
+        shortfall: 24,
+        channel_allocation: {},
+        error: null,
+        target_errors: [],
+        reason: null,
+        operational_territory_id: 'ops-pnw-west',
+        store_territory_code: 'or',
+        crm_region: 'Oregon Coast',
+        prep_city: null,
+        started_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+        triggered_by: 'staff-1',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      crmRegion: 'Oregon Coast',
+      city: 'Newport',
+      limit: 5,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.noop).toBe(false);
+    expect(selectOutreachTargetsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        crmRegion: 'Oregon Coast',
+        city: 'newport',
+        capacity: 5,
+      }),
+    );
+  });
+
+  it('passes accountAudience through to selectOutreachTargets', async () => {
+    const client = makeClient();
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      accountAudience: 'active_account',
+      limit: 25,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.run.kind).toBe('manual_regional_active_prep');
+    expect(selectOutreachTargetsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ accountAudience: 'active_account' }),
+    );
+  });
+
+  it('active audience prep does not noop on a Daily Briefing regional run', async () => {
+    const client = makeClient({
+      existingRun: {
+        id: 'run-daily-regional',
+        run_date: '2026-08-25',
+        kind: 'manual_regional_prep',
+        status: 'succeeded',
+        trigger: 'manual',
+        capacity: 25,
+        pending_before: 0,
+        net_capacity: 25,
+        selected_count: 10,
+        produced_count: 2,
+        skipped_count: 0,
+        failed_count: 0,
+        shortfall: 15,
+        channel_allocation: {},
+        error: null,
+        target_errors: [],
+        reason: null,
+        operational_territory_id: 'ops-pnw-west',
+        store_territory_code: 'or',
+        crm_region: null,
+        prep_city: null,
+        started_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+        triggered_by: 'staff-1',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      accountAudience: 'active_account',
+      limit: 25,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.noop).toBe(false);
+    expect(result.run.kind).toBe('manual_regional_active_prep');
+    expect(selectOutreachTargetsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ accountAudience: 'active_account' }),
+    );
+  });
+
+  it('active audience ignores prospect pending drafts for capacity', async () => {
+    const pendingMessageRows = Array.from({ length: 12 }, (_, i) => ({
+      id: `p${i}`,
+      prospect_id: i + 1,
+    }));
+    const client = makeClient({
+      pendingMessageRows,
+      prospectRows: Array.from({ length: 12 }, (_, i) => ({
+        id: i + 1,
+        region: 'Oregon Coast',
+        account_status: 'prospect',
+      })),
+    });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      crmRegion: 'Oregon Coast',
+      accountAudience: 'active_account',
+      limit: 8,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.run.pendingBefore).toBe(0);
+    expect(result.run.reason).not.toBe('open_batch_full');
+    expect(selectOutreachTargetsMock).toHaveBeenCalled();
+  });
+
+  it('active audience still open_batch_full when active pending drafts fill limit', async () => {
+    const pendingMessageRows = Array.from({ length: 8 }, (_, i) => ({
+      id: `a${i}`,
+      prospect_id: i + 1,
+    }));
+    const client = makeClient({
+      pendingMessageRows,
+      prospectRows: Array.from({ length: 8 }, (_, i) => ({
+        id: i + 1,
+        region: 'Oregon Coast',
+        account_status: 'active_account',
+      })),
+      rlaRows: Array.from({ length: 8 }, (_, i) => ({
+        retailer_id: i + 1,
+        relationship_status: 'opened',
+      })),
+    });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      crmRegion: 'Oregon Coast',
+      accountAudience: 'active_account',
+      limit: 8,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.run.reason).toBe('open_batch_full');
+    expect(result.run.pendingBefore).toBe(8);
+    expect(result.run.netCapacity).toBe(0);
+    expect(selectOutreachTargetsMock).not.toHaveBeenCalled();
+  });
+
+  it('daily regional prep still counts prospect pending drafts', async () => {
+    const pendingMessageRows = Array.from({ length: 25 }, (_, i) => ({
+      id: `p${i}`,
+      prospect_id: i + 1,
+    }));
+    const client = makeClient({
+      pendingMessageRows,
+      prospectRows: Array.from({ length: 25 }, (_, i) => ({
+        id: i + 1,
+        region: 'Oregon Coast',
+        account_status: 'prospect',
+      })),
+    });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      crmRegion: 'Oregon Coast',
+      limit: 25,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.run.reason).toBe('open_batch_full');
+    expect(result.run.pendingBefore).toBe(25);
+    expect(selectOutreachTargetsMock).not.toHaveBeenCalled();
+  });
+
+  it('open_batch_full preserves prior identifiedTargets on the run', async () => {
+    const priorTargets = [
+      {
+        prospectId: 99,
+        prospectName: 'Needs Email Co',
+        catalogItemId: 'c1',
+        productName: 'Hat',
+        productSku: 'SKU',
+        productSlug: 'hat',
+        primaryChannel: 'golf',
+        needsEmail: true,
+        hasUsableEmail: false,
+        sharedEmailStoreNames: [],
+      },
+    ];
+    const pendingMessageRows = Array.from({ length: 25 }, (_, i) => ({
+      id: `p${i}`,
+      prospect_id: i + 1,
+    }));
+    const client = makeClient({
+      existingRun: {
+        id: 'run-retry',
+        run_date: '2026-08-25',
+        kind: 'manual_regional_active_prep',
+        status: 'failed',
+        trigger: 'manual',
+        capacity: 25,
+        pending_before: 0,
+        net_capacity: 25,
+        selected_count: 1,
+        produced_count: 0,
+        skipped_count: 0,
+        failed_count: 1,
+        shortfall: 24,
+        channel_allocation: { identifiedTargets: priorTargets },
+        error: 'prior failure',
+        target_errors: [],
+        reason: null,
+        operational_territory_id: 'ops-pnw-west',
+        store_territory_code: 'or',
+        crm_region: 'Oregon Coast',
+        prep_city: null,
+        started_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+        triggered_by: 'staff-1',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      pendingMessageRows,
+      prospectRows: Array.from({ length: 25 }, (_, i) => ({
+        id: i + 1,
+        region: 'Oregon Coast',
+        account_status: 'active_account',
+      })),
+      rlaRows: Array.from({ length: 25 }, (_, i) => ({
+        retailer_id: i + 1,
+        relationship_status: 'opened',
+      })),
+    });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      crmRegion: 'Oregon Coast',
+      accountAudience: 'active_account',
+      limit: 25,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.run.reason).toBe('open_batch_full');
+    expect(result.run.channelAllocation).toEqual(
+      expect.objectContaining({ identifiedTargets: priorTargets }),
+    );
+  });
+
+  it('regional open_batch_full is retryable after capacity frees up', async () => {
+    const client = makeClient({
+      existingRun: {
+        id: 'run-open-batch',
+        run_date: '2026-08-25',
+        kind: 'manual_regional_active_prep',
+        status: 'succeeded',
+        trigger: 'manual',
+        capacity: 8,
+        pending_before: 12,
+        net_capacity: 0,
+        selected_count: 0,
+        produced_count: 0,
+        skipped_count: 0,
+        failed_count: 0,
+        shortfall: 0,
+        channel_allocation: {},
+        error: null,
+        target_errors: [],
+        reason: 'open_batch_full',
+        operational_territory_id: 'ops-pnw-west',
+        store_territory_code: 'or',
+        crm_region: null,
+        prep_city: null,
+        started_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+        triggered_by: 'staff-1',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      pendingMessageRows: Array.from({ length: 12 }, (_, i) => ({
+        id: `p${i}`,
+        prospect_id: i + 1,
+      })),
+      prospectRows: Array.from({ length: 12 }, (_, i) => ({
+        id: i + 1,
+        region: null,
+        account_status: 'prospect',
+      })),
+    });
+    const result = await runOutreachNightlyPrep({
+      client: client as never,
+      trigger: 'manual',
+      preparationDate: '2026-08-25',
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      accountAudience: 'active_account',
+      limit: 8,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.noop).toBe(false);
+    expect(selectOutreachTargetsMock).toHaveBeenCalled();
   });
 });

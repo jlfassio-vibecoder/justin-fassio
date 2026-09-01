@@ -67,6 +67,9 @@ describe('suggestionFields', () => {
     expect(citationMatchesFieldPlatforms('shopify', 'website')).toBe(true);
     expect(citationMatchesFieldPlatforms('instagram', 'website')).toBe(false);
     expect(citationMatchesFieldPlatforms('instagram', 'lifestyle_themes')).toBe(true);
+    expect(citationMatchesFieldPlatforms('directory', 'phone')).toBe(true);
+    expect(citationMatchesFieldPlatforms('directory', 'address')).toBe(true);
+    expect(citationMatchesFieldPlatforms('directory', 'website')).toBe(false);
   });
 
   it('blocks non-blank identity fields when blank-only', () => {

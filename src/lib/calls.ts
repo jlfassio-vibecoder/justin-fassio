@@ -129,20 +129,89 @@ export async function fetchCalls(limitOrOptions: number | FetchCallsOptions = 50
   return { data: (data ?? []) as CallRow[], error: null };
 }
 
+export type ProspectFollowUpContext = {
+  followUpDate: string;
+  overdueDays: number;
+};
+
+function dateDiffDays(fromYmd: string, toYmd: string): number {
+  const fromMs = Date.parse(`${fromYmd}T12:00:00.000Z`);
+  const toMs = Date.parse(`${toYmd}T12:00:00.000Z`);
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) return 0;
+  return Math.max(0, Math.round((toMs - fromMs) / (24 * 60 * 60 * 1000)));
+}
+
 /**
- * Thin Phase 3 helper: prospects with calls.follow_up_date <= today (Vancouver).
- * Does not change CALL_SELECT / Dashboard fetch shape. Read-only; no log-call UI.
+ * Latest call per prospect: due only when that call has follow_up_date <= today (Vancouver).
+ * When prospectIds are omitted, first narrows to prospects that have any due follow-up row,
+ * then loads latest calls only for those ids (avoids a full calls table ordered scan).
  */
-export async function fetchDueCallFollowUps(
+export async function fetchProspectFollowUpContext(
   client: Client,
   options?: { asOf?: Date; prospectIds?: number[] },
-): Promise<Set<number>> {
+): Promise<Map<number, ProspectFollowUpContext>> {
   const today = formatOutreachPreparationDate(options?.asOf ?? new Date(), AGENT_OUTREACH_PREP_TZ);
-  let query = client
-    .from('calls')
-    .select('prospect_id, follow_up_date')
-    .not('follow_up_date', 'is', null)
-    .lte('follow_up_date', today);
+
+  let prospectIds = options?.prospectIds?.filter(
+    (id) => typeof id === 'number' && Number.isFinite(id),
+  );
+
+  if (!prospectIds || prospectIds.length === 0) {
+    const { data: dueRows, error: dueError } = await client
+      .from('calls')
+      .select('prospect_id')
+      .not('follow_up_date', 'is', null)
+      .lte('follow_up_date', today);
+    if (dueError) throw new Error(dueError.message);
+
+    const idSet = new Set<number>();
+    for (const row of dueRows ?? []) {
+      if (typeof row.prospect_id === 'number' && Number.isFinite(row.prospect_id)) {
+        idSet.add(row.prospect_id);
+      }
+    }
+    prospectIds = [...idSet];
+    if (prospectIds.length === 0) return new Map();
+  }
+
+  const latestByProspect = new Map<number, string | null>();
+  const chunkSize = 200;
+  for (let i = 0; i < prospectIds.length; i += chunkSize) {
+    const chunk = prospectIds.slice(i, i + chunkSize);
+    const { data, error } = await client
+      .from('calls')
+      .select('prospect_id, follow_up_date, call_date, created_at')
+      .in('prospect_id', chunk)
+      .order('call_date', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+
+    for (const row of data ?? []) {
+      if (typeof row.prospect_id !== 'number' || !Number.isFinite(row.prospect_id)) continue;
+      if (!latestByProspect.has(row.prospect_id)) {
+        latestByProspect.set(row.prospect_id, row.follow_up_date ?? null);
+      }
+    }
+  }
+
+  const result = new Map<number, ProspectFollowUpContext>();
+  for (const [prospectId, followUpDate] of latestByProspect) {
+    if (!followUpDate || followUpDate > today) continue;
+    result.set(prospectId, {
+      followUpDate,
+      overdueDays: dateDiffDays(followUpDate, today),
+    });
+  }
+  return result;
+}
+
+/** Prospects logged today (Vancouver call_date) with latest call created_at per prospect. */
+export async function loadProspectsCalledToday(
+  client: Client,
+  options?: { asOf?: Date; prospectIds?: number[] },
+): Promise<Map<number, string>> {
+  const today = formatOutreachPreparationDate(options?.asOf ?? new Date(), AGENT_OUTREACH_PREP_TZ);
+  let query = client.from('calls').select('prospect_id, created_at').eq('call_date', today);
 
   if (options?.prospectIds && options.prospectIds.length > 0) {
     query = query.in('prospect_id', options.prospectIds);
@@ -151,11 +220,24 @@ export async function fetchDueCallFollowUps(
   const { data, error } = await query;
   if (error) throw new Error(error.message);
 
-  const due = new Set<number>();
+  const result = new Map<number, string>();
   for (const row of data ?? []) {
-    if (typeof row.prospect_id === 'number' && Number.isFinite(row.prospect_id)) {
-      due.add(row.prospect_id);
+    if (typeof row.prospect_id !== 'number' || !row.created_at) continue;
+    const prev = result.get(row.prospect_id);
+    if (!prev || row.created_at > prev) {
+      result.set(row.prospect_id, row.created_at);
     }
   }
-  return due;
+  return result;
+}
+
+/**
+ * Thin Phase 3 helper: prospects with latest-call follow_up_date <= today (Vancouver).
+ */
+export async function fetchDueCallFollowUps(
+  client: Client,
+  options?: { asOf?: Date; prospectIds?: number[] },
+): Promise<Set<number>> {
+  const ctx = await fetchProspectFollowUpContext(client, options);
+  return new Set(ctx.keys());
 }

@@ -1,40 +1,101 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardList, RefreshCw } from 'lucide-react';
+import { AccountDetailDrawer } from '@/components/AccountDetailDrawer';
 import {
   OgrProductEmailComposerModal,
   type OgrProductEmailComposerDraft,
 } from '@/components/OgrProductEmailComposerModal';
+import { ProspectDetailDrawer } from '@/components/ProspectDetailDrawer';
 import { Button } from '@/components/ui/Button';
 import { Card, CardKicker, CardMeta, CardTitle } from '@/components/ui/Card';
-import { getAgentProductOutreachDraftClient } from '@/lib/agentProductOutreachDraftClient';
+import { Input, Select } from '@/components/ui/Input';
+import {
+  getAgentProductOutreachDraftClient,
+  createFollowUpDraftClient,
+  cancelAgentProductOutreachDraftClient,
+  composerDraftFromAgentDto,
+} from '@/lib/agentProductOutreachDraftClient';
 import type { CatalogItem } from '@/lib/catalog';
 import { buildCatalogItemEmailCardHtml } from '@/lib/catalogItemEmailCardHtml';
 import { useOptionalLineContext } from '@/lib/lineContext';
-import type { OutreachBriefingDto } from '@/lib/outreachBriefing';
+import {
+  formatFollowUpRelativeTime,
+  formatRegionalPoolMessage,
+  regionalPrepAvailableCount,
+  TOP_LEADS_QUICK_VIEW_VISIBLE,
+  type OutreachBriefingDto,
+  type OutreachFollowUpRow,
+} from '@/lib/outreachBriefingShared';
 import type { OutreachLeadRow } from '@/lib/outreachLeadLists';
+import { FOLLOW_UP_QUEUE_VISIBLE } from '@/lib/outreachFollowUpQueue';
+import type { Prospect } from '@/lib/prospects';
+import { Tag } from '@/components/ui/Tag';
+import {
+  fetchOperationalTerritories,
+  type OperationalTerritoryOption,
+} from '@/lib/operationalTerritories/fetchOperationalTerritories';
+import { OGR_OPERATIONAL_TERRITORY_CODES } from '@/lib/operationalTerritories/resolve';
+import {
+  opsCodeForBriefingRegion,
+  prospectMatchesCrmRegion,
+  regionOptionsForTerritory,
+} from '@/lib/geoCatalog';
+import { CHANNEL_OPTIONS } from '@/lib/directoryOptions';
+import { primaryRetailChannelLabel } from '@/lib/crmRetailTaxonomy';
 import { supabase } from '@/lib/supabase';
 
 const ICON_STROKE = 2.75;
+const OGR_OPS_SET = new Set<string>(OGR_OPERATIONAL_TERRITORY_CODES);
+/** Keep in sync with OUTREACH_REGIONAL_PREP_* in outreachNightlyPrep. */
+const REGIONAL_PREP_DEFAULT_LIMIT = 25;
+const REGIONAL_PREP_MAX_LIMIT = 50;
+const OGR_BRIEFING_TERRITORIES = [
+  { code: 'or' as const, label: 'Oregon' },
+  { code: 'wa' as const, label: 'Washington' },
+];
+
+function clampPrepLimit(value: number): number {
+  if (!Number.isFinite(value)) return REGIONAL_PREP_DEFAULT_LIMIT;
+  return Math.min(REGIONAL_PREP_MAX_LIMIT, Math.max(1, Math.floor(value)));
+}
 
 type DraftReviewTarget = {
   draftId: string;
   catalogItemId: string;
   productName: string;
+  prospectName?: string;
+};
+
+type BriefingLogCallContext = {
+  talkTrackHint: string | null;
+  lastProductName: string | null;
 };
 
 type AgentBriefingTabProps = {
   catalog: CatalogItem[];
+  prospects: Prospect[];
   deepLinkSku?: string | null;
   deepLinkDraftId?: string | null;
   onDeepLinkConsumed?: () => void;
   onProductEmailSent?: () => void;
-  onLogCallForLead: (prospectId: number) => void;
+  onLogCallForLead: (
+    prospectId: number,
+    context?: BriefingLogCallContext,
+  ) => void | boolean | Promise<void | boolean>;
   briefingReloadToken?: number;
-  onOpenProspect: (args: {
-    prospectId: number;
-    accountStatus?: string;
-    openResearch?: boolean;
-  }) => void;
+  onLogCall: (prospect: Prospect) => void;
+  onNotesSaved?: (id: number, notes: string | null) => void;
+  onProspectUpdated?: (prospect: Prospect) => void;
+  /** Active Accounts embed: silo queues + prep to opened accounts. */
+  audience?: 'active_account';
+  /** Compact header when mounted above the Active Accounts directory. */
+  embedded?: boolean;
+};
+
+type OpenBriefingStoreArgs = {
+  prospectId: number;
+  accountStatus?: string;
+  openResearch?: boolean;
 };
 
 async function staffGet(
@@ -91,37 +152,354 @@ async function staffPost(
   return { ok: true, data: payload };
 }
 
-function LeadList({
-  title,
-  rows,
-  onOpen,
+function followUpActionLabel(action: OutreachFollowUpRow['recommendedAction']): string {
+  if (action === 'call') return 'Call';
+  if (action === 'email') return 'Email';
+  return 'Watch';
+}
+
+function callTodayReasonChip(reasons: OutreachLeadRow['callTodayReasons']): string | null {
+  if (reasons.includes('on_site')) return 'On site';
+  if (reasons.includes('attributed_reply')) return 'Replied';
+  if (reasons.includes('hot_intent')) return 'Hot';
+  if (reasons.includes('follow_up_overdue')) return 'Overdue';
+  if (reasons.includes('follow_up_due_today')) return 'Due today';
+  return null;
+}
+
+function accountKindTag(accountStatus?: string | null) {
+  const isActive = accountStatus === 'active_account';
+  return (
+    <Tag
+      variant={isActive ? 'accent' : 'neutral'}
+      aria-label={isActive ? 'Active Account' : 'Prospect'}
+    >
+      {isActive ? 'Ac' : 'Pr'}
+    </Tag>
+  );
+}
+
+function TopLeadsQuickView({
+  callToday,
+  hotCount,
+  warm,
+  recentEngagement,
+  followUpsById,
+  emailBusyId,
+  onOpenProspect,
+  onFollowUpAction,
 }: {
-  title: string;
-  rows: OutreachLeadRow[];
-  onOpen: (row: OutreachLeadRow) => void;
+  callToday: OutreachLeadRow[];
+  hotCount: number;
+  warm: OutreachLeadRow[];
+  recentEngagement: OutreachBriefingDto['recentEngagement'];
+  followUpsById: ReadonlyMap<number, OutreachFollowUpRow>;
+  emailBusyId: number | null;
+  onOpenProspect: (args: OpenBriefingStoreArgs) => void;
+  onFollowUpAction: (row: OutreachFollowUpRow) => void;
 }) {
+  const callRows = callToday.slice(0, TOP_LEADS_QUICK_VIEW_VISIBLE);
+  const warmRows = warm.filter((row) => !row.callToday).slice(0, TOP_LEADS_QUICK_VIEW_VISIBLE);
+  const engagedRows = recentEngagement.slice(0, TOP_LEADS_QUICK_VIEW_VISIBLE);
+
+  function engagementCountTags(openCount: number, clickCount: number) {
+    return (
+      <>
+        {clickCount > 0 ? (
+          <Tag variant="outline">
+            {clickCount} click{clickCount === 1 ? '' : 's'}
+          </Tag>
+        ) : null}
+        {openCount > 0 ? (
+          <Tag variant="neutral">
+            {openCount} open{openCount === 1 ? '' : 's'}
+          </Tag>
+        ) : null}
+      </>
+    );
+  }
+
+  function renderLeadActions(prospectId: number, prospectName: string, accountStatus?: string) {
+    const queueRow = followUpsById.get(prospectId);
+    const busy = emailBusyId === prospectId;
+    return (
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        {queueRow && queueRow.recommendedAction !== 'watch' ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="px-3 py-1 text-xs"
+            disabled={busy}
+            aria-label={
+              busy
+                ? `Preparing follow-up for ${prospectName}`
+                : `${followUpActionLabel(queueRow.recommendedAction)} ${prospectName}`
+            }
+            onClick={() => onFollowUpAction(queueRow)}
+          >
+            {busy ? 'Preparing…' : followUpActionLabel(queueRow.recommendedAction)}
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          variant="ghost"
+          className="px-2 py-0.5 text-[11px]"
+          aria-label={`Open ${prospectName}`}
+          onClick={() => onOpenProspect({ prospectId, accountStatus })}
+        >
+          Open
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Card data-testid="top-leads-quick-view">
+      <CardTitle className="text-[15px]">Top leads</CardTitle>
+      <CardMeta className="mb-3">Quick view · work the queue below for today’s actions</CardMeta>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+        <div>
+          <p className="text-ink/50 m-0 mb-2 text-xs uppercase">
+            Call today
+            {hotCount > 0 ? (
+              <span className="text-ink/40 normal-case"> · {hotCount} hot</span>
+            ) : null}
+          </p>
+          {callRows.length === 0 ? (
+            <p className="text-ink/50 m-0 text-sm">None</p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {callRows.map((row) => {
+                const reason = callTodayReasonChip(row.callTodayReasons);
+                const ago = formatFollowUpRelativeTime(
+                  row.sitePresence?.lastSeenAt ?? row.engagement.lastEngagementAt,
+                );
+                return (
+                  <li
+                    key={row.prospectId}
+                    className="flex items-start justify-between gap-2"
+                    data-testid={`top-lead-call-${row.prospectId}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-sm font-medium">{row.prospectName}</span>
+                        {accountKindTag(row.accountStatus)}
+                        {reason ? <Tag variant="accent">{reason}</Tag> : null}
+                        {row.sitePresence?.active ? <Tag variant="accent">Active</Tag> : null}
+                        {engagementCountTags(row.engagement.openCount, row.engagement.clickCount)}
+                        {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
+                      </div>
+                    </div>
+                    {renderLeadActions(row.prospectId, row.prospectName, row.accountStatus)}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div>
+          <p className="text-ink/50 m-0 mb-2 text-xs uppercase">Warm</p>
+          {warmRows.length === 0 ? (
+            <p className="text-ink/50 m-0 text-sm">None</p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {warmRows.map((row) => {
+                const ago = formatFollowUpRelativeTime(row.engagement.lastEngagementAt);
+                return (
+                  <li
+                    key={row.prospectId}
+                    className="flex items-start justify-between gap-2"
+                    data-testid={`top-lead-warm-${row.prospectId}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-sm font-medium">{row.prospectName}</span>
+                        {accountKindTag(row.accountStatus)}
+                        <Tag variant="outline">Warm</Tag>
+                        {engagementCountTags(row.engagement.openCount, row.engagement.clickCount)}
+                        {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
+                      </div>
+                    </div>
+                    {renderLeadActions(row.prospectId, row.prospectName, row.accountStatus)}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div>
+          <p className="text-ink/50 m-0 mb-2 text-xs uppercase">Engaged</p>
+          {engagedRows.length === 0 ? (
+            <p className="text-ink/50 m-0 text-sm">None</p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {engagedRows.map((row) => {
+                const ago = formatFollowUpRelativeTime(row.lastEngagedAt);
+                return (
+                  <li
+                    key={row.prospectId}
+                    className="flex items-start justify-between gap-2"
+                    data-testid={`top-lead-engaged-${row.prospectId}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-sm font-medium">{row.prospectName}</span>
+                        {accountKindTag(row.accountStatus)}
+                        {engagementCountTags(row.openCount, row.clickCount)}
+                        {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
+                      </div>
+                    </div>
+                    {renderLeadActions(row.prospectId, row.prospectName, row.accountStatus)}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function FollowUpQueue({
+  rows,
+  emailBusyId,
+  snoozeBusyId,
+  onAction,
+  onLogCall,
+  onSnooze,
+}: {
+  rows: OutreachFollowUpRow[];
+  emailBusyId: number | null;
+  snoozeBusyId: number | null;
+  onAction: (row: OutreachFollowUpRow) => void;
+  onLogCall: (row: OutreachFollowUpRow) => void;
+  onSnooze: (row: OutreachFollowUpRow) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const query = search.trim().toLowerCase();
+  const filteredRows = useMemo(() => {
+    if (!query) return rows;
+    return rows.filter((row) => {
+      const haystack = [
+        row.prospectName,
+        row.reasonLine,
+        row.talkTrackHint ?? '',
+        row.lastProductName ?? '',
+        row.leadState,
+        row.recommendedAction,
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [query, rows]);
+
   return (
     <Card>
-      <CardTitle className="text-[15px]">{title}</CardTitle>
-      <CardMeta className="mb-2">
-        {rows.length} lead{rows.length === 1 ? '' : 's'}
-      </CardMeta>
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <CardTitle className="text-[15px]">Today’s follow-ups</CardTitle>
+          <CardMeta className="mb-0">
+            {rows.length} emailed (90d) · opens first · Call, email, watch, log call, or snooze
+            {query ? ` · ${filteredRows.length} match${filteredRows.length === 1 ? '' : 'es'}` : ''}
+          </CardMeta>
+        </div>
+        <label className="sr-only" htmlFor="briefing-follow-up-search">
+          Search today’s follow-ups
+        </label>
+        <Input
+          id="briefing-follow-up-search"
+          type="search"
+          className="w-full max-w-xs text-sm"
+          placeholder="Search follow-ups…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search today’s follow-ups"
+        />
+      </div>
       {rows.length === 0 ? (
         <p className="text-ink/50 m-0 text-sm">None right now.</p>
+      ) : filteredRows.length === 0 ? (
+        <p className="text-ink/50 m-0 text-sm">No follow-ups match “{search.trim()}”.</p>
       ) : (
-        <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
-          {rows.slice(0, 12).map((row) => (
-            <li key={row.prospectId}>
-              <button
-                type="button"
-                className="text-accent-800 hover:bg-accent-50 w-full rounded-md px-2 py-1.5 text-left text-sm"
-                onClick={() => onOpen(row)}
+        <ul
+          className="m-0 flex list-none flex-col gap-2 overflow-y-auto p-0"
+          style={{
+            maxHeight: `calc(${FOLLOW_UP_QUEUE_VISIBLE} * 3.25rem + ${FOLLOW_UP_QUEUE_VISIBLE - 1} * 0.5rem)`,
+          }}
+        >
+          {filteredRows.map((row) => {
+            const ago = formatFollowUpRelativeTime(row.lastEngagedAt);
+            const stateLabel =
+              row.leadState === 'hot' ? 'Hot' : row.leadState === 'warm' ? 'Warm' : 'Cold';
+            const stateVariant =
+              row.leadState === 'hot' ? 'accent' : row.leadState === 'warm' ? 'outline' : 'neutral';
+            const rowBusy = emailBusyId === row.prospectId || snoozeBusyId === row.prospectId;
+            return (
+              <li
+                key={row.prospectId}
+                className="flex items-start justify-between gap-3"
+                data-testid={`follow-up-row-${row.prospectId}`}
               >
-                <span className="font-medium">{row.prospectName}</span>
-                <span className="text-ink/50 ml-2 text-xs uppercase">{row.leadState}</span>
-              </button>
-            </li>
-          ))}
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{row.prospectName}</span>
+                    {accountKindTag(row.accountStatus)}
+                    <Tag variant={stateVariant}>{stateLabel}</Tag>
+                    {row.followUpOverdueDays != null && row.followUpOverdueDays > 0 ? (
+                      <Tag variant="outline">Overdue</Tag>
+                    ) : null}
+                    {ago ? <span className="text-ink/45 text-xs">{ago}</span> : null}
+                  </div>
+                  <p className="text-ink/55 m-0 mt-0.5 text-xs">{row.reasonLine}</p>
+                  {row.talkTrackHint ? (
+                    <p className="text-ink/45 m-0 mt-0.5 text-xs italic">{row.talkTrackHint}</p>
+                  ) : null}
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <Button
+                    type="button"
+                    variant={row.recommendedAction === 'watch' ? 'ghost' : 'secondary'}
+                    className="px-3 py-1 text-xs"
+                    disabled={rowBusy}
+                    aria-label={
+                      emailBusyId === row.prospectId
+                        ? `Preparing follow-up for ${row.prospectName}`
+                        : `${followUpActionLabel(row.recommendedAction)} ${row.prospectName}`
+                    }
+                    onClick={() => onAction(row)}
+                  >
+                    {emailBusyId === row.prospectId
+                      ? 'Preparing…'
+                      : followUpActionLabel(row.recommendedAction)}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="text-ink/50 px-2 py-0.5 text-[11px]"
+                    disabled={rowBusy}
+                    aria-label={`Log Call ${row.prospectName}`}
+                    onClick={() => onLogCall(row)}
+                  >
+                    Log Call
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="text-ink/50 px-2 py-0.5 text-[11px]"
+                    disabled={rowBusy}
+                    aria-label={`Snooze ${row.prospectName} until tomorrow`}
+                    onClick={() => onSnooze(row)}
+                  >
+                    {snoozeBusyId === row.prospectId ? 'Snoozing…' : 'Snooze'}
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Card>
@@ -130,15 +508,21 @@ function LeadList({
 
 export function AgentBriefingTab({
   catalog,
+  prospects,
   deepLinkSku = null,
   deepLinkDraftId = null,
   onDeepLinkConsumed,
   onProductEmailSent,
   onLogCallForLead,
   briefingReloadToken = 0,
-  onOpenProspect,
+  onLogCall,
+  onNotesSaved,
+  onProspectUpdated,
+  audience,
+  embedded = false,
 }: AgentBriefingTabProps) {
   const lineCtx = useOptionalLineContext();
+  const isOgrLine = !lineCtx.multiLineUi || lineCtx.lineSlug === 'ogr' || lineCtx.lineSlug == null;
   const [briefing, setBriefing] = useState<OutreachBriefingDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -149,13 +533,72 @@ export function AgentBriefingTab({
   const [composerProduct, setComposerProduct] = useState<CatalogItem | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
+  const [emailBusyId, setEmailBusyId] = useState<number | null>(null);
+  const [snoozeBusyId, setSnoozeBusyId] = useState<number | null>(null);
+  const [rowRunPrepBusyKey, setRowRunPrepBusyKey] = useState<string | null>(null);
+  const [rowRunPrepMessage, setRowRunPrepMessage] = useState<string | null>(null);
+  const [rowDismissBusyId, setRowDismissBusyId] = useState<number | null>(null);
+  const [draftDismissBusyId, setDraftDismissBusyId] = useState<string | null>(null);
+  const [draftDismissMessage, setDraftDismissMessage] = useState<string | null>(null);
   const [appliedDeepLinkKey, setAppliedDeepLinkKey] = useState('');
+  const [opsOptions, setOpsOptions] = useState<OperationalTerritoryOption[]>([]);
+  const [storeTerritoryCode, setStoreTerritoryCode] = useState<'or' | 'wa'>('or');
+  const [briefingRegion, setBriefingRegion] = useState('ALL');
+  const [briefingCity, setBriefingCity] = useState('ALL');
+  const [briefingChannel, setBriefingChannel] = useState('ALL');
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const [prepLimit, setPrepLimit] = useState(REGIONAL_PREP_DEFAULT_LIMIT);
+  const [detailStore, setDetailStore] = useState<Prospect | null>(null);
+  const [openResearchForId, setOpenResearchForId] = useState<number | null>(null);
+  const [drawerError, setDrawerError] = useState<string | null>(null);
 
   const pendingSku = deepLinkSku?.trim() || null;
   const pendingDraftId = deepLinkDraftId?.trim() || null;
   const pendingDeepLinkKey = `${pendingSku ?? ''}:${pendingDraftId ?? ''}`;
 
   const catalogById = useMemo(() => new Map(catalog.map((item) => [item.id, item])), [catalog]);
+  const prospectsById = useMemo(() => {
+    const map = new Map<number, Prospect>();
+    for (const p of prospects) map.set(p.id, p);
+    return map;
+  }, [prospects]);
+  const followUpsById = useMemo(() => {
+    const map = new Map<number, OutreachFollowUpRow>();
+    for (const row of briefing?.followUps ?? []) {
+      map.set(row.prospectId, row);
+    }
+    return map;
+  }, [briefing?.followUps]);
+
+  const cappedPrepLimit = clampPrepLimit(prepLimit);
+  const regionalPool = briefing?.regionalPool;
+  /** Eligible for prep under current filters (cooldown, pending drafts, etc.), capped by prep limit. */
+  const runPrepBatchSize = regionalPool
+    ? Math.min(cappedPrepLimit, regionalPrepAvailableCount(regionalPool))
+    : cappedPrepLimit;
+
+  const closeDetails = useCallback(() => {
+    setDetailStore(null);
+    setOpenResearchForId(null);
+  }, []);
+
+  const openBriefingStore = useCallback(
+    (args: OpenBriefingStoreArgs) => {
+      const found = prospectsById.get(args.prospectId);
+      if (!found) {
+        setDetailStore(null);
+        setOpenResearchForId(null);
+        setDrawerError(
+          `Account #${args.prospectId} is not in the loaded directory. Refresh and try again.`,
+        );
+        return;
+      }
+      setDrawerError(null);
+      setDetailStore(found);
+      setOpenResearchForId(args.openResearch ? found.id : null);
+    },
+    [prospectsById],
+  );
 
   const closeComposer = useCallback(() => {
     setComposerOpen(false);
@@ -185,34 +628,235 @@ export function AgentBriefingTab({
 
       const d = loaded.draft;
       setComposerProduct(catalogItem);
-      setComposerDraft({
-        id: d.id,
-        to: d.toEmail,
-        toName: d.toName,
-        subject: d.subject,
-        introText: d.introText,
-        closingText: d.closingText,
-        prospectId: d.prospectId,
-        accountContactId: d.accountContactId,
-        catalogItemId: d.catalogItemId,
-        prospectName: undefined,
-        productSku: d.payload.sku,
-        productSlug: d.payload.slug,
-      });
+      setComposerDraft(
+        composerDraftFromAgentDto(d, {
+          prospectName: target.prospectName?.trim() || undefined,
+        }),
+      );
       setComposerOpen(true);
     },
     [catalogById],
   );
+
+  const handleFollowUpAction = useCallback(
+    async (row: OutreachFollowUpRow) => {
+      if (row.recommendedAction === 'call') {
+        setComposerError(null);
+        const opened = await onLogCallForLead(row.prospectId, {
+          talkTrackHint: row.talkTrackHint,
+          lastProductName: row.lastProductName,
+        });
+        if (opened === false) {
+          setComposerError(
+            'Could not open Log Call for this store. Refresh Accounts or try again.',
+          );
+        }
+        return;
+      }
+      if (row.recommendedAction === 'watch') {
+        openBriefingStore({ prospectId: row.prospectId, accountStatus: row.accountStatus });
+        return;
+      }
+      setComposerError(null);
+      setEmailBusyId(row.prospectId);
+      const created = await createFollowUpDraftClient(row.prospectId, {
+        salesLineId: lineCtx.salesLineId,
+      });
+      if (!created.ok) {
+        setComposerError(created.error);
+        setEmailBusyId(null);
+        return;
+      }
+      await openDraftReview({
+        draftId: created.draftId,
+        catalogItemId: created.catalogItemId,
+        productName: created.productName,
+        prospectName: row.prospectName,
+      });
+      setEmailBusyId(null);
+    },
+    [lineCtx.salesLineId, onLogCallForLead, openBriefingStore, openDraftReview],
+  );
+
+  const handleFollowUpLogCall = useCallback(
+    async (row: OutreachFollowUpRow) => {
+      setComposerError(null);
+      const opened = await onLogCallForLead(row.prospectId, {
+        talkTrackHint: row.talkTrackHint,
+        lastProductName: row.lastProductName,
+      });
+      if (opened === false) {
+        setComposerError('Could not open Log Call for this store. Refresh Accounts or try again.');
+      }
+    },
+    [onLogCallForLead],
+  );
+
+  const handleFollowUpSnooze = useCallback(async (row: OutreachFollowUpRow) => {
+    setSnoozeBusyId(row.prospectId);
+    const result = await staffPost('/api/staff/outreach/follow-up-snooze', {
+      prospectId: row.prospectId,
+    });
+    setSnoozeBusyId(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setReloadToken((n) => n + 1);
+  }, []);
+
+  async function dismissResearchQueueRow(row: { prospectId: number }) {
+    setRowDismissBusyId(row.prospectId);
+    setRowRunPrepMessage(null);
+    try {
+      const result = await staffPost('/api/staff/outreach/research-queue-dismiss', {
+        prospectId: row.prospectId,
+      });
+      if (!result.ok) {
+        setRowRunPrepMessage(result.error);
+        return;
+      }
+      setReloadToken((n) => n + 1);
+    } catch {
+      setRowRunPrepMessage('Request failed. Try again.');
+    } finally {
+      setRowDismissBusyId(null);
+    }
+  }
+
+  async function dismissDraftRow(row: { draftId: string; prospectName: string }) {
+    setDraftDismissBusyId(row.draftId);
+    setDraftDismissMessage(null);
+    try {
+      const result = await cancelAgentProductOutreachDraftClient(row.draftId);
+      if (!result.ok) {
+        setDraftDismissMessage(result.error);
+        return;
+      }
+      setBriefing((prev) =>
+        prev
+          ? {
+              ...prev,
+              drafts: prev.drafts.filter((d) => d.draftId !== row.draftId),
+            }
+          : prev,
+      );
+      if (composerDraft?.id === row.draftId) {
+        setComposerOpen(false);
+        setComposerDraft(null);
+        setComposerProduct(null);
+      }
+      setDraftDismissMessage(`Dismissed draft for ${row.prospectName}.`);
+      setReloadToken((n) => n + 1);
+    } catch {
+      setDraftDismissMessage('Request failed. Try again.');
+    } finally {
+      setDraftDismissBusyId(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!isOgrLine) return;
+    let active = true;
+    void fetchOperationalTerritories().then((result) => {
+      if (!active) return;
+      if (result.error) return;
+      const ogrOps = result.data.filter((row) => OGR_OPS_SET.has(row.code));
+      setOpsOptions(ogrOps);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isOgrLine]);
+
+  const briefingRegionOptions = useMemo(
+    () => regionOptionsForTerritory(storeTerritoryCode),
+    [storeTerritoryCode],
+  );
+
+  const resolvedOpsTerritoryId = useMemo(() => {
+    const opsCode = opsCodeForBriefingRegion(storeTerritoryCode, briefingRegion);
+    if (!opsCode) return '';
+    return opsOptions.find((row) => row.code === opsCode)?.id ?? '';
+  }, [opsOptions, storeTerritoryCode, briefingRegion]);
+
+  useEffect(() => {
+    if (!isOgrLine) return;
+    let active = true;
+    // Copilot suggestion ignored: distinct-city RPC would add a new staff endpoint for a small OGR directory filter already scoped client-side.
+    async function loadCities() {
+      try {
+        const { data, error } = await supabase
+          .from('prospects')
+          .select('city, region, territories!inner(code)')
+          .eq('territories.code', storeTerritoryCode);
+        if (!active) return;
+        if (error || !data) {
+          setCityOptions([]);
+          setBriefingCity('ALL');
+          return;
+        }
+        const storeCode =
+          storeTerritoryCode === 'or' || storeTerritoryCode === 'wa' ? storeTerritoryCode : '';
+        const expectedOps = opsCodeForBriefingRegion(storeCode, briefingRegion);
+        const cities = new Set<string>();
+        for (const row of data) {
+          const city = typeof row.city === 'string' ? row.city.trim() : '';
+          if (!city) continue;
+          if (
+            briefingRegion !== 'ALL' &&
+            !prospectMatchesCrmRegion(row.region ?? '', briefingRegion, storeTerritoryCode)
+          ) {
+            continue;
+          }
+          if (expectedOps) {
+            const rowOps = opsCodeForBriefingRegion(storeCode, row.region ?? '');
+            if (rowOps && rowOps !== expectedOps) continue;
+          }
+          cities.add(city);
+        }
+        const sorted = [...cities].sort((a, b) => a.localeCompare(b));
+        setCityOptions(sorted);
+        setBriefingCity((prev) => (prev !== 'ALL' && !sorted.includes(prev) ? 'ALL' : prev));
+      } catch {
+        if (!active) return;
+        setCityOptions([]);
+      }
+    }
+    void loadCities();
+    return () => {
+      active = false;
+    };
+  }, [isOgrLine, storeTerritoryCode, briefingRegion]);
 
   useEffect(() => {
     let active = true;
     async function load() {
       setLoading(true);
       setError(null);
-      const qs =
-        lineCtx.multiLineUi && lineCtx.salesLineId
-          ? `?sales_line_id=${encodeURIComponent(lineCtx.salesLineId)}`
-          : '';
+      const qsParams = new URLSearchParams();
+      if (lineCtx.multiLineUi && lineCtx.salesLineId) {
+        qsParams.set('sales_line_id', lineCtx.salesLineId);
+      }
+      if (isOgrLine && storeTerritoryCode) {
+        qsParams.set('store_territory_code', storeTerritoryCode);
+      }
+      if (isOgrLine && resolvedOpsTerritoryId) {
+        qsParams.set('operational_territory_id', resolvedOpsTerritoryId);
+      }
+      if (isOgrLine && briefingRegion && briefingRegion !== 'ALL') {
+        qsParams.set('crm_region', briefingRegion);
+      }
+      if (isOgrLine && briefingCity && briefingCity !== 'ALL') {
+        qsParams.set('city', briefingCity);
+      }
+      if (isOgrLine && briefingChannel && briefingChannel !== 'ALL') {
+        qsParams.set('channel', briefingChannel);
+      }
+      if (audience === 'active_account') {
+        qsParams.set('audience', 'active_account');
+      }
+      const qs = qsParams.toString() ? `?${qsParams.toString()}` : '';
       const result = await staffGet(`/api/staff/outreach/briefing${qs}`);
       if (!active) return;
       if (!result.ok) {
@@ -229,7 +873,37 @@ export function AgentBriefingTab({
     return () => {
       active = false;
     };
-  }, [reloadToken, briefingReloadToken, lineCtx.multiLineUi, lineCtx.salesLineId]);
+  }, [
+    reloadToken,
+    briefingReloadToken,
+    lineCtx.multiLineUi,
+    lineCtx.salesLineId,
+    isOgrLine,
+    storeTerritoryCode,
+    resolvedOpsTerritoryId,
+    briefingRegion,
+    briefingCity,
+    briefingChannel,
+    audience,
+  ]);
+
+  useEffect(() => {
+    if (!isOgrLine) return;
+    if (typeof supabase.channel !== 'function') return;
+    const channel = supabase
+      .channel('briefing-site-presence')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'prospect_site_presence' },
+        () => {
+          setReloadToken((n) => n + 1);
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [isOgrLine]);
 
   // Copilot suggestion ignored: useEffect setState fails react-hooks/set-state-in-effect; render-time prop sync is the React-supported pattern.
   // Copilot suggestion ignored: a new event/token deep-link protocol is out of scope; drawer close now clears its applied deep-link state.
@@ -251,6 +925,7 @@ export function AgentBriefingTab({
           draftId: pendingDraftId,
           catalogItemId,
           productName: row?.productName ?? pendingSku ?? 'Product',
+          prospectName: row?.prospectName,
         }).finally(() => {
           onDeepLinkConsumed?.();
         });
@@ -258,10 +933,109 @@ export function AgentBriefingTab({
     }
   }
 
+  async function runIdentifiedTargetPrep(row: {
+    prospectId: number;
+    catalogItemId: string;
+    prospectName: string;
+  }) {
+    if (!isOgrLine) {
+      setRowRunPrepMessage('Row prep is available on OGR only.');
+      return;
+    }
+    if (!resolvedOpsTerritoryId) {
+      setRowRunPrepMessage('Select a territory first.');
+      return;
+    }
+    const busyKey = `${row.prospectId}-${row.catalogItemId}`;
+    setRowRunPrepBusyKey(busyKey);
+    setRowRunPrepMessage(null);
+    const body: Record<string, unknown> = {
+      prospectId: row.prospectId,
+      catalogItemId: row.catalogItemId,
+      operationalTerritoryId: resolvedOpsTerritoryId,
+      storeTerritoryCode,
+    };
+    if (briefingRegion && briefingRegion !== 'ALL') {
+      body.crmRegion = briefingRegion;
+    }
+    if (briefingCity && briefingCity !== 'ALL') {
+      body.city = briefingCity;
+    }
+    if (briefingChannel && briefingChannel !== 'ALL') {
+      body.channel = briefingChannel;
+    }
+    if (briefing?.sellingDate) body.preparationDate = briefing.sellingDate;
+    if (audience === 'active_account') {
+      body.audience = 'active_account';
+    }
+    try {
+      const result = await staffPost('/api/staff/outreach/identified-target-draft', body);
+      if (!result.ok) {
+        const err = result.error;
+        if (/emailed within the last|cooldown/i.test(err)) {
+          setBriefing((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  identifiedTargets: prev.identifiedTargets.filter(
+                    (t) => t.prospectId !== row.prospectId,
+                  ),
+                }
+              : prev,
+          );
+          setRowRunPrepMessage(
+            `${row.prospectName} was emailed recently — removed from this queue until cooldown ends.`,
+          );
+          setReloadToken((n) => n + 1);
+          return;
+        }
+        setRowRunPrepMessage(
+          /no usable outreach email/i.test(err)
+            ? `Add a contact email first for ${row.prospectName}.`
+            : /suppressed/i.test(err)
+              ? `Contact email for ${row.prospectName} is suppressed (bounce or complaint).`
+              : err,
+        );
+        return;
+      }
+      setReloadToken((n) => n + 1);
+    } catch {
+      setRowRunPrepMessage('Request failed. Try again.');
+    } finally {
+      setRowRunPrepBusyKey(null);
+    }
+  }
+
   async function runPrepNow() {
+    if (!isOgrLine) {
+      setPrepMessage('Regional prep is available on OGR only.');
+      return;
+    }
+    if (!resolvedOpsTerritoryId) {
+      setPrepMessage('Select a territory first.');
+      return;
+    }
     setPrepBusy(true);
     setPrepMessage(null);
-    const result = await staffPost('/api/staff/outreach/prep', {});
+    const body: Record<string, unknown> = {
+      operationalTerritoryId: resolvedOpsTerritoryId,
+      storeTerritoryCode,
+      limit: runPrepBatchSize,
+    };
+    if (briefingRegion && briefingRegion !== 'ALL') {
+      body.crmRegion = briefingRegion;
+    }
+    if (briefingCity && briefingCity !== 'ALL') {
+      body.city = briefingCity;
+    }
+    if (briefingChannel && briefingChannel !== 'ALL') {
+      body.channel = briefingChannel;
+    }
+    if (briefing?.sellingDate) body.preparationDate = briefing.sellingDate;
+    if (audience === 'active_account') {
+      body.audience = 'active_account';
+    }
+    const result = await staffPost('/api/staff/outreach/prep', body);
     setPrepBusy(false);
     if (!result.ok) {
       setPrepMessage(result.error);
@@ -269,10 +1043,18 @@ export function AgentBriefingTab({
     }
     const data = result.data as {
       noop?: boolean;
-      run?: { producedCount?: number; status?: string };
+      run?: { producedCount?: number; status?: string; reason?: string | null };
     };
     if (data.noop) {
-      setPrepMessage('Prep already complete for that selling day.');
+      setPrepMessage('Prep already complete for that region and selling day.');
+    } else if (data.run?.reason === 'open_batch_full') {
+      setPrepMessage(
+        'Pending drafts still open for this region — finish or send them before running prep again.',
+      );
+    } else if (data.run?.status === 'empty_pool') {
+      setPrepMessage(
+        'No sendable accounts today — see the regional pool breakdown on the prep card.',
+      );
     } else {
       setPrepMessage(
         `Prep finished (${data.run?.status ?? 'done'}${
@@ -291,15 +1073,20 @@ export function AgentBriefingTab({
     composerOpen && composerProduct ? buildCatalogItemEmailCardHtml(composerProduct, 'ca') : '';
 
   return (
-    <section className="flex flex-col gap-5" data-screen-label="briefing">
+    <section
+      className={`flex flex-col ${embedded ? 'gap-4' : 'gap-5'}`}
+      data-screen-label={embedded ? 'active-account-briefing' : 'briefing'}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <ClipboardList
-            className="text-accent-700 h-5 w-5"
+            className={`text-accent-700 ${embedded ? 'h-4 w-4' : 'h-5 w-5'}`}
             strokeWidth={ICON_STROKE}
             aria-hidden
           />
-          <h2 className="text-ink m-0 text-lg font-semibold">Daily Agent Briefing</h2>
+          <h2 className={`text-ink m-0 font-semibold ${embedded ? 'text-base' : 'text-lg'}`}>
+            {audience === 'active_account' ? 'Active Account Briefing' : 'Daily Agent Briefing'}
+          </h2>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -311,9 +1098,114 @@ export function AgentBriefingTab({
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" strokeWidth={ICON_STROKE} aria-hidden />
             Refresh
           </Button>
-          <Button type="button" onClick={() => void runPrepNow()} disabled={prepBusy || loading}>
-            {prepBusy ? 'Running prep…' : 'Run prep now'}
-          </Button>
+          {isOgrLine ? (
+            <>
+              <label className="sr-only" htmlFor="briefing-territory">
+                Territory
+              </label>
+              <Select
+                id="briefing-territory"
+                className="w-auto min-w-[7rem]"
+                value={storeTerritoryCode}
+                onChange={(e) => {
+                  const next =
+                    e.target.value === 'wa' || e.target.value === 'or' ? e.target.value : 'or';
+                  setStoreTerritoryCode(next);
+                  setBriefingRegion('ALL');
+                  setBriefingCity('ALL');
+                  setBriefingChannel('ALL');
+                }}
+                disabled={prepBusy || loading}
+                aria-label="Territory"
+              >
+                {OGR_BRIEFING_TERRITORIES.map((row) => (
+                  <option key={row.code} value={row.code}>
+                    {row.label}
+                  </option>
+                ))}
+              </Select>
+              <label className="sr-only" htmlFor="briefing-region">
+                Region
+              </label>
+              <Select
+                id="briefing-region"
+                className="w-auto min-w-[10rem]"
+                value={briefingRegion}
+                onChange={(e) => {
+                  setBriefingRegion(e.target.value);
+                  setBriefingCity('ALL');
+                }}
+                disabled={prepBusy || loading || opsOptions.length === 0}
+                aria-label="Region"
+              >
+                {briefingRegionOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
+              <label className="sr-only" htmlFor="briefing-city">
+                City
+              </label>
+              <Select
+                id="briefing-city"
+                className="w-auto min-w-[8rem]"
+                value={briefingCity}
+                onChange={(e) => setBriefingCity(e.target.value)}
+                disabled={prepBusy || loading}
+                aria-label="City"
+              >
+                <option value="ALL">All cities</option>
+                {cityOptions.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </Select>
+              <label className="sr-only" htmlFor="briefing-channel">
+                Channel
+              </label>
+              <Select
+                id="briefing-channel"
+                className="w-auto min-w-[10rem]"
+                value={briefingChannel}
+                onChange={(e) => setBriefingChannel(e.target.value)}
+                disabled={prepBusy || loading}
+                aria-label="Channel"
+              >
+                {CHANNEL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
+              <label className="sr-only" htmlFor="briefing-prep-limit">
+                Prep limit
+              </label>
+              <Input
+                id="briefing-prep-limit"
+                type="number"
+                min={1}
+                max={REGIONAL_PREP_MAX_LIMIT}
+                className="w-16"
+                value={prepLimit}
+                onChange={(e) => setPrepLimit(clampPrepLimit(Number(e.target.value)))}
+                disabled={prepBusy || loading}
+                aria-label="Prep limit"
+              />
+              <Button
+                type="button"
+                onClick={() => void runPrepNow()}
+                disabled={prepBusy || loading || !resolvedOpsTerritoryId || runPrepBatchSize === 0}
+              >
+                {prepBusy
+                  ? 'Running prep…'
+                  : runPrepBatchSize === 0
+                    ? 'Run prep now (0)'
+                    : `Run prep now (${runPrepBatchSize})`}
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -324,6 +1216,17 @@ export function AgentBriefingTab({
 
       {briefing && (
         <>
+          <TopLeadsQuickView
+            callToday={briefing.callToday ?? []}
+            hotCount={(briefing.hot ?? []).length}
+            warm={briefing.warm ?? []}
+            recentEngagement={briefing.recentEngagement ?? []}
+            followUpsById={followUpsById}
+            emailBusyId={emailBusyId}
+            onOpenProspect={openBriefingStore}
+            onFollowUpAction={(row) => void handleFollowUpAction(row)}
+          />
+
           <Card
             className={
               prep?.status === 'failed' || prep?.status === 'partial'
@@ -340,6 +1243,24 @@ export function AgentBriefingTab({
               {prep?.run
                 ? ` · capacity ${prep.run.capacity} · pending before ${prep.run.pendingBefore} · produced ${prep.run.producedCount}`
                 : null}
+              {briefing.regionalPool && briefingRegion !== 'ALL' ? (
+                <>
+                  <br />
+                  {formatRegionalPoolMessage(
+                    briefing.regionalPool,
+                    briefingRegionOptions.find((o) => o.value === briefingRegion)?.label ??
+                      briefingRegion,
+                  )}
+                </>
+              ) : briefing.regionalPool ? (
+                <>
+                  <br />
+                  {formatRegionalPoolMessage(
+                    briefing.regionalPool,
+                    storeTerritoryCode === 'wa' ? 'Washington' : 'Oregon',
+                  )}
+                </>
+              ) : null}
             </CardMeta>
           </Card>
 
@@ -373,10 +1294,146 @@ export function AgentBriefingTab({
           </div>
 
           <Card>
+            <CardTitle className="text-[15px]">Outreach queue — research email</CardTitle>
+            <CardMeta className="mb-2">
+              {briefing.identifiedTargets.length} identified · use Research to find a contact email,
+              then Run prep on the row · Dismiss if no email can be found
+            </CardMeta>
+            {rowRunPrepMessage ? (
+              <p className="text-accent-800 m-0 mb-2 text-sm" role="status">
+                {rowRunPrepMessage}
+              </p>
+            ) : null}
+            {briefing.identifiedTargets.length === 0 ? (
+              <p className="text-ink/50 m-0 text-sm">
+                No identified accounts for this region yet. Run prep to rank up to 25 accounts.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="text-ink/50 text-xs uppercase">
+                      <th className="border-ink/10 border-b p-2 font-medium">Prospect</th>
+                      <th className="border-ink/10 border-b p-2 font-medium">Product</th>
+                      <th className="border-ink/10 border-b p-2 font-medium">Channel</th>
+                      <th className="border-ink/10 border-b p-2 font-medium">Email</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {briefing.identifiedTargets.map((t) => {
+                      const rowKey = `${t.prospectId}-${t.catalogItemId}`;
+                      const rowBusy = rowRunPrepBusyKey === rowKey;
+                      const dismissBusy = rowDismissBusyId === t.prospectId;
+                      const anyRowBusy = Boolean(rowRunPrepBusyKey) || Boolean(rowDismissBusyId);
+                      const canRunPrep = t.hasUsableEmail;
+                      return (
+                        <tr key={rowKey} className="hover:bg-bg/80">
+                          <td className="border-ink/[0.06] border-b p-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                className="text-accent-800 font-medium hover:underline"
+                                onClick={() =>
+                                  openBriefingStore({
+                                    prospectId: t.prospectId,
+                                    accountStatus: 'prospect',
+                                  })
+                                }
+                              >
+                                {t.prospectName}
+                              </button>
+                              <button
+                                type="button"
+                                className="text-ink/55 hover:text-accent-800 text-xs hover:underline"
+                                onClick={() =>
+                                  openBriefingStore({
+                                    prospectId: t.prospectId,
+                                    accountStatus: 'prospect',
+                                    openResearch: true,
+                                  })
+                                }
+                              >
+                                Research
+                              </button>
+                              <button
+                                type="button"
+                                className="text-ink/55 hover:text-accent-800 text-xs hover:underline disabled:opacity-50"
+                                disabled={
+                                  rowBusy || anyRowBusy || !resolvedOpsTerritoryId || !canRunPrep
+                                }
+                                title={
+                                  canRunPrep
+                                    ? 'Create a prep draft with the contact email on file'
+                                    : 'Add a contact email (Research) before Run prep'
+                                }
+                                onClick={() =>
+                                  void runIdentifiedTargetPrep({
+                                    prospectId: t.prospectId,
+                                    catalogItemId: t.catalogItemId,
+                                    prospectName: t.prospectName,
+                                  })
+                                }
+                              >
+                                {rowBusy ? 'Running…' : 'Run prep'}
+                              </button>
+                              <button
+                                type="button"
+                                className="text-ink/55 hover:text-accent-800 text-xs hover:underline disabled:opacity-50"
+                                disabled={dismissBusy || anyRowBusy}
+                                aria-label={
+                                  dismissBusy
+                                    ? `Dismissing ${t.prospectName} from research queue`
+                                    : `Dismiss ${t.prospectName} from research queue`
+                                }
+                                onClick={() =>
+                                  void dismissResearchQueueRow({ prospectId: t.prospectId })
+                                }
+                              >
+                                {dismissBusy ? 'Dismissing…' : 'Dismiss'}
+                              </button>
+                            </div>
+                          </td>
+                          <td className="border-ink/[0.06] border-b p-2">{t.productName}</td>
+                          <td className="border-ink/[0.06] border-b p-2">
+                            {t.primaryChannel ? primaryRetailChannelLabel(t.primaryChannel) : '—'}
+                          </td>
+                          <td className="border-ink/[0.06] border-b p-2">
+                            {t.hasUsableEmail ? (
+                              <span className="text-ink/60">On file</span>
+                            ) : (
+                              <span className="text-accent-800">Needs research</span>
+                            )}
+                            {t.sharedEmailStoreNames.length > 0 ? (
+                              <p className="text-ink/45 m-0 mt-1 text-xs">
+                                Also on: {t.sharedEmailStoreNames.join(', ')}
+                              </p>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          <Card>
             <CardTitle className="text-[15px]">Drafts ready for review</CardTitle>
-            <CardMeta className="mb-2">{briefing.drafts.length} pending</CardMeta>
+            <CardMeta className="mb-2">
+              {briefing.drafts.length} pending · open a draft and use Add copy for personalized
+              intro/closing (prep leaves generic stubs)
+              {briefing.drafts.some((d) => d.fromEarlierPrep)
+                ? ' · includes drafts from earlier prep'
+                : ''}
+            </CardMeta>
+            {draftDismissMessage ? (
+              <p className="text-ink/60 m-0 mb-2 text-sm" role="status">
+                {draftDismissMessage}
+              </p>
+            ) : null}
             {briefing.drafts.length === 0 ? (
-              <p className="text-ink/50 m-0 text-sm">No pending drafts for this selling date.</p>
+              <p className="text-ink/50 m-0 text-sm">No pending drafts.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-left text-sm">
@@ -389,59 +1446,84 @@ export function AgentBriefingTab({
                     </tr>
                   </thead>
                   <tbody>
-                    {briefing.drafts.map((d) => (
-                      <tr key={d.draftId} className="hover:bg-bg/80">
-                        <td className="border-ink/[0.06] border-b p-2">
-                          <div className="flex flex-wrap items-center gap-2">
+                    {briefing.drafts.map((d) => {
+                      const dismissBusy = draftDismissBusyId === d.draftId;
+                      return (
+                        <tr key={d.draftId} className="hover:bg-bg/80">
+                          <td className="border-ink/[0.06] border-b p-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                className="text-accent-800 font-medium hover:underline"
+                                onClick={() =>
+                                  openBriefingStore({
+                                    prospectId: d.prospectId,
+                                    accountStatus: d.accountStatus ?? 'prospect',
+                                  })
+                                }
+                              >
+                                {d.prospectName}
+                              </button>
+                              {d.fromEarlierPrep ? (
+                                <span className="text-ink/45 text-xs">from earlier prep</span>
+                              ) : null}
+                              <button
+                                type="button"
+                                className="text-ink/55 hover:text-accent-800 text-xs hover:underline"
+                                onClick={() =>
+                                  openBriefingStore({
+                                    prospectId: d.prospectId,
+                                    accountStatus: d.accountStatus ?? 'prospect',
+                                    openResearch: true,
+                                  })
+                                }
+                              >
+                                Research
+                              </button>
+                              <button
+                                type="button"
+                                className="text-ink/55 hover:text-accent-800 text-xs hover:underline disabled:opacity-50"
+                                disabled={dismissBusy || Boolean(draftDismissBusyId)}
+                                aria-label={
+                                  dismissBusy
+                                    ? `Dismissing draft for ${d.prospectName}`
+                                    : `Dismiss draft for ${d.prospectName}`
+                                }
+                                onClick={() =>
+                                  void dismissDraftRow({
+                                    draftId: d.draftId,
+                                    prospectName: d.prospectName,
+                                  })
+                                }
+                              >
+                                {dismissBusy ? 'Dismissing…' : 'Dismiss'}
+                              </button>
+                            </div>
+                          </td>
+                          <td className="border-ink/[0.06] border-b p-2">
                             <button
                               type="button"
-                              className="text-accent-800 font-medium hover:underline"
+                              className="text-accent-800 hover:underline"
                               onClick={() =>
-                                onOpenProspect({
-                                  prospectId: d.prospectId,
-                                  accountStatus: d.accountStatus ?? 'prospect',
+                                void openDraftReview({
+                                  draftId: d.draftId,
+                                  catalogItemId: d.catalogItemId,
+                                  productName: d.productName,
+                                  prospectName: d.prospectName,
                                 })
                               }
                             >
-                              {d.prospectName}
+                              {d.productName}{' '}
+                              <span className="text-ink/45 text-xs">({d.productSku})</span>
                             </button>
-                            <button
-                              type="button"
-                              className="text-ink/55 hover:text-accent-800 text-xs hover:underline"
-                              onClick={() =>
-                                onOpenProspect({
-                                  prospectId: d.prospectId,
-                                  accountStatus: d.accountStatus ?? 'prospect',
-                                  openResearch: true,
-                                })
-                              }
-                            >
-                              Research
-                            </button>
-                          </div>
-                        </td>
-                        <td className="border-ink/[0.06] border-b p-2">
-                          <button
-                            type="button"
-                            className="text-accent-800 hover:underline"
-                            onClick={() =>
-                              void openDraftReview({
-                                draftId: d.draftId,
-                                catalogItemId: d.catalogItemId,
-                                productName: d.productName,
-                              })
-                            }
-                          >
-                            {d.productName}{' '}
-                            <span className="text-ink/45 text-xs">({d.productSku})</span>
-                          </button>
-                        </td>
-                        <td className="border-ink/[0.06] border-b p-2 text-xs">
-                          {d.primaryChannel ?? '—'}
-                        </td>
-                        <td className="border-ink/[0.06] border-b p-2 text-xs">{d.toEmail}</td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="border-ink/[0.06] border-b p-2 text-xs">
+                            {d.primaryChannel ? primaryRetailChannelLabel(d.primaryChannel) : '—'}
+                          </td>
+                          <td className="border-ink/[0.06] border-b p-2 text-xs">{d.toEmail}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -466,55 +1548,23 @@ export function AgentBriefingTab({
                   .filter(([, n]) => n > 0)
                   .map(([ch, n]) => (
                     <li key={ch} className="bg-bg rounded-md px-2.5 py-1">
-                      {ch}: <strong>{n}</strong>
+                      {primaryRetailChannelLabel(ch)}: <strong>{n}</strong>
                     </li>
                   ))}
               </ul>
             </Card>
           )}
 
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
-            <LeadList
-              title="Call Today"
-              rows={briefing.callToday}
-              onOpen={(row) => onLogCallForLead(row.prospectId)}
-            />
-            <LeadList
-              title="Hot"
-              rows={briefing.hot}
-              onOpen={(row) => onLogCallForLead(row.prospectId)}
-            />
-            <LeadList
-              title="Warm"
-              rows={briefing.warm}
-              onOpen={(row) => onLogCallForLead(row.prospectId)}
-            />
-          </div>
+          <FollowUpQueue
+            rows={briefing.followUps ?? []}
+            emailBusyId={emailBusyId}
+            snoozeBusyId={snoozeBusyId}
+            onAction={(row) => void handleFollowUpAction(row)}
+            onLogCall={(row) => void handleFollowUpLogCall(row)}
+            onSnooze={(row) => void handleFollowUpSnooze(row)}
+          />
 
           <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3">
-            <Card>
-              <CardTitle className="text-[15px]">Recent engagement (7d)</CardTitle>
-              {briefing.recentEngagement.length === 0 ? (
-                <p className="text-ink/50 m-0 text-sm">No clicks in the last 7 days.</p>
-              ) : (
-                <ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm">
-                  {briefing.recentEngagement.map((e) => (
-                    <li key={e.prospectId}>
-                      <button
-                        type="button"
-                        className="text-accent-800 hover:underline"
-                        onClick={() => onOpenProspect({ prospectId: e.prospectId })}
-                      >
-                        {e.prospectName}
-                      </button>
-                      <span className="text-ink/50 ml-2 text-xs">
-                        {e.clickCount} click{e.clickCount === 1 ? '' : 's'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
             <Card>
               <CardTitle className="text-[15px]">Recent conversions (7d)</CardTitle>
               {briefing.recentConversions.length === 0 ? (
@@ -527,7 +1577,7 @@ export function AgentBriefingTab({
                         type="button"
                         className="text-accent-800 hover:underline"
                         onClick={() =>
-                          onOpenProspect({
+                          openBriefingStore({
                             prospectId: c.prospectId,
                             accountStatus: 'active_account',
                           })
@@ -732,13 +1782,101 @@ export function AgentBriefingTab({
             closeComposer();
             setReloadToken((n) => n + 1);
           }}
+          onDraftSaved={(nextDraft) => {
+            setComposerDraft(nextDraft);
+          }}
+          onProductReplaced={({ item, draft: nextDraft }) => {
+            setComposerProduct(item);
+            setComposerDraft(nextDraft);
+            setBriefing((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                drafts: prev.drafts.map((row) =>
+                  row.draftId === nextDraft.id
+                    ? {
+                        ...row,
+                        catalogItemId: item.id,
+                        productName: item.name,
+                        productSku: item.sku,
+                        productSlug: item.publicSlug ?? row.productSlug,
+                      }
+                    : row,
+                ),
+              };
+            });
+          }}
           productId={composerProduct.id}
           productName={composerProduct.name.trim()}
           cardHtml={composerCardHtml}
           draft={composerDraft}
+          accountId={composerDraft.prospectId}
+          salesLineId={lineCtx.salesLineId}
+          lineSlug={lineCtx.lineSlug}
           publicMarket="ca"
         />
       ) : null}
+
+      {drawerError ? (
+        <p className="text-danger m-0 text-sm" role="alert">
+          {drawerError}
+        </p>
+      ) : null}
+
+      {detailStore?.accountStatus === 'active_account' ? (
+        <AccountDetailDrawer
+          account={detailStore}
+          initialSection={openResearchForId === detailStore.id ? 'research' : undefined}
+          onClose={closeDetails}
+          onLogCall={(account) => {
+            onLogCall(account);
+            closeDetails();
+          }}
+          onLogOrder={() => {
+            closeDetails();
+          }}
+          onNotesSaved={(notes) => {
+            setDetailStore({ ...detailStore, notes });
+            onNotesSaved?.(detailStore.id, notes);
+          }}
+          onTaxonomySaved={(prospect) => {
+            setDetailStore(prospect);
+            onProspectUpdated?.(prospect);
+          }}
+          onIdentitySaved={(prospect) => {
+            setDetailStore(prospect);
+            onProspectUpdated?.(prospect);
+          }}
+          onDemoted={(prospect) => {
+            setDetailStore(prospect);
+            onProspectUpdated?.(prospect);
+          }}
+          onProductEmailSent={onProductEmailSent}
+        />
+      ) : (
+        <ProspectDetailDrawer
+          prospect={detailStore}
+          initialScrollToResearch={detailStore != null && openResearchForId === detailStore.id}
+          onClose={closeDetails}
+          onLogCall={(prospect) => {
+            onLogCall(prospect);
+            closeDetails();
+          }}
+          onNotesSaved={(notes) => {
+            if (!detailStore) return;
+            setDetailStore({ ...detailStore, notes });
+            onNotesSaved?.(detailStore.id, notes);
+          }}
+          onTaxonomySaved={(prospect) => {
+            setDetailStore(prospect);
+            onProspectUpdated?.(prospect);
+          }}
+          onIdentitySaved={(prospect) => {
+            setDetailStore(prospect);
+            onProspectUpdated?.(prospect);
+          }}
+        />
+      )}
     </section>
   );
 }

@@ -13,10 +13,19 @@ import { computeChannelAllocationWeights } from '@/lib/outreachChannelWeights';
 import { computeProductSelectionWeights } from '@/lib/outreachProductWeights';
 import { computeFitBandRankingWeights } from '@/lib/outreachFitBandWeights';
 import { generateOgrProductOutreachDrafts } from '@/lib/generateOgrProductOutreachDraft';
+import {
+  normalizePrepCity,
+  normalizePrepCrmRegion,
+  prospectMatchesCrmRegion,
+  prospectMatchesPrepCity,
+} from '@/lib/geoCatalog';
+import { normalizePrepChannel, prospectMatchesPrepChannel } from '@/lib/crmRetailTaxonomy';
 import { loadOutreachGoalDashboardSnapshot } from '@/lib/outreachGoalDashboard';
 import type { OutreachGoalSettings } from '@/lib/outreachGoals';
 import type { OutreachPerformanceReport } from '@/lib/outreachPerformance';
 import { refreshPersistedLeadRules } from '@/lib/refreshPersistedLeadRules';
+import { identifiedTargetRowsFromSelected } from '@/lib/outreachBriefingShared';
+import { isActiveAccountStatus, loadResolvedAccountStatusByIds } from '@/lib/outreachAccountStatus';
 import { formatOutreachPreparationDate, selectOutreachTargets } from '@/lib/outreachSelectTargets';
 import { AGENT_OUTREACH_PENDING_DRAFT_STATUSES } from '@/lib/outreachSelectionConstants';
 import {
@@ -32,8 +41,33 @@ import {
 type Client = SupabaseClient<Database>;
 
 export const OUTREACH_NIGHTLY_PREP_KIND = 'nightly_prep' as const;
+export const OUTREACH_MANUAL_REGIONAL_PREP_KIND = 'manual_regional_prep' as const;
+/** Active Account Briefing regional prep — siloed from Daily Briefing regional prep. */
+export const OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND = 'manual_regional_active_prep' as const;
 export const OUTREACH_NIGHTLY_PREP_CHUNK = 5;
 export const OUTREACH_NIGHTLY_PREP_STALE_MS = 15 * 60 * 1000;
+export const OUTREACH_REGIONAL_PREP_DEFAULT_LIMIT = 25;
+export const OUTREACH_REGIONAL_PREP_MAX_LIMIT = 50;
+
+export type OutreachPrepKind =
+  | typeof OUTREACH_NIGHTLY_PREP_KIND
+  | typeof OUTREACH_MANUAL_REGIONAL_PREP_KIND
+  | typeof OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND;
+
+export function isRegionalPrepKind(kind: string | null | undefined): boolean {
+  return (
+    kind === OUTREACH_MANUAL_REGIONAL_PREP_KIND ||
+    kind === OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND
+  );
+}
+
+export function regionalPrepKindForAudience(
+  accountAudience?: 'active_account' | null,
+): typeof OUTREACH_MANUAL_REGIONAL_PREP_KIND | typeof OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND {
+  return accountAudience === 'active_account'
+    ? OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND
+    : OUTREACH_MANUAL_REGIONAL_PREP_KIND;
+}
 
 export type OutreachAutomationRunStatus =
   'running' | 'succeeded' | 'partial' | 'empty_pool' | 'failed';
@@ -41,7 +75,7 @@ export type OutreachAutomationRunStatus =
 export type OutreachAutomationRunRow = {
   id: string;
   runDate: string;
-  kind: typeof OUTREACH_NIGHTLY_PREP_KIND;
+  kind: OutreachPrepKind;
   status: OutreachAutomationRunStatus;
   trigger: 'cron' | 'manual';
   capacity: number;
@@ -56,6 +90,10 @@ export type OutreachAutomationRunRow = {
   error: string | null;
   targetErrors: Array<{ prospectId: number; error: string }>;
   reason: string | null;
+  operationalTerritoryId: string | null;
+  storeTerritoryCode: string | null;
+  crmRegion: string | null;
+  prepCity: string | null;
   startedAt: string;
   finishedAt: string | null;
   triggeredBy: string | null;
@@ -71,10 +109,16 @@ function mapRunRow(row: DbRunRow): OutreachAutomationRunRow {
   const targetErrors = Array.isArray(row.target_errors)
     ? (row.target_errors as Array<{ prospectId: number; error: string }>)
     : [];
+  const kind =
+    row.kind === OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND
+      ? OUTREACH_MANUAL_REGIONAL_ACTIVE_PREP_KIND
+      : row.kind === OUTREACH_MANUAL_REGIONAL_PREP_KIND
+        ? OUTREACH_MANUAL_REGIONAL_PREP_KIND
+        : OUTREACH_NIGHTLY_PREP_KIND;
   return {
     id: row.id,
     runDate: row.run_date,
-    kind: OUTREACH_NIGHTLY_PREP_KIND,
+    kind,
     status: row.status,
     trigger: row.trigger,
     capacity: row.capacity,
@@ -89,6 +133,10 @@ function mapRunRow(row: DbRunRow): OutreachAutomationRunRow {
     error: row.error,
     targetErrors,
     reason: row.reason,
+    operationalTerritoryId: row.operational_territory_id,
+    storeTerritoryCode: row.store_territory_code,
+    crmRegion: row.crm_region,
+    prepCity: row.prep_city ?? null,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
     triggeredBy: row.triggered_by,
@@ -105,6 +153,133 @@ export async function getOutreachAutomationRunByDate(
     .eq('kind', OUTREACH_NIGHTLY_PREP_KIND)
     .eq('run_date', runDate)
     .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, run: data ? mapRunRow(data) : null };
+}
+
+/** Most recent prep run for a selling date (nightly or regional) — briefing banner. */
+export async function getLatestOutreachAutomationRunForDate(
+  client: Client,
+  runDate: string,
+): Promise<{ ok: true; run: OutreachAutomationRunRow | null } | { ok: false; error: string }> {
+  const { data, error } = await client
+    .from('outreach_automation_runs')
+    .select('*')
+    .eq('run_date', runDate)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, run: data ? mapRunRow(data) : null };
+}
+
+async function getOutreachAutomationRunById(
+  client: Client,
+  id: string,
+): Promise<{ ok: true; run: OutreachAutomationRunRow | null } | { ok: false; error: string }> {
+  const { data, error } = await client
+    .from('outreach_automation_runs')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, run: data ? mapRunRow(data) : null };
+}
+
+async function findPrepRun(params: {
+  client: Client;
+  kind: OutreachPrepKind;
+  runDate: string;
+  operationalTerritoryId?: string | null;
+  storeTerritoryCode?: string | null;
+  crmRegion?: string | null;
+  city?: string | null;
+}): Promise<{ ok: true; run: OutreachAutomationRunRow | null } | { ok: false; error: string }> {
+  const { client, kind, runDate } = params;
+  if (kind === OUTREACH_NIGHTLY_PREP_KIND) {
+    return getOutreachAutomationRunByDate(client, runDate);
+  }
+
+  let query = client
+    .from('outreach_automation_runs')
+    .select('*')
+    .eq('kind', kind)
+    .eq('run_date', runDate)
+    .eq('operational_territory_id', params.operationalTerritoryId ?? '');
+
+  const store = params.storeTerritoryCode?.trim().toLowerCase() || null;
+  query = store ? query.eq('store_territory_code', store) : query.is('store_territory_code', null);
+
+  const crmRegion = normalizePrepCrmRegion(params.crmRegion);
+  query = crmRegion ? query.eq('crm_region', crmRegion) : query.is('crm_region', null);
+
+  const prepCity = normalizePrepCity(params.city);
+  query = prepCity ? query.eq('prep_city', prepCity) : query.is('prep_city', null);
+  // Copilot suggestion ignored: run identity has no prep_channel column yet; channel only scopes selection + pending-draft counts.
+
+  const { data, error } = await query.maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, run: data ? mapRunRow(data) : null };
+}
+
+/** Regional prep run for a selling day + ops/store/CRM region/city scope (briefing banner). */
+export async function getRegionalOutreachPrepRun(
+  client: Client,
+  params: {
+    runDate: string;
+    operationalTerritoryId: string;
+    storeTerritoryCode?: string | null;
+    crmRegion?: string | null;
+    city?: string | null;
+    accountAudience?: 'active_account';
+  },
+): Promise<{ ok: true; run: OutreachAutomationRunRow | null } | { ok: false; error: string }> {
+  return findPrepRun({
+    client,
+    kind: regionalPrepKindForAudience(params.accountAudience),
+    runDate: params.runDate,
+    operationalTerritoryId: params.operationalTerritoryId,
+    storeTerritoryCode: params.storeTerritoryCode,
+    crmRegion: params.crmRegion,
+    city: params.city,
+  });
+}
+
+/**
+ * Latest regional prep run for a territory/region/city scope (any run_date).
+ * Used to keep identified needs-email targets mounted across selling days.
+ */
+export async function getLatestRegionalOutreachPrepRun(
+  client: Client,
+  params: {
+    operationalTerritoryId: string;
+    storeTerritoryCode?: string | null;
+    crmRegion?: string | null;
+    city?: string | null;
+    accountAudience?: 'active_account';
+  },
+): Promise<{ ok: true; run: OutreachAutomationRunRow | null } | { ok: false; error: string }> {
+  const kind = regionalPrepKindForAudience(params.accountAudience);
+  let query = client
+    .from('outreach_automation_runs')
+    .select('*')
+    .eq('kind', kind)
+    .eq('operational_territory_id', params.operationalTerritoryId)
+    .in('status', ['succeeded', 'partial', 'empty_pool'])
+    .order('run_date', { ascending: false })
+    .order('started_at', { ascending: false })
+    .limit(1);
+
+  const store = params.storeTerritoryCode?.trim().toLowerCase() || null;
+  query = store ? query.eq('store_territory_code', store) : query.is('store_territory_code', null);
+
+  const crmRegion = normalizePrepCrmRegion(params.crmRegion);
+  query = crmRegion ? query.eq('crm_region', crmRegion) : query.is('crm_region', null);
+
+  const prepCity = normalizePrepCity(params.city);
+  query = prepCity ? query.eq('prep_city', prepCity) : query.is('prep_city', null);
+
+  const { data, error } = await query.maybeSingle();
   if (error) return { ok: false, error: error.message };
   return { ok: true, run: data ? mapRunRow(data) : null };
 }
@@ -177,6 +352,108 @@ export async function countPendingDraftsForPreparationDate(
   return { ok: true, count: seen.size };
 }
 
+/**
+ * Count pending agent drafts whose prospects match a regional Briefing scope.
+ * Used so Run prep now tops up to the open-batch limit, not selling date.
+ * When accountAudience is active_account, only active-account drafts count.
+ */
+export async function countPendingDraftsForRegionalScope(
+  client: Client,
+  params: {
+    storeTerritoryCode?: string | null;
+    crmRegion?: string | null;
+    city?: string | null;
+    channel?: string | null;
+    accountAudience?: 'active_account';
+  },
+): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  const crmRegion = normalizePrepCrmRegion(params.crmRegion);
+  const prepCity = normalizePrepCity(params.city);
+  const prepChannel = normalizePrepChannel(params.channel);
+  const storeCode = params.storeTerritoryCode?.trim().toLowerCase() || null;
+
+  const pageSize = 100;
+  const maxRows = 2000;
+  const draftsByProspect = new Map<number, number>();
+  let offset = 0;
+
+  while (offset < maxRows) {
+    const { data, error } = await client
+      .from('system_messages')
+      .select('id, prospect_id')
+      .eq('message_type', SYSTEM_MESSAGE_TYPE_PRODUCT_OUTREACH)
+      .eq('origin', SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL)
+      .in('status', [...AGENT_OUTREACH_PENDING_DRAFT_STATUSES])
+      .order('created_at', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) return { ok: false, error: error.message };
+    const rows = data ?? [];
+    for (const row of rows) {
+      if (typeof row.prospect_id === 'number' && Number.isFinite(row.prospect_id)) {
+        draftsByProspect.set(row.prospect_id, (draftsByProspect.get(row.prospect_id) ?? 0) + 1);
+      }
+    }
+    if (rows.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  if (draftsByProspect.size === 0) return { ok: true, count: 0 };
+
+  let matching: Set<number>;
+
+  // No CRM region, city, or channel filter (ALL): start from every pending draft prospect.
+  if (!crmRegion && !prepCity && !prepChannel) {
+    matching = new Set(draftsByProspect.keys());
+  } else {
+    matching = new Set<number>();
+    const ids = [...draftsByProspect.keys()];
+    const chunkSize = 200;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const { data, error } = await client
+        .from('prospects')
+        .select('id, region, city, category')
+        .in('id', chunk);
+      if (error) return { ok: false, error: error.message };
+      for (const row of data ?? []) {
+        if (crmRegion && !prospectMatchesCrmRegion(row.region ?? '', crmRegion, storeCode)) {
+          continue;
+        }
+        if (!prospectMatchesPrepCity(row.city, prepCity)) {
+          continue;
+        }
+        if (!prospectMatchesPrepChannel(row.category, prepChannel)) {
+          continue;
+        }
+        matching.add(row.id);
+      }
+    }
+  }
+
+  if (params.accountAudience === 'active_account') {
+    try {
+      const statuses = await loadResolvedAccountStatusByIds(client, [...matching]);
+      for (const prospectId of [...matching]) {
+        if (!isActiveAccountStatus(statuses.get(prospectId))) {
+          matching.delete(prospectId);
+        }
+      }
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Failed to resolve account status for drafts',
+      };
+    }
+  }
+
+  let count = 0;
+  for (const prospectId of matching) {
+    count += draftsByProspect.get(prospectId) ?? 0;
+  }
+  return { ok: true, count };
+}
+
 export type RunOutreachNightlyPrepInput = {
   client: Client;
   trigger: 'cron' | 'manual';
@@ -184,11 +461,25 @@ export type RunOutreachNightlyPrepInput = {
   triggeredBy?: string | null;
   /**
    * Selling date being prepared (YYYY-MM-DD).
-   * Default: next selling day after today in business TZ.
-   * Manual may pass today when today is a selling day.
+   * Default: next selling day after today in business TZ (nightly).
+   * Regional / catch-up manual may pass briefing selling date (today if weekday).
    */
   preparationDate?: string;
   asOf?: Date;
+  /** When set, runs regional prep for this ops territory (OGR allowlist validated by caller). */
+  operationalTerritoryId?: string;
+  /** Optional store-geo filter within the ops region (or / wa). */
+  storeTerritoryCode?: string | null;
+  /** Driveable CRM region (e.g. Oregon Coast); ALL/null = whole store territory. */
+  crmRegion?: string | null;
+  /** Optional city within the CRM region; ALL/null = all cities in scope. */
+  city?: string | null;
+  /** Optional primary retail channel; ALL/null = all channels in scope. */
+  channel?: string | null;
+  /** Regional capacity override (default 25, max 50). Ignored for nightly. */
+  limit?: number;
+  /** Active Account Briefing manual prep: opened accounts only. Ignored by nightly cron. */
+  accountAudience?: 'active_account';
 };
 
 export type RunOutreachNightlyPrepResult =
@@ -218,7 +509,11 @@ function finalizeStatus(params: {
   reason: string | null;
 } {
   const { netCapacity, selectedCount, producedCount, failedCount, reason } = params;
-  if (reason === 'goal_met_or_non_selling' || reason === 'already_at_pace') {
+  if (
+    reason === 'goal_met_or_non_selling' ||
+    reason === 'already_at_pace' ||
+    reason === 'open_batch_full'
+  ) {
     return { status: 'succeeded', reason };
   }
   if (netCapacity > 0 && selectedCount === 0) {
@@ -234,7 +529,10 @@ function finalizeStatus(params: {
 }
 
 /**
- * Prepare reviewable drafts for a selling day. Idempotent per (kind, run_date).
+ * Prepare reviewable drafts for a selling day.
+ * Nightly: idempotent per (kind, run_date).
+ * Regional: idempotent per (kind, run_date, ops territory, store code);
+ * empty_pool and open_batch_full are retryable for regional.
  */
 export async function runOutreachNightlyPrep(
   input: RunOutreachNightlyPrepInput,
@@ -243,6 +541,20 @@ export async function runOutreachNightlyPrep(
   const asOf = input.asOf ?? new Date();
   const userId = resolvePrepActorUserId(input.triggeredBy);
 
+  const operationalTerritoryId = input.operationalTerritoryId?.trim() || null;
+  const storeTerritoryCode = input.storeTerritoryCode?.trim().toLowerCase() || null;
+  const crmRegion = normalizePrepCrmRegion(input.crmRegion);
+  const prepCity = normalizePrepCity(input.city);
+  const prepChannel = normalizePrepChannel(input.channel);
+  const isRegional = Boolean(operationalTerritoryId);
+  const kind: OutreachPrepKind = isRegional
+    ? regionalPrepKindForAudience(input.accountAudience)
+    : OUTREACH_NIGHTLY_PREP_KIND;
+
+  if (isRegional && input.trigger === 'cron') {
+    return { ok: false, error: 'Regional prep cannot be triggered by cron', status: 400 };
+  }
+
   const goalsSnap = await loadOutreachGoalDashboardSnapshot({ client, asOf });
   if (!goalsSnap.ok) return { ok: false, error: goalsSnap.error };
   const timeZone = goalsSnap.snapshot.settings.businessTimezone;
@@ -250,7 +562,6 @@ export async function runOutreachNightlyPrep(
 
   let runDate = input.preparationDate?.trim() || nextSellingDayAfter(today);
   if (input.preparationDate?.trim()) {
-    // Validate YYYY-MM-DD; allow today catch-up only when selling day
     runDate = input.preparationDate.trim();
   }
 
@@ -258,14 +569,37 @@ export async function runOutreachNightlyPrep(
   const runDateAsOf = new Date(zonedLocalToUtcIso(`${runDate}T12:00:00`, timeZone));
   const paceSnap = await loadOutreachGoalDashboardSnapshot({ client, asOf: runDateAsOf });
   if (!paceSnap.ok) return { ok: false, error: paceSnap.error };
-  const capacity = paceSnap.snapshot.pace.recommendedDailySends;
 
-  const existing = await getOutreachAutomationRunByDate(client, runDate);
+  let capacity = paceSnap.snapshot.pace.recommendedDailySends;
+  if (isRegional) {
+    const rawLimit =
+      typeof input.limit === 'number' && Number.isFinite(input.limit)
+        ? Math.floor(input.limit)
+        : OUTREACH_REGIONAL_PREP_DEFAULT_LIMIT;
+    capacity = Math.max(0, Math.min(OUTREACH_REGIONAL_PREP_MAX_LIMIT, rawLimit));
+  }
+
+  const existing = await findPrepRun({
+    client,
+    kind,
+    runDate,
+    operationalTerritoryId,
+    storeTerritoryCode,
+    crmRegion,
+    city: prepCity,
+  });
   if (!existing.ok) return { ok: false, error: existing.error };
 
   if (existing.run) {
     const run = existing.run;
-    if (run.status === 'succeeded' || run.status === 'empty_pool') {
+    // Regional open_batch_full is retryable: pending draft counts change as staff
+    // send/dismiss, and Active vs Daily capacity is audience-scoped.
+    const regionalOpenBatchRetry =
+      isRegional && run.status === 'succeeded' && run.reason === 'open_batch_full';
+    const terminalNoop =
+      (run.status === 'succeeded' && !regionalOpenBatchRetry) ||
+      (run.status === 'empty_pool' && !isRegional);
+    if (terminalNoop) {
       return { ok: true, run, noop: true };
     }
     if (run.status === 'running') {
@@ -286,8 +620,14 @@ export async function runOutreachNightlyPrep(
         reason: 'stale_running',
       });
     }
-    // failed / partial (or stale→failed): retry on same row
-    if (run.status === 'failed' || run.status === 'partial' || run.status === 'running') {
+    // failed / partial / regional empty_pool / regional open_batch_full (or stale→failed): retry
+    if (
+      run.status === 'failed' ||
+      run.status === 'partial' ||
+      run.status === 'running' ||
+      (run.status === 'empty_pool' && isRegional) ||
+      regionalOpenBatchRetry
+    ) {
       const reset = await updateRun(client, run.id, {
         status: 'running',
         trigger: input.trigger,
@@ -302,6 +642,7 @@ export async function runOutreachNightlyPrep(
         failed_count: 0,
         selected_count: 0,
         shortfall: 0,
+        capacity,
       });
       if (!reset.ok) return { ok: false, error: reset.error };
       return continuePrep({
@@ -314,6 +655,13 @@ export async function runOutreachNightlyPrep(
         timeZone,
         performance: paceSnap.snapshot.performance,
         settings: paceSnap.snapshot.settings,
+        isRegional,
+        operationalTerritoryId,
+        storeTerritoryCode,
+        crmRegion,
+        city: prepCity,
+        channel: prepChannel,
+        accountAudience: input.accountAudience,
       });
     }
   }
@@ -322,20 +670,36 @@ export async function runOutreachNightlyPrep(
     .from('outreach_automation_runs')
     .insert({
       run_date: runDate,
-      kind: OUTREACH_NIGHTLY_PREP_KIND,
+      kind,
       status: 'running',
       trigger: input.trigger,
       capacity,
       triggered_by: input.triggeredBy ?? null,
+      operational_territory_id: isRegional ? operationalTerritoryId : null,
+      store_territory_code: isRegional ? storeTerritoryCode : null,
+      crm_region: isRegional ? crmRegion : null,
+      prep_city: isRegional ? prepCity : null,
     })
     .select('*')
     .single();
 
   if (insertError || !inserted) {
-    // Unique violation → re-read and follow idempotency
-    const again = await getOutreachAutomationRunByDate(client, runDate);
+    const again = await findPrepRun({
+      client,
+      kind,
+      runDate,
+      operationalTerritoryId,
+      storeTerritoryCode,
+      crmRegion,
+      city: prepCity,
+    });
     if (again.ok && again.run) {
-      if (again.run.status === 'succeeded' || again.run.status === 'empty_pool') {
+      const againOpenBatch =
+        isRegional && again.run.status === 'succeeded' && again.run.reason === 'open_batch_full';
+      if (
+        (again.run.status === 'succeeded' && !againOpenBatch) ||
+        (again.run.status === 'empty_pool' && !isRegional)
+      ) {
         return { ok: true, run: again.run, noop: true };
       }
       if (again.run.status === 'running') {
@@ -360,6 +724,13 @@ export async function runOutreachNightlyPrep(
     timeZone,
     performance: paceSnap.snapshot.performance,
     settings: paceSnap.snapshot.settings,
+    isRegional,
+    operationalTerritoryId,
+    storeTerritoryCode,
+    crmRegion,
+    city: prepCity,
+    channel: prepChannel,
+    accountAudience: input.accountAudience,
   });
 }
 
@@ -373,8 +744,30 @@ async function continuePrep(params: {
   timeZone: string;
   performance: OutreachPerformanceReport | null;
   settings: OutreachGoalSettings;
+  isRegional: boolean;
+  operationalTerritoryId: string | null;
+  storeTerritoryCode: string | null;
+  crmRegion: string | null;
+  city: string | null;
+  channel: string | null;
+  accountAudience?: 'active_account';
 }): Promise<RunOutreachNightlyPrepResult> {
-  const { client, runId, runDate, capacity, userId, performance, settings } = params;
+  const {
+    client,
+    runId,
+    runDate,
+    capacity,
+    userId,
+    performance,
+    settings,
+    isRegional,
+    operationalTerritoryId,
+    storeTerritoryCode,
+    crmRegion,
+    city,
+    channel,
+    accountAudience,
+  } = params;
 
   const leadRulesRefresh = await refreshPersistedLeadRules({ client, performance });
   if (!leadRulesRefresh.ok) {
@@ -386,7 +779,15 @@ async function continuePrep(params: {
     return { ok: false, error: leadRulesRefresh.error };
   }
 
-  const pending = await countPendingDraftsForPreparationDate(client, runDate);
+  const pending = isRegional
+    ? await countPendingDraftsForRegionalScope(client, {
+        storeTerritoryCode,
+        crmRegion,
+        city,
+        channel,
+        accountAudience,
+      })
+    : await countPendingDraftsForPreparationDate(client, runDate);
   if (!pending.ok) {
     await updateRun(client, runId, {
       status: 'failed',
@@ -397,7 +798,10 @@ async function continuePrep(params: {
   }
 
   const pendingBefore = pending.count;
+  // Regional: top up to the fixed limit against open pending drafts in this scope.
+  // Nightly: subtract same-day pendings from pace capacity.
   const netCapacity = Math.max(0, capacity - pendingBefore);
+  const selectCapacity = netCapacity;
 
   const { weights, source: weightSource } = computeChannelAllocationWeights({
     report: performance,
@@ -414,7 +818,7 @@ async function continuePrep(params: {
   const channelAllocation: AllocateChannelsForDayResult = {
     ...allocateChannelsForDay({
       preparationDate: runDate,
-      capacity: netCapacity,
+      capacity: selectCapacity,
       weights,
     }),
     meta: { weightSource, weights },
@@ -424,14 +828,33 @@ async function continuePrep(params: {
   if (capacity === 0) {
     reason = 'goal_met_or_non_selling';
   } else if (netCapacity === 0) {
-    reason = 'already_at_pace';
+    reason = isRegional ? 'open_batch_full' : 'already_at_pace';
+  }
+
+  // Preserve prior research-queue snapshot when short-circuiting capacity.
+  let allocationToStore: AllocateChannelsForDayResult | Record<string, unknown> = channelAllocation;
+  if (netCapacity === 0) {
+    const prior = await getOutreachAutomationRunById(client, runId);
+    if (
+      prior.ok &&
+      prior.run?.channelAllocation &&
+      typeof prior.run.channelAllocation === 'object'
+    ) {
+      const priorAllocation = prior.run.channelAllocation as Record<string, unknown>;
+      if (Array.isArray(priorAllocation.identifiedTargets)) {
+        allocationToStore = {
+          ...channelAllocation,
+          identifiedTargets: priorAllocation.identifiedTargets,
+        };
+      }
+    }
   }
 
   await updateRun(client, runId, {
     capacity,
     pending_before: pendingBefore,
     net_capacity: netCapacity,
-    channel_allocation: channelAllocation,
+    channel_allocation: allocationToStore,
     reason,
   });
 
@@ -453,22 +876,31 @@ async function continuePrep(params: {
       shortfall: 0,
       finished_at: new Date().toISOString(),
     });
-    const done = await getOutreachAutomationRunByDate(client, runDate);
+    const done = await getOutreachAutomationRunById(client, runId);
     if (!done.ok || !done.run) return { ok: false, error: done.ok ? 'Run missing' : done.error };
     return { ok: true, run: done.run, noop: false };
   }
 
   const selected = await selectOutreachTargets(client, {
     preparationDate: runDate,
-    capacity: netCapacity,
+    capacity: selectCapacity,
     weights,
-    channelAllocation,
+    channelAllocation: isRegional ? undefined : channelAllocation,
     productWeights: productWeightResult.weights,
     globalProductWeight: productWeightResult.globalWeight,
     productWeightSource: productWeightResult.source,
-    fitBandWeights: fitBandWeightResult.weights,
-    globalFitBandWeight: fitBandWeightResult.globalWeight,
-    fitBandWeightSource: fitBandWeightResult.source,
+    fitBandWeights: isRegional ? undefined : fitBandWeightResult.weights,
+    globalFitBandWeight: isRegional ? undefined : fitBandWeightResult.globalWeight,
+    fitBandWeightSource: isRegional ? undefined : fitBandWeightResult.source,
+    operationalTerritoryId: operationalTerritoryId ?? undefined,
+    storeTerritoryCode: storeTerritoryCode ?? undefined,
+    crmRegion: crmRegion ?? undefined,
+    city: city ?? undefined,
+    channel: channel ?? undefined,
+    rankMode: isRegional ? 'fit_score' : 'default',
+    skipChannelAllocation: isRegional,
+    allowMissingEmail: isRegional,
+    accountAudience,
   });
   if (!selected.ok) {
     await updateRun(client, runId, {
@@ -480,16 +912,21 @@ async function continuePrep(params: {
   }
 
   const selectedCount = selected.targets.length;
-  const shortfall = Math.max(0, netCapacity - selectedCount);
+  const shortfall = Math.max(0, selectCapacity - selectedCount);
+  const identifiedTargets = identifiedTargetRowsFromSelected(selected.targets);
+  const prepAllocation = {
+    ...channelAllocation,
+    identifiedTargets,
+  };
   await updateRun(client, runId, {
     selected_count: selectedCount,
     shortfall,
-    channel_allocation: channelAllocation,
+    channel_allocation: prepAllocation,
   });
 
   if (selectedCount === 0) {
     const fin = finalizeStatus({
-      netCapacity,
+      netCapacity: selectCapacity,
       selectedCount: 0,
       producedCount: 0,
       failedCount: 0,
@@ -499,7 +936,7 @@ async function continuePrep(params: {
       reason: fin.reason,
       finished_at: new Date().toISOString(),
     });
-    const done = await getOutreachAutomationRunByDate(client, runDate);
+    const done = await getOutreachAutomationRunById(client, runId);
     if (!done.ok || !done.run) return { ok: false, error: done.ok ? 'Run missing' : done.error };
     return { ok: true, run: done.run, noop: false };
   }
@@ -509,7 +946,7 @@ async function continuePrep(params: {
   let failedCount = 0;
   const targetErrors: Array<{ prospectId: number; error: string }> = [];
 
-  const targets = selected.targets;
+  const targets = selected.targets.filter((t) => !t.needsEmail && (t.toEmail ?? '').trim());
   for (let i = 0; i < targets.length; i += OUTREACH_NIGHTLY_PREP_CHUNK) {
     const chunk = targets.slice(i, i + OUTREACH_NIGHTLY_PREP_CHUNK);
     const generated = await generateOgrProductOutreachDrafts(client, {
@@ -517,6 +954,7 @@ async function continuePrep(params: {
       userId,
       regenerate: false,
       automationRunId: runId,
+      copyMode: 'generic_stub',
     });
 
     for (const r of generated.results) {
@@ -541,7 +979,7 @@ async function continuePrep(params: {
   }
 
   const fin = finalizeStatus({
-    netCapacity,
+    netCapacity: selectCapacity,
     selectedCount,
     producedCount,
     failedCount,
@@ -557,7 +995,7 @@ async function continuePrep(params: {
     finished_at: new Date().toISOString(),
   });
 
-  const done = await getOutreachAutomationRunByDate(client, runDate);
+  const done = await getOutreachAutomationRunById(client, runId);
   if (!done.ok || !done.run) return { ok: false, error: done.ok ? 'Run missing' : done.error };
   return { ok: true, run: done.run, noop: false };
 }

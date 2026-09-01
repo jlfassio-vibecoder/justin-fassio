@@ -1,0 +1,15 @@
+business_name,city,address,phone,email,website,crm_action,crm_id,source
+The Ruddy Duck,Hood River,"504 Oak St, Hood River, OR 97031",541-386-5050,,https://www.ruddyduckhoodriver.com/,inserted,688,Travel Oregon + official site
+Safari Town Surf Shop,Lincoln City,"3026 NE Hwy 101 Suite 3, Lincoln City, OR 97367",541-996-6335,safaritown@gmail.com,https://safaritownsurf.com/,inserted,689,Travel Oregon + official site
+By the Sea Treasures,Bandon,"275 2nd St SE, Bandon, OR 97411",541-329-1184,,https://traveloregon.com/things-to-do/oregon-attractions/shopping/by-the-sea-treasures/,inserted,690,Travel Oregon + Bandon chamber
+The Market Place,Brookings,"668 Chetco Ave, Brookings, OR 97415",541-469-9753,,https://traveloregon.com/things-to-do/oregon-attractions/shopping/the-market-place/,inserted,691,Travel Oregon + OCVA
+Paddington Station,Ashland,"125 E Main St, Ashland, OR 97520",541-482-1343,info@paddingtonstationashland.com,https://www.paddingtonstationashland.com/,inserted,692,Travel Oregon + official site
+The Wy'East Store,Government Camp,"27500 E Timberline Rd (Wy'East Day Lodge), Government Camp, OR 97028",503-272-3189,,https://timberlinelodge.com/,inserted,693,Travel Oregon + Timberline contact page
+Hamley & Co.,Pendleton,"30 SE Court Ave, Pendleton, OR 97801",541-278-1100,customerservice@hamley.com,https://hamley.com/,inserted,694,Travel Oregon + hamley.com
+Gorge Fly Shop,Hood River,"3200 Lower Mill Dr, Hood River, OR 97031",541-386-6977,info@gorgeflyshop.com,https://www.gorgeflyshop.com/,inserted,695,Travel Oregon + official site
+4 Seasons Recreational Outfitters,Sunriver,"57195 Beaver Dr Suite D, Sunriver, OR 97707",541-593-2255,,https://www.4sro.com/,inserted,696,Travel Oregon + official site
+The Red Canary Mercantile,Grants Pass,"129 SE H St, Grants Pass, OR 97526",541-479-0581,,https://visitgrantspass.com/poi/the-red-canary-mercantile/,inserted,697,Travel Oregon + Visit Grants Pass
+Salty Raven – Cannon Beach,Cannon Beach,"179 E 1st Ave Suite 105, Cannon Beach, OR 97110",503-436-4355,,https://saltyraven.net/,inserted,698,Travel Oregon + saltyraven.net
+Cleanline Surf – Seaside,Seaside,"60 N Roosevelt Dr, Seaside, OR 97138",503-738-7888,support@cleanlinesurf.com,https://www.cleanlinesurf.com/,inserted,699,Travel Oregon + cleanlinesurf.com
+Cleanline Surf – Cannon Beach,Cannon Beach,"171 Sunset Blvd, Cannon Beach, OR 97110",503-436-9726,support@cleanlinesurf.com,https://www.cleanlinesurf.com/,inserted,700,Travel Oregon + cleanlinesurf.com
+Lincoln City Surf Shop (existing active account - not Safari Town),Lincoln City,,,,"skipped_distinct_from_safari_town",624,CRM existing

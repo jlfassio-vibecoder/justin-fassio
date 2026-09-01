@@ -9,17 +9,17 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<Variant, string> = {
-  primary: 'bg-accent text-bg hover:bg-accent-600 active:bg-accent-700',
-  secondary: 'border border-ink/15 hover:bg-ink/[0.07] active:bg-ink/[0.14]',
+  primary: 'bg-accent text-on-accent hover:bg-accent-600 active:bg-accent-700',
+  secondary: 'border-border hover:bg-ink/[0.07] active:bg-ink/[0.14] border',
   ghost: 'text-accent px-1.1 hover:bg-accent/10 active:bg-accent/[0.18]',
-  icon: 'w-9 h-9 p-0 bg-transparent',
+  icon: 'h-9 w-9 bg-transparent p-0',
 };
 
 export function Button({ variant = 'secondary', className, children, ...props }: ButtonProps) {
   return (
     <button
       className={cn(
-        'font-heading inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-transparent px-4 py-2 text-sm leading-tight no-underline transition-colors disabled:cursor-not-allowed disabled:opacity-45',
+        'font-heading inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-full border border-transparent px-4 py-2 text-sm leading-tight no-underline transition-colors disabled:cursor-not-allowed disabled:opacity-45',
         variantClasses[variant],
         className,
       )}

@@ -3,7 +3,12 @@ import type { AgentSupabase } from '@/lib/agentAuth';
 
 const createEnrichedProspectMock = vi.fn();
 const researchCompanyMock = vi.fn();
+const researchContactDiscoveryMock = vi.fn();
+const extractOwnerFromYelpListingMock = vi.fn();
+const verifyPublicContactRoleMock = vi.fn();
 const generateObjectMock = vi.fn();
+const buildContactResearchBriefMock = vi.fn();
+const matchProspectToYelpMock = vi.fn();
 
 vi.mock('@/lib/createEnrichedProspect', () => ({
   createEnrichedProspect: (...args: unknown[]) => createEnrichedProspectMock(...args),
@@ -13,11 +18,53 @@ vi.mock('@/lib/companyWebResearch', () => ({
   researchCompany: (...args: unknown[]) => researchCompanyMock(...args),
 }));
 
+vi.mock('@/lib/contactResearch/researchContactDiscovery', () => ({
+  researchContactDiscovery: (...args: unknown[]) => researchContactDiscoveryMock(...args),
+}));
+
+vi.mock('@/lib/contactResearch/extractOwnerFromYelpListing', () => ({
+  extractOwnerFromYelpListing: (...args: unknown[]) => extractOwnerFromYelpListingMock(...args),
+}));
+
+vi.mock('@/lib/contactResearch/verifyPublicContactRole', () => ({
+  verifyPublicContactRole: (...args: unknown[]) => verifyPublicContactRoleMock(...args),
+  formatRoleVerificationNotes: (result: {
+    status: string;
+    signals: { personName: boolean; company: boolean; role: boolean; location: boolean };
+    matchedRole: string | null;
+    matchedCompany: string | null;
+    sourceUrls: string[];
+  }) => `LinkedIn verification: ${result.status}`,
+}));
+
+vi.mock('@/lib/accountResearch/verifyYelpDirectoryMatch', () => ({
+  loadPersistedYelpMatchForRetailer: async () => null,
+}));
+
+vi.mock('@/lib/contactResearch/buildContactResearchBrief', () => ({
+  buildContactResearchBrief: (...args: unknown[]) => buildContactResearchBriefMock(...args),
+  composeContactResearchBrief: (seed: string, brief: string | null) =>
+    [seed, brief].filter(Boolean).join('\n\n---\n\n') || null,
+}));
+
+vi.mock('@/lib/yelp/businessMatch', () => ({
+  matchProspectToYelp: (...args: unknown[]) => matchProspectToYelpMock(...args),
+  yelpBizSearchUrl: (business: { alias?: string | null; url: string }) => {
+    if (business.alias?.trim()) return `https://www.yelp.com/biz/${business.alias.trim()}`;
+    return business.url;
+  },
+}));
+
 vi.mock('ai', () => ({
   generateObject: (...args: unknown[]) => generateObjectMock(...args),
 }));
 
-import { createEnrichedContact, fillContactGapsFromBrief } from '@/lib/createEnrichedContact';
+import {
+  applyEnrichedContactAttach,
+  createEnrichedContact,
+  fillContactGapsFromBrief,
+  previewEnrichedContactAttach,
+} from '@/lib/createEnrichedContact';
 import {
   BC_PROSPECT_TERRITORY,
   EMPTY_PROSPECT_PLANNING,
@@ -27,6 +74,7 @@ import {
 function mockSupabase(handlers: {
   prospectSingle?: unknown;
   contactCount?: number;
+  contactList?: unknown[];
   contactInsert?: unknown;
   contactInsertError?: string | null;
 }) {
@@ -42,9 +90,23 @@ function mockSupabase(handlers: {
     }
     if (table === 'account_contacts') {
       return {
-        select: () => ({
-          eq: async () => ({ count: handlers.contactCount ?? 0, error: null }),
-        }),
+        select: (_cols?: string, opts?: { count?: string; head?: boolean }) => {
+          if (opts?.count === 'exact' && opts?.head) {
+            return {
+              eq: async () => ({ count: handlers.contactCount ?? 0, error: null }),
+            };
+          }
+          return {
+            eq: () => ({
+              order: () => ({
+                order: async () => ({
+                  data: handlers.contactList ?? [],
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        },
         insert: () => ({
           select: () => ({
             single: async () =>
@@ -192,6 +254,12 @@ describe('createEnrichedContact', () => {
     generateObjectMock.mockResolvedValue({
       object: { title: null, phone: null, email: null },
     });
+    buildContactResearchBriefMock.mockResolvedValue({
+      seedBlock: 'seed',
+      yelpMatch: null,
+      websiteUrl: null,
+      researchBrief: null,
+    });
   });
 
   it('requires contact and company name', async () => {
@@ -274,5 +342,213 @@ describe('createEnrichedContact', () => {
       expect(result.prospect.id).toBe(12);
       expect(result.contact.isPrimary).toBe(true);
     }
+  });
+});
+
+describe('previewEnrichedContactAttach', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    buildContactResearchBriefMock.mockResolvedValue({
+      seedBlock: 'Yelp-verified business',
+      yelpMatch: {
+        business: {
+          id: 'sassy',
+          alias: 'the-sassy-seagull-bandon',
+          name: 'The Sassy Seagull',
+          url: 'https://www.yelp.com/biz/the-sassy-seagull-bandon',
+          categories: ['Gift Shop'],
+        },
+      },
+      yelpMatchError: null,
+      websiteUrl: 'https://store.com',
+      researchBrief: null,
+    });
+    researchContactDiscoveryMock.mockResolvedValue({
+      brief: 'Contact research brief',
+      error: null,
+    });
+    extractOwnerFromYelpListingMock.mockResolvedValue({
+      fullName: null,
+      title: null,
+      excerpt: null,
+    });
+    verifyPublicContactRoleMock.mockResolvedValue({
+      status: 'not_found',
+      signals: { personName: false, company: false, role: false, location: false },
+      matchedRole: null,
+      matchedCompany: null,
+      excerpt: null,
+      sourceUrls: [],
+    });
+    generateObjectMock.mockResolvedValue({
+      object: { title: 'General Manager', phone: '541-555-0100', email: null },
+    });
+  });
+
+  it('returns preview with mapped role using contact research path', async () => {
+    const supabase = mockSupabase({
+      prospectSingle: prospectRow,
+      contactCount: 1,
+      contactList: [],
+    });
+
+    const result = await previewEnrichedContactAttach(supabase, {
+      accountId: 12,
+      candidateName: 'Sarah Jenkins',
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.preview.proposed.role).toBe('manager');
+      expect(result.preview.proposed.fullName).toBe('Sarah Jenkins');
+      expect(result.preview.roleVerification?.status).toBe('not_found');
+      expect(result.preview.yelpListingUrl).toBe(
+        'https://www.yelp.com/biz/the-sassy-seagull-bandon',
+      );
+      expect(result.preview.yelpVerifiedName).toBe('The Sassy Seagull');
+      expect(result.preview.yelpCategories).toEqual(['Gift Shop']);
+    }
+    expect(researchContactDiscoveryMock).toHaveBeenCalled();
+    expect(researchCompanyMock).not.toHaveBeenCalled();
+    expect(verifyPublicContactRoleMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        candidateName: 'Sarah Jenkins',
+        businessName: 'The Sassy Seagull',
+      }),
+    );
+  });
+
+  it('refines title from verified LinkedIn role when no staff candidate name', async () => {
+    verifyPublicContactRoleMock.mockResolvedValue({
+      status: 'verified',
+      signals: { personName: true, company: true, role: true, location: true },
+      matchedRole: 'Owner',
+      matchedCompany: 'The Sassy Seagull',
+      excerpt: 'Bob Leis — Owner at The Sassy Seagull',
+      sourceUrls: ['https://linkedin.com/in/bob-leis'],
+    });
+    extractOwnerFromYelpListingMock.mockResolvedValue({
+      fullName: 'Bob Leis',
+      title: 'Business Owner',
+      excerpt: 'Meet the Business Owner: Bob Leis.',
+    });
+
+    const supabase = mockSupabase({
+      prospectSingle: prospectRow,
+      contactCount: 1,
+      contactList: [],
+    });
+
+    const result = await previewEnrichedContactAttach(supabase, { accountId: 12 });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.preview.proposed.fullName).toBe('Bob Leis');
+      expect(result.preview.proposed.title).toBe('Owner');
+      expect(result.preview.proposed.role).toBe('owner');
+      expect(result.preview.roleVerification?.status).toBe('verified');
+      expect(result.preview.roleVerification?.suggestedNotes).toContain('verified');
+    }
+  });
+
+  it('uses Yelp owner extraction when no candidate name', async () => {
+    extractOwnerFromYelpListingMock.mockResolvedValue({
+      fullName: 'Karen R.',
+      title: 'Business Owner',
+      excerpt: 'Meet the Business Owner: Karen R.',
+    });
+
+    const supabase = mockSupabase({
+      prospectSingle: prospectRow,
+      contactCount: 1,
+      contactList: [],
+    });
+
+    const result = await previewEnrichedContactAttach(supabase, { accountId: 12 });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.preview.proposed.fullName).toBe('Karen R.');
+      expect(result.preview.proposed.title).toBe('Business Owner');
+      expect(result.preview.roleVerification).not.toBeNull();
+    }
+    expect(extractOwnerFromYelpListingMock).toHaveBeenCalled();
+  });
+
+  it('persists notes on apply', async () => {
+    const supabase = mockSupabase({
+      prospectSingle: prospectRow,
+      contactCount: 1,
+      contactList: [],
+      contactInsert: { ...contactRow, role: 'owner', notes: 'LinkedIn verification: Verified' },
+    });
+
+    const result = await applyEnrichedContactAttach(supabase, {
+      accountId: 12,
+      fullName: 'Sarah Jenkins',
+      title: 'Owner',
+      phone: null,
+      email: null,
+      role: 'owner',
+      notes: 'LinkedIn verification: Verified',
+    });
+
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe('applyEnrichedContactAttach', () => {
+  it('uses staff-confirmed role on insert', async () => {
+    const supabase = mockSupabase({
+      prospectSingle: prospectRow,
+      contactCount: 1,
+      contactList: [],
+      contactInsert: { ...contactRow, role: 'owner' },
+    });
+
+    const result = await applyEnrichedContactAttach(supabase, {
+      accountId: 12,
+      fullName: 'Sarah Jenkins',
+      title: 'Owner',
+      phone: null,
+      email: null,
+      role: 'owner',
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('blocks apply on email duplicate without confirm flag', async () => {
+    const supabase = mockSupabase({
+      prospectSingle: prospectRow,
+      contactCount: 1,
+      contactList: [
+        {
+          id: 'c-existing',
+          account_id: 12,
+          role: 'buyer',
+          full_name: 'Sarah J.',
+          title: null,
+          phone: null,
+          email: 'sarah@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '',
+          updated_at: '',
+        },
+      ],
+    });
+
+    const result = await applyEnrichedContactAttach(supabase, {
+      accountId: 12,
+      fullName: 'Sarah Jenkins',
+      email: 'sarah@example.com',
+      role: 'buyer',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'A contact with email sarah@example.com already exists (Sarah J.)',
+    });
   });
 });

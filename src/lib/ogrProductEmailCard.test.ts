@@ -47,6 +47,9 @@ function renderCard(
     catalogHref?: string;
     imageUrl?: string | null;
     ctaLabel?: string;
+    wholesaleUsd?: number | null;
+    pdfCatalogHref?: string | null;
+    pdfCatalogCoverUrl?: string | null;
   } = {},
 ) {
   return renderOgrProductEmailCard(presentation, {
@@ -54,6 +57,9 @@ function renderCard(
     catalogHref: options.catalogHref ?? CATALOG_HREF,
     imageUrl: options.imageUrl,
     ctaLabel: options.ctaLabel,
+    wholesaleUsd: options.wholesaleUsd,
+    pdfCatalogHref: options.pdfCatalogHref,
+    pdfCatalogCoverUrl: options.pdfCatalogCoverUrl,
   });
 }
 
@@ -192,6 +198,62 @@ describe('renderOgrProductEmailCard', () => {
     for (const key of PUBLIC_PRESENTATION_FORBIDDEN_KEYS) {
       expect(html).not.toContain(key);
     }
+  });
+
+  it('shows staff wholesale beside the product name when wholesaleUsd option is set', () => {
+    const presentation = buildPublicProductPresentation(fixture({ wholesaleUsd: null }));
+    const html = renderCard(presentation, { wholesaleUsd: 13 });
+    expect(html).toContain('Wholesale Price');
+    expect(html).toContain('US$13.00');
+    expect(html).toContain('text-align:right');
+    expect(html).toContain('white-space:nowrap');
+    expect(html).not.toContain('wholesaleUsd');
+  });
+
+  it('omits the price cell when wholesaleUsd option is null or non-positive', () => {
+    const presentation = buildPublicProductPresentation(fixture());
+    expect(renderCard(presentation, { wholesaleUsd: null })).not.toMatch(/US\$/);
+    expect(renderCard(presentation, { wholesaleUsd: 0 })).not.toMatch(/US\$/);
+  });
+
+  it('shows PDF catalog cover under wholesale when absolute PDF and cover URLs are set', () => {
+    const presentation = buildPublicProductPresentation(fixture({ wholesaleUsd: null }));
+    const pdfHref = 'https://justinfassio.com/marketing/old-guys-rule/OGR_2026_Catalog.pdf';
+    const coverUrl = 'https://justinfassio.com/marketing/old-guys-rule/cover.jpg';
+    const html = renderCard(presentation, {
+      wholesaleUsd: 13,
+      pdfCatalogHref: pdfHref,
+      pdfCatalogCoverUrl: coverUrl,
+    });
+    expect(html).toContain(`src="${coverUrl}"`);
+    expect(html).toContain('PDF catalog');
+    expect(html).toContain(`href="${pdfHref}"`);
+  });
+
+  it('omits PDF catalog block when cover or PDF URL is missing or relative', () => {
+    const presentation = buildPublicProductPresentation(fixture({ wholesaleUsd: null }));
+    const pdfHref = 'https://justinfassio.com/marketing/old-guys-rule/OGR_2026_Catalog.pdf';
+    const coverUrl = 'https://justinfassio.com/marketing/old-guys-rule/cover.jpg';
+    expect(renderCard(presentation, { wholesaleUsd: 13, pdfCatalogHref: pdfHref })).not.toContain(
+      'PDF catalog',
+    );
+    expect(
+      renderCard(presentation, { wholesaleUsd: 13, pdfCatalogCoverUrl: coverUrl }),
+    ).not.toContain('PDF catalog');
+    expect(
+      renderCard(presentation, {
+        wholesaleUsd: 13,
+        pdfCatalogHref: '/marketing/old-guys-rule/OGR_2026_Catalog.pdf',
+        pdfCatalogCoverUrl: coverUrl,
+      }),
+    ).not.toContain('PDF catalog');
+    expect(
+      renderCard(presentation, {
+        wholesaleUsd: null,
+        pdfCatalogHref: pdfHref,
+        pdfCatalogCoverUrl: coverUrl,
+      }),
+    ).not.toContain('PDF catalog');
   });
 
   it('links image, title, and Details CTA to product href; Catalog CTA to collection', () => {

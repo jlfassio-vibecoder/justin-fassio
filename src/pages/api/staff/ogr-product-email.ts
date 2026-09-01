@@ -15,13 +15,23 @@ import {
   buildOgrProductUrl,
   resolvePublicSiteOrigin,
 } from '@/lib/productUrls';
+import { appendPresenceVisitToken } from '@/lib/presenceVisitToken';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import { sendOgrProductOutreachEmail } from '@/lib/sendOgrProductOutreachEmail';
 import { resolvePricingMarketForRetailerLineAccount } from '@/lib/resolveAccountPricingMarket';
 import { normalizePublicMarket, type PublicMarket } from '@/lib/pricingMarket';
+import { getServiceRoleClient } from '@/lib/supabaseAdmin';
+import { replayUnmatchedResendEvents } from '@/lib/resendWebhook';
+import { fetchAccountContactById } from '@/lib/accountContacts';
+import { resolveProductOutreachSendEmails } from '@/lib/resolveProductOutreachSendEmails';
+import { sendSiblingProductOutreachEmails } from '@/lib/sendSiblingProductOutreachEmails';
 import {
-  insertProductOutreachSystemMessage,
+  insertProductOutreachSendingMessage,
+  markProductOutreachMessageFailed,
   resolveProductOutreachCrmAssociation,
+  stampProductOutreachMessageSent,
+  stampResendEmailIdWithRetry,
+  SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL,
   validateProductOutreachRetailerLineAccount,
 } from '@/lib/systemMessages';
 
@@ -216,6 +226,24 @@ export const POST: APIRoute = async ({ request }) => {
       return jsonError(crm.error, 400);
     }
 
+    let sendContact = null;
+    if (crm.association.accountContactId) {
+      const loadedContact = await fetchAccountContactById(
+        gate.supabase,
+        crm.association.accountContactId,
+      );
+      if (loadedContact.error) {
+        return jsonError(loadedContact.error, 500);
+      }
+      sendContact = loadedContact.data;
+    }
+    const recipients = resolveProductOutreachSendEmails(sendContact, to);
+    if (recipients.length === 0) {
+      return jsonError('A valid recipient email is required', 400);
+    }
+    const primaryTo = recipients[0]!;
+    const siblingEmails = recipients.slice(1);
+
     let retailerLineAccountId: string | undefined;
     if (retailerLineAccountIdResult.value) {
       if (!salesLineIdResult.value) {
@@ -249,7 +277,7 @@ export const POST: APIRoute = async ({ request }) => {
       emailMarket === 'us'
         ? buildOgrProductUrl(presentation.slug, origin, 'us')
         : buildOgrProductUrl(presentation.slug, origin);
-    const catalogHref =
+    let catalogHref =
       emailMarket === 'us' ? buildOgrCollectionUrl(origin, 'us') : buildOgrCollectionUrl(origin);
 
     const [{ data: profile }, { data: userData }] = await Promise.all([
@@ -272,7 +300,7 @@ export const POST: APIRoute = async ({ request }) => {
       emails: [profile?.email, userData.user?.email, CONTACT_EMAIL],
     });
 
-    const message = renderOgrProductOutreachEmail({
+    let message = renderOgrProductOutreachEmail({
       presentation,
       productHref,
       catalogHref,
@@ -281,10 +309,82 @@ export const POST: APIRoute = async ({ request }) => {
       subject: subjectResult.value,
       introText: introResult.value,
       closingText: closingResult.value,
+      wholesaleUsd: loaded.wholesaleUsd,
     });
 
+    const ledger = await insertProductOutreachSendingMessage(gate.supabase, {
+      catalogItemId: productId,
+      toEmail: primaryTo,
+      toName: recipientNameResult.value,
+      subject: message.subject,
+      prospectId: crm.association.prospectId,
+      accountContactId: crm.association.accountContactId,
+      retailerLineAccountId: retailerLineAccountId ?? null,
+      sentBy: gate.userId,
+      payload: {
+        sku: loaded.product.sku,
+        name: loaded.product.name,
+        slug: presentation.slug,
+        productHref,
+        ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
+      },
+    });
+
+    if (!ledger.ok) {
+      console.error('[ogrProductOutreachEmail]', {
+        workflow: 'system_message_preinsert',
+        productId,
+        error: ledger.error,
+      });
+      return jsonError('Failed to prepare email log', 500);
+    }
+
+    if (crm.association.prospectId != null) {
+      productHref = appendPresenceVisitToken(productHref, {
+        prospectId: crm.association.prospectId,
+        systemMessageId: ledger.id,
+      });
+      catalogHref = appendPresenceVisitToken(catalogHref, {
+        prospectId: crm.association.prospectId,
+        systemMessageId: ledger.id,
+      });
+      message = renderOgrProductOutreachEmail({
+        presentation,
+        productHref,
+        catalogHref,
+        signatureName: sender.signatureName,
+        recipientName: recipientNameResult.value,
+        subject: subjectResult.value,
+        introText: introResult.value,
+        closingText: closingResult.value,
+        wholesaleUsd: loaded.wholesaleUsd,
+      });
+      const { error: stampedPayloadError } = await gate.supabase
+        .from('system_messages')
+        .update({
+          payload: {
+            sku: loaded.product.sku,
+            name: loaded.product.name,
+            slug: presentation.slug,
+            productHref,
+            ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
+          },
+        })
+        .eq('id', ledger.id)
+        .eq('origin', SYSTEM_MESSAGE_ORIGIN_MANUAL_PRODUCT_EMAIL)
+        .eq('status', 'sending');
+      if (stampedPayloadError) {
+        console.error('[ogrProductOutreachEmail]', {
+          workflow: 'system_message_stamp_presence_href',
+          productId,
+          systemMessageId: ledger.id,
+          error: stampedPayloadError.message,
+        });
+      }
+    }
+
     const sendResult = await sendOgrProductOutreachEmail({
-      to,
+      to: primaryTo,
       subject: message.subject,
       html: message.html,
       text: message.text,
@@ -292,6 +392,11 @@ export const POST: APIRoute = async ({ request }) => {
     });
 
     if (!sendResult.ok) {
+      await markProductOutreachMessageFailed(
+        gate.supabase,
+        ledger.id,
+        sendResult.error ?? sendResult.reason,
+      );
       if (sendResult.reason === 'not_configured') {
         return jsonError('Email is not configured', 503);
       }
@@ -318,35 +423,45 @@ export const POST: APIRoute = async ({ request }) => {
       return jsonError('Failed to send email', 502);
     }
 
-    const persist = await insertProductOutreachSystemMessage(gate.supabase, {
-      catalogItemId: productId,
-      resendEmailId: sendResult.resendEmailId,
-      toEmail: to,
-      toName: recipientNameResult.value,
-      subject: message.subject,
-      prospectId: crm.association.prospectId,
-      accountContactId: crm.association.accountContactId,
-      retailerLineAccountId: retailerLineAccountId ?? null,
-      sentBy: gate.userId,
-      payload: {
-        sku: loaded.product.sku,
-        name: loaded.product.name,
-        slug: presentation.slug,
-        productHref,
-        ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
-      },
-    });
+    const persist = await stampResendEmailIdWithRetry(() =>
+      stampProductOutreachMessageSent(gate.supabase, ledger.id, {
+        resendEmailId: sendResult.resendEmailId,
+      }),
+    );
 
     if (!persist.ok) {
       console.error('[ogrProductOutreachEmail]', {
-        workflow: 'system_message_persist',
+        workflow: 'system_message_stamp',
         productId,
+        systemMessageId: ledger.id,
         resendEmailId: sendResult.resendEmailId,
         error: persist.error,
       });
+      if (siblingEmails.length > 0) {
+        await sendSiblingProductOutreachEmails({
+          client: gate.supabase,
+          emails: siblingEmails,
+          product: loaded.product,
+          presentation,
+          emailMarket,
+          requestOrigin: new URL(request.url).origin,
+          toName: recipientNameResult.value ?? null,
+          subject: subjectResult.value || message.subject,
+          introText: introResult.value ?? '',
+          closingText: closingResult.value ?? '',
+          signatureName: sender.signatureName,
+          fromDisplayName: sender.fromDisplayName,
+          prospectId: crm.association.prospectId,
+          accountContactId: crm.association.accountContactId,
+          retailerLineAccountId: retailerLineAccountId ?? null,
+          sentBy: gate.userId,
+          wholesaleUsd: loaded.wholesaleUsd,
+        });
+      }
       return new Response(
         JSON.stringify({
           ok: true,
+          systemMessageId: ledger.id,
           resendEmailId: sendResult.resendEmailId,
           logged: false,
         }),
@@ -355,6 +470,33 @@ export const POST: APIRoute = async ({ request }) => {
           headers: { 'Content-Type': 'application/json' },
         },
       );
+    }
+
+    const admin = getServiceRoleClient();
+    if (admin) {
+      await replayUnmatchedResendEvents(admin, sendResult.resendEmailId);
+    }
+
+    if (siblingEmails.length > 0) {
+      await sendSiblingProductOutreachEmails({
+        client: gate.supabase,
+        emails: siblingEmails,
+        product: loaded.product,
+        presentation,
+        emailMarket,
+        requestOrigin: new URL(request.url).origin,
+        toName: recipientNameResult.value ?? null,
+        subject: subjectResult.value || message.subject,
+        introText: introResult.value ?? '',
+        closingText: closingResult.value ?? '',
+        signatureName: sender.signatureName,
+        fromDisplayName: sender.fromDisplayName,
+        prospectId: crm.association.prospectId,
+        accountContactId: crm.association.accountContactId,
+        retailerLineAccountId: retailerLineAccountId ?? null,
+        sentBy: gate.userId,
+        wholesaleUsd: loaded.wholesaleUsd,
+      });
     }
 
     return new Response(

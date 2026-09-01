@@ -1,0 +1,10 @@
+business_name,physical_address,primary_phone,verified_email,key_personnel,crm_action,crm_id
+Joseph Hardware,"101 S Main St, Joseph, OR 97846",541-432-2271,Unspecified,Matt Chavez (Owner),inserted,683
+Wallowa Lake Marina,"72214 Marina Lane, Joseph, OR 97846",541-432-9115,Unspecified,Unspecified,inserted,684
+A Piece of Pendleton,"369 S Main St, Pendleton, OR 97801",541-379-1215,correctionconnectionpendleton@gmail.com,Pendleton Underground Tours (Owner),inserted,685
+Ashland Fly Shop,"399 E Main St, Ashland, OR 97520",541-488-6454,info@ashlandflyshop.com,Family Owned,skipped_existing_enriched_email,652
+Bandon Dunes Golf Resort (Pro Shop),"57744 Round Lake Rd, Bandon, OR 97411",541-347-4380 / 888-345-6008,Unspecified,"Jeff Simonds (GM), Evan Speck (Head Pro)",inserted,686
+OGA Golf Course (Pro Shop),"2850 Hazelnut Dr, Woodburn, OR 97071",503-981-4653 / 503-981-6105,Unspecified,Unspecified,inserted,687
+Outside In (enrichment),"845 NW Wall St, Bend, OR 97703",541-317-3569,"info@outsideinbend.com, angela@outsideinbend.com",Angela Salido (Owner),enriched_existing,679
+Second Street Gallery (enrichment),"210 2nd St SE, Bandon, OR 97411",541-347-4133,bandonartworks@gmail.com (secondary),Pete Bauer / Candace Kreitlow,enriched_existing,667
+The Toy Room (enrichment),"295 2nd St SE, Bandon, OR 97411",541-347-9783 / 515-320-2469,steve@steveprottsman.com,Steve Prottsman (Owner),enriched_existing,671

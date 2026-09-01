@@ -1,8 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { territoryCodeFromDriveableRegion } from '@/lib/geoCatalog';
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/types/database';
 
 export const BC_TERRITORY_CODE = 'bc';
+
+/** Directory filter sentinel — show every store territory (not a real territory row). */
+export const ALL_TERRITORIES_FILTER = 'ALL' as const;
 
 /** Province/state store geos only — excludes child regions like Northern California. */
 export const STORE_TERRITORY_CODES = ['bc', 'ab', 'ca', 'or', 'wa'] as const;
@@ -77,6 +81,8 @@ export function suggestTerritoryCodeFromRegion(region: string | null | undefined
   if (p === 'WA' || p === 'WASHINGTON') return 'wa';
   const fromBcSubregion = territoryFromBcCrmRegion(region ?? '');
   if (fromBcSubregion) return fromBcSubregion;
+  const fromDriveable = territoryCodeFromDriveableRegion(region);
+  if (fromDriveable) return fromDriveable;
   return null;
 }
 

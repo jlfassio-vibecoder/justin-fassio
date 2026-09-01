@@ -47,10 +47,17 @@ export const POST: APIRoute = async ({ request }) => {
     if (!result.ok) {
       return jsonAccountResearch({ ok: false, error: result.error }, result.status);
     }
+    if (result.snapshot) {
+      return jsonAccountResearch({
+        ok: true,
+        unlocked: true,
+        ...snapshotPayload(result.snapshot),
+      });
+    }
     return jsonAccountResearch({
       ok: true,
       unlocked: true,
-      ...(result.snapshot ? snapshotPayload(result.snapshot) : {}),
+      locksBySourceType: result.locksBySourceType ?? {},
     });
   }
 
@@ -68,9 +75,17 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonAccountResearch({ ok: false, error: result.error }, result.status);
   }
 
+  if (result.snapshot) {
+    return jsonAccountResearch({
+      ok: true,
+      locked: true,
+      ...snapshotPayload(result.snapshot),
+    });
+  }
+
   return jsonAccountResearch({
     ok: true,
     locked: true,
-    ...(result.snapshot ? snapshotPayload(result.snapshot) : {}),
+    locksBySourceType: result.locksBySourceType ?? {},
   });
 };

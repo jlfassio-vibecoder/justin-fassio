@@ -9,6 +9,9 @@ const DIRECTORY_HOST_SUFFIXES = [
   'golftown.com',
   'golfnb.ca',
   'golfcanada.ca',
+  'golfontario.ca',
+  'golfsaskatchewan.org',
+  'golfinbritishcolumbia.com',
   'golfpass.com',
   'golfnow.com',
   'integolf.com',
@@ -30,6 +33,8 @@ const DIRECTORY_HOST_SUFFIXES = [
   'bbb.org',
   'chamberofcommerce.com',
   'kelownachamber.org',
+  'tourismkelowna.com',
+  'kelowna.com',
 ];
 
 /** Directory hosts to exclude from official-website discovery (Exa excludeDomains). */
@@ -71,6 +76,8 @@ export type CompanyWebResearchInput = {
   fillBlanksFocus?: boolean;
   /** When set (non-OGR line), replaces the default BC / Old Guys Rule research persona. */
   persona?: string;
+  /** Structured CRM/Yelp context prepended to the Perplexity prompt (contact discovery). */
+  researchContextSeed?: string;
 };
 
 /**
@@ -143,6 +150,7 @@ export async function researchCompany(
       prompt: [
         input.persona?.trim() ||
           'You research BC retailers for Old Guys Rule wholesale apparel reps.',
+        input.researchContextSeed?.trim() ?? '',
         'Use the web search tool to find current public information about THIS exact company.',
         urlInstructions,
         locationLine,

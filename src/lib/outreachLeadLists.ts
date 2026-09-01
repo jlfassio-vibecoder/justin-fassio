@@ -14,6 +14,10 @@ import {
   type ProspectOutreachEngagement,
 } from '@/lib/outreachEngagementAggregate';
 import {
+  countMessagesSentSince,
+  lastEngagedCatalogItemIdFromMessages,
+} from '@/lib/outreachFollowUpQueue';
+import {
   listConfirmedLinksForProspect,
   type GmailThreadLinkRow,
 } from '@/lib/google/gmailThreadLinks';
@@ -27,7 +31,7 @@ import { resolveOutreachLeadRules } from '@/lib/resolveOutreachLeadRules';
 import { formatOutreachPreparationDate } from '@/lib/outreachSelectTargets';
 import { AGENT_OUTREACH_PREP_TZ } from '@/lib/outreachSelectionConstants';
 import { normalizeSystemMessageEmail } from '@/lib/systemMessages';
-import { fetchDueCallFollowUps } from '@/lib/calls';
+import { fetchProspectFollowUpContext, loadProspectsCalledToday } from '@/lib/calls';
 
 type Client = SupabaseClient<Database>;
 
@@ -41,12 +45,36 @@ export type OutreachLeadRow = {
   score: number;
   rulesVersion: OutreachLeadRulesVersion;
   engagement: ProspectOutreachEngagement;
+  lastEngagedCatalogItemId: string | null;
+  emailsSentInWindow: number;
+  followUpOverdueDays: number | null;
+  lastCallAtToday: string | null;
+  /** First-party public-site presence (Briefing / Top Leads). */
+  sitePresence?: {
+    lastSeenAt: string;
+    lastPath: string | null;
+    active: boolean;
+  } | null;
 };
 
 export type OutreachLeadKind = 'warm' | 'hot' | 'call_today';
 
 const MESSAGE_SELECT =
   'id, prospect_id, to_email, catalog_item_id, sent_at, open_count, click_count, last_opened_at, last_clicked_at, bounced_at, complained_at, status, account_contact_id';
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function leadRowExtras(
+  messages: OutreachMessageRow[],
+  asOf: Date,
+  rules: OutreachLeadRules,
+): { lastEngagedCatalogItemId: string | null; emailsSentInWindow: number } {
+  const sinceIso = new Date(asOf.getTime() - rules.warmWindowDays * MS_PER_DAY).toISOString();
+  return {
+    lastEngagedCatalogItemId: lastEngagedCatalogItemIdFromMessages(messages),
+    emailsSentInWindow: countMessagesSentSince(messages, sinceIso),
+  };
+}
 
 /** Matches listConfirmedLinksForProspect default cap, applied per prospect after batch fetch. */
 const CONFIRMED_LINKS_PER_PROSPECT = 25;
@@ -218,15 +246,22 @@ export async function getOutreachLeadForProspect(params: {
       suppressed: false,
       unlinkedManualIncluded: 0,
     });
-    const followUps = await fetchDueCallFollowUps(params.client, {
+    const followUps = await fetchProspectFollowUpContext(params.client, {
       asOf,
       prospectIds: [params.prospectId],
     });
+    const followCtx = followUps.get(params.prospectId);
     const evaluated = evaluateLeadState({
       engagement,
-      followUpDue: followUps.has(params.prospectId),
+      followUpDue: followCtx
+        ? { due: true, overdueDays: followCtx.overdueDays }
+        : { due: false, overdueDays: 0 },
       asOf,
       rules,
+    });
+    const calledToday = await loadProspectsCalledToday(params.client, {
+      asOf,
+      prospectIds: [params.prospectId],
     });
     return {
       prospectId: params.prospectId,
@@ -238,6 +273,9 @@ export async function getOutreachLeadForProspect(params: {
       score: evaluated.score,
       rulesVersion: evaluated.rulesVersion,
       engagement,
+      ...leadRowExtras([], asOf, rules),
+      followUpOverdueDays: followCtx?.overdueDays ?? null,
+      lastCallAtToday: calledToday.get(params.prospectId) ?? null,
     };
   }
 
@@ -263,13 +301,16 @@ export async function getOutreachLeadForProspect(params: {
     unlinkedManualIncluded: unlinked.length,
   });
 
-  const followUps = await fetchDueCallFollowUps(params.client, {
+  const followUps = await fetchProspectFollowUpContext(params.client, {
     asOf,
     prospectIds: [params.prospectId],
   });
+  const followCtx = followUps.get(params.prospectId);
   const evaluated = evaluateLeadState({
     engagement,
-    followUpDue: followUps.has(params.prospectId),
+    followUpDue: followCtx
+      ? { due: true, overdueDays: followCtx.overdueDays }
+      : { due: false, overdueDays: 0 },
     asOf,
     rules,
   });
@@ -277,6 +318,11 @@ export async function getOutreachLeadForProspect(params: {
   const meta = await loadProspectMeta(params.client, [params.prospectId]);
   const prospect = meta.get(params.prospectId);
   if (!prospect) return null;
+
+  const calledToday = await loadProspectsCalledToday(params.client, {
+    asOf,
+    prospectIds: [params.prospectId],
+  });
 
   return {
     prospectId: params.prospectId,
@@ -288,6 +334,9 @@ export async function getOutreachLeadForProspect(params: {
     score: evaluated.score,
     rulesVersion: evaluated.rulesVersion,
     engagement,
+    ...leadRowExtras(messages, asOf, rules),
+    followUpOverdueDays: followCtx?.overdueDays ?? null,
+    lastCallAtToday: calledToday.get(params.prospectId) ?? null,
   };
 }
 
@@ -333,15 +382,16 @@ export async function listOutreachLeads(
     byProspect.set(prospectId, bucket);
   }
 
-  // Include prospects with follow-up due even if no outreach yet (Call Today via follow_up_due).
-  const dueFollowUps = await fetchDueCallFollowUps(client, { asOf });
-  for (const prospectId of dueFollowUps) {
+  // Include prospects with follow-up due even if no outreach yet (Call Today via follow_up_due_*).
+  const followUpContext = await fetchProspectFollowUpContext(client, { asOf });
+  for (const prospectId of followUpContext.keys()) {
     if (!byProspect.has(prospectId)) {
       byProspect.set(prospectId, { messages: [], unlinked: 0 });
     }
   }
 
   const prospectIds = [...byProspect.keys()];
+  const calledToday = await loadProspectsCalledToday(client, { asOf, prospectIds });
   const meta = await loadProspectMeta(client, prospectIds);
   const prospectIdsWithMessages = prospectIds.filter((id) => {
     const bucket = byProspect.get(id);
@@ -368,9 +418,12 @@ export async function listOutreachLeads(
       reply,
       unlinkedManualIncluded: bucket.unlinked,
     });
+    const followCtx = followUpContext.get(prospectId);
     const evaluated = evaluateLeadState({
       engagement,
-      followUpDue: dueFollowUps.has(prospectId),
+      followUpDue: followCtx
+        ? { due: true, overdueDays: followCtx.overdueDays }
+        : { due: false, overdueDays: 0 },
       asOf,
       rules,
     });
@@ -385,6 +438,9 @@ export async function listOutreachLeads(
       score: evaluated.score,
       rulesVersion: evaluated.rulesVersion,
       engagement,
+      ...leadRowExtras(bucket.messages, asOf, rules),
+      followUpOverdueDays: followCtx?.overdueDays ?? null,
+      lastCallAtToday: calledToday.get(prospectId) ?? null,
     };
 
     if (!kinds || kinds.length === 0) {

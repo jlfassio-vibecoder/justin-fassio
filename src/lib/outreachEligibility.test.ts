@@ -20,6 +20,7 @@ function contact(
     title: null,
     phone: null,
     email: null,
+    alternateEmail: null,
     isPrimary: false,
     notes: null,
     createdAt: '2026-01-01T00:00:00Z',
@@ -279,10 +280,46 @@ describe('outreach pool eligibility', () => {
       }),
     ).toBe(false);
     expect(
+      isRlaInOutreachPool(
+        {
+          relationshipStatus: 'prospect',
+          markers: ['lookalike_prospect'],
+        },
+        { includeLookalikeDiscovery: true },
+      ),
+    ).toBe(true);
+    expect(
       isRlaInOutreachPool({
         relationshipStatus: 'prospect',
         markers: ['lookalike_prospect', 'outreach_eligible'],
       }),
     ).toBe(true);
+    expect(
+      isRlaInOutreachPool(
+        {
+          relationshipStatus: 'opened',
+          markers: ['historical_purchaser'],
+        },
+        { accountAudience: 'active_account' },
+      ),
+    ).toBe(true);
+    expect(
+      isRlaInOutreachPool(
+        {
+          relationshipStatus: 'prospect',
+          markers: [],
+        },
+        { accountAudience: 'active_account' },
+      ),
+    ).toBe(false);
+    expect(
+      isRlaInOutreachPool(
+        {
+          relationshipStatus: 'opened',
+          markers: ['historical_purchaser', 'reactivation_unresponsive'],
+        },
+        { accountAudience: 'active_account' },
+      ),
+    ).toBe(false);
   });
 });

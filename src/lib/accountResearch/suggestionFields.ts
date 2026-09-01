@@ -58,14 +58,14 @@ export const SUGGESTION_FIELD_DEFS: Record<SuggestionFieldPath, SuggestionFieldD
     kind: 'scalar',
     blankOnly: true,
     requiresVerifiedConfirm: true,
-    citationPlatforms: ['website'],
+    citationPlatforms: ['website', 'directory'],
   },
   city: {
     fieldPath: 'city',
     kind: 'scalar',
     blankOnly: true,
     requiresVerifiedConfirm: true,
-    citationPlatforms: ['website'],
+    citationPlatforms: ['website', 'directory'],
   },
   region: {
     fieldPath: 'region',
@@ -79,14 +79,14 @@ export const SUGGESTION_FIELD_DEFS: Record<SuggestionFieldPath, SuggestionFieldD
     kind: 'scalar',
     blankOnly: true,
     requiresVerifiedConfirm: true,
-    citationPlatforms: ['website'],
+    citationPlatforms: ['website', 'directory'],
   },
   phone: {
     fieldPath: 'phone',
     kind: 'scalar',
     blankOnly: true,
     requiresVerifiedConfirm: true,
-    citationPlatforms: ['website'],
+    citationPlatforms: ['website', 'directory'],
   },
   name: {
     fieldPath: 'name',

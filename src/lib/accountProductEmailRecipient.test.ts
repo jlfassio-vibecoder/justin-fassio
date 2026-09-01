@@ -17,6 +17,7 @@ function contact(
     title: null,
     phone: null,
     email: null,
+    alternateEmail: null,
     isPrimary: false,
     notes: null,
     createdAt: '2026-01-01T00:00:00Z',

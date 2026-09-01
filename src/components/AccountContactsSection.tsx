@@ -28,6 +28,7 @@ const emptyForm = {
   title: '',
   phone: '',
   email: '',
+  alternateEmail: '',
   notes: '',
   isPrimary: false,
 };
@@ -99,6 +100,7 @@ export function AccountContactsSection({
       title: contact.title ?? '',
       phone: contact.phone ?? '',
       email: contact.email ?? '',
+      alternateEmail: contact.alternateEmail ?? '',
       notes: contact.notes ?? '',
       isPrimary: contact.isPrimary,
     });
@@ -128,6 +130,7 @@ export function AccountContactsSection({
       title: form.title.trim() || null,
       phone: form.phone.trim() || null,
       email: form.email.trim() || null,
+      alternate_email: form.alternateEmail.trim() || null,
       notes: form.notes.trim() || null,
       is_primary: form.isPrimary,
     };
@@ -215,6 +218,10 @@ export function AccountContactsSection({
               <div className="flex gap-2">
                 <dt className="text-ink/55 m-0 shrink-0">Email</dt>
                 <dd className="m-0 break-all">{contact.email || '—'}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="text-ink/55 m-0 shrink-0">Alternate email</dt>
+                <dd className="m-0 break-all">{contact.alternateEmail || '—'}</dd>
               </div>
             </dl>
             <div className="mt-2 flex gap-2">
@@ -305,6 +312,15 @@ export function AccountContactsSection({
               />
             </Field>
           </div>
+          <Field>
+            <FieldLabel>Alternate email</FieldLabel>
+            <Input
+              type="email"
+              value={form.alternateEmail}
+              onChange={(e) => setForm((f) => ({ ...f, alternateEmail: e.target.value }))}
+              disabled={busy}
+            />
+          </Field>
           <Field>
             <FieldLabel>Notes</FieldLabel>
             <MentionTextarea

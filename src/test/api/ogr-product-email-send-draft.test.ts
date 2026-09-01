@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const requireApprovedStaffClientMock = vi.fn();
 const getAgentProductOutreachDraftByIdMock = vi.fn();
 const markAgentProductOutreachDraftSentMock = vi.fn();
+const stampAgentProductOutreachDraftResendIdMock = vi.fn();
+const stampResendEmailIdWithRetryMock = vi.fn();
 const requireExplicitProductOutreachCrmAssociationMock = vi.fn();
 const loadPublishedOgrProductForEmailMock = vi.fn();
 const buildPublicProductPresentationMock = vi.fn();
@@ -13,6 +15,10 @@ const resolveOgrPricingMarketForProspectMock = vi.fn();
 const resolveStaffOutreachSenderNamesMock = vi.fn();
 const renderOgrProductOutreachEmailMock = vi.fn();
 const sendOgrProductOutreachEmailMock = vi.fn();
+const getServiceRoleClientMock = vi.fn();
+const replayUnmatchedResendEventsMock = vi.fn();
+const fetchAccountContactByIdMock = vi.fn();
+const sendSiblingProductOutreachEmailsMock = vi.fn();
 
 vi.mock('@/lib/agentAuth', () => ({
   requireApprovedStaffClient: (...args: unknown[]) => requireApprovedStaffClientMock(...args),
@@ -23,6 +29,9 @@ vi.mock('@/lib/systemMessages', () => ({
     getAgentProductOutreachDraftByIdMock(...args),
   markAgentProductOutreachDraftSent: (...args: unknown[]) =>
     markAgentProductOutreachDraftSentMock(...args),
+  stampAgentProductOutreachDraftResendId: (...args: unknown[]) =>
+    stampAgentProductOutreachDraftResendIdMock(...args),
+  stampResendEmailIdWithRetry: (...args: unknown[]) => stampResendEmailIdWithRetryMock(...args),
   requireExplicitProductOutreachCrmAssociation: (...args: unknown[]) =>
     requireExplicitProductOutreachCrmAssociationMock(...args),
   publicMarketFromOutreachPayload: (payload: unknown) => {
@@ -30,6 +39,23 @@ vi.mock('@/lib/systemMessages', () => ({
     const value = (payload as { publicMarket?: unknown }).publicMarket;
     return value === 'ca' || value === 'us' ? value : null;
   },
+}));
+
+vi.mock('@/lib/supabaseAdmin', () => ({
+  getServiceRoleClient: (...args: unknown[]) => getServiceRoleClientMock(...args),
+}));
+
+vi.mock('@/lib/resendWebhook', () => ({
+  replayUnmatchedResendEvents: (...args: unknown[]) => replayUnmatchedResendEventsMock(...args),
+}));
+
+vi.mock('@/lib/accountContacts', () => ({
+  fetchAccountContactById: (...args: unknown[]) => fetchAccountContactByIdMock(...args),
+}));
+
+vi.mock('@/lib/sendSiblingProductOutreachEmails', () => ({
+  sendSiblingProductOutreachEmails: (...args: unknown[]) =>
+    sendSiblingProductOutreachEmailsMock(...args),
 }));
 
 vi.mock('@/lib/loadPublishedOgrProductForEmail', () => ({
@@ -172,6 +198,16 @@ describe('POST /api/staff/ogr-product-email/drafts/[id]/send', () => {
       resendEmailId: 're_draft_1',
     });
     markAgentProductOutreachDraftSentMock.mockResolvedValue({ ok: true, id: DRAFT_ID });
+    stampResendEmailIdWithRetryMock.mockImplementation(async (fn: () => Promise<unknown>) => fn());
+    getServiceRoleClientMock.mockReturnValue(null);
+    replayUnmatchedResendEventsMock.mockResolvedValue({
+      attempted: 0,
+      applied: 0,
+      duplicates: 0,
+      failed: 0,
+    });
+    fetchAccountContactByIdMock.mockResolvedValue({ data: null, error: null });
+    sendSiblingProductOutreachEmailsMock.mockResolvedValue(undefined);
   });
 
   it('renders, sends via Resend, and marks the same draft row sent', async () => {
@@ -192,12 +228,45 @@ describe('POST /api/staff/ogr-product-email/drafts/[id]/send', () => {
       }),
     );
     expect(sendOgrProductOutreachEmailMock).toHaveBeenCalledOnce();
+    expect(stampResendEmailIdWithRetryMock).toHaveBeenCalledOnce();
     expect(markAgentProductOutreachDraftSentMock).toHaveBeenCalledWith(
       expect.anything(),
       DRAFT_ID,
       expect.objectContaining({
         resendEmailId: 're_draft_1',
         sentBy: 'approver-1',
+      }),
+    );
+    expect(sendSiblingProductOutreachEmailsMock).not.toHaveBeenCalled();
+  });
+
+  it('fans out a sibling send when the draft contact is Primary with alternate email', async () => {
+    fetchAccountContactByIdMock.mockResolvedValue({
+      data: {
+        id: CONTACT_ID,
+        accountId: 42,
+        role: 'buyer',
+        fullName: 'Sam',
+        title: null,
+        phone: null,
+        email: 'buyer@example.com',
+        alternateEmail: 'alt@example.com',
+        isPrimary: true,
+        notes: null,
+        createdAt: '',
+        updatedAt: '',
+      },
+      error: null,
+    });
+
+    const res = await POST(ctx());
+    expect(res.status).toBe(200);
+    expect(sendOgrProductOutreachEmailMock).toHaveBeenCalledOnce();
+    expect(sendSiblingProductOutreachEmailsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emails: ['alt@example.com'],
+        accountContactId: CONTACT_ID,
+        prospectId: 42,
       }),
     );
   });
@@ -210,7 +279,19 @@ describe('POST /api/staff/ogr-product-email/drafts/[id]/send', () => {
     });
     const res = await POST(ctx());
     expect(res.status).toBe(502);
-    expect(markAgentProductOutreachDraftSentMock).not.toHaveBeenCalled();
+    expect(stampResendEmailIdWithRetryMock).not.toHaveBeenCalled();
+  });
+
+  it('returns logged false when stamp fails after send', async () => {
+    stampResendEmailIdWithRetryMock.mockResolvedValue({ ok: false, error: 'stamp failed' });
+    const res = await POST(ctx());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      systemMessageId: DRAFT_ID,
+      resendEmailId: 're_draft_1',
+      logged: false,
+    });
   });
 
   it('rejects client-supplied html on send-draft', async () => {

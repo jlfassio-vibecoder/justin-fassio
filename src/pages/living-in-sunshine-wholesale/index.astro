@@ -1,0 +1,41 @@
+---
+export const prerender = false;
+
+import Layout from '@/layouts/Layout.astro';
+import PublicLinePublishedShowroom from '@/components/wholesale/PublicLinePublishedShowroom.astro';
+import { fetchPublicLineCards, mergePublicLineCards } from '@/lib/lines';
+import { fetchPublicLivingInSunshineProducts } from '@/lib/publicCatalog';
+
+const [{ data: cards }, { data: products, error: productsError }] = await Promise.all([
+  fetchPublicLineCards(),
+  fetchPublicLivingInSunshineProducts(),
+]);
+const line = mergePublicLineCards(cards).find((row) => row.code === 'living-in-sunshine');
+const lineName = line?.name ?? 'Living In Sunshine';
+const description =
+  line?.description ?? 'Premium outdoor and surf gear — flagship Go Hammock and accessories.';
+---
+
+<Layout title={`${lineName} Wholesale | Justin Fassio`} description={description}>
+  {
+    productsError ? (
+      <main class="bg-bg text-ink px-8.1 mx-auto max-w-[720px] py-16">
+        <h1 class="font-heading text-3xl">Wholesale collection unavailable</h1>
+        <p class="text-ink/70 mt-3">
+          We couldn’t load the public catalog right now. Please try again shortly or email
+          office@justinfassio.com.
+        </p>
+        <a href="/" class="text-accent-700 mt-6 inline-block">
+          ← Home
+        </a>
+      </main>
+    ) : (
+      <PublicLinePublishedShowroom
+        lineName={lineName}
+        tagline={line?.tagline ?? 'Now Repping'}
+        description={description}
+        products={products}
+      />
+    )
+  }
+</Layout>

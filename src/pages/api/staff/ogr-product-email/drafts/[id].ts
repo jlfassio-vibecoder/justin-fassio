@@ -1,5 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireApprovedStaffClient } from '@/lib/agentAuth';
+import { parseOptionalUuidField } from '@/lib/aiLineContext';
+import { loadPublishedOgrProductForEmail } from '@/lib/loadPublishedOgrProductForEmail';
 import {
   DRAFT_FIELD_LIMITS,
   jsonError,
@@ -8,12 +10,18 @@ import {
   rejectUnsupportedSendFields,
   requireBoundedString,
   requireDraftId,
+  requireProductId,
   requireRecipientEmail,
   serializeAgentDraft,
 } from '@/lib/ogrProductEmailDraftApi';
+import { defaultOgrProductEmailSubject } from '@/lib/ogrProductOutreachEmail';
+import { buildOgrProductUrl, resolvePublicSiteOrigin } from '@/lib/productUrls';
+import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
+import { resolveOgrPricingMarketForProductEmailDraft } from '@/lib/resolveAccountPricingMarket';
 import {
   getAgentProductOutreachDraftById,
   updateAgentProductOutreachDraft,
+  type UpdateAgentProductOutreachDraftInput,
 } from '@/lib/systemMessages';
 
 export const prerender = false;
@@ -51,13 +59,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   const unsupported = rejectUnsupportedSendFields(body);
   if (unsupported) return jsonError(unsupported, 400);
 
-  const patch: {
-    toEmail?: string;
-    toName?: string;
-    subject?: string;
-    introText?: string;
-    closingText?: string;
-  } = {};
+  const patch: UpdateAgentProductOutreachDraftInput = {};
 
   if (body.to != null) {
     const to = requireRecipientEmail(body.to);
@@ -97,6 +99,56 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     if (!closing.ok) return jsonError(closing.error, 400);
     if (closing.value == null) return jsonError('closingText is required', 400);
     patch.closingText = closing.value;
+  }
+
+  if (body.productId != null) {
+    const productId = requireProductId(body.productId);
+    if (!productId.ok) return jsonError(productId.error, 400);
+
+    const existing = await getAgentProductOutreachDraftById(gate.supabase, id.value);
+    if (!existing.ok) {
+      const status = existing.error === 'Draft not found' ? 404 : 400;
+      return jsonError(existing.error, status);
+    }
+
+    const salesLineId = parseOptionalUuidField(body.salesLineId);
+    const loaded = await loadPublishedOgrProductForEmail(gate.supabase, productId.value, {
+      ...(salesLineId ? { salesLineId } : {}),
+    });
+    if (!loaded.ok) {
+      return jsonError(loaded.message, loaded.reason === 'not_available' ? 400 : 404);
+    }
+
+    const origin = resolvePublicSiteOrigin({
+      requestOrigin: new URL(request.url).origin,
+    });
+    const emailMarket = (
+      await resolveOgrPricingMarketForProductEmailDraft(gate.supabase, {
+        prospectId: existing.draft.prospectId,
+        retailerLineAccountId: existing.draft.retailerLineAccountId,
+      })
+    ).publicMarket;
+    const presentation = buildPublicProductPresentation(loaded.product, {
+      publicMarket: emailMarket,
+    });
+    const productHref =
+      emailMarket === 'us'
+        ? buildOgrProductUrl(presentation.slug, origin, 'us')
+        : buildOgrProductUrl(presentation.slug, origin);
+
+    patch.catalogItemId = productId.value;
+    patch.subject = defaultOgrProductEmailSubject(presentation.name);
+    patch.payload = {
+      sku: presentation.sku,
+      name: presentation.name,
+      slug: presentation.slug,
+      productHref,
+      ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
+    };
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return jsonError('No fields to update', 400);
   }
 
   const updated = await updateAgentProductOutreachDraft(gate.supabase, id.value, patch);

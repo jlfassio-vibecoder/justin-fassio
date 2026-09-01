@@ -11,7 +11,13 @@ import { supabase } from '@/lib/supabase';
 import type { AcquisitionStage, LineStatus, RetailerLineTargetStatus } from '@/types/database';
 
 export const PROSPECTIVE_LINE_SOFT_CAP = 12;
-export const RESERVED_LINE_CODES = ['ogr', 'eagle-peak', 'big-fish', 'bkg'] as const;
+export const RESERVED_LINE_CODES = [
+  'ogr',
+  'living-in-sunshine',
+  'eagle-peak',
+  'big-fish',
+  'bkg',
+] as const;
 export const PROSPECTIVE_OPERATIONAL_FORBIDDEN =
   'Operational writes are not allowed for prospective lines';
 export const PROSPECTIVE_TARGETS_BLOCK_PROMOTE =

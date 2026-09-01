@@ -116,7 +116,7 @@ describe('listOutreachLeads filtering helpers', () => {
       asOf,
     });
     expect(followOnly.leadState).toBe('cold');
-    expect(followOnly.callTodayReasons).toEqual(['follow_up_due']);
+    expect(followOnly.callTodayReasons).toEqual(['follow_up_due_today']);
   });
 });
 
@@ -155,7 +155,14 @@ describe('listOutreachLeads integration (mocked client)', () => {
       }
       if (table === 'calls') {
         return chain({
-          data: [{ prospect_id: 99, follow_up_date: '2026-08-10' }],
+          data: [
+            {
+              prospect_id: 99,
+              follow_up_date: '2026-08-10',
+              call_date: '2026-08-10',
+              created_at: '2026-08-10T10:00:00Z',
+            },
+          ],
           error: null,
         });
       }
@@ -192,6 +199,6 @@ describe('listOutreachLeads integration (mocked client)', () => {
 
     expect(byId.get(42)?.engagement.unlinkedManualIncluded).toBe(1);
     expect(byId.get(42)?.engagement.clickCount).toBe(1);
-    expect(byId.get(99)?.callTodayReasons).toContain('follow_up_due');
+    expect(byId.get(99)?.callTodayReasons).toContain('follow_up_due_today');
   });
 });

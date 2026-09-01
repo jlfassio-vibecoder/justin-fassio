@@ -24,7 +24,7 @@ const idle: SectionState = { busy: false, error: null, success: null };
 function StaffAvatarPreview({ src, initials }: { src: string | null; initials: string }) {
   return (
     <div
-      className="bg-accent font-heading text-bg flex h-16 w-16 flex-none items-center justify-center overflow-hidden rounded-full text-lg"
+      className="bg-accent font-heading text-on-accent flex h-16 w-16 flex-none items-center justify-center overflow-hidden rounded-full text-lg"
       aria-hidden={src ? true : undefined}
     >
       {src ? (
@@ -171,7 +171,7 @@ export function StaffAccountPage() {
                   void onAvatarSelected(file);
                 }}
               />
-              <span className="bg-accent text-bg font-heading inline-flex min-h-9 cursor-pointer items-center rounded-full px-3.5 text-sm">
+              <span className="bg-accent text-on-accent font-heading inline-flex min-h-9 cursor-pointer items-center rounded-full px-3.5 text-sm">
                 {avatarState.busy
                   ? 'Saving…'
                   : profile?.avatar_path

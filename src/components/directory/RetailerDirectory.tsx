@@ -5,12 +5,13 @@ import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { hasMarker } from '@/lib/accountImport/classification';
 import { formatAccountLocationLine } from '@/lib/accountImport/directoryPresentation';
-import { CHANNEL_OPTIONS, REGION_OPTIONS } from '@/lib/directoryOptions';
+import { CHANNEL_OPTIONS } from '@/lib/directoryOptions';
+import { regionOptionsForTerritory } from '@/lib/geoCatalog';
 import { filterProspects } from '@/lib/prospectFilters';
 import { primaryRetailChannelLabel } from '@/lib/crmRetailTaxonomy';
 import type { Prospect } from '@/lib/prospects';
 import { fetchCrossLineBadgesForRetailers, type CrossLineBadge } from '@/lib/retailerLineAccounts';
-import { BC_TERRITORY_CODE, type Territory } from '@/lib/territories';
+import { ALL_TERRITORIES_FILTER, type Territory } from '@/lib/territories';
 
 const channelTagVariant: Partial<
   Record<Prospect['category'], 'accent-2' | 'accent' | 'neutral' | 'outline'>
@@ -55,9 +56,9 @@ export interface RetailerDirectoryProps {
   toolbarExtra?: ReactNode;
   /** Briefly highlight a row (e.g. after AI add). */
   highlightedId?: number | null;
-  /** Active territories for the directory filter (defaults to BC when empty). */
+  /** Active territories for the directory filter. */
   territories?: Territory[];
-  /** Controlled territory code; defaults to British Columbia. */
+  /** Controlled territory code; defaults to all territories. */
   territoryCode?: string;
   onTerritoryCodeChange?: (code: string) => void;
   /** Phase 2: when set, show empty-safe cross-line badge chips. */
@@ -96,7 +97,8 @@ export function RetailerDirectory({
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('ALL');
   const [channel, setChannel] = useState('ALL');
-  const [territoryCodeInternal, setTerritoryCodeInternal] = useState(BC_TERRITORY_CODE);
+  const [territoryCodeInternal, setTerritoryCodeInternal] =
+    useState<string>(ALL_TERRITORIES_FILTER);
   const territoryCode = territoryCodeProp ?? territoryCodeInternal;
   const [badgesByRetailer, setBadgesByRetailer] = useState<Map<number, CrossLineBadge[]>>(
     () => new Map(),
@@ -108,6 +110,10 @@ export function RetailerDirectory({
     }
     onTerritoryCodeChange?.(code);
   }
+
+  const regionOptions = useMemo(() => regionOptionsForTerritory(territoryCode), [territoryCode]);
+  // Nested region list changes with territory; keep filter valid without an effect reset.
+  const effectiveRegion = regionOptions.some((o) => o.value === region) ? region : 'ALL';
 
   useEffect(() => {
     if (highlightedId == null) return;
@@ -147,8 +153,8 @@ export function RetailerDirectory({
   }, [currentSalesLineId, retailerIdsKey]);
 
   const filtered = useMemo(
-    () => filterProspects(retailers, { search, region, channel, territoryCode }),
-    [retailers, search, region, channel, territoryCode],
+    () => filterProspects(retailers, { search, region: effectiveRegion, channel, territoryCode }),
+    [retailers, search, effectiveRegion, channel, territoryCode],
   );
 
   return (
@@ -175,8 +181,13 @@ export function RetailerDirectory({
             ))}
           </Select>
         ) : null}
-        <Select className="w-auto" value={region} onChange={(e) => setRegion(e.target.value)}>
-          {REGION_OPTIONS.map((opt) => (
+        <Select
+          className="w-auto"
+          value={effectiveRegion}
+          onChange={(e) => setRegion(e.target.value)}
+          aria-label="Region"
+        >
+          {regionOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>

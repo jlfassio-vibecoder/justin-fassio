@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ContactDirectoryRow } from '@/lib/accountContacts';
 import { enrichContactsForDirectory } from '@/lib/accountContacts';
 import { filterContacts } from '@/lib/contactFilters';
+import { UNASSIGNED_REGION_VALUE } from '@/lib/geoCatalog';
 
 const BASE: ContactDirectoryRow = {
   id: 'c1',
@@ -11,6 +12,7 @@ const BASE: ContactDirectoryRow = {
   title: 'Softgoods',
   phone: '250-555-0100',
   email: 'sarah@example.com',
+  alternateEmail: null,
   isPrimary: true,
   notes: null,
   createdAt: '2026-08-01T00:00:00Z',
@@ -34,6 +36,7 @@ const SAMPLE: ContactDirectoryRow[] = [
     role: 'owner',
     title: null,
     email: 'john@marina.test',
+    alternateEmail: null,
     isPrimary: false,
     accountName: 'Sidney Marina Store',
     accountCity: 'Sidney',
@@ -57,6 +60,7 @@ describe('enrichContactsForDirectory', () => {
           title: null,
           phone: null,
           email: null,
+          alternateEmail: null,
           isPrimary: true,
           notes: null,
           createdAt: '2026-08-01T00:00:00Z',
@@ -98,6 +102,7 @@ describe('enrichContactsForDirectory', () => {
           title: null,
           phone: null,
           email: null,
+          alternateEmail: null,
           isPrimary: false,
           notes: null,
           createdAt: '2026-08-01T00:00:00Z',
@@ -170,5 +175,25 @@ describe('filterContacts', () => {
         accountStatus: 'ALL',
       }).map((c) => c.id),
     ).toEqual(['c2']);
+  });
+
+  it('matches Unassigned to statewide leftover account regions', () => {
+    const statewide: ContactDirectoryRow = {
+      ...BASE,
+      id: 'c3',
+      accountId: 3,
+      accountName: 'Portland Shop',
+      accountCity: 'Portland',
+      accountRegion: 'Oregon',
+      accountStatus: 'prospect',
+    };
+    expect(
+      filterContacts([BASE, statewide], {
+        search: '',
+        region: UNASSIGNED_REGION_VALUE,
+        channel: 'ALL',
+        accountStatus: 'ALL',
+      }).map((c) => c.id),
+    ).toEqual(['c3']);
   });
 });

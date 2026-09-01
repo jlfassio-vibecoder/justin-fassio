@@ -145,6 +145,56 @@ describe('toWebsiteSearchCandidates', () => {
     expect(candidates).toHaveLength(1);
     expect(candidates[0]?.url).toMatch(/blackmountaingolfclub\.com/i);
   });
+
+  it('falls back to place-name matching when the CRM category word does not match the real site', () => {
+    // CRM entry: "Shannon Lake Golf Club". The real official site
+    // (shannonlakegolf.com) titles itself "Shannon Lake Golf Course" and
+    // never says "club" anywhere in host or title — the strict pass (which
+    // requires every CRM token including "club") finds nothing, so this
+    // must fall back to place-name-only matching instead of returning zero
+    // candidates for a business a plain web search finds instantly.
+    const candidates = toWebsiteSearchCandidates('Shannon Lake Golf Club', [
+      {
+        url: 'https://www.golfcanada.ca/golf-facility/shannon-lake-golf-club-en/',
+        title: 'Shannon Lake Golf Club - Golf Canada',
+        snippet: 'Directory listing',
+      },
+      {
+        url: 'https://shannonlakegolf.com/',
+        title: 'Shannon Lake Golf Course',
+        snippet: "West Kelowna's premier golf destination",
+      },
+      {
+        url: 'https://www.tourismkelowna.com/listing/shannon-lake-golf-club/150/',
+        title: 'Shannon Lake Golf Club',
+        snippet: 'Tourism Kelowna listing',
+      },
+    ]);
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.url).toMatch(/shannonlakegolf\.com/i);
+  });
+
+  it('still prefers the strict category-word match over the relaxed fallback when both exist', () => {
+    const candidates = toWebsiteSearchCandidates('Black Mountain Golf Club', [
+      {
+        url: 'https://blackmountaindistillery.com/',
+        title: 'Black Mountain Distillery — Craft Spirits',
+        snippet: 'Small-batch spirits',
+      },
+      {
+        url: 'https://blackmountaingolfclub.com/',
+        title: 'Black Mountain Golf Club',
+        snippet: 'Kelowna',
+      },
+    ]);
+
+    // The strict pass finds "blackmountaingolfclub.com", so the relaxed
+    // place-name-only fallback (which would also accept the distillery)
+    // never runs.
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.url).toMatch(/blackmountaingolfclub\.com/i);
+  });
 });
 
 describe('toSocialProfileCandidates', () => {

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountDetailDrawer } from '@/components/AccountDetailDrawer';
@@ -9,6 +9,7 @@ import {
   type Prospect,
 } from '@/lib/prospects';
 import type { LineContextValue } from '@/lib/lineContext';
+import { catalogItemStub } from '@/lib/catalog';
 
 const lineState = vi.hoisted(() => {
   const base: LineContextValue = {
@@ -34,6 +35,10 @@ const lineState = vi.hoisted(() => {
   return { current: { ...base }, base };
 });
 
+const handoffMocks = vi.hoisted(() => ({
+  generateDraftFromAccountEmailPick: vi.fn(),
+}));
+
 vi.mock('@/lib/lineContext', () => ({
   useOptionalLineContext: () => lineState.current,
 }));
@@ -55,6 +60,16 @@ vi.mock('@/lib/retailerLineAccounts', async () => {
       },
       error: null,
     })),
+  };
+});
+
+vi.mock('@/lib/accountResearchDraftHandoff', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/accountResearchDraftHandoff')>(
+    '@/lib/accountResearchDraftHandoff',
+  );
+  return {
+    ...actual,
+    generateDraftFromAccountEmailPick: handoffMocks.generateDraftFromAccountEmailPick,
   };
 });
 
@@ -98,13 +113,13 @@ vi.mock('@/components/AccountEmailProductPickerModal', () => ({
     open: boolean;
     onClose: () => void;
     onPick: (pick: {
-      item: { id: string; name: string };
+      item: ReturnType<typeof catalogItemStub>;
       to: string;
       recipientName: string;
       accountContactId: string | null;
       recipientHint: string | null;
       recipientOptions: unknown[];
-    }) => void;
+    }) => void | Promise<void>;
   }) =>
     open ? (
       <div>
@@ -115,8 +130,13 @@ vi.mock('@/components/AccountEmailProductPickerModal', () => ({
         <button
           type="button"
           onClick={() =>
-            onPick({
-              item: { id: 'prod-1', name: 'American Revival' },
+            void onPick({
+              item: catalogItemStub({
+                id: 'prod-1',
+                publicSlug: 'american-revival',
+                sku: 'OGR-101',
+                name: 'American Revival',
+              }),
               to: 'buyer@example.com',
               recipientName: 'Sam',
               accountContactId: 'c1',
@@ -136,14 +156,17 @@ vi.mock('@/components/OgrProductEmailComposerModal', () => ({
     open,
     onClose,
     onSent,
+    draft,
   }: {
     open: boolean;
     onClose: () => void;
     onSent: () => void;
+    draft?: { id: string } | null;
   }) =>
     open ? (
       <div>
         <p>Product composer</p>
+        {draft ? <p>Draft review {draft.id}</p> : <p>Manual compose</p>}
         <button type="button" onClick={onClose}>
           Cancel composer
         </button>
@@ -192,6 +215,28 @@ function renderDrawer() {
 describe('AccountDetailDrawer email product flow', () => {
   beforeEach(() => {
     lineState.current = { ...lineState.base };
+    handoffMocks.generateDraftFromAccountEmailPick.mockReset();
+    handoffMocks.generateDraftFromAccountEmailPick.mockResolvedValue({
+      ok: true,
+      systemMessageId: 'draft-aa-1',
+      draft: {
+        id: 'draft-aa-1',
+        to: 'buyer@example.com',
+        toName: 'Sam',
+        subject: 'Subject',
+        introText: 'Intro',
+        closingText: 'Closing',
+        prospectId: 7,
+        accountContactId: 'c1',
+        catalogItemId: 'prod-1',
+      },
+      catalogItem: catalogItemStub({
+        id: 'prod-1',
+        publicSlug: 'american-revival',
+        sku: 'OGR-101',
+        name: 'American Revival',
+      }),
+    });
   });
 
   it('opens the picker as a sibling overlay and keeps the account mounted', async () => {
@@ -215,16 +260,39 @@ describe('AccountDetailDrawer email product flow', () => {
     expect(document.querySelector('aside[role="dialog"]')).not.toHaveAttribute('inert');
   });
 
-  it('moves pick → compose exclusively, then cancel compose → pick', async () => {
+  it('generates an AI draft review after pick instead of manual compose', async () => {
     const user = userEvent.setup();
     renderDrawer();
     await user.click(screen.getByRole('button', { name: 'Email product' }));
     await user.click(screen.getByRole('button', { name: 'Email this' }));
+    await waitFor(() => {
+      expect(screen.getByText('Draft review draft-aa-1')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Manual compose')).not.toBeInTheDocument();
     expect(screen.queryByText('Product picker')).not.toBeInTheDocument();
-    expect(screen.getByText('Product composer')).toBeInTheDocument();
+    expect(handoffMocks.generateDraftFromAccountEmailPick).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contact: expect.objectContaining({
+          accountContactId: 'c1',
+          toEmail: 'buyer@example.com',
+        }),
+        catalogItem: expect.objectContaining({ id: 'prod-1' }),
+      }),
+    );
+  });
+
+  it('closes draft review on cancel without returning to the picker', async () => {
+    const user = userEvent.setup();
+    renderDrawer();
+    await user.click(screen.getByRole('button', { name: 'Email product' }));
+    await user.click(screen.getByRole('button', { name: 'Email this' }));
+    await waitFor(() => {
+      expect(screen.getByText('Product composer')).toBeInTheDocument();
+    });
     await user.click(screen.getByRole('button', { name: 'Cancel composer' }));
-    expect(screen.getByText('Product picker')).toBeInTheDocument();
     expect(screen.queryByText('Product composer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Product picker')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /kelowna golf/i })).toBeInTheDocument();
   });
 
   it('returns to the open account after send', async () => {
@@ -232,10 +300,31 @@ describe('AccountDetailDrawer email product flow', () => {
     renderDrawer();
     await user.click(screen.getByRole('button', { name: 'Email product' }));
     await user.click(screen.getByRole('button', { name: 'Email this' }));
+    await waitFor(() => {
+      expect(screen.getByText('Product composer')).toBeInTheDocument();
+    });
     await user.click(screen.getByRole('button', { name: 'Send product email' }));
     expect(screen.queryByText('Product picker')).not.toBeInTheDocument();
     expect(screen.queryByText('Product composer')).not.toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: /kelowna golf/i })).toBeInTheDocument();
+  });
+
+  it('keeps the picker open with an error when draft generation fails', async () => {
+    handoffMocks.generateDraftFromAccountEmailPick.mockResolvedValue({
+      ok: false,
+      error: 'Select a saved contact with an email to send product email.',
+    });
+    const user = userEvent.setup();
+    renderDrawer();
+    await user.click(screen.getByRole('button', { name: 'Email product' }));
+    await user.click(screen.getByRole('button', { name: 'Email this' }));
+    await waitFor(() => {
+      expect(
+        screen.getByText('Select a saved contact with an email to send product email.'),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText('Product picker')).toBeInTheDocument();
+    expect(screen.queryByText('Product composer')).not.toBeInTheDocument();
   });
 
   it('hides Email product when Eagle Peak outreach is blocked', () => {

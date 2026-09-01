@@ -250,6 +250,7 @@ export function isLineAccountWritePath(
 export type OperationalWriteOptions = {
   eaglePeakSellingEnabled?: boolean;
   bigFishSellingEnabled?: boolean;
+  livingInSunshineSellingEnabled?: boolean;
   defaultCurrency?: string | null;
 };
 
@@ -286,6 +287,15 @@ export function assertLineAllowsOperationalWrite(
     }
     return 'ui_blocked';
   }
+  if (line.code === 'living-in-sunshine') {
+    if (
+      options?.livingInSunshineSellingEnabled &&
+      (line.status === 'onboarding' || line.status === 'confirmed' || line.status === 'active')
+    ) {
+      return 'allow';
+    }
+    return 'ui_blocked';
+  }
   return 'reject';
 }
 
@@ -301,6 +311,7 @@ export function isStaffSellingUiBlocked(
     assertLineAllowsOperationalWrite(line, {
       eaglePeakSellingEnabled: options.eaglePeakSellingEnabled,
       bigFishSellingEnabled: options.bigFishSellingEnabled,
+      livingInSunshineSellingEnabled: options.livingInSunshineSellingEnabled,
       defaultCurrency: options.defaultCurrency ?? line.defaultCurrency,
     }) !== 'allow'
   );
@@ -387,6 +398,7 @@ export async function ensureRetailerLineAccount(input: {
   salesLineId: string;
   eaglePeakSellingEnabled?: boolean;
   bigFishSellingEnabled?: boolean;
+  livingInSunshineSellingEnabled?: boolean;
 }): Promise<{
   data: RetailerLineAccountRow | null;
   error: string | null;
@@ -400,6 +412,7 @@ export async function ensureRetailerLineAccount(input: {
   const gate = assertLineAllowsOperationalWrite(line.data, {
     eaglePeakSellingEnabled: input.eaglePeakSellingEnabled,
     bigFishSellingEnabled: input.bigFishSellingEnabled,
+    livingInSunshineSellingEnabled: input.livingInSunshineSellingEnabled,
     defaultCurrency: line.data.defaultCurrency,
   });
   if (gate === 'reject') {

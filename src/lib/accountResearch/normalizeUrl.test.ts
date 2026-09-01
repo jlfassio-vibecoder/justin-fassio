@@ -128,10 +128,11 @@ describe('accountResearch freshness', () => {
 });
 
 describe('accountResearch scopes', () => {
-  it('maps Search All to six platforms', () => {
+  it('maps Search All to the five non-website platforms', () => {
     expect(isAccountResearchV1Scope('all')).toBe(true);
     expect(isAccountResearchV1Scope('linkedin')).toBe(false);
-    expect(scopesForRequested('all')).toHaveLength(6);
+    expect(scopesForRequested('all')).toHaveLength(5);
+    expect(scopesForRequested('all')).not.toContain('website');
     expect(scopesForRequested('website')).toEqual(['website']);
   });
 });

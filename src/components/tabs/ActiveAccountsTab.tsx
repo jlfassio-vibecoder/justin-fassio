@@ -6,6 +6,8 @@ import { ImportAccountsModal } from '@/components/accountImport/ImportAccountsMo
 import { ImportHistoryModal } from '@/components/accountImport/ImportHistoryModal';
 import { FindLookalikesModal } from '@/components/lookalike/FindLookalikesModal';
 import { RetailerDirectory } from '@/components/directory/RetailerDirectory';
+import { AgentBriefingTab } from '@/components/tabs/AgentBriefingTab';
+import type { CatalogItem } from '@/lib/catalog';
 import { Button } from '@/components/ui/Button';
 import { RowActionsMenu, type RowActionSection } from '@/components/ui/RowActionsMenu';
 import { Tag } from '@/components/ui/Tag';
@@ -40,12 +42,21 @@ import { setOutreachEligibleClient } from '@/lib/outreachOptInClient';
 import { setReactivationUnresponsiveClient } from '@/lib/reactivationUnresponsiveClient';
 import { accountStatusFromRelationship } from '@/lib/ogrCommercial';
 import { useOptionalLineContext } from '@/lib/lineContext';
-import type { Territory } from '@/lib/territories';
+import { ALL_TERRITORIES_FILTER, type Territory } from '@/lib/territories';
 
 interface ActiveAccountsTabProps {
   accounts: Prospect[];
+  catalog: CatalogItem[];
   territories?: Territory[];
   onLogCall: (account: Prospect) => void;
+  onLogCallForLead: (
+    prospectId: number,
+    context?: { talkTrackHint: string | null; lastProductName: string | null },
+  ) => void | boolean | Promise<void | boolean>;
+  briefingReloadToken?: number;
+  deepLinkSku?: string | null;
+  deepLinkDraftId?: string | null;
+  onCatalogDeepLinkConsumed?: () => void;
   onNotesSaved?: (id: number, notes: string | null) => void;
   onProspectUpdated?: (prospect: Prospect) => void;
   deepLinkAccountId?: number | null;
@@ -58,6 +69,7 @@ interface ActiveAccountsTabProps {
   onDirectoryDeepLinkConsumed?: () => void;
   onImported?: () => void;
   contactsReloadToken?: number;
+  onContactAdded?: () => void;
   /** Bump Log Call activity after a product email send. */
   onProductEmailSent?: () => void;
 }
@@ -82,8 +94,14 @@ function isContactDue(isoDate: string | null | undefined, todayIso: string): boo
 
 export function ActiveAccountsTab({
   accounts,
+  catalog,
   territories = [],
   onLogCall,
+  onLogCallForLead,
+  briefingReloadToken = 0,
+  deepLinkSku = null,
+  deepLinkDraftId = null,
+  onCatalogDeepLinkConsumed,
   onNotesSaved,
   onProspectUpdated,
   deepLinkAccountId = null,
@@ -96,6 +114,7 @@ export function ActiveAccountsTab({
   onDirectoryDeepLinkConsumed,
   onImported,
   contactsReloadToken = 0,
+  onContactAdded,
   onProductEmailSent,
 }: ActiveAccountsTabProps) {
   const { openAssist } = useAiAssist();
@@ -104,7 +123,9 @@ export function ActiveAccountsTab({
   const prefillLine = { multiLineAi: lineCtx.multiLineAi, lineName: lineCtx.name };
   const salesLineId = lineCtx.multiLineUi ? lineCtx.salesLineId : null;
   const ogrSelected = !lineCtx.multiLineUi || lineCtx.lineSlug === 'ogr';
-  const [territoryCode, setTerritoryCode] = useState(deepLinkTerritory ?? 'ALL');
+  const [territoryCode, setTerritoryCode] = useState<string>(
+    deepLinkTerritory ?? ALL_TERRITORIES_FILTER,
+  );
   const [reactivation, setReactivation] = useState(deepLinkReactivation);
   const [ordersByAccount, setOrdersByAccount] = useState<Map<number, OrderRow[]>>(new Map());
   const [ordersError, setOrdersError] = useState<string | null>(null);
@@ -366,7 +387,22 @@ export function ActiveAccountsTab({
   }
 
   return (
-    <>
+    <div className="flex flex-col gap-8">
+      <AgentBriefingTab
+        audience="active_account"
+        embedded
+        catalog={catalog}
+        prospects={accounts}
+        deepLinkSku={deepLinkSku}
+        deepLinkDraftId={deepLinkDraftId}
+        onDeepLinkConsumed={onCatalogDeepLinkConsumed}
+        onProductEmailSent={onProductEmailSent}
+        onLogCallForLead={onLogCallForLead}
+        briefingReloadToken={briefingReloadToken}
+        onLogCall={onLogCall}
+        onNotesSaved={onNotesSaved}
+        onProspectUpdated={onProspectUpdated}
+      />
       <RetailerDirectory
         data-screen-label="accounts"
         retailers={visibleAccounts}
@@ -645,6 +681,7 @@ export function ActiveAccountsTab({
           detailAccount && openResearchAccountId === detailAccount.id ? 'research' : undefined
         }
         contactsReloadToken={contactsReloadToken}
+        onContactAdded={onContactAdded}
         onProductEmailSent={onProductEmailSent}
         summary={
           detailAccount
@@ -692,6 +729,6 @@ export function ActiveAccountsTab({
           reloadSettings();
         }}
       />
-    </>
+    </div>
   );
 }

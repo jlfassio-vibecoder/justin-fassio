@@ -27,7 +27,8 @@ export type OutreachExclusionReason =
   | 'email_already_selected'
   | 'prospect_already_selected'
   | 'no_product_in_pool'
-  | 'no_product_after_dedup';
+  | 'no_product_after_dedup'
+  | 'research_queue_dismissed';
 
 export type RankableOutreachProspect = {
   id: number;
@@ -209,14 +210,31 @@ export function prospectPassesOutreachPool(prospect: Pick<Prospect, 'accountStat
 }
 
 /** OGR RLA rows that may enter loadProspectAccounts. */
-export function isRlaInOutreachPool(row: {
-  relationshipStatus: string;
-  markers?: readonly string[] | null;
-}): boolean {
+export function isRlaInOutreachPool(
+  row: {
+    relationshipStatus: string;
+    markers?: readonly string[] | null;
+  },
+  options?: {
+    /**
+     * Regional manual prep: include lookalike discovery rows without outreach_eligible.
+     * Nightly prep keeps the opt-in gate.
+     */
+    includeLookalikeDiscovery?: boolean;
+    /** Active Account Briefing prep: all opened RLAs, not only opted-in reactivation. */
+    accountAudience?: 'active_account';
+  },
+): boolean {
+  if (options?.accountAudience === 'active_account') {
+    if (row.relationshipStatus !== 'opened') return false;
+    if (hasMarker(row.markers, 'reactivation_unresponsive')) return false;
+    return true;
+  }
   if (row.relationshipStatus === 'prospect') {
     if (
       hasMarker(row.markers, 'lookalike_prospect') &&
-      !hasMarker(row.markers, 'outreach_eligible')
+      !hasMarker(row.markers, 'outreach_eligible') &&
+      !options?.includeLookalikeDiscovery
     ) {
       return false;
     }

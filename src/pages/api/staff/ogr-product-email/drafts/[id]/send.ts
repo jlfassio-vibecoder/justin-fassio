@@ -15,14 +15,22 @@ import {
   buildOgrProductUrl,
   resolvePublicSiteOrigin,
 } from '@/lib/productUrls';
+import { appendPresenceVisitToken } from '@/lib/presenceVisitToken';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
 import { resolveOgrPricingMarketForProductEmailDraft } from '@/lib/resolveAccountPricingMarket';
 import { sendOgrProductOutreachEmail } from '@/lib/sendOgrProductOutreachEmail';
+import { getServiceRoleClient } from '@/lib/supabaseAdmin';
+import { replayUnmatchedResendEvents } from '@/lib/resendWebhook';
+import { fetchAccountContactById } from '@/lib/accountContacts';
+import { resolveProductOutreachSendEmails } from '@/lib/resolveProductOutreachSendEmails';
+import { sendSiblingProductOutreachEmails } from '@/lib/sendSiblingProductOutreachEmails';
 import {
   getAgentProductOutreachDraftById,
   markAgentProductOutreachDraftSent,
   publicMarketFromOutreachPayload,
   requireExplicitProductOutreachCrmAssociation,
+  stampAgentProductOutreachDraftResendId,
+  stampResendEmailIdWithRetry,
 } from '@/lib/systemMessages';
 
 export const prerender = false;
@@ -61,6 +69,22 @@ export const POST: APIRoute = async ({ params, request }) => {
   });
   if (!crm.ok) return jsonError(crm.error, 400);
 
+  let sendContact = null;
+  if (crm.association.accountContactId) {
+    const loadedContact = await fetchAccountContactById(
+      gate.supabase,
+      crm.association.accountContactId,
+    );
+    if (loadedContact.error) {
+      return jsonError(loadedContact.error, 500);
+    }
+    sendContact = loadedContact.data;
+  }
+  const recipients = resolveProductOutreachSendEmails(sendContact, draft.toEmail);
+  const siblingEmails = recipients.filter(
+    (email) => email.toLowerCase() !== draft.toEmail.trim().toLowerCase(),
+  );
+
   const loaded = await loadPublishedOgrProductForEmail(gate.supabase, draft.catalogItemId);
   if (!loaded.ok) {
     return jsonError(loaded.message, 404);
@@ -88,6 +112,14 @@ export const POST: APIRoute = async ({ params, request }) => {
         : buildOgrProductUrl(presentation.slug, origin);
     catalogHref =
       emailMarket === 'us' ? buildOgrCollectionUrl(origin, 'us') : buildOgrCollectionUrl(origin);
+    productHref = appendPresenceVisitToken(productHref, {
+      prospectId: crm.association.prospectId,
+      systemMessageId: draft.id,
+    });
+    catalogHref = appendPresenceVisitToken(catalogHref, {
+      prospectId: crm.association.prospectId,
+      systemMessageId: draft.id,
+    });
 
     const [{ data: profile }, { data: userData }] = await Promise.all([
       gate.supabase
@@ -118,6 +150,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       subject: draft.subject,
       introText: draft.introText,
       closingText: draft.closingText,
+      wholesaleUsd: loaded.wholesaleUsd,
     });
 
     const sendResult = await sendOgrProductOutreachEmail({
@@ -155,17 +188,32 @@ export const POST: APIRoute = async ({ params, request }) => {
       return jsonError('Failed to send email', 502);
     }
 
-    const persist = await markAgentProductOutreachDraftSent(gate.supabase, draft.id, {
-      resendEmailId: sendResult.resendEmailId,
-      sentBy: gate.userId,
-      payload: {
-        sku: loaded.product.sku,
-        name: loaded.product.name,
-        slug: presentation.slug,
-        productHref,
-        from: undefined,
-        ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
-      },
+    const persist = await stampResendEmailIdWithRetry(async () => {
+      const primary = await markAgentProductOutreachDraftSent(gate.supabase, draft.id, {
+        resendEmailId: sendResult.resendEmailId,
+        sentBy: gate.userId,
+        payload: {
+          sku: loaded.product.sku,
+          name: loaded.product.name,
+          slug: presentation.slug,
+          productHref,
+          from: undefined,
+          ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
+        },
+      });
+      if (primary.ok) return primary;
+      return stampAgentProductOutreachDraftResendId(gate.supabase, draft.id, {
+        resendEmailId: sendResult.resendEmailId,
+        sentBy: gate.userId,
+        payload: {
+          sku: loaded.product.sku,
+          name: loaded.product.name,
+          slug: presentation.slug,
+          productHref,
+          from: undefined,
+          ...(emailMarket === 'us' ? { publicMarket: 'us' as const } : {}),
+        },
+      });
     });
 
     if (!persist.ok) {
@@ -176,10 +224,58 @@ export const POST: APIRoute = async ({ params, request }) => {
         resendEmailId: sendResult.resendEmailId,
         error: persist.error,
       });
+      if (siblingEmails.length > 0) {
+        await sendSiblingProductOutreachEmails({
+          client: gate.supabase,
+          emails: siblingEmails,
+          product: loaded.product,
+          presentation,
+          emailMarket,
+          requestOrigin: new URL(request.url).origin,
+          toName: draft.toName,
+          subject: draft.subject,
+          introText: draft.introText,
+          closingText: draft.closingText,
+          signatureName: sender.signatureName,
+          fromDisplayName: sender.fromDisplayName,
+          prospectId: crm.association.prospectId,
+          accountContactId: crm.association.accountContactId,
+          retailerLineAccountId: draft.retailerLineAccountId,
+          sentBy: gate.userId,
+          wholesaleUsd: loaded.wholesaleUsd,
+        });
+      }
       return jsonOk({
         systemMessageId: draft.id,
         resendEmailId: sendResult.resendEmailId,
         logged: false,
+      });
+    }
+
+    const admin = getServiceRoleClient();
+    if (admin) {
+      await replayUnmatchedResendEvents(admin, sendResult.resendEmailId);
+    }
+
+    if (siblingEmails.length > 0) {
+      await sendSiblingProductOutreachEmails({
+        client: gate.supabase,
+        emails: siblingEmails,
+        product: loaded.product,
+        presentation,
+        emailMarket,
+        requestOrigin: new URL(request.url).origin,
+        toName: draft.toName,
+        subject: draft.subject,
+        introText: draft.introText,
+        closingText: draft.closingText,
+        signatureName: sender.signatureName,
+        fromDisplayName: sender.fromDisplayName,
+        prospectId: crm.association.prospectId,
+        accountContactId: crm.association.accountContactId,
+        retailerLineAccountId: draft.retailerLineAccountId,
+        sentBy: gate.userId,
+        wholesaleUsd: loaded.wholesaleUsd,
       });
     }
 

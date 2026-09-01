@@ -35,6 +35,7 @@ import {
   buildOgrProductEmailCardPlainText,
   copyOgrProductEmailCardToClipboard,
 } from '@/lib/copyOgrProductEmailCard';
+import { resolveOgrPdfCatalogUrls } from '@/lib/lineMarketingAssets';
 import { renderOgrProductEmailCard } from '@/lib/ogrProductEmailCard';
 import type { PublicOgrProduct } from '@/lib/publicCatalog';
 import { buildPublicProductPresentation } from '@/lib/publicProductPresentation';
@@ -468,7 +469,14 @@ function ProductDetailDrawerInner({
     const presentation = buildPublicProductPresentation(draftToPublicOgrProduct(item, draft), {
       publicMarket: presentationMarket ?? 'ca',
     });
-    return renderOgrProductEmailCard(presentation, { href, catalogHref });
+    const pdfCatalog = resolveOgrPdfCatalogUrls();
+    return renderOgrProductEmailCard(presentation, {
+      href,
+      catalogHref,
+      wholesaleUsd: parseOptionalNumber(draft.priceUsd) ?? item.catalogPriceUsd,
+      pdfCatalogHref: pdfCatalog.pdfCatalogHref,
+      pdfCatalogCoverUrl: pdfCatalog.pdfCatalogCoverUrl,
+    });
   }, [emailModalOpen, draft, item, presentationMarket]);
 
   const dirty = useMemo(() => {
@@ -1824,7 +1832,14 @@ function ProductDetailDrawerInner({
                         window.location.origin,
                         presentationMarket ?? 'ca',
                       );
-                      const html = renderOgrProductEmailCard(presentation, { href, catalogHref });
+                      const pdfCatalog = resolveOgrPdfCatalogUrls();
+                      const html = renderOgrProductEmailCard(presentation, {
+                        href,
+                        catalogHref,
+                        wholesaleUsd: parseOptionalNumber(draft.priceUsd) ?? item.catalogPriceUsd,
+                        pdfCatalogHref: pdfCatalog.pdfCatalogHref,
+                        pdfCatalogCoverUrl: pdfCatalog.pdfCatalogCoverUrl,
+                      });
                       const plainText = buildOgrProductEmailCardPlainText({
                         productName: presentation.name,
                         tagline: presentation.tagline,

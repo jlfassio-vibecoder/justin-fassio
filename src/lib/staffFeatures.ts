@@ -43,6 +43,11 @@ export type StaffFeatureFlags = {
    */
   FEATURE_BIG_FISH_PUBLIC_CATALOG: boolean;
   /**
+   * Living In Sunshine convert / orders / calls / reorder / junction.
+   * Snapshot is selling && UI && writes. Default off. Not PUBLIC_.
+   */
+  FEATURE_LIVING_IN_SUNSHINE_SELLING: boolean;
+  /**
    * Owner Prospective Lines acquisition workspace.
    * Snapshot is prospective && UI (does not AND writes). Default off. Not PUBLIC_.
    */
@@ -126,9 +131,22 @@ export function isBigFishPublicCatalogEnabled(): boolean {
   return parseFeatureFlag(readEnv('FEATURE_BIG_FISH_PUBLIC_CATALOG'));
 }
 
+/** Read FEATURE_LIVING_IN_SUNSHINE_SELLING from server env (default off). */
+export function isLivingInSunshineSellingEnabled(): boolean {
+  return parseFeatureFlag(readEnv('FEATURE_LIVING_IN_SUNSHINE_SELLING'));
+}
+
 /** Read FEATURE_PROSPECTIVE_LINES from server env (default off). */
 export function isProspectiveLinesEnabled(): boolean {
   return parseFeatureFlag(readEnv('FEATURE_PROSPECTIVE_LINES'));
+}
+
+/**
+ * Overnight Vercel cron for outreach prep (`/api/cron/outreach-nightly-prep`).
+ * Default off for MVP (manual Run prep now only). Not PUBLIC_; not on staff island snapshot.
+ */
+export function isOutreachNightlyPrepEnabled(): boolean {
+  return parseFeatureFlag(readEnv('FEATURE_OUTREACH_NIGHTLY_PREP'));
 }
 
 /** Snapshot of staff feature flags for approved-staff API responses. */
@@ -154,6 +172,9 @@ export function getStaffFeatureFlags(): StaffFeatureFlags {
     FEATURE_BIG_FISH_OUTREACH: isBigFishOutreachEnabled() && ui,
     // Reserved; Phase 7 does not add public RPCs or a showroom.
     FEATURE_BIG_FISH_PUBLIC_CATALOG: isBigFishPublicCatalogEnabled(),
+    // Selling without picker/writes would hit the OGR legacy convert path.
+    FEATURE_LIVING_IN_SUNSHINE_SELLING:
+      isLivingInSunshineSellingEnabled() && ui && isMultiLineWritesEnabled(),
     // Acquisition workspace without the picker has no line routes.
     FEATURE_PROSPECTIVE_LINES: isProspectiveLinesEnabled() && ui,
   };

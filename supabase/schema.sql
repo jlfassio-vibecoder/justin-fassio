@@ -721,6 +721,7 @@ create table if not exists account_contacts (
   title text,
   phone text,
   email text,
+  alternate_email text,
   is_primary boolean not null default false,
   notes text,
   created_at timestamptz not null default now(),
@@ -1995,6 +1996,131 @@ $$;
 revoke all on function public.get_public_ogr_supplier_terms() from public;
 grant execute on function public.get_public_ogr_supplier_terms() to anon, authenticated;
 
+create or replace function public.get_public_living_in_sunshine_products()
+returns table (
+  id uuid,
+  sku text,
+  public_slug text,
+  name text,
+  cat text,
+  color text,
+  tagline text,
+  description text,
+  page integer,
+  catalog_year integer,
+  collection text,
+  wholesale_usd numeric,
+  msrp_cad numeric,
+  is_new boolean,
+  featured boolean,
+  public_sort_order integer,
+  primary_image_url text,
+  alternate_image_urls jsonb,
+  unit_of_measure text,
+  minimum_quantity integer,
+  order_multiple integer,
+  pack_quantity integer,
+  lifestyle_themes jsonb,
+  live_sku text,
+  available_sizes text[]
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    ci.id,
+    ci.sku,
+    ci.public_slug,
+    ci.name,
+    ci.cat,
+    ci.color,
+    ci.tagline,
+    ci.sales_description as description,
+    ci.page,
+    ci.catalog_year,
+    ci.collection,
+    case
+      when public.buyer_has_wholesale_pricing() then
+        coalesce(ci.price_usd_override, ci.catalog_price_usd, ci.price_usd)
+      else null
+    end as wholesale_usd,
+    coalesce(ci.msrp_cad_override, ci.catalog_msrp_cad, ci.msrp_cad) as msrp_cad,
+    ci.is_new,
+    ci.featured,
+    ci.public_sort_order,
+    ci.primary_image_url,
+    ci.alternate_image_urls,
+    ci.unit_of_measure,
+    ci.minimum_quantity,
+    ci.order_multiple,
+    ci.pack_quantity,
+    ci.lifestyle_themes,
+    ci.live_sku,
+    coalesce((
+      select array_agg(v.size order by v.sort_order)
+      from catalog_variants v
+      where v.catalog_item_id = ci.id
+        and v.size is not null
+        and trim(v.size) <> ''
+        and v.size <> 'BASE'
+        and v.availability in ('available', 'limited')
+    ), '{}'::text[]) as available_sizes
+  from catalog_items ci
+  join lines l on l.id = ci.line_id
+  where l.code = 'living-in-sunshine'
+    and ci.is_publicly_published = true
+    and ci.status = 'active'
+    and ci.public_slug is not null
+  order by ci.public_sort_order asc, ci.name asc;
+$$;
+
+revoke all on function public.get_public_living_in_sunshine_products() from public;
+grant execute on function public.get_public_living_in_sunshine_products() to anon, authenticated;
+
+create or replace function public.get_public_living_in_sunshine_product_by_slug(p_slug text)
+returns table (
+  id uuid,
+  sku text,
+  public_slug text,
+  name text,
+  cat text,
+  color text,
+  tagline text,
+  description text,
+  page integer,
+  catalog_year integer,
+  collection text,
+  wholesale_usd numeric,
+  msrp_cad numeric,
+  is_new boolean,
+  featured boolean,
+  public_sort_order integer,
+  primary_image_url text,
+  alternate_image_urls jsonb,
+  unit_of_measure text,
+  minimum_quantity integer,
+  order_multiple integer,
+  pack_quantity integer,
+  lifestyle_themes jsonb,
+  live_sku text,
+  available_sizes text[]
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select p.*
+  from public.get_public_living_in_sunshine_products() p
+  where p.public_slug = lower(trim(p_slug))
+  limit 1;
+$$;
+
+revoke all on function public.get_public_living_in_sunshine_product_by_slug(text) from public;
+grant execute on function public.get_public_living_in_sunshine_product_by_slug(text) to anon, authenticated;
+
 create or replace function public.get_public_active_lines()
 returns table (
   id uuid,
@@ -2054,7 +2180,7 @@ as $$
     l.sort_order,
     l.public_showroom_path
   from lines l
-  where l.code in ('ogr', 'eagle-peak', 'big-fish')
+  where l.code in ('ogr', 'living-in-sunshine', 'eagle-peak', 'big-fish')
     and l.status in ('active', 'onboarding', 'confirmed')
   order by l.sort_order asc, l.name asc;
 $$;
@@ -2760,7 +2886,7 @@ create table if not exists outreach_automation_runs (
   id uuid primary key default gen_random_uuid(),
   run_date date not null,
   kind text not null default 'nightly_prep'
-    check (kind in ('nightly_prep')),
+    check (kind in ('nightly_prep', 'manual_regional_prep', 'manual_regional_active_prep')),
   status text not null
     check (status in ('running', 'succeeded', 'partial', 'empty_pool', 'failed')),
   trigger text not null
@@ -2785,19 +2911,69 @@ create table if not exists outreach_automation_runs (
   error text,
   target_errors jsonb not null default '[]'::jsonb,
   reason text,
+  operational_territory_id uuid references operational_territories (territory_id) on delete set null,
+  store_territory_code text
+    check (
+      store_territory_code is null
+      or store_territory_code in ('or', 'wa', 'ca', 'bc', 'ab')
+    ),
+  crm_region text,
+  prep_city text,
   started_at timestamptz not null default now(),
   finished_at timestamptz,
   triggered_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint outreach_automation_runs_kind_run_date_uidx unique (kind, run_date)
+  constraint outreach_automation_runs_regional_ops_required check (
+    (kind = 'nightly_prep' and operational_territory_id is null and store_territory_code is null)
+    or (
+      kind in ('manual_regional_prep', 'manual_regional_active_prep')
+      and operational_territory_id is not null
+    )
+  )
 );
+
+create unique index if not exists outreach_automation_runs_nightly_run_date_uidx
+  on outreach_automation_runs (run_date)
+  where kind = 'nightly_prep';
+
+create unique index if not exists outreach_automation_runs_regional_identity_uidx
+  on outreach_automation_runs (
+    run_date,
+    operational_territory_id,
+    coalesce(store_territory_code, ''),
+    coalesce(crm_region, ''),
+    coalesce(prep_city, '')
+  )
+  where kind = 'manual_regional_prep';
+
+create unique index if not exists outreach_automation_runs_regional_active_identity_uidx
+  on outreach_automation_runs (
+    run_date,
+    operational_territory_id,
+    coalesce(store_territory_code, ''),
+    coalesce(crm_region, ''),
+    coalesce(prep_city, '')
+  )
+  where kind = 'manual_regional_active_prep';
+
+create index if not exists outreach_automation_runs_crm_region_idx
+  on outreach_automation_runs (crm_region)
+  where crm_region is not null;
+
+create index if not exists outreach_automation_runs_prep_city_idx
+  on outreach_automation_runs (prep_city)
+  where prep_city is not null;
 
 create index if not exists outreach_automation_runs_run_date_idx
   on outreach_automation_runs (run_date desc);
 
 create index if not exists outreach_automation_runs_status_idx
   on outreach_automation_runs (status);
+
+create index if not exists outreach_automation_runs_ops_territory_idx
+  on outreach_automation_runs (operational_territory_id)
+  where operational_territory_id is not null;
 
 drop trigger if exists outreach_automation_runs_set_updated_at on outreach_automation_runs;
 create trigger outreach_automation_runs_set_updated_at
@@ -2846,6 +3022,115 @@ create policy "approved staff full access" on system_message_events
   for all to authenticated
   using (public.is_approved_staff())
   with check (public.is_approved_staff());
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- resend_unmatched_events — buffer webhooks before resend_email_id stamp.
+-- See migrations/20260827120000_resend_unmatched_events.sql.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists resend_unmatched_events (
+  id uuid primary key default gen_random_uuid(),
+  resend_email_id text not null,
+  resend_event_id text not null,
+  event_type text not null,
+  occurred_at timestamptz not null,
+  payload jsonb not null default '{}'::jsonb,
+  failure_reason text,
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  constraint resend_unmatched_events_resend_event_id_uidx unique (resend_event_id)
+);
+
+create index if not exists resend_unmatched_events_email_unresolved_idx
+  on resend_unmatched_events (resend_email_id)
+  where resolved_at is null;
+
+alter table resend_unmatched_events enable row level security;
+
+drop policy if exists "approved staff read unmatched resend events" on resend_unmatched_events;
+create policy "approved staff read unmatched resend events"
+  on resend_unmatched_events
+  for select to authenticated
+  using (public.is_approved_staff());
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- outreach_follow_up_snoozes — Briefing queue snooze until tomorrow (Vancouver).
+-- See migrations/20260827140000_outreach_follow_up_snoozes.sql.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists outreach_follow_up_snoozes (
+  prospect_id integer primary key references prospects(id) on delete cascade,
+  snoozed_until date not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists outreach_follow_up_snoozes_until_idx
+  on outreach_follow_up_snoozes (snoozed_until);
+
+alter table outreach_follow_up_snoozes enable row level security;
+
+drop policy if exists "approved staff full access" on outreach_follow_up_snoozes;
+create policy "approved staff full access" on outreach_follow_up_snoozes
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop trigger if exists outreach_follow_up_snoozes_set_updated_at on outreach_follow_up_snoozes;
+create trigger outreach_follow_up_snoozes_set_updated_at
+  before update on outreach_follow_up_snoozes
+  for each row execute function public.set_updated_at();
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- outreach_research_queue_dismissals — Briefing research-email queue dismissals.
+-- See migrations/20260829173230_outreach_research_queue_dismissals.sql.
+-- ─────────────────────────────────────────────────────────────────────────
+create table if not exists outreach_research_queue_dismissals (
+  prospect_id integer primary key references prospects(id) on delete cascade,
+  dismissed_by uuid null references auth.users(id) on delete set null,
+  dismissed_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table outreach_research_queue_dismissals enable row level security;
+
+drop policy if exists "approved staff full access" on outreach_research_queue_dismissals;
+create policy "approved staff full access" on outreach_research_queue_dismissals
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop trigger if exists outreach_research_queue_dismissals_set_updated_at on outreach_research_queue_dismissals;
+create trigger outreach_research_queue_dismissals_set_updated_at
+  before update on outreach_research_queue_dismissals
+  for each row execute function public.set_updated_at();
+
+-- prospect_site_presence — first-party public-site heartbeat (Call today on_site).
+-- See migrations/20260830184522_prospect_site_presence.sql.
+
+create table if not exists prospect_site_presence (
+  prospect_id integer primary key references prospects (id) on delete cascade,
+  last_seen_at timestamptz not null default now(),
+  last_path text,
+  system_message_id uuid references system_messages (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists prospect_site_presence_last_seen_at_idx
+  on prospect_site_presence (last_seen_at desc);
+
+alter table prospect_site_presence enable row level security;
+
+drop policy if exists "approved staff full access" on prospect_site_presence;
+create policy "approved staff full access" on prospect_site_presence
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop trigger if exists prospect_site_presence_set_updated_at on prospect_site_presence;
+create trigger prospect_site_presence_set_updated_at
+  before update on prospect_site_presence
+  for each row execute function public.set_updated_at();
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- product_outreach_engagement_seen — shared staff cursor per catalog item (not per user).

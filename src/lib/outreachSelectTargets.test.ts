@@ -42,7 +42,9 @@ function prospectRow(id: number, name: string, extras: Record<string, unknown> =
     initial_order_date: null,
     notes: null,
     territory_id: 't1',
+    operational_territory_id: extras.operational_territory_id ?? null,
     territories: { code: 'BC', name: 'BC' },
+    operational_territories: null,
     external_id: null,
     subterritory: null,
     primary_district: null,
@@ -82,6 +84,7 @@ function mockSelectClient(opts: {
   sendsByProspect?: unknown[];
   sendsByEmail?: unknown[];
   recentProductSends?: unknown[];
+  researchQueueDismissals?: Array<{ prospect_id: number }>;
 }): DbClient {
   const lineId = 'line-ogr';
   let sendQueryCount = 0;
@@ -113,6 +116,9 @@ function mockSelectClient(opts: {
     }
     if (table === 'account_contacts') {
       return chain({ data: opts.contacts ?? [], error: null });
+    }
+    if (table === 'outreach_research_queue_dismissals') {
+      return chain({ data: opts.researchQueueDismissals ?? [], error: null });
     }
     if (table === 'system_messages') {
       return {
@@ -279,6 +285,108 @@ describe('selectOutreachTargets', () => {
         { prospectId: 2, reason: 'no_usable_email' },
       ]),
     );
+  });
+
+  it('queues prospects without email when allowMissingEmail is set', async () => {
+    const client = mockSelectClient({
+      prospects: [prospectRow(3, 'Needs Research')],
+      contacts: [],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+      pendingProspectIds: [],
+      suppressed: [],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 25,
+      preparationDate: '2026-08-12',
+      allowMissingEmail: true,
+      skipChannelAllocation: true,
+      rankMode: 'fit_score',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets).toHaveLength(1);
+    expect(result.targets[0]).toEqual(
+      expect.objectContaining({
+        prospectId: 3,
+        prospectName: 'Needs Research',
+        toEmail: '',
+        needsEmail: true,
+      }),
+    );
+    expect(result.excluded).not.toEqual(
+      expect.arrayContaining([{ prospectId: 3, reason: 'no_usable_email' }]),
+    );
+  });
+
+  it('excludes dismissed prospects from needsEmail queue but still selects when email exists', async () => {
+    const client = mockSelectClient({
+      prospects: [prospectRow(3, 'Dismissed Shop'), prospectRow(4, 'Has Email Shop')],
+      contacts: [
+        {
+          id: 'c-4',
+          account_id: 4,
+          role: 'buyer',
+          full_name: 'Pat',
+          title: null,
+          phone: null,
+          email: 'pat@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+      pendingProspectIds: [],
+      suppressed: [],
+      researchQueueDismissals: [{ prospect_id: 3 }, { prospect_id: 4 }],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 25,
+      preparationDate: '2026-08-12',
+      allowMissingEmail: true,
+      skipChannelAllocation: true,
+      rankMode: 'fit_score',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.excluded).toEqual(
+      expect.arrayContaining([{ prospectId: 3, reason: 'research_queue_dismissed' }]),
+    );
+    expect(result.targets.map((t) => t.prospectId)).toEqual([4]);
+    expect(result.targets[0]?.needsEmail).toBe(false);
   });
 
   it('excludes prospects with suppressed email or prospect id', async () => {
@@ -515,6 +623,100 @@ describe('selectOutreachTargets', () => {
     expect(result.excluded.map((e) => e.prospectId)).not.toEqual(
       expect.arrayContaining([11, 13, 14]),
     );
+  });
+
+  it('active audience selects opened accounts and excludes pipeline prospects', async () => {
+    const contact = (id: string, accountId: number, email: string) => ({
+      id,
+      account_id: accountId,
+      role: 'buyer',
+      full_name: 'Buyer',
+      title: null,
+      phone: null,
+      email,
+      is_primary: true,
+      notes: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    });
+    const client = mockSelectClient({
+      prospects: [
+        prospectRow(10, 'Golf Shop'),
+        prospectRow(11, 'No Opt In', { account_status: 'active_account', fit_score: null }),
+        prospectRow(12, 'Opted In', { account_status: 'active_account', fit_score: null }),
+        prospectRow(13, 'Unresponsive', { account_status: 'active_account', fit_score: null }),
+        prospectRow(14, 'Parked', { account_status: 'inactive', fit_score: null }),
+      ],
+      rlaRows: [
+        { retailer_id: 10, relationship_status: 'prospect', line_account_markers: [] },
+        {
+          retailer_id: 11,
+          relationship_status: 'opened',
+          line_account_markers: ['historical_purchaser'],
+        },
+        {
+          retailer_id: 12,
+          relationship_status: 'opened',
+          line_account_markers: [
+            'historical_purchaser',
+            'reactivation_candidate',
+            'outreach_eligible',
+          ],
+        },
+        {
+          retailer_id: 13,
+          relationship_status: 'opened',
+          line_account_markers: [
+            'historical_purchaser',
+            'reactivation_candidate',
+            'outreach_eligible',
+            'reactivation_unresponsive',
+          ],
+        },
+        {
+          retailer_id: 14,
+          relationship_status: 'inactive',
+          line_account_markers: ['historical_purchaser'],
+        },
+      ],
+      contacts: [
+        contact('c-10', 10, 'sam@example.com'),
+        contact('c-11', 11, 'noopt@example.com'),
+        contact('c-12', 12, 'pat@example.com'),
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+      pendingProspectIds: [],
+      suppressed: [],
+      sendsByProspect: [],
+      sendsByEmail: [],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 5,
+      preparationDate: '2026-08-12',
+      asOf: new Date('2026-08-12T18:00:00Z'),
+      weights: { golf_retail: 1 },
+      accountAudience: 'active_account',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets.map((t) => t.prospectId).sort((a, b) => a - b)).toEqual([11, 12]);
+    expect(result.targets.some((t) => t.prospectId === 10)).toBe(false);
   });
 
   it('honors precomputed channelAllocation without recomputing slots', async () => {
@@ -819,6 +1021,303 @@ describe('selectOutreachTargets', () => {
     expect(result.targets).toHaveLength(0);
     expect(result.excluded).toEqual(
       expect.arrayContaining([{ prospectId: 10, reason: 'no_product_after_dedup' }]),
+    );
+  });
+
+  it('regional: filters ops + store geo, ranks by fit_score, hard limit without channel spill', async () => {
+    const contact = (id: number, email: string) => ({
+      id: `c-${id}`,
+      account_id: id,
+      role: 'buyer',
+      full_name: `Buyer ${id}`,
+      title: null,
+      phone: null,
+      email,
+      is_primary: true,
+      notes: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    });
+    const client = mockSelectClient({
+      prospects: [
+        prospectRow(1, 'Low Fit OR West', {
+          fit_score: 3,
+          priority: 'Tier 1',
+          operational_territory_id: 'ops-pnw-west',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+        prospectRow(2, 'High Fit OR West', {
+          fit_score: 9,
+          priority: 'Tier 3',
+          operational_territory_id: 'ops-pnw-west',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+        prospectRow(3, 'Mid Fit WA West', {
+          fit_score: 8,
+          priority: 'Tier 1',
+          operational_territory_id: 'ops-pnw-west',
+          territories: { code: 'wa', name: 'Washington' },
+        }),
+        prospectRow(4, 'High Fit OR East', {
+          fit_score: 10,
+          priority: 'Tier 1',
+          operational_territory_id: 'ops-pnw-east',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+      ],
+      contacts: [
+        contact(1, 'a@example.com'),
+        contact(2, 'b@example.com'),
+        contact(3, 'c@example.com'),
+        contact(4, 'd@example.com'),
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 2,
+      preparationDate: '2026-08-25',
+      asOf: new Date('2026-08-25T18:00:00Z'),
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      rankMode: 'fit_score',
+      skipChannelAllocation: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets.map((t) => t.prospectId)).toEqual([2, 1]);
+    expect(result.excluded).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ prospectId: 3, reason: 'outside_store_territory' }),
+        expect.objectContaining({ prospectId: 4, reason: 'outside_ops_territory' }),
+      ]),
+    );
+  });
+
+  it('regional: includes null operational_territory_id when store/region filters match', async () => {
+    const contact = (id: number, email: string) => ({
+      id: `c-${id}`,
+      account_id: id,
+      role: 'buyer',
+      full_name: `Buyer ${id}`,
+      title: null,
+      phone: null,
+      email,
+      is_primary: true,
+      notes: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    });
+    const client = mockSelectClient({
+      prospects: [
+        prospectRow(50, 'Coast Golf Unassigned Ops', {
+          fit_score: 9,
+          priority: 'Tier 1',
+          operational_territory_id: null,
+          region: 'Oregon Coast',
+          category: 'golf_retail',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+        prospectRow(51, 'Wrong Ops East', {
+          fit_score: 10,
+          priority: 'Tier 1',
+          operational_territory_id: 'ops-pnw-east',
+          region: 'Oregon Coast',
+          category: 'golf_retail',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+      ],
+      contacts: [contact(50, 'coast@example.com'), contact(51, 'east@example.com')],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 5,
+      preparationDate: '2026-08-25',
+      asOf: new Date('2026-08-25T18:00:00Z'),
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      crmRegion: 'Oregon Coast',
+      channel: 'golf_retail',
+      rankMode: 'fit_score',
+      skipChannelAllocation: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets.map((t) => t.prospectId)).toEqual([50]);
+    expect(result.excluded).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ prospectId: 51, reason: 'outside_ops_territory' }),
+      ]),
+    );
+  });
+
+  it('regional: includes lookalike_prospect without outreach_eligible when ops filter set', async () => {
+    const client = mockSelectClient({
+      prospects: [
+        prospectRow(20, 'Lookalike OR', {
+          fit_score: 7,
+          operational_territory_id: 'ops-pnw-west',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+      ],
+      rlaRows: [
+        {
+          retailer_id: 20,
+          relationship_status: 'prospect',
+          line_account_markers: ['lookalike_prospect'],
+        },
+      ],
+      contacts: [
+        {
+          id: 'c-20',
+          account_id: 20,
+          role: 'buyer',
+          full_name: 'Buyer 20',
+          title: null,
+          phone: null,
+          email: 'lookalike@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+    });
+
+    const blocked = await selectOutreachTargets(client, {
+      capacity: 5,
+      preparationDate: '2026-08-25',
+      asOf: new Date('2026-08-25T18:00:00Z'),
+    });
+    expect(blocked.ok).toBe(true);
+    if (blocked.ok) expect(blocked.targets).toHaveLength(0);
+
+    const regional = await selectOutreachTargets(client, {
+      capacity: 5,
+      preparationDate: '2026-08-25',
+      asOf: new Date('2026-08-25T18:00:00Z'),
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      rankMode: 'fit_score',
+      skipChannelAllocation: true,
+    });
+    expect(regional.ok).toBe(true);
+    if (!regional.ok) return;
+    expect(regional.targets.map((t) => t.prospectId)).toEqual([20]);
+  });
+
+  it('regional: filters by city case-insensitively', async () => {
+    const contact = (accountId: number, email: string) => ({
+      id: `c-${accountId}`,
+      account_id: accountId,
+      first_name: 'A',
+      last_name: 'B',
+      title: null,
+      phone: null,
+      email,
+      is_primary: true,
+      notes: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    });
+    const client = mockSelectClient({
+      prospects: [
+        prospectRow(1, 'Newport Shop', {
+          fit_score: 9,
+          city: 'Newport',
+          region: 'Oregon Coast',
+          operational_territory_id: 'ops-pnw-west',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+        prospectRow(2, 'Coos Bay Shop', {
+          fit_score: 10,
+          city: 'Coos Bay',
+          region: 'Oregon Coast',
+          operational_territory_id: 'ops-pnw-west',
+          territories: { code: 'or', name: 'Oregon' },
+        }),
+      ],
+      contacts: [contact(1, 'a@example.com'), contact(2, 'b@example.com')],
+      catalogItems: [
+        {
+          id: 'p-1',
+          sku: 'OG1',
+          name: 'Tee',
+          public_slug: 'tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 5,
+      preparationDate: '2026-08-25',
+      asOf: new Date('2026-08-25T18:00:00Z'),
+      operationalTerritoryId: 'ops-pnw-west',
+      storeTerritoryCode: 'or',
+      crmRegion: 'Oregon Coast',
+      city: 'newport',
+      rankMode: 'fit_score',
+      skipChannelAllocation: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets.map((t) => t.prospectId)).toEqual([1]);
+    expect(result.excluded).toEqual(
+      expect.arrayContaining([expect.objectContaining({ prospectId: 2, reason: 'outside_city' })]),
     );
   });
 });

@@ -35,3 +35,6 @@ supabase/.branches/
 
 # Local email card previews
 tmp/
+
+# Generated backfill report (scripts/backfill-oregon-crm-regions.ts)
+docs/prospect-uploads/oregon/region-backfill-report.csv

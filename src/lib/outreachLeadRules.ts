@@ -36,7 +36,7 @@ export type OutreachLeadRules = {
   warmScoreMin: number;
   /** Minimum score for Hot (inclusive). */
   hotScoreMin: number;
-  /** Attributed reply counts for Call Today within this many days. */
+  /** Attributed reply always pins Call Today (window retained for docs/calibration only). */
   replyCallTodayDays: number;
 };
 

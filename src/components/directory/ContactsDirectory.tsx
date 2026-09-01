@@ -4,7 +4,9 @@ import { Input, Select } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { accountContactRoleLabel, type ContactDirectoryRow } from '@/lib/accountContacts';
 import { filterContacts } from '@/lib/contactFilters';
-import { CHANNEL_OPTIONS, REGION_OPTIONS } from '@/lib/directoryOptions';
+import { primaryRetailChannelLabel } from '@/lib/crmRetailTaxonomy';
+import { CHANNEL_OPTIONS } from '@/lib/directoryOptions';
+import { allDriveableRegionOptions } from '@/lib/geoCatalog';
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'ALL', label: 'All account statuses' },
@@ -76,8 +78,13 @@ export function ContactsDirectory({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Select className="w-auto" value={region} onChange={(e) => setRegion(e.target.value)}>
-          {REGION_OPTIONS.map((opt) => (
+        <Select
+          className="w-auto"
+          value={region}
+          onChange={(e) => setRegion(e.target.value)}
+          aria-label="Region"
+        >
+          {allDriveableRegionOptions().map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
@@ -149,7 +156,7 @@ export function ContactsDirectory({
                     </td>
                     <td className="border-ink/[0.08] border-b p-2">
                       <Tag variant={channelTagVariant[c.accountCategory] ?? 'outline'}>
-                        {c.accountCategory}
+                        {primaryRetailChannelLabel(c.accountCategory)}
                       </Tag>
                     </td>
                     <td className="border-ink/[0.08] border-b p-2">

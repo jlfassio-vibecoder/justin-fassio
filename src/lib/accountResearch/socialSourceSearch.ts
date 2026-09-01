@@ -18,11 +18,7 @@ import type {
   SocialPlatform,
   SocialSourceMetadata,
 } from '@/lib/accountResearch/context';
-import {
-  prependUniqueCandidate,
-  toSocialProfileCandidates,
-  type SearchCandidate,
-} from '@/lib/accountResearch/candidates';
+import { type SearchCandidate } from '@/lib/accountResearch/candidates';
 import { normalizeSourceUrl } from '@/lib/accountResearch/normalizeUrl';
 import { buildForcedExaSearchPrompt } from '@/lib/accountResearch/searchPrompt';
 import {
@@ -295,28 +291,27 @@ export async function executeSocialPlatformSearch(args: {
     });
   }
 
+  // Discovery is scrape-based only now — no independent Exa search. The
+  // locked official website is the sole source of truth for what a
+  // business's social channels are; if it doesn't link one, none_indexed.
   const searchQuery = buildSocialSearchQuery(args.platform, args.ctx.businessName);
   socialMetadata.profile_query = searchQuery;
   socialMetadata.activity_query = searchQuery;
 
-  const hits = await runExaSearch({
-    platform: args.platform,
-    queryText: searchQuery,
-    ctx: args.ctx,
-  });
-
-  let candidates = toSocialProfileCandidates(args.platform, args.ctx.businessName, hits);
-
   const websiteLink = args.websiteSocialLinks[args.platform];
+  let candidates: SearchCandidate[] = [];
   if (websiteLink?.url) {
     const canonical =
       canonicalizeSocialProfileUrl(args.platform, websiteLink.url) ?? websiteLink.url;
-    candidates = prependUniqueCandidate(candidates, {
-      rank: 1,
-      url: canonical,
-      title: 'Official website link',
-      snippet: websiteLink.source === 'json_ld_sameAs' ? 'JSON-LD sameAs' : 'Website footer/header',
-    });
+    candidates = [
+      {
+        rank: 1,
+        url: canonical,
+        title: 'Official website link',
+        snippet:
+          websiteLink.source === 'json_ld_sameAs' ? 'JSON-LD sameAs' : 'Website footer/header',
+      },
+    ];
     socialMetadata.resolution_method = 'website_html_link';
   }
 
@@ -345,9 +340,9 @@ export async function executeSocialPlatformSearch(args: {
     confirmedProfile: null,
     socialMetadata,
     providerMetadata: providerBase(started, {
-      tool_hit_count: hits.length,
       result_count: 0,
       candidates,
+      source: 'website_scrape',
       ...socialMetadata,
     }),
   };

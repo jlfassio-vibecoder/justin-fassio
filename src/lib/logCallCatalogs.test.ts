@@ -38,6 +38,7 @@ describe('formatCallContactName', () => {
     title: 'Owner',
     phone: null,
     email: null,
+    alternateEmail: null,
     isPrimary: true,
     notes: null,
     createdAt: '',
