@@ -25,9 +25,11 @@ import {
 } from '@/lib/ogrProductOutreachEmail';
 import {
   assertSafePromptContext,
+  buildActiveAccountOutreachDraftPrompt,
   buildOutreachDraftPrompt,
   buildSafeOutreachPromptContext,
   countWords,
+  filterSocialResearchNotesForActiveAccount,
   hostnameFromWebsite,
   normalizeOutreachCopy,
   ogrOutreachDraftSchema,
@@ -326,6 +328,51 @@ describe('buildSafeOutreachPromptContext', () => {
       directorySignals: 'See https://yelp.com/biz/bad',
     };
     expect(() => assertSafePromptContext(tainted)).toThrow(/URL scheme/);
+  });
+});
+
+describe('active account outreach prompt', () => {
+  it('filters social research notes to instagram and facebook only', () => {
+    const filtered = filterSocialResearchNotesForActiveAccount([
+      'instagram: Fall display photos',
+      'facebook: New arrivals post',
+      'website: Store hours updated',
+      'directory: Verified listing',
+    ]);
+    expect(filtered).toEqual(['instagram: Fall display photos', 'facebook: New arrivals post']);
+  });
+
+  it('builds reorder prompt with purchase history and without city or region', () => {
+    const ctx = buildSafeOutreachPromptContext({
+      target,
+      product: {
+        name: 'Red Hot Rod',
+        tagline: 'Hot rod tee',
+        description: 'Classic hot rod graphic tee.',
+        category: 'Apparel',
+        lifestyleThemeLabels: ['Automotive'],
+        isNew: false,
+      },
+      prospect: null,
+      accountKind: 'active_account',
+      purchaseHistory: {
+        invoiceNumber: '71878',
+        invoiceDate: '2025-10-03',
+        topLines: [
+          { skuBase: 'OG2017', styleName: 'THE DREAM', quantity: 19 },
+          { skuBase: 'OG2023', styleName: 'STILL SWINGING', quantity: 19 },
+        ],
+      },
+      recentPublicNotes: ['instagram: Fall window refresh'],
+    });
+    const prompt = buildActiveAccountOutreachDraftPrompt(ctx);
+    expect(prompt).toContain('already buys from us');
+    expect(prompt).toContain('THE DREAM');
+    expect(prompt).toContain('Red Hot Rod');
+    expect(prompt).toContain('instagram: Fall window refresh');
+    expect(prompt).not.toContain('City:');
+    expect(prompt).not.toContain('Region:');
+    expect(prompt).not.toContain('match their vibe');
   });
 });
 

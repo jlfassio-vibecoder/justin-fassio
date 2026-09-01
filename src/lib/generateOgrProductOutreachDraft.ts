@@ -39,6 +39,8 @@ import {
   SYSTEM_MESSAGE_ORIGIN_AGENT_PRODUCT_EMAIL,
 } from '@/lib/systemMessages';
 import { applyFrozenOutreachSelection } from '@/lib/outreachDraftSelection';
+import { loadLatestInvoiceContextForAccount } from '@/lib/accountInvoices/loadAccountInvoiceContext';
+import { isActiveAccountStatus, loadResolvedAccountStatusByIds } from '@/lib/outreachAccountStatus';
 import {
   contextFlagsFromPack,
   hostnameFromWebsite,
@@ -54,6 +56,7 @@ import type { Database } from '@/types/database';
 type DbClient = SupabaseClient<Database>;
 
 export const OGR_OUTREACH_DRAFT_PROMPT_VERSION = 'v3';
+export const OGR_OUTREACH_ACTIVE_DRAFT_PROMPT_VERSION = 'v4-active';
 export const OGR_OUTREACH_DRAFT_MODEL = 'openai/gpt-4o' as const;
 export const OGR_OUTREACH_INTRO_PREFERRED_WORDS = 50;
 export const OGR_OUTREACH_CLOSING_PREFERRED_WORDS = 40;
@@ -141,6 +144,12 @@ export function proseExceedsPreferredWords(introText: string, closingText: strin
   );
 }
 
+export type OutreachPurchaseHistoryLine = {
+  skuBase: string;
+  styleName: string;
+  quantity: number;
+};
+
 export type SafeOutreachPromptContext = {
   prospectName: string;
   toName: string;
@@ -158,6 +167,12 @@ export type SafeOutreachPromptContext = {
   prospectLifestyleLabels: string[];
   channelMatch: boolean;
   productFit: SelectedOutreachTarget['selectionReasons']['productFit'];
+  accountKind?: 'active_account';
+  purchaseHistory?: {
+    invoiceNumber: string;
+    invoiceDate: string;
+    topLines: OutreachPurchaseHistoryLine[];
+  };
   /** Hostname only (no scheme/path) when a store website is known. */
   storeWebsiteHost?: string;
   /** Short public notes from accepted research citations (no URLs). */
@@ -200,6 +215,12 @@ export function buildSafeOutreachPromptContext(input: {
   lockedProfiles?: OutreachLockedProfile[];
   researchBriefBullets?: string[];
   directorySignals?: string | null;
+  accountKind?: 'active_account';
+  purchaseHistory?: {
+    invoiceNumber: string;
+    invoiceDate: string;
+    topLines: OutreachPurchaseHistoryLine[];
+  };
 }): SafeOutreachPromptContext {
   const { target, product, prospect } = input;
   const channelLabels = [
@@ -250,6 +271,8 @@ export function buildSafeOutreachPromptContext(input: {
     ...(lockedProfiles.length > 0 ? { lockedProfiles } : {}),
     ...(researchBriefBullets.length > 0 ? { researchBriefBullets } : {}),
     ...(directorySignals ? { directorySignals } : {}),
+    ...(input.accountKind === 'active_account' ? { accountKind: 'active_account' as const } : {}),
+    ...(input.purchaseHistory ? { purchaseHistory: input.purchaseHistory } : {}),
   };
 }
 
@@ -339,6 +362,86 @@ export function buildOutreachDraftPrompt(
   return lines.join('\n');
 }
 
+/** Active-account reorder / cross-sell prompt — purchase history + social, not location/vibe. */
+export function buildActiveAccountOutreachDraftPrompt(
+  ctx: SafeOutreachPromptContext,
+  options: { shorten?: boolean } = {},
+): string {
+  assertSafePromptContext(ctx);
+  const lines: string[] = [
+    'You write short wholesale reorder outreach intro and closing copy for Old Guys Rule apparel.',
+    'This account already buys from us — reference their recent purchase history when provided.',
+    'Return ONLY introText and closingText as plain text.',
+    'Rules:',
+    '- Intro: Mention the featured product from our catalog and connect it to styles they recently ordered (same lane / customer type). Use recent social posts only when provided — do not invent posts or store facts.',
+    '- Closing: Soft reorder angle — why this style fits what their customers already pick up from them. A light invite to reply is fine.',
+    '- Do NOT lean on city, region, coastal/local vibe, or cold-prospect framing.',
+    '- Avoid awkward marketing verbs and CTAs: do not use Explore, Discover, Dive into, Unlock, Don’t miss, Shop now, or similar.',
+    '- No HTML, markdown links, URLs, email addresses, or CRM/product IDs.',
+    '- No pricing, wholesale, landed, MSRP, USD/CAD, or cost language.',
+    '- Do not invent facts (buyer title, inventory, availability, social activity).',
+    '- Do not write a subject line, From header, or signature.',
+    '- Do not greet or address the buyer by name (no "Hi Pam," / "Hello …"); the email template already adds the greeting.',
+    `- Prefer intro under ${OGR_OUTREACH_INTRO_PREFERRED_WORDS} words and closing under ${OGR_OUTREACH_CLOSING_PREFERRED_WORDS} words.`,
+  ];
+  if (options.shorten) {
+    lines.push(
+      'SHORTEN: Previous draft was too long, greeted the buyer, or mentioned pricing. Rewrite shorter; remove any greeting and price language.',
+    );
+  }
+  lines.push('', 'Context (use only what is present; skip empty fields):');
+  lines.push(`Store name: ${ctx.prospectName}`);
+  lines.push(`Buyer first name: ${ctx.toName}`);
+  if (ctx.contactRole) lines.push(`Contact role: ${ctx.contactRole}`);
+  if (ctx.contactTitle) lines.push(`Contact title: ${ctx.contactTitle}`);
+  if (ctx.purchaseHistory) {
+    lines.push(`Latest invoice date: ${ctx.purchaseHistory.invoiceDate}`);
+    lines.push(`Latest invoice number: ${ctx.purchaseHistory.invoiceNumber}`);
+    lines.push('Recent purchase history (style + total qty on latest invoice):');
+    for (const line of ctx.purchaseHistory.topLines) {
+      lines.push(`- ${line.styleName || line.skuBase}: ${line.quantity} pcs (${line.skuBase})`);
+    }
+  }
+  if (ctx.recentPublicNotes && ctx.recentPublicNotes.length > 0) {
+    lines.push('Recent social notes (paraphrase lightly; do not invent; never paste URLs):');
+    for (const note of ctx.recentPublicNotes) {
+      lines.push(`- ${note}`);
+    }
+  }
+  if (ctx.researchBriefBullets && ctx.researchBriefBullets.length > 0) {
+    lines.push('Research brief bullets:');
+    for (const bullet of ctx.researchBriefBullets) {
+      lines.push(`- ${bullet}`);
+    }
+  }
+  lines.push(`Featured product name: ${ctx.productName}`);
+  if (ctx.productCategory) lines.push(`Featured product category: ${ctx.productCategory}`);
+  if (ctx.productTagline) lines.push(`Featured product tagline: ${ctx.productTagline}`);
+  if (ctx.productDescription) lines.push(`Featured product description: ${ctx.productDescription}`);
+  if (ctx.productIsNew) lines.push('Featured product flag: New');
+  return lines.join('\n');
+}
+
+export function filterSocialResearchNotesForActiveAccount(notes: string[]): string[] {
+  return notes.filter((note) => /^(instagram|facebook):/i.test(note.trim()));
+}
+
+function outreachDraftPromptForContext(
+  ctx: SafeOutreachPromptContext,
+  options: { shorten?: boolean } = {},
+): string {
+  if (ctx.accountKind === 'active_account') {
+    return buildActiveAccountOutreachDraftPrompt(ctx, options);
+  }
+  return buildOutreachDraftPrompt(ctx, options);
+}
+
+function outreachPromptVersionForContext(ctx: SafeOutreachPromptContext): string {
+  return ctx.accountKind === 'active_account'
+    ? OGR_OUTREACH_ACTIVE_DRAFT_PROMPT_VERSION
+    : OGR_OUTREACH_DRAFT_PROMPT_VERSION;
+}
+
 export type NormalizeOutreachCopyResult = {
   introText: string;
   closingText: string;
@@ -416,7 +519,7 @@ export type ProduceOutreachCopyResult =
 export async function produceOutreachCopy(
   ctx: SafeOutreachPromptContext,
 ): Promise<ProduceOutreachCopyResult> {
-  const first = await callGenerateObject(buildOutreachDraftPrompt(ctx));
+  const first = await callGenerateObject(outreachDraftPromptForContext(ctx));
   if (!first.ok) {
     return { ok: false, error: first.error };
   }
@@ -433,7 +536,7 @@ export async function produceOutreachCopy(
     };
   }
 
-  const second = await callGenerateObject(buildOutreachDraftPrompt(ctx, { shorten: true }));
+  const second = await callGenerateObject(outreachDraftPromptForContext(ctx, { shorten: true }));
   if (!second.ok) {
     // Keep a usable over-long first draft rather than silent stub defaults.
     if (firstNormalized.fallback === 'none') {
@@ -538,9 +641,10 @@ function buildGenerationMeta(
   },
   copyStatus: 'stub' | 'ai',
   contextFlags?: OutreachCopyContextFlags | null,
+  promptVersion?: string,
 ): ProductOutreachGenerationMeta {
   return {
-    promptVersion: OGR_OUTREACH_DRAFT_PROMPT_VERSION,
+    promptVersion: promptVersion ?? OGR_OUTREACH_DRAFT_PROMPT_VERSION,
     model: copyStatus === 'stub' ? 'none' : OGR_OUTREACH_DRAFT_MODEL,
     preparationDate: target.preparationDate,
     selectionReasons: {
@@ -632,6 +736,7 @@ export async function generateOgrProductOutreachDraft(
   };
   let copyStatus: 'stub' | 'ai';
   let contextFlags: OutreachCopyContextFlags | null = null;
+  let promptVersionOverride: string | undefined;
 
   if (copyMode === 'generic_stub') {
     copy = {
@@ -649,7 +754,18 @@ export async function generateOgrProductOutreachDraft(
       target.prospectId,
       target.accountContactId,
     );
-    contextFlags = contextFlagsFromPack(pack);
+    const accountStatuses = await loadResolvedAccountStatusByIds(client, [target.prospectId]);
+    const isActiveAccount = isActiveAccountStatus(accountStatuses.get(target.prospectId));
+    const invoiceCtx = isActiveAccount
+      ? await loadLatestInvoiceContextForAccount(client, target.prospectId)
+      : null;
+    const recentPublicNotes = isActiveAccount
+      ? filterSocialResearchNotesForActiveAccount(pack.recentPublicNotes)
+      : pack.recentPublicNotes;
+    contextFlags = {
+      ...contextFlagsFromPack(pack),
+      ...(invoiceCtx ? { hasPurchaseHistory: true } : {}),
+    };
     const promptCtx = buildSafeOutreachPromptContext({
       target,
       product: {
@@ -660,23 +776,36 @@ export async function generateOgrProductOutreachDraft(
         lifestyleThemeLabels: presentation.lifestyleThemeLabels,
         isNew: presentation.isNew,
       },
-      prospect: prospectCtx
-        ? {
-            city: prospectCtx.city,
-            region: prospectCtx.region,
-            fit: prospectCtx.fit,
-            lifestyleThemes: prospectCtx.lifestyleThemes,
-            // Host comes from pack (lock preferred over CRM website).
-            website: null,
-          }
-        : null,
-      storeWebsiteHost: pack.storeWebsiteHost,
-      recentPublicNotes: pack.recentPublicNotes,
+      prospect: isActiveAccount
+        ? null
+        : prospectCtx
+          ? {
+              city: prospectCtx.city,
+              region: prospectCtx.region,
+              fit: prospectCtx.fit,
+              lifestyleThemes: prospectCtx.lifestyleThemes,
+              website: null,
+            }
+          : null,
+      storeWebsiteHost: isActiveAccount ? null : pack.storeWebsiteHost,
+      recentPublicNotes,
       contactRole: pack.contactRole,
       contactTitle: pack.contactTitle,
-      lockedProfiles: pack.lockedProfiles,
+      lockedProfiles: isActiveAccount ? [] : pack.lockedProfiles,
       researchBriefBullets: pack.researchBriefBullets,
-      directorySignals: pack.directorySignals,
+      directorySignals: isActiveAccount ? null : pack.directorySignals,
+      accountKind: isActiveAccount ? 'active_account' : undefined,
+      purchaseHistory: invoiceCtx
+        ? {
+            invoiceNumber: invoiceCtx.invoiceNumber,
+            invoiceDate: invoiceCtx.invoiceDate,
+            topLines: invoiceCtx.topLines.map((line) => ({
+              skuBase: line.skuBase,
+              styleName: line.styleName,
+              quantity: line.quantity,
+            })),
+          }
+        : undefined,
     });
     const produced = await produceOutreachCopy(promptCtx);
     if (!produced.ok) {
@@ -690,6 +819,7 @@ export async function generateOgrProductOutreachDraft(
       closingWordCount: produced.closingWordCount,
     };
     copyStatus = 'ai';
+    promptVersionOverride = outreachPromptVersionForContext(promptCtx);
   }
 
   const subject = defaultOgrProductEmailSubject(presentation.name);
@@ -698,7 +828,13 @@ export async function generateOgrProductOutreachDraft(
     emailMarket === 'us'
       ? buildOgrProductUrl(presentation.slug, origin, 'us')
       : buildOgrProductUrl(presentation.slug, origin);
-  const generation = buildGenerationMeta(target, copy, copyStatus, contextFlags);
+  const generation = buildGenerationMeta(
+    target,
+    copy,
+    copyStatus,
+    contextFlags,
+    promptVersionOverride,
+  );
   const payload: ProductOutreachSystemMessagePayload = {
     sku: presentation.sku,
     name: presentation.name,

@@ -85,6 +85,8 @@ function mockSelectClient(opts: {
   sendsByEmail?: unknown[];
   recentProductSends?: unknown[];
   researchQueueDismissals?: Array<{ prospect_id: number }>;
+  accountInvoices?: unknown[];
+  accountInvoiceLines?: unknown[];
 }): DbClient {
   const lineId = 'line-ogr';
   let sendQueryCount = 0;
@@ -119,6 +121,12 @@ function mockSelectClient(opts: {
     }
     if (table === 'outreach_research_queue_dismissals') {
       return chain({ data: opts.researchQueueDismissals ?? [], error: null });
+    }
+    if (table === 'account_invoices') {
+      return chain({ data: opts.accountInvoices ?? [], error: null });
+    }
+    if (table === 'account_invoice_lines') {
+      return chain({ data: opts.accountInvoiceLines ?? [], error: null });
     }
     if (table === 'system_messages') {
       return {
@@ -717,6 +725,97 @@ describe('selectOutreachTargets', () => {
     if (!result.ok) return;
     expect(result.targets.map((t) => t.prospectId).sort((a, b) => a - b)).toEqual([11, 12]);
     expect(result.targets.some((t) => t.prospectId === 10)).toBe(false);
+  });
+
+  it('prefers invoice top-volume catalog product for active_account prep', async () => {
+    const client = mockSelectClient({
+      prospects: [prospectRow(11, 'Active Shop', { account_status: 'active_account' })],
+      rlaRows: [
+        {
+          retailer_id: 11,
+          relationship_status: 'opened',
+          line_account_markers: ['historical_purchaser'],
+        },
+      ],
+      contacts: [
+        {
+          id: 'c-11',
+          account_id: 11,
+          role: 'buyer',
+          full_name: 'Buyer',
+          title: null,
+          phone: null,
+          email: 'active@example.com',
+          is_primary: true,
+          notes: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+      catalogItems: [
+        {
+          id: 'p-global',
+          sku: 'OG1',
+          name: 'Global Tee',
+          public_slug: 'global-tee',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: true,
+          public_sort_order: 0,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+        {
+          id: 'p-invoice',
+          sku: 'OG2017',
+          name: 'The Dream',
+          public_slug: 'the-dream',
+          status: 'active',
+          is_publicly_published: true,
+          is_new: false,
+          public_sort_order: 5,
+          recommended_channels: [],
+          lifestyle_themes: [],
+          line_id: 'line-ogr',
+        },
+      ],
+      accountInvoices: [
+        {
+          id: 'inv-1',
+          account_id: 11,
+          invoice_number: '71878',
+          invoice_date: '2025-10-03',
+          bill_to_name: 'Active Shop',
+          imported_at: '2026-09-01T00:00:00Z',
+        },
+      ],
+      accountInvoiceLines: [
+        {
+          invoice_id: 'inv-1',
+          sku_base: 'OG2017',
+          style_name: 'THE DREAM',
+          quantity: 19,
+          catalog_item_id: 'p-invoice',
+        },
+      ],
+      pendingProspectIds: [],
+      suppressed: [],
+      sendsByProspect: [],
+      sendsByEmail: [],
+    });
+
+    const result = await selectOutreachTargets(client, {
+      capacity: 1,
+      preparationDate: '2026-08-12',
+      asOf: new Date('2026-08-12T18:00:00Z'),
+      accountAudience: 'active_account',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.targets[0]?.catalogItemId).toBe('p-invoice');
+    expect(result.targets[0]?.productSku).toBe('OG2017');
   });
 
   it('honors precomputed channelAllocation without recomputing slots', async () => {

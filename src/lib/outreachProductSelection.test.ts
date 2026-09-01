@@ -120,6 +120,15 @@ describe('selectProductForProspect', () => {
     expect(picked?.productFit).toBe('global_fallback');
   });
 
+  it('prefers invoice top-volume catalog id when in pool', () => {
+    const picked = selectProductForProspect(pool, {
+      prospectChannels: ['marine_retail'],
+      preferredCatalogItemIds: ['golf'],
+    });
+    expect(picked?.product.id).toBe('golf');
+    expect(picked?.productFit).toBe('channel_intersect');
+  });
+
   it('preserves rank order when product weights are uniform', () => {
     const golfPool = buildOutreachProductPool([
       row({

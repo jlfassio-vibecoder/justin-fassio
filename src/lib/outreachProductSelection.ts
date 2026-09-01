@@ -43,6 +43,8 @@ export type SelectProductInput = {
   productWeights?: ReadonlyMap<string, number>;
   globalProductWeight?: number;
   productWeightSource?: ProductWeightSource;
+  /** Active accounts: prefer invoice top-volume catalog ids when present in pool. */
+  preferredCatalogItemIds?: readonly string[];
 };
 
 function asStringArray(raw: unknown): string[] {
@@ -191,6 +193,15 @@ export function selectProductForProspect(
 ): { product: OutreachProductCandidate; productFit: ProductFitKind } | null {
   const eligiblePool = filterExcludedProducts(pool, input.excludeCatalogItemIds);
   if (eligiblePool.length === 0) return null;
+
+  if (input.preferredCatalogItemIds?.length) {
+    for (const catalogItemId of input.preferredCatalogItemIds) {
+      const preferred = eligiblePool.find((p) => p.id === catalogItemId);
+      if (preferred) {
+        return { product: preferred, productFit: 'channel_intersect' };
+      }
+    }
+  }
 
   const prospectChannels = normalizePrimaryChannels(
     input.prospectChannels.map((ch) => coercePrimaryRetailChannel(ch)),

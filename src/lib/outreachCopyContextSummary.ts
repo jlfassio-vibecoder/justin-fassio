@@ -12,6 +12,7 @@ export type OutreachCopyContextFlags = {
   hasContactRole: boolean;
   hasBriefBullets: boolean;
   hasDirectorySignals: boolean;
+  hasPurchaseHistory?: boolean;
 };
 
 /** Thin research: no accepted citations and no locked sources (Slice C banner). */
@@ -39,6 +40,7 @@ export function formatOutreachCopyContextSummary(
   if (flags.hasContactRole) parts.push('contact role');
   if (flags.hasBriefBullets) parts.push('research brief');
   if (flags.hasDirectorySignals) parts.push('directory signals');
+  if (flags.hasPurchaseHistory) parts.push('purchase history');
   const channel = primaryChannel?.trim();
   if (channel) {
     const label = primaryRetailChannelLabel(channel).trim();

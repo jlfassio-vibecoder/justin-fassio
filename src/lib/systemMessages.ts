@@ -81,6 +81,7 @@ export type ProductOutreachGenerationMeta = {
     hasContactRole: boolean;
     hasBriefBullets: boolean;
     hasDirectorySignals: boolean;
+    hasPurchaseHistory?: boolean;
   };
 };
 
@@ -193,6 +194,9 @@ export function parseGenerationMeta(raw: unknown): ProductOutreachGenerationMeta
               hasContactRole: f.hasContactRole,
               hasBriefBullets: f.hasBriefBullets,
               hasDirectorySignals: f.hasDirectorySignals,
+              ...(typeof f.hasPurchaseHistory === 'boolean'
+                ? { hasPurchaseHistory: f.hasPurchaseHistory }
+                : {}),
             },
           };
         })()

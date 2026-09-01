@@ -7,6 +7,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { loadLatestInvoiceContextForAccounts } from '@/lib/accountInvoices/loadAccountInvoiceContext';
 import {
   ACCOUNT_CONTACT_SELECT,
   mapAccountContactRow,
@@ -559,6 +560,14 @@ export async function selectOutreachTargets(
     );
   });
 
+  const invoiceContextByAccount =
+    input.accountAudience === 'active_account' && eligible.length > 0
+      ? await loadLatestInvoiceContextForAccounts(
+          client,
+          eligible.map((row) => row.prospect.id),
+        )
+      : new Map();
+
   const remainingSlots = { ...allocation.slotsByChannel };
   const claimedEmails = new Set<string>();
   const claimedProspects = new Set<number>();
@@ -585,6 +594,13 @@ export async function selectOutreachTargets(
 
     const excludeCatalogItemIds =
       dedupResult.byProspectId.get(candidate.prospect.id) ?? new Set<string>();
+    const invoiceCtx = invoiceContextByAccount.get(candidate.prospect.id);
+    const preferredCatalogItemIds = invoiceCtx
+      ? [
+          ...(invoiceCtx.topCatalogItemId ? [invoiceCtx.topCatalogItemId] : []),
+          ...invoiceCtx.otherCatalogItemIds,
+        ]
+      : undefined;
     const productPick = selectProductForProspect(poolResult.pool, {
       prospectChannels: candidate.allChannels,
       prospectLifestyleThemes: candidate.prospect.lifestyleThemes,
@@ -592,6 +608,7 @@ export async function selectOutreachTargets(
       productWeights: input.productWeights,
       globalProductWeight: input.globalProductWeight,
       productWeightSource: input.productWeightSource,
+      preferredCatalogItemIds,
     });
     if (!productPick) {
       const reason =
