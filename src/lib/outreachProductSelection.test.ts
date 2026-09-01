@@ -126,7 +126,7 @@ describe('selectProductForProspect', () => {
       preferredCatalogItemIds: ['golf'],
     });
     expect(picked?.product.id).toBe('golf');
-    expect(picked?.productFit).toBe('channel_intersect');
+    expect(picked?.productFit).toBe('global_fallback');
   });
 
   it('preserves rank order when product weights are uniform', () => {

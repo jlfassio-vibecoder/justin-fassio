@@ -3,7 +3,7 @@
 create table if not exists account_invoices (
   id uuid primary key default gen_random_uuid(),
   account_id integer not null references prospects (id) on delete cascade,
-  line_id uuid references lines (id) on delete set null,
+  line_id uuid not null references lines (id) on delete restrict,
   invoice_number text not null,
   invoice_date date not null,
   source_filename text not null,
@@ -21,7 +21,8 @@ create table if not exists account_invoice_lines (
   sku_base text not null,
   style_name text not null default '',
   quantity integer not null check (quantity > 0),
-  catalog_item_id uuid references catalog_items (id) on delete set null
+  catalog_item_id uuid references catalog_items (id) on delete set null,
+  unique (invoice_id, sku_base)
 );
 
 create index if not exists account_invoice_lines_invoice_id_idx

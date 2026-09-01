@@ -194,18 +194,24 @@ export function selectProductForProspect(
   const eligiblePool = filterExcludedProducts(pool, input.excludeCatalogItemIds);
   if (eligiblePool.length === 0) return null;
 
+  const prospectChannels = normalizePrimaryChannels(
+    input.prospectChannels.map((ch) => coercePrimaryRetailChannel(ch)),
+  );
+
   if (input.preferredCatalogItemIds?.length) {
     for (const catalogItemId of input.preferredCatalogItemIds) {
       const preferred = eligiblePool.find((p) => p.id === catalogItemId);
       if (preferred) {
-        return { product: preferred, productFit: 'channel_intersect' };
+        const productFit: ProductFitKind = channelIntersect(
+          preferred.recommendedChannels,
+          prospectChannels,
+        )
+          ? 'channel_intersect'
+          : 'global_fallback';
+        return { product: preferred, productFit };
       }
     }
   }
-
-  const prospectChannels = normalizePrimaryChannels(
-    input.prospectChannels.map((ch) => coercePrimaryRetailChannel(ch)),
-  );
   const themes = input.prospectLifestyleThemes ?? [];
   const weightOptions = {
     productWeights: input.productWeights,

@@ -42,6 +42,7 @@ import { applyFrozenOutreachSelection } from '@/lib/outreachDraftSelection';
 import { loadLatestInvoiceContextForAccount } from '@/lib/accountInvoices/loadAccountInvoiceContext';
 import { isActiveAccountStatus, loadResolvedAccountStatusByIds } from '@/lib/outreachAccountStatus';
 import {
+  contextFlagsFromActiveAccountPromptInput,
   contextFlagsFromPack,
   hostnameFromWebsite,
   loadAcceptedResearchNotesForOutreach,
@@ -762,10 +763,13 @@ export async function generateOgrProductOutreachDraft(
     const recentPublicNotes = isActiveAccount
       ? filterSocialResearchNotesForActiveAccount(pack.recentPublicNotes)
       : pack.recentPublicNotes;
-    contextFlags = {
-      ...contextFlagsFromPack(pack),
-      ...(invoiceCtx ? { hasPurchaseHistory: true } : {}),
-    };
+    contextFlags = isActiveAccount
+      ? contextFlagsFromActiveAccountPromptInput({
+          pack,
+          recentPublicNotes,
+          hasPurchaseHistory: Boolean(invoiceCtx),
+        })
+      : contextFlagsFromPack(pack);
     const promptCtx = buildSafeOutreachPromptContext({
       target,
       product: {

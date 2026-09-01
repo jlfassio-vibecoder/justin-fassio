@@ -1780,7 +1780,7 @@ export interface Database {
         Row: {
           id: string;
           account_id: number;
-          line_id: string | null;
+          line_id: string;
           invoice_number: string;
           invoice_date: string;
           source_filename: string;
@@ -1790,7 +1790,7 @@ export interface Database {
         Insert: {
           id?: string;
           account_id: number;
-          line_id?: string | null;
+          line_id: string;
           invoice_number: string;
           invoice_date: string;
           source_filename: string;
