@@ -113,7 +113,10 @@ function clean(value: string | null | undefined): string | null {
 function cleanEmail(value: string | null | undefined): string | null {
   const raw = clean(value);
   if (!raw || !raw.includes('@')) return null;
-  return raw.replace(/^mailto:/i, '').trim().toLowerCase();
+  return raw
+    .replace(/^mailto:/i, '')
+    .trim()
+    .toLowerCase();
 }
 
 function normalizePhone(value: string | null | undefined): string | null {
@@ -189,11 +192,7 @@ function contactNotes(row: PrepRow): string | null {
   return parts.length ? parts.join(' | ') : null;
 }
 
-async function upsertContact(
-  prospectId: number,
-  row: PrepRow,
-  report: string[],
-): Promise<void> {
+async function upsertContact(prospectId: number, row: PrepRow, report: string[]): Promise<void> {
   if (!row.contactName && !row.email) {
     report.push(`  CONTACT skipped (no name/email)`);
     return;
@@ -286,9 +285,7 @@ if (prospectErr) {
 
 const pool = (prospects ?? []) as ProspectRow[];
 const byId = new Map(pool.map((p) => [p.id, p]));
-const byNormName = new Map(
-  pool.map((p) => [normalizeProspectName(p.name), p] as const),
-);
+const byNormName = new Map(pool.map((p) => [normalizeProspectName(p.name), p] as const));
 
 const report: string[] = [];
 let enrichCount = 0;

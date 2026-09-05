@@ -22,7 +22,12 @@ function normalizeProspectName(name: string): string {
 
 function mapContactRole(roleText: string | null | undefined): 'owner' | 'manager' | 'buyer' {
   const r = (roleText ?? '').toLowerCase();
-  if (r.includes('owner') || r.includes('founder') || r.includes('president') || r.includes('principal'))
+  if (
+    r.includes('owner') ||
+    r.includes('founder') ||
+    r.includes('president') ||
+    r.includes('principal')
+  )
     return 'owner';
   if (r.includes('buyer') || r.includes('purchasing') || r.includes('section head')) return 'buyer';
   if (
@@ -124,7 +129,10 @@ function clean(value: string | null | undefined): string | null {
 function cleanEmail(value: string | null | undefined): string | null {
   const raw = clean(value);
   if (!raw || !raw.includes('@')) return null;
-  return raw.replace(/^mailto:/i, '').trim().toLowerCase();
+  return raw
+    .replace(/^mailto:/i, '')
+    .trim()
+    .toLowerCase();
 }
 
 function normalizePhone(value: string | null | undefined): string | null {
@@ -279,7 +287,11 @@ async function upsertContact(
   else report.push(`  INSERTED contact ${fullName}`);
 }
 
-async function upsertContactsForRow(prospectId: number, row: PrepRow, report: string[]): Promise<void> {
+async function upsertContactsForRow(
+  prospectId: number,
+  row: PrepRow,
+  report: string[],
+): Promise<void> {
   const primaryEmail = primaryEmailForInsert(row);
   const primaryNotes = [
     contactNotes(row, 'primary'),
