@@ -1,0 +1,11 @@
+pmf_rank,retailer,crm_match_id,category,contact_name,contact_title,phone,alt_phone,email,contact_confidence,notes
+1,Cowboy Corral,,country_western_workwear,Teresa,Owner,541-476-8886,,,"High phone / Med name","Also: Kathy Sturm — longtime business contact/hat specialist"
+2,Rogue Fly Shop,,fishing_fly_tackle,Josh White,Owner/Operator,541-476-0552,,info@rogueflyshop.com,High,
+3,Hellgate and Co.,,tourist_attraction_cultural,Tatum,Retail Sales Manager,541-479-7204,,info@hellgate.com,"High role / Med name",
+4,Gallop 'n Glitz,,country_western_workwear,Shannon Holder,Owner/Manager,541-226-2339,,gallopn1@gmail.com,"Very High",
+5,G Street Marketplace,,gift_novelty_souvenir,Susan Shirley,Owner,541-479-2335,,,"Med-Low person / High phone","Historical owner/contact — verify current"
+6,The White Owl,,gift_novelty_souvenir,Jen,Owner,541-244-1418,267-902-5458,bluedoororegon@gmail.com,"High owner first name / Med contact data","Legacy email Bluedoororegon@gmail.com — verify; alt phone 267-902-5458"
+7,Wild Rogue Emporium,,gift_novelty_souvenir,,,541-479-0220,,wildrogue202@gmail.com,"High phone / Med email","Current buyer not reliably identified; email — verify"
+8,Bradbury's Gun-N-Tackle,681,fishing_fly_tackle,David Bradbury,Owner,541-479-1531,,,Very High,Enrich existing prospect 681
+9,havoc clothing and skateshop,,apparel_specialty,,,541-479-4846,,,"High phone / Low person","Owner-operated; name not reliably identified"
+10,The Red Canary Mercantile,697,general_country_store,Wendy Wonnell,Owner,541-479-0581,,,"Very High","Enrich existing prospect 697; source phone truncated to 541-479 — keep CRM 541-479-0581"
