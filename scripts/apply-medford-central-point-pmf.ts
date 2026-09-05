@@ -464,7 +464,8 @@ for (const row of prepRows) {
       continue;
     }
     insertedId = inserted2.id;
-  } else if (!insertedId) {
+  }
+  if (insertedId == null) {
     report.push(`  ERROR insert: ${insErr?.message ?? 'no id'}`);
     continue;
   }
