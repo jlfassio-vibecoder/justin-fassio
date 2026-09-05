@@ -13,7 +13,6 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Readable } from 'node:stream';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import ExcelJS from 'exceljs';
@@ -477,7 +476,7 @@ for (const row of eligibleRows) {
   `;
 
   // Use Supabase MCP execute_sql
-  const { error: sqlError } = await (client as SupabaseClient).rpc('query' as never, { query: sql } as never);
+  await (client as SupabaseClient).rpc('query' as never, { query: sql } as never);
 
   // Fallback: use supabase-js rpc directly (service role might bypass RLS but auth.uid() = null)
   // Try direct RPC with the service role client
