@@ -93,11 +93,7 @@ describe('public line cards', () => {
       },
     ]);
 
-    expect(merged.map((row) => row.code)).toEqual([
-      'ogr',
-      'living-in-sunshine',
-      'eagle-peak',
-    ]);
+    expect(merged.map((row) => row.code)).toEqual(['ogr', 'living-in-sunshine', 'eagle-peak']);
     expect(merged[0]?.heroImageUrl).toBe('https://example.com/ogr.jpg');
     expect(merged[1]?.publicShowroomPath).toBe(LIVING_IN_SUNSHINE_WHOLESALE_PATH);
     expect(merged[1]?.tagline).toBe('Now Repping');
