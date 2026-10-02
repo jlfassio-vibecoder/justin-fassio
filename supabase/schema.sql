@@ -41,6 +41,7 @@ create trigger principals_set_updated_at
 -- Garage, and any future lines). Catalog items belong to a line.
 -- Phase 1A: status / acquisition_stage / principal / commercial fields.
 -- `active` remains the public-portfolio flag (independent of status).
+-- Deprecated for authorization. Operational writes use status and catalog_status.
 -- ─────────────────────────────────────────────────────────────────────────
 create table if not exists lines (
   id uuid primary key default gen_random_uuid(),
@@ -64,6 +65,8 @@ create table if not exists lines (
       'declined',
       'terminated'
     )),
+  catalog_status text not null default 'active'
+    check (catalog_status in ('draft', 'data_imported', 'validated', 'active')),
   acquisition_stage text
     check (
       acquisition_stage is null
@@ -199,6 +202,32 @@ create trigger sales_line_territories_set_updated_at
   for each row execute function set_updated_at();
 
 -- ─────────────────────────────────────────────────────────────────────────
+-- catalog_products — product families. Manufacturer SKUs live on catalog_items.
+create table if not exists catalog_products (
+  id uuid primary key default gen_random_uuid(),
+  line_id uuid not null references lines(id) on delete cascade,
+  family_key text not null,
+  name text not null,
+  category text not null,
+  subcategory text,
+  capacity text,
+  description text,
+  made_in_usa boolean not null default false,
+  status text not null default 'active'
+    check (status in ('active', 'inactive', 'discontinued')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (line_id, family_key)
+);
+
+create index if not exists catalog_products_line_id_idx
+  on catalog_products (line_id);
+
+drop trigger if exists catalog_products_set_updated_at on catalog_products;
+create trigger catalog_products_set_updated_at
+  before update on catalog_products
+  for each row execute function set_updated_at();
+
 -- catalog_items — wholesale SKUs, scoped to a line. Seeded from the former
 -- static OGR corpus (see migrations/*_seed_catalog_prospects.sql).
 -- ─────────────────────────────────────────────────────────────────────────
@@ -211,7 +240,10 @@ create table if not exists catalog_items (
   name text not null,
   color text,
   tagline text,
+  catalog_product_id uuid references catalog_products(id) on delete restrict,
+  upc text,
   price_usd numeric(10, 2) not null default 0,
+  msrp_usd numeric(10, 2),
   msrp_cad numeric(10, 2) not null default 0,   -- 0 means "not for resale" (POP/signage), matches app logic
   catalog_price_usd numeric(10, 2) not null default 0,
   price_usd_override numeric(10, 2),
@@ -239,7 +271,8 @@ create table if not exists catalog_items (
   primary_image_path text,
   department text
     check (department is null or department in (
-      'Apparel', 'Headwear', 'Accessories', 'Drinkware', 'Displays', 'Metal Signs'
+      'Apparel', 'Headwear', 'Accessories', 'Drinkware', 'Displays', 'Metal Signs',
+      'Hard Coolers', 'Soft Coolers'
     )),
   normalized_sku text,
   unit_of_measure text not null default 'each'
@@ -273,6 +306,8 @@ create table if not exists catalog_items (
 );
 
 create index if not exists catalog_items_line_id_idx on catalog_items (line_id);
+create index if not exists catalog_items_catalog_product_id_idx on catalog_items (catalog_product_id);
+create index if not exists catalog_items_line_upc_idx on catalog_items (line_id, upc);
 create index if not exists catalog_items_cat_idx on catalog_items (cat);
 create index if not exists catalog_items_normalized_sku_idx on catalog_items (normalized_sku);
 create index if not exists catalog_items_department_idx on catalog_items (department);
@@ -430,6 +465,9 @@ create table if not exists catalog_import_runs (
   id uuid primary key default gen_random_uuid(),
   line_id uuid not null references lines(id) on delete cascade,
   source_document text not null,
+  source_filename text,
+  source_checksum text,
+  price_list_effective_date date,
   status text not null default 'pending'
     check (status in ('pending', 'running', 'completed', 'failed')),
   report jsonb not null default '{}'::jsonb,
@@ -449,9 +487,61 @@ create table if not exists catalog_import_conflicts (
   current_source text,
   proposed_source text,
   status text not null default 'open'
-    check (status in ('open', 'accepted', 'rejected', 'deferred')),
+    check (status in ('open', 'accepted', 'rejected', 'deferred', 'accepted_source_exception')),
+  resolution_note text,
   created_at timestamptz not null default now()
 );
+
+create table if not exists catalog_import_staging_rows (
+  id uuid primary key default gen_random_uuid(),
+  import_run_id uuid not null references catalog_import_runs(id) on delete cascade,
+  source_row_number integer not null,
+  family_key text,
+  family_name text,
+  category text,
+  subcategory text,
+  capacity text,
+  color text,
+  sku text,
+  upc text,
+  wholesale_usd numeric(10, 2),
+  msrp_usd numeric(10, 2),
+  currency text,
+  made_in_usa boolean not null default false,
+  raw jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  unique (import_run_id, source_row_number)
+);
+
+create index if not exists catalog_import_staging_rows_run_idx
+  on catalog_import_staging_rows (import_run_id);
+
+create table if not exists line_commercial_terms (
+  id uuid primary key default gen_random_uuid(),
+  line_id uuid not null references lines(id) on delete cascade,
+  code text not null,
+  term_type text not null
+    check (term_type in ('quantity_minimum', 'free_freight', 'surcharge')),
+  category_scope text,
+  threshold_amount numeric(12, 2),
+  threshold_quantity integer,
+  currency text,
+  charge_amount numeric(12, 2),
+  grouping_rule text,
+  benefit text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (line_id, code)
+);
+
+create index if not exists line_commercial_terms_line_id_idx
+  on line_commercial_terms (line_id);
+
+drop trigger if exists line_commercial_terms_set_updated_at on line_commercial_terms;
+create trigger line_commercial_terms_set_updated_at
+  before update on line_commercial_terms
+  for each row execute function set_updated_at();
 
 create index if not exists catalog_import_conflicts_run_id_idx
   on catalog_import_conflicts (import_run_id);
@@ -788,6 +878,7 @@ create table if not exists retailer_line_accounts (
       'qualified',
       'opened',
       'inactive',
+      'not_qualified',
       'terminated'
     )),
   converted_at timestamptz,
@@ -2214,7 +2305,7 @@ as $$
     l.sort_order,
     l.public_showroom_path
   from lines l
-  where l.code in ('ogr', 'living-in-sunshine', 'eagle-peak', 'big-fish')
+  where l.code in ('ogr', 'living-in-sunshine', 'eagle-peak')
     and l.status in ('active', 'onboarding', 'confirmed')
   order by l.sort_order asc, l.name asc;
 $$;
@@ -2236,6 +2327,7 @@ alter table account_import_rows enable row level security;
 alter table account_enrichment_jobs enable row level security;
 alter table lookalike_jobs enable row level security;
 alter table lookalike_candidates enable row level security;
+alter table catalog_products enable row level security;
 alter table catalog_items enable row level security;
 alter table catalog_settings enable row level security;
 alter table catalog_variants enable row level security;
@@ -2244,6 +2336,8 @@ alter table catalog_field_changes enable row level security;
 alter table catalog_assets enable row level security;
 alter table catalog_import_runs enable row level security;
 alter table catalog_import_conflicts enable row level security;
+alter table catalog_import_staging_rows enable row level security;
+alter table line_commercial_terms enable row level security;
 alter table prospects enable row level security;
 alter table prospect_updates enable row level security;
 alter table calls enable row level security;
@@ -2368,6 +2462,12 @@ create policy "approved staff full access" on migration_review_queue
   using (public.is_approved_staff())
   with check (public.is_approved_staff());
 
+drop policy if exists "approved staff full access" on catalog_products;
+create policy "approved staff full access" on catalog_products
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
 drop policy if exists "public full access" on catalog_items;
 drop policy if exists "authenticated full access" on catalog_items;
 drop policy if exists "approved staff full access" on catalog_items;
@@ -2414,6 +2514,18 @@ create policy "approved staff full access" on catalog_import_runs
 
 drop policy if exists "approved staff full access" on catalog_import_conflicts;
 create policy "approved staff full access" on catalog_import_conflicts
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on catalog_import_staging_rows;
+create policy "approved staff full access" on catalog_import_staging_rows
+  for all to authenticated
+  using (public.is_approved_staff())
+  with check (public.is_approved_staff());
+
+drop policy if exists "approved staff full access" on line_commercial_terms;
+create policy "approved staff full access" on line_commercial_terms
   for all to authenticated
   using (public.is_approved_staff())
   with check (public.is_approved_staff());
@@ -4170,25 +4282,34 @@ alter table outreach_goal_settings
 create or replace function public.assert_line_allows_operational_write(p_line_id uuid)
 returns void
 language plpgsql
+set search_path = public
 as $$
 declare
-  v_code text;
   v_status text;
+  v_catalog_status text;
+  v_currency text;
 begin
   if p_line_id is null then
     return;
   end if;
 
-  select code, status into v_code, v_status from lines where id = p_line_id;
-  if v_code is null then
-    raise exception 'Phase 3: line % not found', p_line_id;
+  select status, catalog_status, default_currency
+  into v_status, v_catalog_status, v_currency
+  from lines
+  where id = p_line_id;
+  if v_status is null then
+    raise exception 'operational writes: line % not found', p_line_id;
   end if;
-  if v_code = 'bkg' or v_status in ('prospective', 'declined', 'terminated') then
-    raise exception
-      'Phase 3: operational writes are not allowed for line % (status %)',
-      v_code,
-      coalesce(v_status, 'missing');
+  if v_status = 'active'
+    and v_catalog_status = 'active'
+    and upper(btrim(coalesce(v_currency, ''))) in ('USD', 'CAD')
+  then
+    return;
   end if;
+  raise exception
+    'operational writes are not allowed unless status and catalog_status are active and currency is USD or CAD (status %, catalog %)',
+    coalesce(v_status, 'missing'),
+    coalesce(v_catalog_status, 'missing');
 end;
 $$;
 
@@ -4204,7 +4325,7 @@ $$;
 
 drop trigger if exists retailer_line_accounts_operational_write_guard on retailer_line_accounts;
 create trigger retailer_line_accounts_operational_write_guard
-  before insert or update of sales_line_id on retailer_line_accounts
+  before insert or update of sales_line_id, relationship_status on retailer_line_accounts
   for each row execute function public.enforce_rla_operational_write_not_blocked();
 
 create or replace function public.enforce_order_operational_write_not_blocked()

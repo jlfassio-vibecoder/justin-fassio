@@ -116,64 +116,58 @@ describe('Phase 6 Eagle Peak flags', () => {
 });
 
 describe('Phase 6 selling gate', () => {
-  it('flag off: EP stays ui_blocked; Big Fish stays ui_blocked', () => {
-    expect(assertLineAllowsOperationalWrite({ code: 'eagle-peak', status: 'onboarding' })).toBe(
-      'ui_blocked',
-    );
+  it('onboarding stays blocked even when the selling flag is on', () => {
     expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'eagle-peak', status: 'onboarding' },
-        { eaglePeakSellingEnabled: false },
-      ),
-    ).toBe('ui_blocked');
-    expect(assertLineAllowsOperationalWrite({ code: 'big-fish', status: 'confirmed' })).toBe(
-      'ui_blocked',
-    );
-    expect(
-      isStaffSellingUiBlocked({ code: 'eagle-peak', status: 'onboarding' }, true, {
-        eaglePeakSellingEnabled: false,
+      assertLineAllowsOperationalWrite({
+        code: 'eagle-peak',
+        status: 'onboarding',
+        catalogStatus: 'active',
+        defaultCurrency: 'USD',
       }),
+    ).toBe('reject');
+    expect(
+      isStaffSellingUiBlocked(
+        {
+          code: 'eagle-peak',
+          status: 'onboarding',
+          catalogStatus: 'active',
+          defaultCurrency: 'USD',
+        },
+        true,
+        { eaglePeakSellingEnabled: true },
+      ),
     ).toBe(true);
   });
 
-  it('selling on + onboarding/active: EP allow; Big Fish still ui_blocked', () => {
+  it('active catalog and USD allow writes without a brand flag', () => {
     expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'eagle-peak', status: 'onboarding' },
-        { eaglePeakSellingEnabled: true },
-      ),
+      assertLineAllowsOperationalWrite({
+        code: 'eagle-peak',
+        status: 'active',
+        catalogStatus: 'active',
+        defaultCurrency: 'USD',
+      }),
     ).toBe('allow');
     expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'eagle-peak', status: 'active' },
-        { eaglePeakSellingEnabled: true },
-      ),
-    ).toBe('allow');
-    expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'big-fish', status: 'confirmed' },
-        { eaglePeakSellingEnabled: true },
-      ),
-    ).toBe('ui_blocked');
-    expect(assertLineAllowsOperationalWrite({ code: 'bkg', status: 'paused' })).toBe('reject');
-    expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'eagle-peak', status: 'declined' },
-        { eaglePeakSellingEnabled: true },
-      ),
+      assertLineAllowsOperationalWrite({
+        code: 'big-fish',
+        status: 'terminated',
+        catalogStatus: 'active',
+        defaultCurrency: 'USD',
+      }),
     ).toBe('reject');
     expect(
-      isStaffSellingUiBlocked({ code: 'eagle-peak', status: 'onboarding' }, true, {
-        eaglePeakSellingEnabled: true,
-      }),
+      isStaffSellingUiBlocked(
+        { code: 'eagle-peak', status: 'active', catalogStatus: 'active', defaultCurrency: 'USD' },
+        true,
+      ),
     ).toBe(false);
   });
 
   it('EP convert updates RLA only and never flips prospects.account_status', () => {
     const convert = readFileSync(resolve(root, 'src/lib/convertToActiveAccount.ts'), 'utf8');
-    expect(convert).toMatch(
-      /if \(line\.data\.code === 'eagle-peak' && !input\.eaglePeakSellingEnabled\)/,
-    );
+    expect(convert).toMatch(/assertLineAllowsOperationalWrite/);
+    expect(convert).not.toMatch(/eaglePeakSellingEnabled\)/);
     expect(convert).toMatch(/const isOgr = line\.data\.code === 'ogr'/);
     expect(convert).not.toMatch(
       /if \(isOgr\) \{[\s\S]*account_status: 'active_account'[\s\S]*\.eq\('id', input\.accountId\)/,
@@ -233,6 +227,8 @@ describe('Phase 6 insertOrder USD conversion', () => {
       {
         writesEnabled: true,
         lineCode: 'eagle-peak',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
         lineDefaultCurrency: 'USD',
         eaglePeakSellingEnabled: true,
       },
@@ -258,11 +254,13 @@ describe('Phase 6 insertOrder USD conversion', () => {
       {
         writesEnabled: true,
         lineCode: 'eagle-peak',
+        lineStatus: 'onboarding',
+        lineCatalogStatus: 'active',
         lineDefaultCurrency: 'USD',
         eaglePeakSellingEnabled: false,
       },
     );
-    expect(blocked.error).toMatch(/Eagle Peak selling is not enabled/);
+    expect(blocked.error).toMatch(/Operational writes are not allowed/);
     expect(insertMock).not.toHaveBeenCalled();
 
     const ok = await insertOrder(
@@ -281,6 +279,8 @@ describe('Phase 6 insertOrder USD conversion', () => {
       {
         writesEnabled: true,
         lineCode: 'eagle-peak',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
         lineDefaultCurrency: 'USD',
         eaglePeakSellingEnabled: true,
       },
@@ -322,6 +322,8 @@ describe('Phase 6 insertOrder USD conversion', () => {
       {
         writesEnabled: true,
         lineCode: 'eagle-peak',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
         lineDefaultCurrency: 'USD',
         eaglePeakSellingEnabled: true,
       },
@@ -348,6 +350,8 @@ describe('Phase 6 insertOrder USD conversion', () => {
       {
         writesEnabled: true,
         lineCode: 'eagle-peak',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
         lineDefaultCurrency: 'USD',
         eaglePeakSellingEnabled: true,
       },
@@ -371,7 +375,13 @@ describe('Phase 6 insertOrder USD conversion', () => {
         line_id: 'line-ogr',
         retailer_line_account_id: 'rla-ogr',
       },
-      { writesEnabled: true, lineCode: 'ogr', lineDefaultCurrency: 'USD' },
+      {
+        writesEnabled: true,
+        lineCode: 'ogr',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
+        lineDefaultCurrency: 'USD',
+      },
     );
     expect(usd.error).toBeNull();
     expect(insertMock).toHaveBeenCalledWith(
@@ -385,7 +395,7 @@ describe('Phase 6 insertOrder USD conversion', () => {
 });
 
 describe('Phase 6 directory split', () => {
-  it('uses RLA relationship_status when the EP selling snapshot is on', () => {
+  it('uses RLA relationship_status for every non-OGR line', () => {
     expect(
       usesLineRelationshipDirectorySplit({ eaglePeakSelling: true, lineCode: 'eagle-peak' }),
     ).toBe(true);
@@ -394,7 +404,7 @@ describe('Phase 6 directory split', () => {
     );
     expect(
       usesLineRelationshipDirectorySplit({ eaglePeakSelling: false, lineCode: 'eagle-peak' }),
-    ).toBe(false);
+    ).toBe(true);
 
     const rows = [
       { id: 1, accountStatus: 'prospect', lineRelationshipStatus: 'prospect' as const },

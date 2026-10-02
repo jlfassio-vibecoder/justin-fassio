@@ -16,6 +16,7 @@ export const RESERVED_LINE_CODES = [
   'living-in-sunshine',
   'eagle-peak',
   'big-fish',
+  'wyld-gear',
   'bkg',
 ] as const;
 export const PROSPECTIVE_OPERATIONAL_FORBIDDEN =

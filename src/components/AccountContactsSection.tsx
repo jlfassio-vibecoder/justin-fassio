@@ -40,7 +40,12 @@ export function AccountContactsSection({
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status
-      ? { code: line.lineSlug, status: line.status, defaultCurrency: line.defaultCurrency }
+      ? {
+          code: line.lineSlug,
+          status: line.status,
+          catalogStatus: line.catalogStatus,
+          defaultCurrency: line.defaultCurrency,
+        }
       : null,
     line.multiLineWrites,
     {

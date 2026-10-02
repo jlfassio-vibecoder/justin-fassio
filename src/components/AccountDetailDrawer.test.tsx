@@ -24,6 +24,7 @@ const lineState = vi.hoisted(() => {
     salesLineId: '11111111-1111-4111-8111-111111111111',
     lineSlug: 'ogr',
     status: 'active',
+    catalogStatus: 'active',
     defaultCurrency: 'USD',
     name: 'Old Guys Rule',
     loading: false,
@@ -354,7 +355,8 @@ describe('AccountDetailDrawer email product flow', () => {
       lineSlug: 'eagle-peak',
       eaglePeakSelling: false,
       eaglePeakOutreach: true,
-      status: 'active',
+      status: 'onboarding',
+      catalogStatus: 'draft',
     };
     renderDrawer();
     expect(screen.getByRole('button', { name: 'Email product' })).toBeInTheDocument();

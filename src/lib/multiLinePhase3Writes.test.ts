@@ -119,22 +119,39 @@ describe('Phase 3 write guards', () => {
     'utf8',
   );
 
-  it('assertLineAllowsOperationalWrite rejects prospective / bkg and blocks EP/BF UI', () => {
-    expect(assertLineAllowsOperationalWrite({ code: 'ogr', status: 'active' })).toBe('allow');
-    expect(assertLineAllowsOperationalWrite({ code: 'eagle-peak', status: 'onboarding' })).toBe(
-      'ui_blocked',
-    );
-    expect(assertLineAllowsOperationalWrite({ code: 'big-fish', status: 'confirmed' })).toBe(
-      'ui_blocked',
-    );
-    expect(assertLineAllowsOperationalWrite({ code: 'bkg', status: 'paused' })).toBe('reject');
-    expect(assertLineAllowsOperationalWrite({ code: 'ogr', status: 'prospective' })).toBe('reject');
-    expect(assertLineAllowsOperationalWrite({ code: 'eagle-peak', status: 'declined' })).toBe(
-      'reject',
-    );
-    expect(assertLineAllowsOperationalWrite({ code: 'big-fish', status: 'terminated' })).toBe(
-      'reject',
-    );
+  it('allows writes only when status and catalog are active with USD or CAD', () => {
+    expect(
+      assertLineAllowsOperationalWrite({
+        code: 'ogr',
+        status: 'active',
+        catalogStatus: 'active',
+        defaultCurrency: 'USD',
+      }),
+    ).toBe('allow');
+    expect(
+      assertLineAllowsOperationalWrite({
+        code: 'eagle-peak',
+        status: 'onboarding',
+        catalogStatus: 'active',
+        defaultCurrency: 'USD',
+      }),
+    ).toBe('reject');
+    expect(
+      assertLineAllowsOperationalWrite({
+        code: 'big-fish',
+        status: 'terminated',
+        catalogStatus: 'active',
+        defaultCurrency: 'USD',
+      }),
+    ).toBe('reject');
+    expect(
+      assertLineAllowsOperationalWrite({
+        code: 'wyld-gear',
+        status: 'active',
+        catalogStatus: 'draft',
+        defaultCurrency: 'USD',
+      }),
+    ).toBe('reject');
   });
 
   it('migration rejects bkg / prospective operational writes and mismatched line_id / RLA', () => {
@@ -168,7 +185,13 @@ describe('Phase 3 insertOrder currency', () => {
         line_id: 'line-ogr',
         retailer_line_account_id: 'rla-ogr',
       },
-      { writesEnabled: true, lineCode: 'ogr', lineDefaultCurrency: 'USD' },
+      {
+        writesEnabled: true,
+        lineCode: 'ogr',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
+        lineDefaultCurrency: 'USD',
+      },
     );
     expect(usd.error).toBeNull();
     expect(insertMock).toHaveBeenCalledWith(
@@ -193,7 +216,13 @@ describe('Phase 3 insertOrder currency', () => {
         line_id: 'line-ogr',
         retailer_line_account_id: 'rla-ogr',
       },
-      { writesEnabled: true, lineCode: 'ogr', lineDefaultCurrency: 'USD' },
+      {
+        writesEnabled: true,
+        lineCode: 'ogr',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
+        lineDefaultCurrency: 'USD',
+      },
     );
     expect(cad.error).toBeNull();
     expect(insertMock).toHaveBeenCalledWith(

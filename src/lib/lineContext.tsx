@@ -37,6 +37,7 @@ export type LineContextValue = {
   salesLineId: string | null;
   lineSlug: LineKey | null;
   status: LineStatus | null;
+  catalogStatus: string | null;
   defaultCurrency: string | null;
   name: string | null;
   loading: boolean;
@@ -150,6 +151,7 @@ export function LineProvider({
       salesLineId: current?.id ?? null,
       lineSlug: unknownLine ? null : selectedSlug,
       status: current?.status ?? null,
+      catalogStatus: current?.catalogStatus ?? null,
       defaultCurrency: current?.defaultCurrency ?? null,
       name: current?.name ?? null,
       loading,
@@ -204,6 +206,7 @@ export function useOptionalLineContext(): LineContextValue {
       salesLineId: null,
       lineSlug: null,
       status: null,
+      catalogStatus: null,
       defaultCurrency: null,
       name: null,
       loading: false,

@@ -30,12 +30,16 @@ vi.mock('@/lib/lines', () => ({
   resolveWriteSalesLineId: (...args: unknown[]) => resolveWriteMock(...args),
 }));
 
-vi.mock('@/lib/retailerLineAccounts', () => ({
-  ensureRetailerLineAccount: (...args: unknown[]) => ensureMock(...args),
-  fetchLineWriteMeta: (...args: unknown[]) => fetchMetaMock(...args),
-  fetchOperationalLineAccount: (...args: unknown[]) => fetchOperationalMock(...args),
-  updateRetailerLineAccountStatus: (...args: unknown[]) => updateStatusMock(...args),
-}));
+vi.mock('@/lib/retailerLineAccounts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/retailerLineAccounts')>();
+  return {
+    ...actual,
+    ensureRetailerLineAccount: (...args: unknown[]) => ensureMock(...args),
+    fetchLineWriteMeta: (...args: unknown[]) => fetchMetaMock(...args),
+    fetchOperationalLineAccount: (...args: unknown[]) => fetchOperationalMock(...args),
+    updateRetailerLineAccountStatus: (...args: unknown[]) => updateStatusMock(...args),
+  };
+});
 
 describe('isConversionOutcome', () => {
   it('matches Closed PO and Account Converted only', () => {
@@ -55,7 +59,7 @@ describe('convertToActiveAccount', () => {
       error: null,
     });
     fetchMetaMock.mockResolvedValue({
-      data: { code: 'ogr', status: 'active', defaultCurrency: 'CAD' },
+      data: { code: 'ogr', status: 'active', catalogStatus: 'active', defaultCurrency: 'CAD' },
       error: null,
     });
     updateStatusMock.mockResolvedValue({ error: null });
@@ -176,7 +180,7 @@ describe('demoteToProspect', () => {
     vi.clearAllMocks();
     resolveWriteMock.mockResolvedValue('line-ogr');
     fetchMetaMock.mockResolvedValue({
-      data: { code: 'ogr', status: 'active', defaultCurrency: 'CAD' },
+      data: { code: 'ogr', status: 'active', catalogStatus: 'active', defaultCurrency: 'CAD' },
       error: null,
     });
     fetchOperationalMock.mockResolvedValue({
@@ -223,5 +227,28 @@ describe('demoteToProspect', () => {
     });
 
     expect(result).toEqual({ ok: false, error: 'rls blocked' });
+  });
+
+  it('rejects a relationship change when the line is not operationally active', async () => {
+    fetchMetaMock.mockResolvedValue({
+      data: {
+        code: 'eagle-peak',
+        status: 'onboarding',
+        catalogStatus: 'active',
+        defaultCurrency: 'USD',
+      },
+      error: null,
+    });
+
+    const result = await demoteToProspect({
+      accountId: 42,
+      currentStatus: 'active_account',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Operational writes are not allowed for this line',
+    });
+    expect(updateStatusMock).not.toHaveBeenCalled();
   });
 });

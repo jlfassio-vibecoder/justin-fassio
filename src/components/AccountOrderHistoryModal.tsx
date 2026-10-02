@@ -79,7 +79,12 @@ function OrderHistoryForm({
   const line = useOptionalLineContext();
   const sellingBlocked = isStaffSellingUiBlocked(
     line.lineSlug && line.status
-      ? { code: line.lineSlug, status: line.status, defaultCurrency: line.defaultCurrency }
+      ? {
+          code: line.lineSlug,
+          status: line.status,
+          catalogStatus: line.catalogStatus,
+          defaultCurrency: line.defaultCurrency,
+        }
       : null,
     line.multiLineWrites,
     {
@@ -181,6 +186,7 @@ function OrderHistoryForm({
           writesEnabled: true,
           lineCode: meta.data?.code ?? line.lineSlug,
           lineStatus: meta.data?.status ?? line.status,
+          lineCatalogStatus: meta.data?.catalogStatus ?? line.catalogStatus,
           lineDefaultCurrency: meta.data?.defaultCurrency ?? null,
           eaglePeakSellingEnabled: line.eaglePeakSelling,
           bigFishSellingEnabled: line.bigFishSelling,

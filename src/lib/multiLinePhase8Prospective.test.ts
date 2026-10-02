@@ -316,6 +316,7 @@ describe('Phase 8 owner routes and APIs', () => {
       'eagle-peak',
       'living-in-sunshine',
       'ogr',
+      'wyld-gear',
     ]);
     expect(isReservedLineCode('ogr')).toBe(true);
     expect(isReservedLineCode('bkg')).toBe(true);

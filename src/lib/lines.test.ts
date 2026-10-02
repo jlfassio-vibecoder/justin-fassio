@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import { mapLineRow, mapPublicActiveLineRow, mergePublicLineCards } from '@/lib/lines';
 import type { Line } from '@/types/database';
 import {
-  BIG_FISH_WHOLESALE_PATH,
   EAGLE_PEAK_WHOLESALE_PATH,
   LIVING_IN_SUNSHINE_WHOLESALE_PATH,
   OGR_WHOLESALE_PATH,
@@ -25,6 +24,7 @@ describe('mapLineRow', () => {
       public_showroom_path: '/old-guys-rule-wholesale',
       principal_id: null,
       status: 'active',
+      catalog_status: 'active',
       acquisition_stage: null,
       default_currency: 'CAD',
       commission_rate: null,
@@ -49,6 +49,7 @@ describe('mapLineRow', () => {
       sortOrder: 10,
       publicShowroomPath: '/old-guys-rule-wholesale',
       defaultCurrency: 'CAD',
+      catalogStatus: 'active',
     });
   });
 });
@@ -96,15 +97,12 @@ describe('public line cards', () => {
       'ogr',
       'living-in-sunshine',
       'eagle-peak',
-      'big-fish',
     ]);
     expect(merged[0]?.heroImageUrl).toBe('https://example.com/ogr.jpg');
     expect(merged[1]?.publicShowroomPath).toBe(LIVING_IN_SUNSHINE_WHOLESALE_PATH);
     expect(merged[1]?.tagline).toBe('Now Repping');
     expect(merged[2]?.publicShowroomPath).toBe(EAGLE_PEAK_WHOLESALE_PATH);
     expect(merged[2]?.tagline).toBe('Now Repping');
-    expect(merged[3]?.tagline).toBe('Coming soon');
-    expect(merged[3]?.publicShowroomPath).toBe(BIG_FISH_WHOLESALE_PATH);
   });
 
   it('keeps get_public_active_lines OGR-only and adds get_public_line_cards', () => {
@@ -120,7 +118,7 @@ describe('public line cards', () => {
       /create or replace function public\.get_public_active_lines\(\)[\s\S]*?where l\.active = true[\s\S]*?\$\$;/i,
     );
     expect(schema).toMatch(
-      /create or replace function public\.get_public_line_cards\(\)[\s\S]*?code in \('ogr', 'living-in-sunshine', 'eagle-peak', 'big-fish'\)[\s\S]*?\$\$;/i,
+      /create or replace function public\.get_public_line_cards\(\)[\s\S]*?code in \('ogr', 'living-in-sunshine', 'eagle-peak'\)[\s\S]*?\$\$;/i,
     );
     expect(schema).not.toMatch(/get_public_eagle_peak/);
     expect(schema).not.toMatch(/get_public_big_fish/);
