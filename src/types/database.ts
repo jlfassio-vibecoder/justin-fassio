@@ -35,7 +35,9 @@ export type TerritoryRowStatus = 'active' | 'proposed';
 export type SalesLineTerritoryRightsType =
   'exclusive' | 'limited_exclusive' | 'non_exclusive' | 'unconfirmed';
 export type SalesLineTerritoryStatus = 'proposed' | 'active' | 'expired' | 'disputed';
-export type RelationshipStatus = 'prospect' | 'qualified' | 'opened' | 'inactive' | 'terminated';
+export type RelationshipStatus =
+  'prospect' | 'qualified' | 'opened' | 'inactive' | 'not_qualified' | 'terminated';
+export type CatalogStatus = 'draft' | 'data_imported' | 'validated' | 'active';
 export type RetailerLineTargetStatus = 'watching' | 'shortlist' | 'dropped';
 export type RetailerFieldChangeSource = 'user' | 'ai' | 'import' | 'calculated' | 'unknown';
 export type RetailerFieldChangeStatus = 'pending' | 'applied' | 'rejected' | 'superseded';
@@ -161,6 +163,7 @@ export interface Database {
           public_showroom_path: string | null;
           principal_id: string | null;
           status: LineStatus;
+          catalog_status: CatalogStatus;
           acquisition_stage: AcquisitionStage | null;
           default_currency: string | null;
           commission_rate: number | null;
@@ -184,6 +187,7 @@ export interface Database {
           public_showroom_path?: string | null;
           principal_id?: string | null;
           status?: LineStatus;
+          catalog_status?: CatalogStatus;
           acquisition_stage?: AcquisitionStage | null;
           default_currency?: string | null;
           commission_rate?: number | null;
@@ -207,6 +211,7 @@ export interface Database {
           public_showroom_path?: string | null;
           principal_id?: string | null;
           status?: LineStatus;
+          catalog_status?: CatalogStatus;
           acquisition_stage?: AcquisitionStage | null;
           default_currency?: string | null;
           commission_rate?: number | null;
@@ -949,13 +954,16 @@ export interface Database {
         Row: {
           id: string;
           line_id: string;
+          catalog_product_id: string | null;
           page: number | null;
           cat: string;
           sku: string;
           name: string;
           color: string | null;
+          upc: string | null;
           tagline: string | null;
           price_usd: number;
+          msrp_usd: number | null;
           msrp_cad: number;
           catalog_price_usd: number;
           price_usd_override: number | null;
@@ -1012,13 +1020,16 @@ export interface Database {
         Insert: {
           id?: string;
           line_id: string;
+          catalog_product_id?: string | null;
           page?: number | null;
           cat: string;
           sku: string;
           name: string;
           color?: string | null;
+          upc?: string | null;
           tagline?: string | null;
           price_usd?: number;
+          msrp_usd?: number | null;
           msrp_cad?: number;
           catalog_price_usd?: number;
           price_usd_override?: number | null;
@@ -1075,13 +1086,16 @@ export interface Database {
         Update: {
           id?: string;
           line_id?: string;
+          catalog_product_id?: string | null;
           page?: number | null;
           cat?: string;
           sku?: string;
           name?: string;
           color?: string | null;
+          upc?: string | null;
           tagline?: string | null;
           price_usd?: number;
+          msrp_usd?: number | null;
           msrp_cad?: number;
           catalog_price_usd?: number;
           price_usd_override?: number | null;
@@ -1400,6 +1414,9 @@ export interface Database {
           id: string;
           line_id: string;
           source_document: string;
+          source_filename: string | null;
+          source_checksum: string | null;
+          price_list_effective_date: string | null;
           status: string;
           report: Record<string, unknown>;
           started_at: string;
@@ -1410,6 +1427,9 @@ export interface Database {
           id?: string;
           line_id: string;
           source_document: string;
+          source_filename?: string | null;
+          source_checksum?: string | null;
+          price_list_effective_date?: string | null;
           status?: string;
           report?: Record<string, unknown>;
           started_at?: string;
@@ -1420,6 +1440,9 @@ export interface Database {
           id?: string;
           line_id?: string;
           source_document?: string;
+          source_filename?: string | null;
+          source_checksum?: string | null;
+          price_list_effective_date?: string | null;
           status?: string;
           report?: Record<string, unknown>;
           started_at?: string;
@@ -1440,6 +1463,7 @@ export interface Database {
           current_source: string | null;
           proposed_source: string | null;
           status: string;
+          resolution_note: string | null;
           created_at: string;
         };
         Insert: {
@@ -1453,6 +1477,7 @@ export interface Database {
           current_source?: string | null;
           proposed_source?: string | null;
           status?: string;
+          resolution_note?: string | null;
           created_at?: string;
         };
         Update: {
@@ -1466,6 +1491,7 @@ export interface Database {
           current_source?: string | null;
           proposed_source?: string | null;
           status?: string;
+          resolution_note?: string | null;
           created_at?: string;
         };
         Relationships: [];

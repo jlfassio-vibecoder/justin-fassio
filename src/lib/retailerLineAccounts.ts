@@ -228,6 +228,7 @@ export type LineWriteMeta = {
   id: string;
   code: string;
   status: LineStatus;
+  catalogStatus: string | null;
   defaultCurrency: string | null;
 };
 
@@ -254,79 +255,62 @@ export type OperationalWriteOptions = {
   defaultCurrency?: string | null;
 };
 
+const OPERATIONAL_CURRENCIES = new Set(['USD', 'CAD']);
+
+/** Writes are allowed only when the line and its catalog are both active. Flags are not authorization. */
 export function assertLineAllowsOperationalWrite(
   line: {
-    code: string;
     status: string;
+    catalogStatus?: string | null;
+    defaultCurrency?: string | null;
+    code?: string;
   },
   options?: OperationalWriteOptions,
 ): OperationalWriteGate {
-  if (line.status === 'prospective' || line.status === 'declined' || line.status === 'terminated') {
-    return 'reject';
-  }
-  if (line.code === 'bkg') return 'reject';
-  if (line.code === 'ogr' && line.status === 'active') return 'allow';
-  if (line.code === 'eagle-peak') {
-    if (
-      options?.eaglePeakSellingEnabled &&
-      (line.status === 'onboarding' || line.status === 'active')
-    ) {
-      return 'allow';
-    }
-    return 'ui_blocked';
-  }
-  if (line.code === 'big-fish') {
-    const currency =
-      typeof options?.defaultCurrency === 'string' ? options.defaultCurrency.trim() : '';
-    if (
-      options?.bigFishSellingEnabled &&
-      currency &&
-      (line.status === 'confirmed' || line.status === 'onboarding' || line.status === 'active')
-    ) {
-      return 'allow';
-    }
-    return 'ui_blocked';
-  }
-  if (line.code === 'living-in-sunshine') {
-    if (
-      options?.livingInSunshineSellingEnabled &&
-      (line.status === 'onboarding' || line.status === 'confirmed' || line.status === 'active')
-    ) {
-      return 'allow';
-    }
-    return 'ui_blocked';
+  const currency = (options?.defaultCurrency ?? line.defaultCurrency ?? '').trim().toUpperCase();
+  if (
+    line.status === 'active' &&
+    line.catalogStatus === 'active' &&
+    OPERATIONAL_CURRENCIES.has(currency)
+  ) {
+    return 'allow';
   }
   return 'reject';
 }
 
 /** Staff selling UI (convert/order/call/reorder/junction) is OGR-only when writes are on. */
 export function isStaffSellingUiBlocked(
-  line: { code: string; status: string; defaultCurrency?: string | null } | null,
+  line: {
+    code?: string;
+    status: string;
+    catalogStatus?: string | null;
+    defaultCurrency?: string | null;
+  } | null,
   writesEnabled: boolean,
   options: OperationalWriteOptions = {},
 ): boolean {
   if (!writesEnabled) return false;
   if (!line) return true;
   return (
-    assertLineAllowsOperationalWrite(line, {
-      eaglePeakSellingEnabled: options.eaglePeakSellingEnabled,
-      bigFishSellingEnabled: options.bigFishSellingEnabled,
-      livingInSunshineSellingEnabled: options.livingInSunshineSellingEnabled,
-      defaultCurrency: options.defaultCurrency ?? line.defaultCurrency,
-    }) !== 'allow'
+    assertLineAllowsOperationalWrite(
+      {
+        status: line.status,
+        catalogStatus: line.catalogStatus,
+        defaultCurrency: options.defaultCurrency ?? line.defaultCurrency,
+      },
+      options,
+    ) !== 'allow'
   );
 }
 
-/** When a non-OGR selling snapshot is on, split the current line's directory on RLA status. */
+/** Non-OGR directories split on the line relationship, not the global retailer status. */
 export function usesLineRelationshipDirectorySplit(options: {
-  eaglePeakSelling: boolean;
+  eaglePeakSelling?: boolean;
   bigFishSelling?: boolean;
   lineCode: string | null | undefined;
 }): boolean {
-  return Boolean(
-    (options.eaglePeakSelling && options.lineCode === 'eagle-peak') ||
-    (options.bigFishSelling && options.lineCode === 'big-fish'),
-  );
+  const code = options.lineCode?.trim().toLowerCase() ?? '';
+  return code.length > 0 && code !== 'ogr' && code !== 'bkg';
 }
 
 export function splitDirectoryByAccountOrLineRelationship<
@@ -349,7 +333,7 @@ export async function fetchLineWriteMeta(
 ): Promise<{ data: LineWriteMeta | null; error: string | null }> {
   const { data, error } = await supabase
     .from('lines')
-    .select('id, code, status, default_currency')
+    .select('id, code, status, catalog_status, default_currency')
     .eq('id', salesLineId)
     .maybeSingle();
 
@@ -360,6 +344,7 @@ export async function fetchLineWriteMeta(
       id: data.id,
       code: data.code,
       status: data.status as LineStatus,
+      catalogStatus: data.catalog_status,
       defaultCurrency: data.default_currency,
     },
     error: null,
@@ -455,6 +440,20 @@ export async function updateRetailerLineAccountStatus(input: {
   initialOrderDate?: string | null;
   notes?: string | null;
 }): Promise<{ error: string | null }> {
+  const existing = await supabase
+    .from('retailer_line_accounts')
+    .select('sales_line_id')
+    .eq('id', input.lineAccountId)
+    .maybeSingle();
+  if (existing.error) return { error: existing.error.message };
+  if (!existing.data) return { error: 'Line account not found' };
+
+  const line = await fetchLineWriteMeta(existing.data.sales_line_id);
+  if (line.error || !line.data) return { error: line.error ?? 'Sales line not found' };
+  if (assertLineAllowsOperationalWrite(line.data) !== 'allow') {
+    return { error: 'Operational writes are not allowed for this line' };
+  }
+
   const patch: {
     relationship_status: RelationshipStatus;
     converted_at?: string | null;

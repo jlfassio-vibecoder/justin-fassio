@@ -1,5 +1,4 @@
 import {
-  BIG_FISH_WHOLESALE_PATH,
   EAGLE_PEAK_WHOLESALE_PATH,
   LIVING_IN_SUNSHINE_WHOLESALE_PATH,
   OGR_WHOLESALE_PATH,
@@ -12,7 +11,7 @@ export const REPRESENTED_LINE_CODES = [
   'ogr',
   'living-in-sunshine',
   'eagle-peak',
-  'big-fish',
+  'wyld-gear',
 ] as const;
 
 export const REPRESENTED_LINE_STATUSES = [
@@ -45,6 +44,7 @@ export type LinePortfolio = {
   sortOrder: number;
   publicShowroomPath: string | null;
   defaultCurrency: string | null;
+  catalogStatus: string | null;
 };
 
 export type LinePortfolioPatch = {
@@ -108,16 +108,6 @@ export const PUBLIC_LINE_CARD_FALLBACKS: PublicActiveLine[] = [
     sortOrder: 30,
     publicShowroomPath: EAGLE_PEAK_WHOLESALE_PATH,
   },
-  {
-    id: 'fallback-big-fish',
-    code: 'big-fish',
-    name: 'Big Fish',
-    tagline: 'Coming soon',
-    description: 'Confirmed represented line; commercial terms not yet configured.',
-    heroImageUrl: null,
-    sortOrder: 40,
-    publicShowroomPath: BIG_FISH_WHOLESALE_PATH,
-  },
 ];
 
 export function mapPublicActiveLineRow(row: PublicLineCardRow): PublicActiveLine {
@@ -150,7 +140,7 @@ export function mergePublicLineCards(rpcRows: PublicActiveLine[]): PublicActiveL
 }
 
 export const LINE_SELECT =
-  'id, code, name, active, status, tagline, description, hero_image_path, hero_image_url, sort_order, public_showroom_path, principal_id, default_currency, created_at, updated_at' as const;
+  'id, code, name, active, status, catalog_status, tagline, description, hero_image_path, hero_image_url, sort_order, public_showroom_path, principal_id, default_currency, created_at, updated_at' as const;
 
 export function mapLineRow(row: Line): LinePortfolio {
   return {
@@ -166,6 +156,7 @@ export function mapLineRow(row: Line): LinePortfolio {
     sortOrder: row.sort_order,
     publicShowroomPath: row.public_showroom_path,
     defaultCurrency: row.default_currency,
+    catalogStatus: row.catalog_status,
   };
 }
 

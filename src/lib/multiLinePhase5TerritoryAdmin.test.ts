@@ -294,8 +294,8 @@ describe('Phase 5 line + geo allowlists', () => {
     });
     expect(assertTerritoryAdminWrite(BF_LINE)).toEqual({
       ok: false,
-      status: 403,
-      error: TERRITORY_ADMIN_ERRORS.bigFishNotConfigured,
+      status: 400,
+      error: TERRITORY_ADMIN_ERRORS.lineNotAllowed,
     });
     expect(assertTerritoryAdminWrite({ code: 'ogr', status: 'prospective' })).toEqual({
       ok: false,
@@ -341,7 +341,7 @@ describe('Phase 5 line + geo allowlists', () => {
       salesLineTerritoryId: 'slt-bf',
     });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toBe(TERRITORY_ADMIN_ERRORS.bigFishNotConfigured);
+    if (!result.ok) expect(result.error).toBe(TERRITORY_ADMIN_ERRORS.lineNotAllowed);
     expect(updates).toHaveLength(0);
   });
 

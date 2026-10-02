@@ -76,7 +76,13 @@ describe('OGR insertOrder currency proofs', () => {
         line_id: 'line-ogr',
         retailer_line_account_id: 'rla-ogr',
       },
-      { writesEnabled: true, lineCode: 'ogr', lineDefaultCurrency: 'USD' },
+      {
+        writesEnabled: true,
+        lineCode: 'ogr',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
+        lineDefaultCurrency: 'USD',
+      },
     );
     expect(result.error).toBeNull();
     const payload = insertMock.mock.calls[0]?.[0] as {
@@ -104,7 +110,13 @@ describe('OGR insertOrder currency proofs', () => {
         line_id: 'line-ogr',
         retailer_line_account_id: 'rla-ogr',
       },
-      { writesEnabled: true, lineCode: 'ogr', lineDefaultCurrency: 'USD' },
+      {
+        writesEnabled: true,
+        lineCode: 'ogr',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
+        lineDefaultCurrency: 'USD',
+      },
     );
     expect(result.error).toBeNull();
     expect(insertMock).toHaveBeenCalledWith(
@@ -129,7 +141,13 @@ describe('OGR insertOrder currency proofs', () => {
         line_id: 'line-ogr',
         retailer_line_account_id: 'rla-ogr',
       },
-      { writesEnabled: true, lineCode: 'ogr', lineDefaultCurrency: 'USD' },
+      {
+        writesEnabled: true,
+        lineCode: 'ogr',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
+        lineDefaultCurrency: 'USD',
+      },
     );
     expect(missingRate.error).toMatch(/exchange_rate/);
     expect(insertMock).not.toHaveBeenCalled();
@@ -144,7 +162,13 @@ describe('OGR insertOrder currency proofs', () => {
         line_id: 'line-ogr',
         retailer_line_account_id: 'rla-ogr',
       },
-      { writesEnabled: true, lineCode: 'ogr', lineDefaultCurrency: 'USD' },
+      {
+        writesEnabled: true,
+        lineCode: 'ogr',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
+        lineDefaultCurrency: 'USD',
+      },
     );
     expect(unspecifiedNoFx.error).toMatch(/OGR orders require/);
     expect(insertMock).not.toHaveBeenCalled();

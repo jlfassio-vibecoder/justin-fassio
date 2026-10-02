@@ -183,6 +183,7 @@ export async function createOutreachIdentifiedTargetDraft(params: {
   if (
     isWithinOutreachCooldown(lastSentAt, {
       cooldownDays: AGENT_OUTREACH_COOLDOWN_DAYS,
+      asOf: new Date(`${params.preparationDate}T12:00:00.000Z`),
     })
   ) {
     return {

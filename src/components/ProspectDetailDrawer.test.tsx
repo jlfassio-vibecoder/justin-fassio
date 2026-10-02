@@ -24,6 +24,7 @@ const lineState = vi.hoisted(() => {
     salesLineId: '11111111-1111-4111-8111-111111111111',
     lineSlug: 'ogr',
     status: 'active',
+    catalogStatus: 'active',
     defaultCurrency: 'USD',
     name: 'Old Guys Rule',
     loading: false,

@@ -38,3 +38,6 @@ tmp/
 
 # Generated backfill report (scripts/backfill-oregon-crm-regions.ts)
 docs/prospect-uploads/oregon/region-backfill-report.csv
+
+# Confidential Wyld wholesale pricing. Import locally; store the file hash on the import run.
+docs/wyld-gear/sales-essentials/wholesale-pricing/

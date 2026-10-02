@@ -86,7 +86,7 @@ export async function resolveStaffAiContext(
 
   const { data: line, error: lineError } = await input.client
     .from('lines')
-    .select('id, code, name, status, default_currency, ai_profile')
+    .select('id, code, name, status, catalog_status, default_currency, ai_profile')
     .eq('id', salesLineId)
     .maybeSingle();
 
@@ -101,6 +101,8 @@ export async function resolveStaffAiContext(
   const operationalWriteGate = assertLineAllowsOperationalWrite({
     code: line.code,
     status,
+    catalogStatus: line.catalog_status,
+    defaultCurrency: line.default_currency,
   });
   const mode: StaffAiMode = status === 'prospective' ? 'research_only' : 'full';
   if (status === 'prospective' && operationalWriteGate === 'reject') {

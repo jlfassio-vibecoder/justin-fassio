@@ -122,88 +122,63 @@ describe('Phase 7 Big Fish flags', () => {
 });
 
 describe('Phase 7 selling gate', () => {
-  it('flag on + current seed (confirmed, null currency) stays ui_blocked', () => {
-    expect(assertLineAllowsOperationalWrite({ code: 'big-fish', status: 'confirmed' })).toBe(
-      'ui_blocked',
-    );
+  it('terminated Big Fish cannot sell even with a currency and the old flag', () => {
     expect(
       assertLineAllowsOperationalWrite(
-        { code: 'big-fish', status: 'confirmed' },
-        { bigFishSellingEnabled: true },
-      ),
-    ).toBe('ui_blocked');
-    expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'big-fish', status: 'confirmed' },
-        { bigFishSellingEnabled: true, defaultCurrency: null },
-      ),
-    ).toBe('ui_blocked');
-    expect(
-      isStaffSellingUiBlocked({ code: 'big-fish', status: 'confirmed' }, true, {
-        bigFishSellingEnabled: true,
-      }),
-    ).toBe(true);
-  });
-
-  it('selling on + currency + confirmed/onboarding/active: BF allow; OGR/EP/bkg unchanged', () => {
-    expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'big-fish', status: 'confirmed' },
-        { bigFishSellingEnabled: true, defaultCurrency: 'USD' },
-      ),
-    ).toBe('allow');
-    expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'big-fish', status: 'onboarding' },
-        { bigFishSellingEnabled: true, defaultCurrency: 'CAD' },
-      ),
-    ).toBe('allow');
-    expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'big-fish', status: 'active' },
-        { bigFishSellingEnabled: true, defaultCurrency: 'USD' },
-      ),
-    ).toBe('allow');
-    expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'eagle-peak', status: 'onboarding' },
-        { bigFishSellingEnabled: true, defaultCurrency: 'USD' },
-      ),
-    ).toBe('ui_blocked');
-    expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'eagle-peak', status: 'onboarding' },
-        { eaglePeakSellingEnabled: true },
-      ),
-    ).toBe('allow');
-    expect(assertLineAllowsOperationalWrite({ code: 'ogr', status: 'active' })).toBe('allow');
-    expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'bkg', status: 'paused' },
-        { bigFishSellingEnabled: true, defaultCurrency: 'USD' },
-      ),
-    ).toBe('reject');
-    expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'big-fish', status: 'terminated' },
+        {
+          code: 'big-fish',
+          status: 'terminated',
+          catalogStatus: 'active',
+          defaultCurrency: 'USD',
+        },
         { bigFishSellingEnabled: true, defaultCurrency: 'USD' },
       ),
     ).toBe('reject');
     expect(
       isStaffSellingUiBlocked(
-        { code: 'big-fish', status: 'confirmed', defaultCurrency: 'USD' },
+        {
+          code: 'big-fish',
+          status: 'terminated',
+          catalogStatus: 'active',
+          defaultCurrency: 'USD',
+        },
         true,
         { bigFishSellingEnabled: true, defaultCurrency: 'USD' },
       ),
-    ).toBe(false);
+    ).toBe(true);
+  });
+
+  it('active catalog and currency allow any line, including one that is not Big Fish', () => {
+    expect(
+      assertLineAllowsOperationalWrite({
+        code: 'wyld-gear',
+        status: 'active',
+        catalogStatus: 'active',
+        defaultCurrency: 'USD',
+      }),
+    ).toBe('allow');
+    expect(
+      assertLineAllowsOperationalWrite({
+        code: 'ogr',
+        status: 'active',
+        catalogStatus: 'active',
+        defaultCurrency: 'USD',
+      }),
+    ).toBe('allow');
+    expect(
+      assertLineAllowsOperationalWrite({
+        code: 'eagle-peak',
+        status: 'onboarding',
+        catalogStatus: 'active',
+        defaultCurrency: 'USD',
+      }),
+    ).toBe('reject');
   });
 
   it('BF convert updates RLA only and never flips prospects.account_status', () => {
     const convert = readFileSync(resolve(root, 'src/lib/convertToActiveAccount.ts'), 'utf8');
-    expect(convert).toMatch(
-      /if \(line\.data\.code === 'big-fish' && !input\.bigFishSellingEnabled\)/,
-    );
-    expect(convert).toMatch(/Big Fish selling is not configured/);
+    expect(convert).toMatch(/assertLineAllowsOperationalWrite/);
+    expect(convert).not.toMatch(/Big Fish selling is not configured/);
     expect(convert).toMatch(/const isOgr = line\.data\.code === 'ogr'/);
     expect(convert).not.toMatch(
       /if \(isOgr\) \{[\s\S]*account_status: 'active_account'[\s\S]*\.eq\('id', input\.accountId\)/,
@@ -239,7 +214,7 @@ describe('Phase 7 insertOrder currency', () => {
         bigFishSellingEnabled: true,
       },
     );
-    expect(missing.error).toMatch(/default_currency to be configured/);
+    expect(missing.error).toMatch(/Operational writes are not allowed/);
     expect(insertMock).not.toHaveBeenCalled();
 
     const blank = await insertOrder(
@@ -259,7 +234,7 @@ describe('Phase 7 insertOrder currency', () => {
         bigFishSellingEnabled: true,
       },
     );
-    expect(blank.error).toMatch(/default_currency to be configured/);
+    expect(blank.error).toMatch(/Operational writes are not allowed/);
     expect(insertMock).not.toHaveBeenCalled();
   });
 
@@ -283,7 +258,7 @@ describe('Phase 7 insertOrder currency', () => {
         bigFishSellingEnabled: false,
       },
     );
-    expect(blocked.error).toMatch(/Big Fish selling is not enabled/);
+    expect(blocked.error).toMatch(/Operational writes are not allowed/);
     expect(insertMock).not.toHaveBeenCalled();
   });
 
@@ -304,7 +279,9 @@ describe('Phase 7 insertOrder currency', () => {
       },
       {
         writesEnabled: true,
-        lineCode: 'big-fish',
+        lineCode: 'wyld-gear',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
         lineDefaultCurrency: 'USD',
         bigFishSellingEnabled: true,
       },
@@ -335,7 +312,9 @@ describe('Phase 7 insertOrder currency', () => {
       },
       {
         writesEnabled: true,
-        lineCode: 'big-fish',
+        lineCode: 'wyld-gear',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
         lineDefaultCurrency: 'USD',
         bigFishSellingEnabled: true,
       },
@@ -362,7 +341,7 @@ describe('Phase 7 insertOrder currency', () => {
         bigFishSellingEnabled: true,
       },
     );
-    expect(eur.error).toMatch(/USD or CAD/);
+    expect(eur.error).toMatch(/Operational writes are not allowed/);
     expect(insertMock).not.toHaveBeenCalled();
 
     const usd = await insertOrder(
@@ -375,7 +354,13 @@ describe('Phase 7 insertOrder currency', () => {
         line_id: 'line-ogr',
         retailer_line_account_id: 'rla-ogr',
       },
-      { writesEnabled: true, lineCode: 'ogr', lineDefaultCurrency: 'USD' },
+      {
+        writesEnabled: true,
+        lineCode: 'ogr',
+        lineStatus: 'active',
+        lineCatalogStatus: 'active',
+        lineDefaultCurrency: 'USD',
+      },
     );
     expect(usd.error).toMatch(/exchange_rate/);
     expect(insertMock).not.toHaveBeenCalled();
@@ -383,7 +368,7 @@ describe('Phase 7 insertOrder currency', () => {
 });
 
 describe('Phase 7 directory split', () => {
-  it('uses RLA relationship_status when the BF selling snapshot is on', () => {
+  it('uses RLA relationship_status for non-OGR lines without a selling flag', () => {
     expect(
       usesLineRelationshipDirectorySplit({
         eaglePeakSelling: false,
@@ -402,9 +387,9 @@ describe('Phase 7 directory split', () => {
       usesLineRelationshipDirectorySplit({
         eaglePeakSelling: false,
         bigFishSelling: false,
-        lineCode: 'big-fish',
+        lineCode: 'wyld-gear',
       }),
-    ).toBe(false);
+    ).toBe(true);
 
     const rcc = readFileSync(resolve(root, 'src/components/RepCommandCenter.tsx'), 'utf8');
     expect(rcc).toMatch(/bigFishSelling: lineCtx\.bigFishSelling/);
@@ -491,10 +476,10 @@ describe('Phase 7 outreach + public catalog inert', () => {
     expect(chat).not.toMatch(/get_public_big_fish/);
   });
 
-  it('territory admin stays bigFishNotConfigured with no BF allowlist', () => {
+  it('territory admin no longer special-cases Big Fish and allowlists Wyld geos', () => {
     const terr = readFileSync(resolve(root, 'src/lib/salesLineTerritories.ts'), 'utf8');
-    expect(terr).toMatch(/bigFishNotConfigured/);
-    expect(terr).toMatch(/TERRITORY_ADMIN_ERRORS\.bigFishNotConfigured/);
+    expect(terr).not.toMatch(/TERRITORY_ADMIN_ERRORS\.bigFishNotConfigured/);
+    expect(terr).toMatch(/WYLD_ALLOWED_GEO/);
     expect(terr).not.toMatch(/BF_ALLOWED_GEO/);
     expect(TERRITORY_ADMIN_ERRORS.bigFishNotConfigured).toMatch(/not configured/);
   });

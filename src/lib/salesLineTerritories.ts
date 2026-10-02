@@ -21,6 +21,7 @@ export const TERRITORY_ADMIN_ERRORS = {
 
 export const OGR_ALLOWED_GEO = ['bc', 'or', 'wa'] as const;
 export const EP_ALLOWED_GEO = ['or', 'wa', 'norcal'] as const;
+export const WYLD_ALLOWED_GEO = ['or', 'wa', 'norcal'] as const;
 export const ASSIGNABLE_SLT_STATUSES: readonly SalesLineTerritoryStatus[] = ['active'];
 
 export type TerritoryAdminLine = {
@@ -74,6 +75,7 @@ export function parseTerritoryAdminLineCode(
 export function allowedGeoCodesForLine(code: string): readonly string[] | null {
   if (code === 'ogr') return OGR_ALLOWED_GEO;
   if (code === 'eagle-peak') return EP_ALLOWED_GEO;
+  if (code === 'wyld-gear') return WYLD_ALLOWED_GEO;
   return null;
 }
 
@@ -104,10 +106,9 @@ export function assertTerritoryAdminWrite(line: {
   if (!canReadTerritoryAdmin(line)) {
     return { ok: false, status: 400, error: TERRITORY_ADMIN_ERRORS.lineNotAllowed };
   }
-  if (line.code === 'big-fish') {
-    return { ok: false, status: 403, error: TERRITORY_ADMIN_ERRORS.bigFishNotConfigured };
+  if (line.code === 'ogr' || line.code === 'eagle-peak' || line.code === 'wyld-gear') {
+    return { ok: true };
   }
-  if (line.code === 'ogr' || line.code === 'eagle-peak') return { ok: true };
   return { ok: false, status: 400, error: TERRITORY_ADMIN_ERRORS.lineNotAllowed };
 }
 

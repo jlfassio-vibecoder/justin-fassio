@@ -4,6 +4,7 @@ import { upsertAccountReorderSettings } from '@/lib/accountReorderSettings';
 import { recordConversionAttribution } from '@/lib/outreachAttribution';
 import { formatLocalIsoDate } from '@/lib/reorderCadence';
 import {
+  assertLineAllowsOperationalWrite,
   ensureRetailerLineAccount,
   fetchLineWriteMeta,
   fetchOperationalLineAccount,
@@ -101,18 +102,14 @@ export async function convertToActiveAccount(
     return { ok: false, error: prospectiveRefuse };
   }
   const isOgr = line.data.code === 'ogr';
-  if (line.data.code === 'eagle-peak' && !input.eaglePeakSellingEnabled) {
-    return { ok: false, error: 'Eagle Peak selling is not enabled' };
-  }
-  if (line.data.code === 'big-fish' && !input.bigFishSellingEnabled) {
-    return { ok: false, error: 'Big Fish selling is not enabled' };
-  }
-  if (line.data.code === 'big-fish') {
-    const currency =
-      typeof line.data.defaultCurrency === 'string' ? line.data.defaultCurrency.trim() : '';
-    if (!currency) {
-      return { ok: false, error: 'Big Fish selling is not configured' };
-    }
+  if (
+    assertLineAllowsOperationalWrite({
+      status: line.data.status,
+      catalogStatus: line.data.catalogStatus,
+      defaultCurrency: line.data.defaultCurrency,
+    }) !== 'allow'
+  ) {
+    return { ok: false, error: 'Operational writes are not allowed for this line' };
   }
   const nowIso = new Date().toISOString();
   const orderDate = input.initialOrder?.orderDate ?? todayIsoDate();
@@ -157,6 +154,7 @@ export async function convertToActiveAccount(
         writesEnabled: true,
         lineCode: line.data.code,
         lineStatus: line.data.status,
+        lineCatalogStatus: line.data.catalogStatus,
         lineDefaultCurrency: line.data.defaultCurrency,
         eaglePeakSellingEnabled: input.eaglePeakSellingEnabled,
         bigFishSellingEnabled: input.bigFishSellingEnabled,
@@ -248,6 +246,16 @@ export async function demoteToProspect(
   }
 
   if (existing.data && existing.data.relationshipStatus !== 'prospect') {
+    if (
+      assertLineAllowsOperationalWrite({
+        status: line.data.status,
+        catalogStatus: line.data.catalogStatus,
+        defaultCurrency: line.data.defaultCurrency,
+        code: line.data.code,
+      }) !== 'allow'
+    ) {
+      return { ok: false, error: 'Operational writes are not allowed for this line' };
+    }
     const rlaUpdate = await updateRetailerLineAccountStatus({
       lineAccountId: existing.data.id,
       relationshipStatus: 'prospect',

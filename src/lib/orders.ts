@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { resolveOgrLineId } from '@/lib/lines';
+import { assertLineAllowsOperationalWrite } from '@/lib/retailerLineAccounts';
 import { assertProspectiveOperationalWriteForbidden } from '@/lib/prospectiveLines';
 import type { ApparelSeason, Order, OrderInsert, OrderStatus, OrderType } from '@/types/database';
 
@@ -68,6 +69,7 @@ export type InsertOrderOptions = {
   writesEnabled?: boolean;
   lineCode?: string | null;
   lineStatus?: string | null;
+  lineCatalogStatus?: string | null;
   lineDefaultCurrency?: string | null;
   eaglePeakSellingEnabled?: boolean;
   bigFishSellingEnabled?: boolean;
@@ -213,39 +215,19 @@ export async function insertOrder(
         error: 'line_id and retailer_line_account_id are required',
       };
     }
-    if (options.lineCode === 'eagle-peak' && !options.eaglePeakSellingEnabled) {
-      return { data: null, error: 'Eagle Peak selling is not enabled' };
-    }
-    if (options.lineCode === 'big-fish' && !options.bigFishSellingEnabled) {
-      return { data: null, error: 'Big Fish selling is not enabled' };
-    }
     const lineDefaultCurrency =
       typeof options.lineDefaultCurrency === 'string' ? options.lineDefaultCurrency.trim() : '';
-    if (options.lineCode === 'big-fish' && !lineDefaultCurrency) {
-      return { data: null, error: 'Big Fish orders require default_currency to be configured' };
-    }
-    if (
-      options.lineCode === 'big-fish' &&
-      lineDefaultCurrency &&
-      lineDefaultCurrency !== 'USD' &&
-      lineDefaultCurrency !== 'CAD'
-    ) {
-      return {
-        data: null,
-        error: 'Big Fish orders require default_currency of USD or CAD',
-      };
+    const writeGate = assertLineAllowsOperationalWrite({
+      status: options.lineStatus ?? '',
+      catalogStatus: options.lineCatalogStatus,
+      defaultCurrency: lineDefaultCurrency,
+    });
+    if (writeGate !== 'allow') {
+      return { data: null, error: 'Operational writes are not allowed for this line' };
     }
 
     if (!payload.original_currency) {
-      if (options.lineCode === 'eagle-peak') {
-        payload.original_currency = 'USD';
-      } else if (options.lineCode === 'ogr') {
-        payload.original_currency = lineDefaultCurrency || 'USD';
-      } else if (options.lineCode === 'big-fish') {
-        payload.original_currency = lineDefaultCurrency;
-      } else {
-        payload.original_currency = lineDefaultCurrency || 'CAD';
-      }
+      payload.original_currency = lineDefaultCurrency || 'CAD';
     }
 
     const resolvedCurrency =
@@ -255,11 +237,11 @@ export async function insertOrder(
       return { data: null, error: 'Eagle Peak orders require original_currency = USD' };
     }
     if (
-      options.lineCode === 'big-fish' &&
+      options.lineCode === 'wyld-gear' &&
       lineDefaultCurrency === 'USD' &&
       resolvedCurrency !== 'USD'
     ) {
-      return { data: null, error: 'Big Fish USD orders require original_currency = USD' };
+      return { data: null, error: 'USD orders require original_currency = USD' };
     }
 
     if (resolvedCurrency === 'USD') {

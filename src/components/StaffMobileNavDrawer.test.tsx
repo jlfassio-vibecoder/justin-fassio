@@ -19,6 +19,7 @@ const lines: LinePortfolio[] = [
     heroImageUrl: null,
     publicShowroomPath: null,
     defaultCurrency: 'USD',
+    catalogStatus: 'active',
   },
   {
     id: 'line-lis',
@@ -33,6 +34,7 @@ const lines: LinePortfolio[] = [
     heroImageUrl: null,
     publicShowroomPath: null,
     defaultCurrency: 'USD',
+    catalogStatus: 'active',
   },
 ];
 

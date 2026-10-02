@@ -7,27 +7,33 @@ import {
 } from '@/lib/lissHammockProspectFit';
 
 describe('assertLineAllowsOperationalWrite — living-in-sunshine', () => {
-  it('rejects by default and allows when selling flag is on', () => {
+  it('allows writes only when the line and catalog are active', () => {
     expect(
-      assertLineAllowsOperationalWrite({ code: 'living-in-sunshine', status: 'onboarding' }),
-    ).toBe('ui_blocked');
+      assertLineAllowsOperationalWrite({
+        code: 'living-in-sunshine',
+        status: 'onboarding',
+        catalogStatus: 'active',
+        defaultCurrency: 'USD',
+      }),
+    ).toBe('reject');
     expect(
       assertLineAllowsOperationalWrite(
-        { code: 'living-in-sunshine', status: 'onboarding' },
-        { livingInSunshineSellingEnabled: true },
+        {
+          code: 'living-in-sunshine',
+          status: 'active',
+          catalogStatus: 'active',
+          defaultCurrency: 'USD',
+        },
+        { livingInSunshineSellingEnabled: false },
       ),
     ).toBe('allow');
     expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'living-in-sunshine', status: 'confirmed' },
-        { livingInSunshineSellingEnabled: true },
-      ),
-    ).toBe('allow');
-    expect(
-      assertLineAllowsOperationalWrite(
-        { code: 'living-in-sunshine', status: 'prospective' },
-        { livingInSunshineSellingEnabled: true },
-      ),
+      assertLineAllowsOperationalWrite({
+        code: 'living-in-sunshine',
+        status: 'prospective',
+        catalogStatus: 'active',
+        defaultCurrency: 'USD',
+      }),
     ).toBe('reject');
   });
 });
